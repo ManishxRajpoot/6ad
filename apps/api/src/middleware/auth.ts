@@ -1,6 +1,10 @@
 import { Context, Next } from 'hono'
 import jwt from 'jsonwebtoken'
-import { prisma, UserRole } from '@6ad/database'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
+
+type UserRole = 'ADMIN' | 'AGENT' | 'USER'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
 

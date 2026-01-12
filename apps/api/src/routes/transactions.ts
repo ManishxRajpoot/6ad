@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
-import { prisma, TransactionType } from '@6ad/database'
+import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
+
+const prisma = new PrismaClient()
 import { verifyToken, requireAgent, requireAdmin, requireUser } from '../middleware/auth.js'
 
 const transactions = new Hono()

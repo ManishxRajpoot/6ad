@@ -8,17 +8,19 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
-    "build": "turbo run build",
+    "build": "npm run db:generate && turbo run build",
+    "start": "node apps/api/dist/index.js",
     "lint": "turbo run lint",
     "dev:api": "npm run dev --workspace=apps/api",
     "dev:admin": "npm run dev --workspace=apps/admin",
     "dev:agency": "npm run dev --workspace=apps/agency",
     "dev:user": "npm run dev --workspace=apps/user",
-    "db:push": "npm run db:push --workspace=packages/database",
-    "db:studio": "npm run db:studio --workspace=packages/database"
+    "db:generate": "cd packages/database && npx prisma generate",
+    "db:push": "cd packages/database && npx prisma db push",
+    "db:studio": "cd packages/database && npx prisma studio",
+    "postinstall": "npm run db:generate"
   },
   "devDependencies": {
     "turbo": "^2.0.0"
-  },
-  "packageManager": "npm@10.0.0"
+  }
 }

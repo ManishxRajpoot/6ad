@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
 import bcrypt from 'bcryptjs'
-import { prisma } from '@6ad/database'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 import { z } from 'zod'
 import { verifyToken, requireAgent, requireAdmin } from '../middleware/auth.js'
 

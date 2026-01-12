@@ -1,6 +1,10 @@
 import { Hono } from 'hono'
-import { prisma, Platform } from '@6ad/database'
+import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
+
+const prisma = new PrismaClient()
+
+type Platform = 'FACEBOOK' | 'GOOGLE' | 'TIKTOK' | 'SNAPCHAT' | 'BING'
 import { verifyToken, requireAgent, requireAdmin, requireUser } from '../middleware/auth.js'
 
 const accounts = new Hono()
