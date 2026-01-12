@@ -16,7 +16,18 @@ const app = new Hono()
 // Middleware
 app.use('*', logger())
 app.use('*', cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'https://easy.6ad.in', 'https://agency.6ad.in', 'https://ads.6ad.in'],
+  origin: (origin) => {
+    // Allow all localhost origins for development
+    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return origin || '*'
+    }
+    // Allow production domains
+    const allowedOrigins = ['https://easy.6ad.in', 'https://agency.6ad.in', 'https://ads.6ad.in']
+    if (allowedOrigins.includes(origin)) {
+      return origin
+    }
+    return null
+  },
   credentials: true,
 }))
 
