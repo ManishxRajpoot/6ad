@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
@@ -15,16 +15,21 @@ type DashboardLayoutProps = {
 
 export function DashboardLayout({ children, title, subtitle }: DashboardLayoutProps) {
   const router = useRouter()
-  const { isAuthenticated, setAuth, logout } = useAuthStore()
-  const [loading, setLoading] = useState(true)
+  const { isAuthenticated, isHydrated, setAuth, logout } = useAuthStore()
 
   useEffect(() => {
+    // Wait for zustand to hydrate from localStorage
+    if (!isHydrated) return
+
     const checkAuth = async () => {
       const token = localStorage.getItem('token')
       if (!token) {
         router.push('/login')
         return
       }
+
+      // If already authenticated, skip the API call
+      if (isAuthenticated) return
 
       try {
         const { user } = await authApi.me()
@@ -37,15 +42,14 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
       } catch (error) {
         logout()
         router.push('/login')
-      } finally {
-        setLoading(false)
       }
     }
 
     checkAuth()
-  }, [router, setAuth, logout])
+  }, [isHydrated, isAuthenticated, router, setAuth, logout])
 
-  if (loading) {
+  // Show loading only during initial hydration
+  if (!isHydrated) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
