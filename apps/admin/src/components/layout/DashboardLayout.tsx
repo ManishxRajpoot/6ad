@@ -10,9 +10,10 @@ import { authApi } from '@/lib/api'
 type DashboardLayoutProps = {
   children: React.ReactNode
   title: string
+  subtitle?: string
 }
 
-export function DashboardLayout({ children, title }: DashboardLayoutProps) {
+export function DashboardLayout({ children, title, subtitle }: DashboardLayoutProps) {
   const router = useRouter()
   const { isAuthenticated, setAuth, logout } = useAuthStore()
   const [loading, setLoading] = useState(true)
@@ -59,8 +60,8 @@ export function DashboardLayout({ children, title }: DashboardLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className="ml-64">
-        <Header title={title} />
+      <div className="ml-[220px]">
+        <Header title={title} subtitle={subtitle} />
         <main className="p-6">{children}</main>
       </div>
     </div>
