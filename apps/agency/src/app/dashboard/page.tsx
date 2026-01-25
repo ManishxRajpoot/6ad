@@ -25,10 +25,10 @@ const platformData = [
 ]
 
 const recentUsers = [
-  { id: 1, name: 'John Doe', email: 'john@example.com', status: 'Active', balance: '₹45,000' },
-  { id: 2, name: 'Jane Smith', email: 'jane@example.com', status: 'Active', balance: '₹32,000' },
-  { id: 3, name: 'Mike Johnson', email: 'mike@example.com', status: 'Pending', balance: '₹18,500' },
-  { id: 4, name: 'Sarah Wilson', email: 'sarah@example.com', status: 'Active', balance: '₹67,200' },
+  { id: 1, name: 'John Doe', email: 'john@example.com', status: 'Active', balance: '$4,500' },
+  { id: 2, name: 'Jane Smith', email: 'jane@example.com', status: 'Active', balance: '$3,200' },
+  { id: 3, name: 'Mike Johnson', email: 'mike@example.com', status: 'Pending', balance: '$1,850' },
+  { id: 4, name: 'Sarah Wilson', email: 'sarah@example.com', status: 'Active', balance: '$6,720' },
 ]
 
 export default function DashboardPage() {
@@ -46,7 +46,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Total Balance"
-          value="₹4,52,000"
+          value="$45,200"
           change="+8.2% from last month"
           changeType="positive"
           icon={Wallet}
@@ -54,7 +54,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Total Deposits"
-          value="₹12,45,000"
+          value="$124,500"
           change="+15.3% this month"
           changeType="positive"
           icon={ArrowDownCircle}
@@ -62,7 +62,7 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Total Withdrawals"
-          value="₹8,23,000"
+          value="$82,300"
           change="+5.7% this month"
           changeType="neutral"
           icon={ArrowUpCircle}

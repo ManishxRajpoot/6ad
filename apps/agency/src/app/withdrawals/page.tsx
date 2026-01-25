@@ -59,7 +59,7 @@ export default function WithdrawalsPage() {
                 <tr key={withdrawal.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="py-4 px-4 font-mono text-sm text-gray-600">{withdrawal.id}</td>
                   <td className="py-4 px-4 font-medium text-gray-900">{withdrawal.user}</td>
-                  <td className="py-4 px-4 font-medium text-red-600">-₹{withdrawal.amount.toLocaleString()}</td>
+                  <td className="py-4 px-4 font-medium text-red-600">-${withdrawal.amount.toLocaleString()}</td>
                   <td className="py-4 px-4 text-gray-600">{withdrawal.method}</td>
                   <td className="py-4 px-4">{getStatusBadge(withdrawal.status)}</td>
                   <td className="py-4 px-4 text-gray-500">{withdrawal.date}</td>

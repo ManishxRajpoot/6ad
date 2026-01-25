@@ -9,14 +9,22 @@ import { Badge } from '@/components/ui/Badge'
 import { AlertCircle } from 'lucide-react'
 
 const withdrawals = [
-  { id: 'WTH001', amount: 25000, method: 'Bank Transfer', status: 'COMPLETED', date: '2024-01-15' },
-  { id: 'WTH002', amount: 20000, method: 'UPI', status: 'PENDING', date: '2024-01-12' },
-  { id: 'WTH003', amount: 15000, method: 'Bank Transfer', status: 'REJECTED', date: '2024-01-08' },
+  { id: 'WTH001', amount: 2500, method: 'USDT (TRC20)', status: 'COMPLETED', date: '2024-01-15' },
+  { id: 'WTH002', amount: 2000, method: 'Bitcoin', status: 'PENDING', date: '2024-01-12' },
+  { id: 'WTH003', amount: 1500, method: 'USDT (TRC20)', status: 'REJECTED', date: '2024-01-08' },
+]
+
+const cryptoOptions = [
+  { id: 'usdt-trc20', name: 'USDT (TRC20)', network: 'Tron Network', icon: '💵' },
+  { id: 'usdt-erc20', name: 'USDT (ERC20)', network: 'Ethereum Network', icon: '💵' },
+  { id: 'btc', name: 'Bitcoin', network: 'Bitcoin Network', icon: '₿' },
+  { id: 'eth', name: 'Ethereum', network: 'Ethereum Network', icon: 'Ξ' },
 ]
 
 export default function WithdrawalsPage() {
   const [amount, setAmount] = useState('')
-  const balance = 43000 // Mock balance
+  const [selectedCrypto, setSelectedCrypto] = useState(cryptoOptions[0])
+  const balance = 4300 // Mock balance in USD
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -32,7 +40,7 @@ export default function WithdrawalsPage() {
   }
 
   return (
-    <DashboardLayout title="Withdrawals" subtitle="Withdraw funds from your wallet">
+    <DashboardLayout title="Withdrawals" subtitle="Withdraw funds to your crypto wallet">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Withdrawal Form */}
         <Card className="lg:col-span-2 p-6">
@@ -43,19 +51,19 @@ export default function WithdrawalsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Available Balance</p>
-                <p className="text-2xl font-bold text-gray-900">₹{balance.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-gray-900">${balance.toLocaleString()}</p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500">Minimum Withdrawal</p>
-                <p className="text-lg font-semibold text-gray-900">₹5,000</p>
+                <p className="text-lg font-semibold text-gray-900">$50</p>
               </div>
             </div>
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Amount (USD)</label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">$</span>
               <input
                 type="number"
                 placeholder="Enter amount"
@@ -65,13 +73,13 @@ export default function WithdrawalsPage() {
               />
             </div>
             <div className="flex gap-2 mt-3">
-              {[5000, 10000, 25000].map((amt) => (
+              {[100, 500, 1000].map((amt) => (
                 <button
                   key={amt}
                   onClick={() => setAmount(amt.toString())}
                   className="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
                 >
-                  ₹{amt.toLocaleString()}
+                  ${amt.toLocaleString()}
                 </button>
               ))}
               <button
@@ -84,13 +92,36 @@ export default function WithdrawalsPage() {
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Bank Details</label>
-            <div className="space-y-4">
-              <Input label="Account Holder Name" placeholder="Enter name as per bank" />
-              <Input label="Account Number" placeholder="Enter account number" />
-              <Input label="IFSC Code" placeholder="Enter IFSC code" />
-              <Input label="Bank Name" placeholder="Enter bank name" />
+            <label className="block text-sm font-medium text-gray-700 mb-2">Select Cryptocurrency</label>
+            <div className="grid grid-cols-2 gap-3">
+              {cryptoOptions.map((crypto) => (
+                <button
+                  key={crypto.id}
+                  onClick={() => setSelectedCrypto(crypto)}
+                  className={`p-4 border rounded-lg text-left transition-colors ${
+                    selectedCrypto.id === crypto.id
+                      ? 'border-primary-500 bg-primary-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{crypto.icon}</span>
+                    <div>
+                      <p className="font-medium text-gray-900">{crypto.name}</p>
+                      <p className="text-xs text-gray-500">{crypto.network}</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Your {selectedCrypto.name} Wallet Address
+            </label>
+            <Input placeholder={`Enter your ${selectedCrypto.name} wallet address`} />
+            <p className="text-sm text-gray-500 mt-1">Make sure you enter the correct address on the {selectedCrypto.network}</p>
           </div>
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
@@ -98,12 +129,12 @@ export default function WithdrawalsPage() {
               <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
               <div>
                 <p className="text-sm font-medium text-yellow-800">Important</p>
-                <p className="text-sm text-yellow-700">Withdrawals are processed within 24-48 hours. Ensure bank details are correct.</p>
+                <p className="text-sm text-yellow-700">Double-check your wallet address. Crypto transactions cannot be reversed.</p>
               </div>
             </div>
           </div>
 
-          <Button className="w-full" disabled={!amount || parseInt(amount) < 5000 || parseInt(amount) > balance}>
+          <Button className="w-full" disabled={!amount || parseInt(amount) < 50 || parseInt(amount) > balance}>
             Request Withdrawal
           </Button>
         </Card>
@@ -114,20 +145,23 @@ export default function WithdrawalsPage() {
           <div className="space-y-4">
             <div className="flex justify-between py-3 border-b border-gray-100">
               <span className="text-gray-500">Processing Time</span>
-              <span className="font-medium">24-48 hours</span>
+              <span className="font-medium">1-24 hours</span>
             </div>
             <div className="flex justify-between py-3 border-b border-gray-100">
               <span className="text-gray-500">Minimum Amount</span>
-              <span className="font-medium">₹5,000</span>
+              <span className="font-medium">$50</span>
             </div>
             <div className="flex justify-between py-3 border-b border-gray-100">
               <span className="text-gray-500">Maximum Amount</span>
-              <span className="font-medium">₹5,00,000</span>
+              <span className="font-medium">$50,000</span>
             </div>
             <div className="flex justify-between py-3">
-              <span className="text-gray-500">Processing Fee</span>
-              <span className="font-medium text-green-600">Free</span>
+              <span className="text-gray-500">Network Fee</span>
+              <span className="font-medium text-gray-600">Varies by network</span>
             </div>
+          </div>
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-700"><strong>Tip:</strong> USDT (TRC20) has the lowest network fees.</p>
           </div>
         </Card>
       </div>
@@ -150,7 +184,7 @@ export default function WithdrawalsPage() {
               {withdrawals.map((withdrawal) => (
                 <tr key={withdrawal.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="py-4 px-4 font-mono text-sm text-gray-600">{withdrawal.id}</td>
-                  <td className="py-4 px-4 font-medium text-gray-900">₹{withdrawal.amount.toLocaleString()}</td>
+                  <td className="py-4 px-4 font-medium text-gray-900">${withdrawal.amount.toLocaleString()}</td>
                   <td className="py-4 px-4 text-gray-600">{withdrawal.method}</td>
                   <td className="py-4 px-4">{getStatusBadge(withdrawal.status)}</td>
                   <td className="py-4 px-4 text-gray-500">{withdrawal.date}</td>

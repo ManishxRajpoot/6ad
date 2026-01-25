@@ -49,7 +49,11 @@ auth.post('/login', async (c) => {
 
     // Check if blocked
     if (user.status === 'BLOCKED') {
-      return c.json({ error: 'Your account has been blocked' }, 403)
+      return c.json({
+        error: 'Account Blocked',
+        message: 'Your account has been blocked by the administrator. Please contact the main headquarters for assistance.',
+        blocked: true
+      }, 403)
     }
 
     // Get modules for this role
@@ -153,6 +157,7 @@ auth.get('/me', verifyToken, async (c) => {
         status: true,
         walletBalance: true,
         openingFee: true,
+        couponBalance: true,
         fbFee: true,
         fbCommission: true,
         googleFee: true,
@@ -165,8 +170,10 @@ auth.get('/me', verifyToken, async (c) => {
         bingCommission: true,
         twoFactorEnabled: true,
         agentId: true,
+        brandLogo: true,
+        brandName: true,
         agent: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true, brandLogo: true, brandName: true }
         },
         createdAt: true,
         updatedAt: true,

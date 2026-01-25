@@ -37,7 +37,12 @@ export default function LoginPage() {
       }
       router.push('/dashboard')
     } catch (err: any) {
-      setError(err.message || (isLogin ? 'Login failed' : 'Registration failed'))
+      // Check if this is a blocked account error
+      if (err.response?.data?.blocked) {
+        setError(err.response.data.message || 'Your account has been blocked by the administrator. Please contact the main headquarters for assistance.')
+      } else {
+        setError(err.message || (isLogin ? 'Login failed' : 'Registration failed'))
+      }
     } finally {
       setLoading(false)
     }

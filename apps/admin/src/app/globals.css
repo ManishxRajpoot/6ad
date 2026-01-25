@@ -25,3 +25,71 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1a1;
 }
+
+/* Action Menu Animations */
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Menu hover effects */
+.action-menu-container .menu-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.action-menu-container .menu-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 3px;
+  background: linear-gradient(to bottom, #52B788, #40916c);
+  transform: scaleY(0);
+  transition: transform 0.2s ease;
+}
+
+.action-menu-container .menu-item:hover::before {
+  transform: scaleY(1);
+}
+
+/* Pulse animation for pending items */
+@keyframes pulse-green {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(82, 183, 136, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(82, 183, 136, 0);
+  }
+}
+
+.pulse-animation {
+  animation: pulse-green 2s infinite;
+}

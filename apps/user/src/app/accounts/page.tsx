@@ -88,11 +88,11 @@ export default function AccountsPage() {
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Balance</p>
-                  <p className="text-lg font-semibold text-gray-900">₹{account.balance.toLocaleString()}</p>
+                  <p className="text-lg font-semibold text-gray-900">${account.balance.toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Total Spend</p>
-                  <p className="text-lg font-semibold text-gray-900">₹{account.spend.toLocaleString()}</p>
+                  <p className="text-lg font-semibold text-gray-900">${account.spend.toLocaleString()}</p>
                 </div>
               </div>
             </div>

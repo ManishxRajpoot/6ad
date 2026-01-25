@@ -12,7 +12,7 @@ transactions.use('*', verifyToken)
 // ============= DEPOSITS =============
 
 // GET /transactions/deposits - List deposits
-transactions.get('/deposits', requireAgent, async (c) => {
+transactions.get('/deposits', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
@@ -64,22 +64,36 @@ transactions.get('/deposits', requireAgent, async (c) => {
   }
 })
 
+// Generate Apply ID in format: WD{YYYYMMDD}{7-digit random}
+const generateApplyId = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const random = Math.floor(1000000 + Math.random() * 9000000) // 7-digit random
+  return `WD${year}${month}${day}${random}`
+}
+
 // POST /transactions/deposits - Create deposit request
 transactions.post('/deposits', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
-    const { amount, paymentMethod, transactionId, remarks } = await c.req.json()
+    const { amount, paymentMethod, transactionId, remarks, paymentProof } = await c.req.json()
 
     if (!amount || amount <= 0) {
       return c.json({ error: 'Invalid amount' }, 400)
     }
 
+    const applyId = generateApplyId()
+
     const deposit = await prisma.deposit.create({
       data: {
+        applyId,
         amount,
         paymentMethod,
         transactionId,
         remarks,
+        paymentProof,
         userId,
       }
     })
@@ -187,6 +201,136 @@ transactions.post('/deposits/:id/reject', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Reject deposit error:', error)
     return c.json({ error: 'Failed to reject deposit' }, 500)
+  }
+})
+
+// PATCH /transactions/deposits/:id - Update deposit amount or date (Admin only)
+transactions.patch('/deposits/:id', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+    const { amount, createdAt } = await c.req.json()
+
+    const deposit = await prisma.deposit.findUnique({ where: { id } })
+
+    if (!deposit) {
+      return c.json({ error: 'Deposit not found' }, 404)
+    }
+
+    if (deposit.status !== 'PENDING') {
+      return c.json({ error: 'Cannot edit processed deposit' }, 400)
+    }
+
+    const updateData: any = {}
+    if (amount !== undefined) {
+      updateData.amount = amount
+    }
+    if (createdAt !== undefined) {
+      updateData.createdAt = new Date(createdAt)
+    }
+
+    const updatedDeposit = await prisma.deposit.update({
+      where: { id },
+      data: updateData,
+      include: {
+        user: {
+          select: { id: true, username: true, email: true, uniqueId: true }
+        }
+      }
+    })
+
+    return c.json({ message: 'Deposit updated successfully', deposit: updatedDeposit })
+  } catch (error) {
+    console.error('Update deposit error:', error)
+    return c.json({ error: 'Failed to update deposit' }, 500)
+  }
+})
+
+// POST /transactions/deposits/bulk-approve - Bulk approve deposits (Admin only)
+transactions.post('/deposits/bulk-approve', requireAdmin, async (c) => {
+  try {
+    const { ids } = await c.req.json()
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return c.json({ error: 'No deposits selected' }, 400)
+    }
+
+    const deposits = await prisma.deposit.findMany({
+      where: { id: { in: ids }, status: 'PENDING' },
+      include: { user: true }
+    })
+
+    if (deposits.length === 0) {
+      return c.json({ error: 'No pending deposits found' }, 400)
+    }
+
+    // Process each deposit in a transaction
+    await prisma.$transaction(async (tx) => {
+      for (const deposit of deposits) {
+        // Update deposit status
+        await tx.deposit.update({
+          where: { id: deposit.id },
+          data: {
+            status: 'APPROVED',
+            approvedAt: new Date()
+          }
+        })
+
+        // Get current balance
+        const user = await tx.user.findUnique({ where: { id: deposit.userId } })
+        const balanceBefore = user!.walletBalance
+        const balanceAfter = balanceBefore.add(deposit.amount)
+
+        // Update wallet
+        await tx.user.update({
+          where: { id: deposit.userId },
+          data: { walletBalance: balanceAfter }
+        })
+
+        // Create wallet flow record
+        await tx.walletFlow.create({
+          data: {
+            type: 'DEPOSIT',
+            amount: deposit.amount,
+            balanceBefore,
+            balanceAfter,
+            referenceId: deposit.id,
+            referenceType: 'deposit',
+            userId: deposit.userId,
+            description: 'Deposit approved (bulk)'
+          }
+        })
+      }
+    })
+
+    return c.json({ message: `${deposits.length} deposits approved successfully`, count: deposits.length })
+  } catch (error) {
+    console.error('Bulk approve deposits error:', error)
+    return c.json({ error: 'Failed to bulk approve deposits' }, 500)
+  }
+})
+
+// POST /transactions/deposits/bulk-reject - Bulk reject deposits (Admin only)
+transactions.post('/deposits/bulk-reject', requireAdmin, async (c) => {
+  try {
+    const { ids, reason } = await c.req.json()
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return c.json({ error: 'No deposits selected' }, 400)
+    }
+
+    const result = await prisma.deposit.updateMany({
+      where: { id: { in: ids }, status: 'PENDING' },
+      data: {
+        status: 'REJECTED',
+        adminRemarks: reason || 'Rejected (bulk)',
+        rejectedAt: new Date()
+      }
+    })
+
+    return c.json({ message: `${result.count} deposits rejected`, count: result.count })
+  } catch (error) {
+    console.error('Bulk reject deposits error:', error)
+    return c.json({ error: 'Failed to bulk reject deposits' }, 500)
   }
 })
 
@@ -604,6 +748,264 @@ transactions.post('/add-credit', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Add credit error:', error)
     return c.json({ error: 'Failed to add credit' }, 500)
+  }
+})
+
+// ============= PAY LINK REQUESTS =============
+
+// Generate Pay Link Apply ID in format: PL{YYYYMMDD}{7-digit random}
+const generatePayLinkApplyId = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const random = Math.floor(1000000 + Math.random() * 9000000) // 7-digit random
+  return `PL${year}${month}${day}${random}`
+}
+
+// GET /transactions/pay-link-requests - Get all pay link requests (Admin) or user's own requests (User)
+transactions.get('/pay-link-requests', requireUser, async (c) => {
+  try {
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+    const { status, page = '1', limit = '20' } = c.req.query()
+
+    const where: any = {}
+
+    // Users can only see their own requests
+    if (userRole === 'USER') {
+      where.userId = userId
+    } else if (userRole === 'AGENT') {
+      // Agents can see requests from their users
+      where.user = { agentId: userId }
+    }
+    // Admin sees all
+
+    if (status) {
+      where.status = status.toUpperCase()
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    const [requests, total] = await Promise.all([
+      prisma.payLinkRequest.findMany({
+        where,
+        include: {
+          user: {
+            select: { id: true, username: true, email: true, uniqueId: true }
+          }
+        },
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.payLinkRequest.count({ where })
+    ])
+
+    return c.json({
+      payLinkRequests: requests,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    })
+  } catch (error) {
+    console.error('Get pay link requests error:', error)
+    return c.json({ error: 'Failed to get pay link requests' }, 500)
+  }
+})
+
+// POST /transactions/pay-link-requests - Create pay link request (User)
+transactions.post('/pay-link-requests', requireUser, async (c) => {
+  try {
+    const userId = c.get('userId')
+    const { type, fullName, email, country, amount, companyName, website } = await c.req.json()
+
+    if (!type || !fullName || !email || !country || !amount || amount <= 0) {
+      return c.json({ error: 'Missing required fields' }, 400)
+    }
+
+    // Validate type
+    if (!['INDIVIDUAL', 'COMPANY'].includes(type)) {
+      return c.json({ error: 'Invalid type. Must be INDIVIDUAL or COMPANY' }, 400)
+    }
+
+    // For company type, require company name
+    if (type === 'COMPANY' && !companyName) {
+      return c.json({ error: 'Company name is required for company type' }, 400)
+    }
+
+    const applyId = generatePayLinkApplyId()
+
+    const request = await prisma.payLinkRequest.create({
+      data: {
+        applyId,
+        type,
+        fullName,
+        email,
+        country,
+        amount,
+        companyName: type === 'COMPANY' ? companyName : null,
+        website: type === 'COMPANY' ? website : null,
+        userId,
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, email: true, uniqueId: true }
+        }
+      }
+    })
+
+    return c.json({ message: 'Pay link request created', payLinkRequest: request }, 201)
+  } catch (error) {
+    console.error('Create pay link request error:', error)
+    return c.json({ error: 'Failed to create pay link request' }, 500)
+  }
+})
+
+// POST /transactions/pay-link-requests/:id/create-link - Admin creates pay link
+transactions.post('/pay-link-requests/:id/create-link', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+    const { payLink, adminRemarks } = await c.req.json()
+
+    if (!payLink) {
+      return c.json({ error: 'Pay link URL is required' }, 400)
+    }
+
+    const request = await prisma.payLinkRequest.findUnique({ where: { id } })
+
+    if (!request) {
+      return c.json({ error: 'Pay link request not found' }, 404)
+    }
+
+    if (request.status !== 'PENDING') {
+      return c.json({ error: 'Request already processed' }, 400)
+    }
+
+    const updatedRequest = await prisma.payLinkRequest.update({
+      where: { id },
+      data: {
+        payLink,
+        status: 'LINK_CREATED',
+        adminRemarks
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, email: true, uniqueId: true }
+        }
+      }
+    })
+
+    return c.json({ message: 'Pay link created successfully', payLinkRequest: updatedRequest })
+  } catch (error) {
+    console.error('Create pay link error:', error)
+    return c.json({ error: 'Failed to create pay link' }, 500)
+  }
+})
+
+// POST /transactions/pay-link-requests/:id/reject - Admin rejects request
+transactions.post('/pay-link-requests/:id/reject', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+    const { adminRemarks } = await c.req.json()
+
+    const request = await prisma.payLinkRequest.findUnique({ where: { id } })
+
+    if (!request) {
+      return c.json({ error: 'Pay link request not found' }, 404)
+    }
+
+    if (request.status !== 'PENDING') {
+      return c.json({ error: 'Request already processed' }, 400)
+    }
+
+    await prisma.payLinkRequest.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        adminRemarks
+      }
+    })
+
+    return c.json({ message: 'Pay link request rejected' })
+  } catch (error) {
+    console.error('Reject pay link request error:', error)
+    return c.json({ error: 'Failed to reject pay link request' }, 500)
+  }
+})
+
+// POST /transactions/pay-link-requests/:id/complete - Mark as completed (Admin)
+transactions.post('/pay-link-requests/:id/complete', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+
+    const request = await prisma.payLinkRequest.findUnique({ where: { id } })
+
+    if (!request) {
+      return c.json({ error: 'Pay link request not found' }, 404)
+    }
+
+    if (request.status !== 'LINK_CREATED') {
+      return c.json({ error: 'Request must have link created first' }, 400)
+    }
+
+    await prisma.payLinkRequest.update({
+      where: { id },
+      data: { status: 'COMPLETED' }
+    })
+
+    return c.json({ message: 'Pay link request completed' })
+  } catch (error) {
+    console.error('Complete pay link request error:', error)
+    return c.json({ error: 'Failed to complete pay link request' }, 500)
+  }
+})
+
+// ============= GLOBAL SETTINGS =============
+
+// GET /transactions/settings/pay-link - Get pay link setting
+transactions.get('/settings/pay-link', requireUser, async (c) => {
+  try {
+    let settings = await prisma.globalSettings.findUnique({
+      where: { id: 'global' }
+    })
+
+    // Create default settings if not exists
+    if (!settings) {
+      settings = await prisma.globalSettings.create({
+        data: { id: 'global', payLinkEnabled: true }
+      })
+    }
+
+    return c.json({ payLinkEnabled: settings.payLinkEnabled })
+  } catch (error) {
+    console.error('Get pay link setting error:', error)
+    return c.json({ error: 'Failed to get pay link setting' }, 500)
+  }
+})
+
+// POST /transactions/settings/pay-link - Toggle pay link setting (Admin only)
+transactions.post('/settings/pay-link', requireAdmin, async (c) => {
+  try {
+    const { enabled } = await c.req.json()
+
+    if (typeof enabled !== 'boolean') {
+      return c.json({ error: 'Invalid value for enabled' }, 400)
+    }
+
+    const settings = await prisma.globalSettings.upsert({
+      where: { id: 'global' },
+      update: { payLinkEnabled: enabled },
+      create: { id: 'global', payLinkEnabled: enabled }
+    })
+
+    return c.json({ message: `Pay link ${enabled ? 'enabled' : 'disabled'}`, payLinkEnabled: settings.payLinkEnabled })
+  } catch (error) {
+    console.error('Toggle pay link setting error:', error)
+    return c.json({ error: 'Failed to toggle pay link setting' }, 500)
   }
 })
 

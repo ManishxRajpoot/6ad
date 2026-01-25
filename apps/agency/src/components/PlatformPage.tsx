@@ -53,13 +53,13 @@ export function PlatformPage({ platform, platformColor }: PlatformPageProps) {
         />
         <StatCard
           title="Total Balance"
-          value="₹4,52,000"
+          value="$4,52,000"
           icon={DollarSign}
           iconBgColor="bg-green-100"
         />
         <StatCard
           title="Monthly Spend"
-          value="₹2,89,000"
+          value="$2,89,000"
           icon={TrendingUp}
           iconBgColor="bg-purple-100"
         />
@@ -114,8 +114,8 @@ export function PlatformPage({ platform, platformColor }: PlatformPageProps) {
                   </td>
                   <td className="py-4 px-4 text-gray-600">{account.user}</td>
                   <td className="py-4 px-4">{getStatusBadge(account.status)}</td>
-                  <td className="py-4 px-4 font-medium text-gray-900">₹{account.balance.toLocaleString()}</td>
-                  <td className="py-4 px-4 text-gray-600">₹{account.spend.toLocaleString()}</td>
+                  <td className="py-4 px-4 font-medium text-gray-900">${account.balance.toLocaleString()}</td>
+                  <td className="py-4 px-4 text-gray-600">${account.spend.toLocaleString()}</td>
                   <td className="py-4 px-4">
                     <div className="flex justify-end">
                       <button className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">

@@ -32,17 +32,17 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/50 animate-fade-in"
         onClick={onClose}
       />
 
       {/* Modal */}
       <div
         className={cn(
-          'relative z-10 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl',
+          'relative z-10 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl animate-scale-in',
           className
         )}
       >
@@ -51,7 +51,7 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-all duration-200 hover:bg-gray-100 hover:text-gray-600 hover:rotate-90 active:scale-90"
           >
             <X className="h-5 w-5" />
           </button>

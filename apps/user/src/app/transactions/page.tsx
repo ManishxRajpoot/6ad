@@ -117,7 +117,7 @@ export default function TransactionsPage() {
                 </div>
                 <div className="text-right min-w-[120px]">
                   <p className={`text-lg font-semibold ${txn.amount > 0 ? 'text-green-600' : 'text-gray-900'}`}>
-                    {txn.amount > 0 ? '+' : ''}₹{Math.abs(txn.amount).toLocaleString()}
+                    {txn.amount > 0 ? '+' : ''}${Math.abs(txn.amount).toLocaleString()}
                   </p>
                   {getStatusBadge(txn.status)}
                 </div>

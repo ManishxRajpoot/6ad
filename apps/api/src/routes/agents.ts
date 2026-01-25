@@ -108,6 +108,42 @@ agents.get('/', requireAdmin, async (c) => {
   }
 })
 
+// PATCH /agents/branding - Update own branding (Agent only)
+// NOTE: This route MUST be before /:id routes to avoid being matched as an ID
+agents.patch('/branding', async (c) => {
+  try {
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+
+    // Only agents can update their branding
+    if (userRole !== 'AGENT') {
+      return c.json({ error: 'Only agents can update branding' }, 403)
+    }
+
+    const body = await c.req.json()
+    const { brandLogo, brandName } = body
+
+    const agent = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        brandLogo: brandLogo || null,
+        brandName: brandName || null,
+      },
+      select: {
+        id: true,
+        brandLogo: true,
+        brandName: true,
+        updatedAt: true,
+      }
+    })
+
+    return c.json({ message: 'Branding updated successfully', agent })
+  } catch (error) {
+    console.error('Update branding error:', error)
+    return c.json({ error: 'Failed to update branding' }, 500)
+  }
+})
+
 // GET /agents/:id - Get single agent
 agents.get('/:id', requireAdmin, async (c) => {
   try {

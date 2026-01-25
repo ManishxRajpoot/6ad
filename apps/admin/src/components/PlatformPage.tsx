@@ -273,10 +273,9 @@ export function PlatformPage({ platform, title }: PlatformPageProps) {
             required
           />
           <Select
-            id="userId"
             label="Assign to User"
             value={formData.userId}
-            onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+            onChange={(value) => setFormData({ ...formData, userId: value })}
             options={users.map((user) => ({
               value: user.id,
               label: user.username,
@@ -292,22 +291,19 @@ export function PlatformPage({ platform, title }: PlatformPageProps) {
             required
           />
           <Select
-            id="currency"
             label="Currency"
             value={formData.currency}
-            onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+            onChange={(value) => setFormData({ ...formData, currency: value })}
             options={[
               { value: 'USD', label: 'USD - US Dollar' },
               { value: 'EUR', label: 'EUR - Euro' },
               { value: 'GBP', label: 'GBP - British Pound' },
-              { value: 'INR', label: 'INR - Indian Rupee' },
             ]}
           />
           <Select
-            id="status"
             label="Status"
             value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+            onChange={(value) => setFormData({ ...formData, status: value })}
             options={[
               { value: 'ACTIVE', label: 'Active' },
               { value: 'PENDING', label: 'Pending' },

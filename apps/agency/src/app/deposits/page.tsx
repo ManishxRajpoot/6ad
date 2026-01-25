@@ -67,7 +67,7 @@ export default function DepositsPage() {
                 <tr key={deposit.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="py-4 px-4 font-mono text-sm text-gray-600">{deposit.id}</td>
                   <td className="py-4 px-4 font-medium text-gray-900">{deposit.user}</td>
-                  <td className="py-4 px-4 font-medium text-green-600">+₹{deposit.amount.toLocaleString()}</td>
+                  <td className="py-4 px-4 font-medium text-green-600">+${deposit.amount.toLocaleString()}</td>
                   <td className="py-4 px-4 text-gray-600">{deposit.method}</td>
                   <td className="py-4 px-4">{getStatusBadge(deposit.status)}</td>
                   <td className="py-4 px-4 text-gray-500">{deposit.date}</td>

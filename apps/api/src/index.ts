@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
@@ -8,8 +9,11 @@ import agentRoutes from './routes/agents.js'
 import userRoutes from './routes/users.js'
 import transactionRoutes from './routes/transactions.js'
 import accountRoutes from './routes/accounts.js'
+import applicationRoutes from './routes/applications.js'
 import dashboardRoutes from './routes/dashboard.js'
 import settingsRoutes from './routes/settings.js'
+import paymentMethodRoutes from './routes/payment-methods.js'
+import bmShareRoutes from './routes/bm-share.js'
 
 const app = new Hono()
 
@@ -41,8 +45,11 @@ app.route('/agents', agentRoutes)
 app.route('/users', userRoutes)
 app.route('/transactions', transactionRoutes)
 app.route('/accounts', accountRoutes)
+app.route('/applications', applicationRoutes)
 app.route('/dashboard', dashboardRoutes)
 app.route('/settings', settingsRoutes)
+app.route('/payment-methods', paymentMethodRoutes)
+app.route('/bm-share', bmShareRoutes)
 
 // Start server
 const port = Number(process.env.PORT) || 5001

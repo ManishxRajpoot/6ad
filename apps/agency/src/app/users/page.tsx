@@ -90,7 +90,7 @@ export default function UsersPage() {
                   </td>
                   <td className="py-4 px-4 text-gray-600">{user.phone}</td>
                   <td className="py-4 px-4">{getStatusBadge(user.status)}</td>
-                  <td className="py-4 px-4 font-medium text-gray-900">₹{user.balance.toLocaleString()}</td>
+                  <td className="py-4 px-4 font-medium text-gray-900">${user.balance.toLocaleString()}</td>
                   <td className="py-4 px-4 text-gray-500">{user.createdAt}</td>
                   <td className="py-4 px-4">
                     <div className="flex items-center justify-end gap-2">

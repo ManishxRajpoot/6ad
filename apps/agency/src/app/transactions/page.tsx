@@ -111,7 +111,7 @@ export default function TransactionsPage() {
                     </div>
                   </td>
                   <td className="py-4 px-4">{getTypeBadge(txn.type)}</td>
-                  <td className="py-4 px-4 font-medium text-gray-900">₹{txn.amount.toLocaleString()}</td>
+                  <td className="py-4 px-4 font-medium text-gray-900">${txn.amount.toLocaleString()}</td>
                   <td className="py-4 px-4">{getStatusBadge(txn.status)}</td>
                   <td className="py-4 px-4 text-gray-500">{txn.date}</td>
                 </tr>

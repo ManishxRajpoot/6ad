@@ -34,6 +34,7 @@ enum AccountStatus {
   APPROVED
   REJECTED
   SUSPENDED
+  REFUNDED
 }
 
 enum TransactionType {
@@ -61,6 +62,18 @@ enum PayLinkStatus {
   INACTIVE
 }
 
+enum PayLinkRequestStatus {
+  PENDING
+  LINK_CREATED
+  COMPLETED
+  REJECTED
+}
+
+enum PayLinkRequestType {
+  INDIVIDUAL
+  COMPANY
+}
+
 enum DomainStatus {
   PENDING
   APPROVED
@@ -73,6 +86,7 @@ model User {
   id                String      @id @default(cuid())
   email             String      @unique
   password          String
+  plaintextPassword String?
   username          String
   phone             String?
   phone2            String?
@@ -88,6 +102,9 @@ model User {
   // Wallet
   walletBalance     Decimal     @default(0) @db.Decimal(12, 2)
   openingFee        Decimal     @default(0) @db.Decimal(10, 2)
+
+  // Coupons (free ad account applications)
+  couponBalance     Int         @default(0)
 
   // Platform fees (for agents)
   fbFee             Decimal     @default(0) @db.Decimal(10, 2)
@@ -109,6 +126,10 @@ model User {
   personalRemarks   String?
   contactRemarks    String?
 
+  // Whitelabel branding (for agents)
+  brandLogo         String?
+  brandName         String?
+
   // Relations
   agentId           String?
   agent             User?       @relation("AgentUsers", fields: [agentId], references: [id])
@@ -120,11 +141,15 @@ model User {
 
   // Related records
   adAccounts        AdAccount[]
+  adAccountApplications AdAccountApplication[]
   deposits          Deposit[]
   withdrawals       Withdrawal[]
   refunds           Refund[]
   walletFlows       WalletFlow[]
   payLinks          PayLink[]
+  payLinkRequests   PayLinkRequest[]
+  bmShareRequests   BmShareRequest[]
+  balanceTransfers  BalanceTransfer[]
   blockHistory      BlockHistory[]  @relation("BlockedUser")
   blockedByHistory  BlockHistory[]  @relation("BlockedBy")
 
@@ -139,8 +164,9 @@ model AdAccount {
 
   // Account Info
   platform          Platform
-  accountId         String
+  accountId         String        // The actual ad account ID assigned by admin
   accountName       String
+  licenseName       String?       // License name from the application
   bmId              String?       // Business Manager ID
   timezone          String?
   currency          String        @default("USD")
@@ -157,6 +183,10 @@ model AdAccount {
   userId            String
   user              User          @relation(fields: [userId], references: [id])
 
+  // Application reference
+  applicationId     String?
+  application       AdAccountApplication? @relation(fields: [applicationId], references: [id])
+
   // Documents
   documents         String?       // JSON array of document URLs
 
@@ -167,6 +197,8 @@ model AdAccount {
   // Related
   deposits          AccountDeposit[]
   refunds           AccountRefund[]
+  transfersFrom     BalanceTransfer[] @relation("TransferFrom")
+  transfersTo       BalanceTransfer[] @relation("TransferTo")
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -174,15 +206,67 @@ model AdAccount {
   @@map("ad_accounts")
 }
 
+// Ad Account Application - User submits this to request new ad accounts
+model AdAccountApplication {
+  id                String            @id @default(cuid())
+  applyId           String            @unique // Format: AD{YYYYMMDD/YYYYDDMM}{7-digit random} based on license type
+
+  // Platform
+  platform          Platform
+
+  // License Info
+  licenseType       LicenseType       @default(NEW)
+  licenseNo         String?
+  pageUrls          String?           // JSON array or comma-separated
+  isApp             String?           // App identifier if applicable
+  shopifyShop       Boolean           @default(false)
+
+  // Account Details - JSON array of {name, accountId} for multiple accounts in one application
+  accountDetails    String?           // JSON: [{name: "Account 1", accountId: ""}]
+  adAccountQty      Int               @default(1) // How many accounts requested (max 5)
+
+  // Financials
+  depositAmount     Decimal           @default(0) @db.Decimal(12, 2)
+  openingFee        Decimal           @default(0) @db.Decimal(12, 2)
+  platformFee       Decimal           @default(0) @db.Decimal(12, 2) // % fee
+  totalCost         Decimal           @default(0) @db.Decimal(12, 2)
+
+  // Status
+  status            TransactionStatus @default(PENDING)
+
+  // Owner
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+
+  // Remarks
+  remarks           String?
+  adminRemarks      String?
+
+  // Related ad accounts created from this application
+  adAccounts        AdAccount[]
+
+  approvedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@map("ad_account_applications")
+}
+
+enum LicenseType {
+  NEW
+  OLD
+}
+
 model Deposit {
   id                String            @id @default(cuid())
+  applyId           String?           @unique // Format: WD{YYYYMMDD}{7-digit random}
 
   amount            Decimal           @db.Decimal(12, 2)
   status            TransactionStatus @default(PENDING)
 
   // Payment details
   paymentMethod     String?
-  paymentProof      String?           // Document URL
+  paymentProof      String?           @db.Text // Base64 image data
   transactionId     String?
 
   // User
@@ -302,6 +386,69 @@ model AccountRefund {
   @@map("account_refunds")
 }
 
+model BalanceTransfer {
+  id                String            @id @default(cuid())
+
+  amount            Decimal           @db.Decimal(12, 2)
+  status            TransactionStatus @default(PENDING)
+
+  // From Account
+  fromAccountId     String
+  fromAccount       AdAccount         @relation("TransferFrom", fields: [fromAccountId], references: [id])
+
+  // To Account
+  toAccountId       String
+  toAccount         AdAccount         @relation("TransferTo", fields: [toAccountId], references: [id])
+
+  // User who initiated the transfer
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+
+  // Remarks
+  remarks           String?
+  adminRemarks      String?
+
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@map("balance_transfers")
+}
+
+model BmShareRequest {
+  id                String            @id @default(cuid())
+  applyId           String            @unique // Format: BM{YYYYMMDD}{7-digit random}
+
+  // Platform
+  platform          Platform
+
+  // Account Info
+  adAccountId       String
+  adAccountName     String
+  bmId              String            // User's BM ID to share to
+
+  // Status
+  status            TransactionStatus @default(PENDING)
+
+  // User
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+
+  // Remarks
+  message           String?
+  adminRemarks      String?
+
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@map("bm_share_requests")
+}
+
 model WalletFlow {
   id                String          @id @default(cuid())
 
@@ -350,6 +497,38 @@ model PayLink {
   updatedAt         DateTime      @updatedAt
 
   @@map("pay_links")
+}
+
+model PayLinkRequest {
+  id                String              @id @default(cuid())
+  applyId           String?             @unique // Format: PL{YYYYMMDD}{7-digit random}
+
+  type              PayLinkRequestType
+  fullName          String
+  email             String
+  country           String
+  amount            Decimal             @db.Decimal(12, 2)
+
+  // Company fields (optional, only for COMPANY type)
+  companyName       String?
+  website           String?
+
+  // Pay Link created by admin
+  payLink           String?             @db.Text
+
+  status            PayLinkRequestStatus @default(PENDING)
+
+  // User who created the request
+  userId            String
+  user              User                @relation(fields: [userId], references: [id])
+
+  // Admin remarks
+  adminRemarks      String?
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@map("pay_link_requests")
 }
 
 model BlockHistory {
@@ -435,4 +614,34 @@ model Module {
   isActive          Boolean   @default(true)
 
   @@map("modules")
+}
+
+model PaymentMethod {
+  id                String    @id @default(cuid())
+
+  name              String
+  description       String?
+  icon              String    @default("💳")
+
+  isEnabled         Boolean   @default(true)
+  isDefault         Boolean   @default(false)
+
+  sortOrder         Int       @default(0)
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("payment_methods")
+}
+
+model GlobalSettings {
+  id                String    @id @default("global")
+
+  // Pay Link feature toggle
+  payLinkEnabled    Boolean   @default(true)
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("global_settings")
 }

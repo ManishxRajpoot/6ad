@@ -82,3 +82,9 @@ export const accountsApi = {
   create: (data: any) => api.post<{ account: any }>('/accounts', data),
   update: (id: string, data: any) => api.put<{ account: any }>(`/accounts/${id}`, data),
 }
+
+// Branding API (Agent whitelabel)
+export const brandingApi = {
+  update: (data: { brandLogo?: string; brandName?: string }) =>
+    api.patch<{ message: string; agent: any }>('/agents/branding', data),
+}

@@ -28,7 +28,7 @@ const config: Config = {
         },
         background: '#F5F5F5',
         card: '#FFFFFF',
-        success: '#22C55E',
+        success: '#52B788',
         warning: '#F59E0B',
         danger: '#EF4444',
         info: '#3B82F6',
