@@ -14,6 +14,7 @@ import dashboardRoutes from './routes/dashboard.js'
 import settingsRoutes from './routes/settings.js'
 import paymentMethodRoutes from './routes/payment-methods.js'
 import bmShareRoutes from './routes/bm-share.js'
+import domainRoutes from './routes/domains.js'
 
 const app = new Hono()
 
@@ -50,6 +51,7 @@ app.route('/dashboard', dashboardRoutes)
 app.route('/settings', settingsRoutes)
 app.route('/payment-methods', paymentMethodRoutes)
 app.route('/bm-share', bmShareRoutes)
+app.route('/domains', domainRoutes)
 
 // Start server
 const port = Number(process.env.PORT) || 5001

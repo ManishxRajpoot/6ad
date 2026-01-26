@@ -300,17 +300,17 @@ export default function TikTokPage() {
       try {
         setLoading(true)
         const [userRes, accountsRes, refundsRes, depositsRes] = await Promise.all([
-          authApi.me(),
-          accountsApi.getAll('TIKTOK'),
-          transactionsApi.refunds.getAll('TIKTOK'),
-          accountDepositsApi.getAll('TIKTOK')
+          authApi.me().catch(() => ({ user: null })),
+          accountsApi.getAll('TIKTOK').catch(() => ({ accounts: [] })),
+          transactionsApi.refunds.getAll('TIKTOK').catch(() => ({ refunds: [] })),
+          accountDepositsApi.getAll('TIKTOK').catch(() => ({ deposits: [] }))
         ])
         setUser(userRes.user)
         setUserAccounts(accountsRes.accounts || [])
         setUserRefunds(refundsRes.refunds || [])
         setUserDeposits(depositsRes.deposits || [])
       } catch (error) {
-        console.error('Error fetching data:', error)
+        // Silently handle errors
       } finally {
         setLoading(false)
       }

@@ -228,6 +228,13 @@ export default function FacebookPage() {
   // Approve Form - account IDs to assign
   const [approveForm, setApproveForm] = useState<{ name: string; accountId: string }[]>([])
 
+  // Bulk Approve Modal
+  const [showBulkApproveModal, setShowBulkApproveModal] = useState(false)
+  const [bulkApproveData, setBulkApproveData] = useState<{
+    [applicationId: string]: { name: string; accountId: string }[]
+  }>({})
+  const [bulkApproveLoading, setBulkApproveLoading] = useState(false)
+
   // Active menu for row actions
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [menuPosition, setMenuPosition] = useState<{ top: boolean }>({ top: false })
@@ -546,8 +553,15 @@ export default function FacebookPage() {
   const handleApprove = async () => {
     if (!selectedApplication) return
 
+    // Validate that at least one account has an ID
+    const validAccounts = approveForm.filter(acc => acc.accountId && acc.accountId.trim() !== '')
+    if (validAccounts.length === 0) {
+      alert('Please enter at least one Account ID')
+      return
+    }
+
     try {
-      await applicationsApi.approve(selectedApplication.id, approveForm)
+      await applicationsApi.approve(selectedApplication.id, validAccounts)
       setShowApproveModal(false)
       setSelectedApplication(null)
       fetchData()
@@ -614,16 +628,36 @@ export default function FacebookPage() {
     }
 
     if (action === 'approve') {
-      // For bulk approve, we need account IDs - show a simplified modal or skip assignment
-      if (!confirm(`Approve ${selectedItems.length} application(s)?`)) return
-      try {
-        await applicationsApi.bulkApprove(selectedItems, {})
-        setSelectedItems([])
-        setSelectMultiple(false)
-        fetchData()
-      } catch (error: any) {
-        alert(error.message || 'Failed to bulk approve')
-      }
+      // Get selected applications and prepare bulk approve data
+      const selectedApps = applications.filter(app => selectedItems.includes(app.id))
+      const initialData: { [applicationId: string]: { name: string; accountId: string }[] } = {}
+
+      selectedApps.forEach(app => {
+        // Parse accountDetails if it exists, otherwise use adAccountQty to create empty slots
+        let accounts: { name: string; accountId: string }[] = []
+        if (app.accountDetails) {
+          try {
+            const parsed = JSON.parse(app.accountDetails)
+            accounts = parsed.map((acc: any) => ({
+              name: acc.name || `Account ${accounts.length + 1}`,
+              accountId: ''
+            }))
+          } catch {
+            // If parsing fails, create based on quantity
+            for (let i = 0; i < (app.adAccountQty || 1); i++) {
+              accounts.push({ name: `Account ${i + 1}`, accountId: '' })
+            }
+          }
+        } else {
+          for (let i = 0; i < (app.adAccountQty || 1); i++) {
+            accounts.push({ name: `Account ${i + 1}`, accountId: '' })
+          }
+        }
+        initialData[app.id] = accounts
+      })
+
+      setBulkApproveData(initialData)
+      setShowBulkApproveModal(true)
     } else {
       const refund = confirm('Do you want to refund the users?')
       try {
@@ -634,6 +668,40 @@ export default function FacebookPage() {
       } catch (error: any) {
         alert(error.message || 'Failed to bulk reject')
       }
+    }
+  }
+
+  // Submit bulk approve
+  const handleBulkApproveSubmit = async () => {
+    // Validate that each application has at least one account ID
+    for (const appId of selectedItems) {
+      const accounts = bulkApproveData[appId] || []
+      const hasValidAccount = accounts.some(acc => acc.accountId && acc.accountId.trim() !== '')
+      if (!hasValidAccount) {
+        const app = applications.find(a => a.id === appId)
+        alert(`Please enter at least one Account ID for ${app?.user?.username || 'application'}`)
+        return
+      }
+    }
+
+    setBulkApproveLoading(true)
+    try {
+      // Filter out empty account IDs
+      const filteredData: { [applicationId: string]: { name: string; accountId: string }[] } = {}
+      for (const appId of selectedItems) {
+        filteredData[appId] = (bulkApproveData[appId] || []).filter(acc => acc.accountId && acc.accountId.trim() !== '')
+      }
+
+      await applicationsApi.bulkApprove(selectedItems, filteredData)
+      setShowBulkApproveModal(false)
+      setBulkApproveData({})
+      setSelectedItems([])
+      setSelectMultiple(false)
+      fetchData()
+    } catch (error: any) {
+      alert(error.message || 'Failed to bulk approve')
+    } finally {
+      setBulkApproveLoading(false)
     }
   }
 
@@ -994,91 +1062,36 @@ export default function FacebookPage() {
                         </td>
                         <td className="py-3 px-4">{getStatusBadge(app.status)}</td>
                         <td className="py-3 px-4">
-                          <div className="relative action-menu-container">
+                          <div className="flex items-center gap-1">
+                            {/* View Icon */}
                             <button
-                              ref={(el) => { menuButtonRefs.current[app.id] = el }}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleMenuToggle(app.id)
-                              }}
-                              className={`p-2 rounded-xl transition-all duration-300 ${
-                                activeMenu === app.id
-                                  ? 'bg-[#52B788]/10 text-[#52B788] rotate-90'
-                                  : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
-                              }`}
+                              onClick={() => handleViewRequest(app)}
+                              className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-all duration-200"
+                              title="View"
                             >
-                              <MoreVertical className="w-5 h-5" />
+                              <Eye className="w-4 h-4" />
                             </button>
 
-                            {activeMenu === app.id && (
-                              <>
-                                <div
-                                  className="fixed inset-0 z-[60]"
-                                  onClick={() => setActiveMenu(null)}
-                                />
-                                <div
-                                  className={`absolute right-0 ${
-                                    menuPosition.top ? 'bottom-full mb-2' : 'top-full mt-2'
-                                  } bg-white border border-gray-100 rounded-2xl shadow-2xl shadow-gray-200/50 z-[70] py-2 min-w-[200px] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200`}
-                                  style={{
-                                    animation: menuPosition.top
-                                      ? 'slideInUp 0.2s ease-out'
-                                      : 'slideInDown 0.2s ease-out'
-                                  }}
-                                >
-                                {/* Menu Header */}
-                                <div className="px-4 py-2 border-b border-gray-100">
-                                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</p>
-                                </div>
+                            {/* Approve Icon - only for pending */}
+                            {app.status === 'PENDING' && (
+                              <button
+                                onClick={() => handleOpenApprove(app)}
+                                className="p-2 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-500 transition-all duration-200"
+                                title="Approve"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                            )}
 
-                                <div className="py-1">
-                                  <button
-                                    onClick={() => handleViewRequest(app)}
-                                    className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gradient-to-r hover:from-[#52B788]/10 hover:to-transparent flex items-center gap-3 transition-all duration-200 group"
-                                  >
-                                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                                      <Eye className="w-4 h-4 text-blue-500" />
-                                    </div>
-                                    <span className="font-medium">View Request</span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleEditRequest(app)}
-                                    className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gradient-to-r hover:from-[#52B788]/10 hover:to-transparent flex items-center gap-3 transition-all duration-200 group"
-                                  >
-                                    <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
-                                      <Edit className="w-4 h-4 text-purple-500" />
-                                    </div>
-                                    <span className="font-medium">Edit Request</span>
-                                  </button>
-                                </div>
-
-                                {app.status === 'PENDING' && (
-                                  <>
-                                    <div className="border-t border-gray-100 my-1" />
-                                    <div className="py-1">
-                                      <button
-                                        onClick={() => handleOpenApprove(app)}
-                                        className="w-full px-4 py-2.5 text-left text-sm hover:bg-gradient-to-r hover:from-green-50 hover:to-transparent flex items-center gap-3 transition-all duration-200 group"
-                                      >
-                                        <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center group-hover:bg-green-100 transition-colors group-hover:scale-110">
-                                          <Check className="w-4 h-4 text-green-500" />
-                                        </div>
-                                        <span className="font-medium text-green-600">Approve</span>
-                                      </button>
-                                      <button
-                                        onClick={() => handleReject(app, true)}
-                                        className="w-full px-4 py-2.5 text-left text-sm hover:bg-gradient-to-r hover:from-red-50 hover:to-transparent flex items-center gap-3 transition-all duration-200 group"
-                                      >
-                                        <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center group-hover:bg-red-100 transition-colors group-hover:scale-110">
-                                          <X className="w-4 h-4 text-red-500" />
-                                        </div>
-                                        <span className="font-medium text-red-600">Reject</span>
-                                      </button>
-                                    </div>
-                                  </>
-                                )}
-                                </div>
-                              </>
+                            {/* Reject Icon - only for pending */}
+                            {app.status === 'PENDING' && (
+                              <button
+                                onClick={() => handleReject(app, true)}
+                                className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all duration-200"
+                                title="Reject"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
                         </td>
@@ -1777,6 +1790,84 @@ export default function FacebookPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Bulk Approve Modal */}
+      <Modal
+        isOpen={showBulkApproveModal}
+        onClose={() => setShowBulkApproveModal(false)}
+        title={`Approve ${selectedItems.length} Application(s)`}
+      >
+        <p className="text-sm text-gray-500 mb-4">Enter Account IDs for each application. At least one Account ID is required per application.</p>
+
+        <div className="space-y-6 max-h-[60vh] overflow-y-auto">
+          {selectedItems.map((appId) => {
+            const app = applications.find(a => a.id === appId)
+            if (!app) return null
+
+            return (
+              <div key={appId} className="border border-gray-200 rounded-xl p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-full bg-[#52B788]/10 flex items-center justify-center text-[#52B788] font-medium text-sm">
+                    {app.user?.username?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{app.user?.username || 'Unknown User'}</p>
+                    <p className="text-xs text-gray-500">{app.applyId}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {(bulkApproveData[appId] || []).map((acc, index) => (
+                    <div key={index} className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-500 mb-1">Account Name</label>
+                        <input
+                          type="text"
+                          value={acc.name}
+                          onChange={(e) => {
+                            const newData = { ...bulkApproveData }
+                            newData[appId][index].name = e.target.value
+                            setBulkApproveData(newData)
+                          }}
+                          placeholder="Account Name"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788]"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs text-gray-500 mb-1">Account ID <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={acc.accountId}
+                          onChange={(e) => {
+                            const newData = { ...bulkApproveData }
+                            newData[appId][index].accountId = e.target.value
+                            setBulkApproveData(newData)
+                          }}
+                          placeholder="Enter Account ID"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788]"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="flex justify-end gap-3 pt-4 mt-4 border-t">
+          <Button variant="outline" onClick={() => setShowBulkApproveModal(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleBulkApproveSubmit}
+            disabled={bulkApproveLoading}
+            className="bg-[#52B788] hover:bg-[#40916C]"
+          >
+            {bulkApproveLoading ? 'Approving...' : `Approve ${selectedItems.length} Application(s)`}
+          </Button>
+        </div>
       </Modal>
 
       {/* Add Coupon Modal */}

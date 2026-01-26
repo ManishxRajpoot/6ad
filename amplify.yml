@@ -1,0 +1,64 @@
+# AWS Amplify build specification
+# This file is used when deploying frontend apps to Amplify
+
+version: 1
+applications:
+  # Admin App
+  - appRoot: apps/admin
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+            - npx prisma generate --schema=../../packages/database/prisma/schema.prisma
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - .next/cache/**/*
+
+  # Agency App
+  - appRoot: apps/agency
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+            - npx prisma generate --schema=../../packages/database/prisma/schema.prisma
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - .next/cache/**/*
+
+  # User App
+  - appRoot: apps/user
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+            - npx prisma generate --schema=../../packages/database/prisma/schema.prisma
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - node_modules/**/*
+          - .next/cache/**/*

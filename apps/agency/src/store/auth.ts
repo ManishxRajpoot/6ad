@@ -7,6 +7,8 @@ type User = {
   username: string
   role: 'ADMIN' | 'AGENT' | 'USER'
   status: string
+  brandLogo?: string | null
+  brandName?: string | null
 }
 
 type AuthState = {
@@ -15,6 +17,7 @@ type AuthState = {
   isAuthenticated: boolean
   isHydrated: boolean
   setAuth: (user: User, token: string) => void
+  setUser: (user: User) => void
   logout: () => void
   setHydrated: (state: boolean) => void
 }
@@ -29,6 +32,9 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (user, token) => {
         localStorage.setItem('token', token)
         set({ user, token, isAuthenticated: true })
+      },
+      setUser: (user) => {
+        set({ user })
       },
       logout: () => {
         localStorage.removeItem('token')

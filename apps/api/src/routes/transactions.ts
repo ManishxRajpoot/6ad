@@ -141,8 +141,8 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
         where: { id: deposit.userId }
       })
 
-      const balanceBefore = user!.walletBalance
-      const balanceAfter = balanceBefore.add(deposit.amount)
+      const balanceBefore = Number(user!.walletBalance)
+      const balanceAfter = balanceBefore + Number(deposit.amount)
 
       // Update user wallet
       await tx.user.update({
@@ -277,8 +277,8 @@ transactions.post('/deposits/bulk-approve', requireAdmin, async (c) => {
 
         // Get current balance
         const user = await tx.user.findUnique({ where: { id: deposit.userId } })
-        const balanceBefore = user!.walletBalance
-        const balanceAfter = balanceBefore.add(deposit.amount)
+        const balanceBefore = Number(user!.walletBalance)
+        const balanceAfter = balanceBefore + Number(deposit.amount)
 
         // Update wallet
         await tx.user.update({
@@ -399,7 +399,7 @@ transactions.post('/withdrawals', requireUser, async (c) => {
 
     // Check wallet balance
     const user = await prisma.user.findUnique({ where: { id: userId } })
-    if (!user || user.walletBalance.lessThan(amount)) {
+    if (!user || Number(user.walletBalance) < amount) {
       return c.json({ error: 'Insufficient balance' }, 400)
     }
 
@@ -442,7 +442,7 @@ transactions.post('/withdrawals/:id/approve', requireAdmin, async (c) => {
     }
 
     // Check balance
-    if (withdrawal.user.walletBalance.lessThan(withdrawal.amount)) {
+    if (Number(withdrawal.user.walletBalance) < Number(withdrawal.amount)) {
       return c.json({ error: 'Insufficient balance' }, 400)
     }
 
@@ -456,8 +456,8 @@ transactions.post('/withdrawals/:id/approve', requireAdmin, async (c) => {
         }
       })
 
-      const balanceBefore = withdrawal.user.walletBalance
-      const balanceAfter = balanceBefore.sub(withdrawal.amount)
+      const balanceBefore = Number(withdrawal.user.walletBalance)
+      const balanceAfter = balanceBefore - Number(withdrawal.amount)
 
       await tx.user.update({
         where: { id: withdrawal.userId },
@@ -615,8 +615,8 @@ transactions.post('/refunds/:id/approve', requireAdmin, async (c) => {
         }
       })
 
-      const balanceBefore = refund.user.walletBalance
-      const balanceAfter = balanceBefore.add(refund.amount)
+      const balanceBefore = Number(refund.user.walletBalance)
+      const balanceAfter = balanceBefore + Number(refund.amount)
 
       await tx.user.update({
         where: { id: refund.userId },
@@ -724,8 +724,8 @@ transactions.post('/add-credit', requireAdmin, async (c) => {
     }
 
     await prisma.$transaction(async (tx) => {
-      const balanceBefore = user.walletBalance
-      const balanceAfter = balanceBefore.add(amount)
+      const balanceBefore = Number(user.walletBalance)
+      const balanceAfter = balanceBefore + Number(amount)
 
       await tx.user.update({
         where: { id: userId },
@@ -748,6 +748,90 @@ transactions.post('/add-credit', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Add credit error:', error)
     return c.json({ error: 'Failed to add credit' }, 500)
+  }
+})
+
+// POST /transactions/credit-action - Admin deposit/remove money from user/agent wallet
+transactions.post('/credit-action', requireAdmin, async (c) => {
+  try {
+    const { userId, amount, mode, transactionId, payway, description, paymentProof, remarks } = await c.req.json()
+
+    if (!userId || !amount || amount <= 0) {
+      return c.json({ error: 'Invalid input' }, 400)
+    }
+
+    if (!mode || !['deposit', 'remove'].includes(mode)) {
+      return c.json({ error: 'Invalid mode. Must be deposit or remove' }, 400)
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      return c.json({ error: 'User not found' }, 404)
+    }
+
+    const balanceBefore = Number(user.walletBalance)
+    let balanceAfter: number
+
+    if (mode === 'deposit') {
+      balanceAfter = balanceBefore + Number(amount)
+    } else {
+      // Remove mode
+      if (balanceBefore < Number(amount)) {
+        return c.json({ error: 'Insufficient balance' }, 400)
+      }
+      balanceAfter = balanceBefore - Number(amount)
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Update user wallet balance
+      await tx.user.update({
+        where: { id: userId },
+        data: { walletBalance: balanceAfter }
+      })
+
+      // Create deposit record (for Add Money history)
+      // For remove mode, store negative amount to show as deduction
+      await tx.deposit.create({
+        data: {
+          applyId: generateApplyId(),
+          amount: mode === 'deposit' ? Number(amount) : -Number(amount),
+          status: 'APPROVED',
+          paymentMethod: mode === 'deposit' ? (payway || 'Wallet') : 'Deduction',
+          transactionId: transactionId || null,
+          paymentProof: paymentProof || null,
+          remarks: remarks || null,
+          userId,
+          approvedAt: new Date()
+        }
+      })
+
+      // Create wallet flow record
+      await tx.walletFlow.create({
+        data: {
+          type: mode === 'deposit' ? 'CREDIT' : 'WITHDRAWAL',
+          amount: Number(amount),
+          balanceBefore,
+          balanceAfter,
+          userId,
+          referenceId: transactionId || null,
+          referenceType: payway || 'wallet',
+          description: mode === 'deposit' ? 'Deposit approved' : (remarks || 'Amount deducted')
+        }
+      })
+    })
+
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, email: true, walletBalance: true, role: true }
+    })
+
+    return c.json({
+      message: mode === 'deposit' ? 'Amount deposited successfully' : 'Amount removed successfully',
+      user: updatedUser
+    })
+  } catch (error) {
+    console.error('Credit action error:', error)
+    return c.json({ error: 'Failed to process credit action' }, 500)
   }
 })
 
@@ -969,14 +1053,13 @@ transactions.post('/pay-link-requests/:id/complete', requireAdmin, async (c) => 
 // GET /transactions/settings/pay-link - Get pay link setting
 transactions.get('/settings/pay-link', requireUser, async (c) => {
   try {
-    let settings = await prisma.globalSettings.findUnique({
-      where: { id: 'global' }
-    })
+    // For MongoDB, use findFirst instead of findUnique with string ID
+    let settings = await prisma.globalSettings.findFirst()
 
     // Create default settings if not exists
     if (!settings) {
       settings = await prisma.globalSettings.create({
-        data: { id: 'global', payLinkEnabled: true }
+        data: { payLinkEnabled: true }
       })
     }
 
@@ -996,11 +1079,19 @@ transactions.post('/settings/pay-link', requireAdmin, async (c) => {
       return c.json({ error: 'Invalid value for enabled' }, 400)
     }
 
-    const settings = await prisma.globalSettings.upsert({
-      where: { id: 'global' },
-      update: { payLinkEnabled: enabled },
-      create: { id: 'global', payLinkEnabled: enabled }
-    })
+    // For MongoDB, find existing or create new
+    let settings = await prisma.globalSettings.findFirst()
+
+    if (settings) {
+      settings = await prisma.globalSettings.update({
+        where: { id: settings.id },
+        data: { payLinkEnabled: enabled }
+      })
+    } else {
+      settings = await prisma.globalSettings.create({
+        data: { payLinkEnabled: enabled }
+      })
+    }
 
     return c.json({ message: `Pay link ${enabled ? 'enabled' : 'disabled'}`, payLinkEnabled: settings.payLinkEnabled })
   } catch (error) {

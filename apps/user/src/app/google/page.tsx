@@ -23,7 +23,7 @@ import { authApi, accountsApi, transactionsApi, accountDepositsApi } from '@/lib
 const ADMIN_SETTINGS = {
   platformsEnabled: {
     facebook: true,
-    google: false,  // Google is disabled as example
+    google: true,
     tiktok: true,
     snapchat: true,
     bing: true,
@@ -112,18 +112,19 @@ export default function GooglePage() {
     const fetchData = async () => {
       try {
         setLoading(true)
+        // Fetch each endpoint separately to handle individual failures gracefully
         const [userRes, accountsRes, refundsRes, depositsRes] = await Promise.all([
-          authApi.me(),
-          accountsApi.getAll('GOOGLE'),
-          transactionsApi.refunds.getAll('GOOGLE'),
-          accountDepositsApi.getAll('GOOGLE')
+          authApi.me().catch(() => ({ user: null })),
+          accountsApi.getAll('GOOGLE').catch(() => ({ accounts: [] })),
+          transactionsApi.refunds.getAll('GOOGLE').catch(() => ({ refunds: [] })),
+          accountDepositsApi.getAll('GOOGLE').catch(() => ({ deposits: [] }))
         ])
         setUser(userRes.user)
         setUserAccounts(accountsRes.accounts || [])
         setUserRefunds(refundsRes.refunds || [])
         setUserDeposits(depositsRes.deposits || [])
       } catch (error) {
-        console.error('Error fetching data:', error)
+        // Silently handle errors - user will see empty data
       } finally {
         setLoading(false)
       }

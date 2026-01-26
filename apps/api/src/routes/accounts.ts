@@ -663,7 +663,7 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
     }
 
     // Check wallet balance
-    if (account.user.walletBalance.lessThan(amount)) {
+    if (Number(account.user.walletBalance) < amount) {
       return c.json({ message: `Insufficient wallet balance. Available: $${account.user.walletBalance}, Required: $${amount}` }, 400)
     }
 
@@ -679,8 +679,8 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
       })
 
       // Deduct from user wallet immediately
-      const balanceBefore = account.user.walletBalance
-      const balanceAfter = balanceBefore.sub(amount)
+      const balanceBefore = Number(account.user.walletBalance)
+      const balanceAfter = balanceBefore - amount
 
       await tx.user.update({
         where: { id: userId },
@@ -797,8 +797,8 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       })
 
       // Refund money back to user's wallet
-      const balanceBefore = deposit.adAccount.user.walletBalance
-      const balanceAfter = balanceBefore.add(deposit.amount)
+      const balanceBefore = Number(deposit.adAccount.user.walletBalance)
+      const balanceAfter = balanceBefore + Number(deposit.amount)
 
       await tx.user.update({
         where: { id: deposit.adAccount.userId },

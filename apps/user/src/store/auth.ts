@@ -8,6 +8,14 @@ type User = {
   role: 'ADMIN' | 'AGENT' | 'USER'
   status: string
   walletBalance?: number | string
+  agentId?: string
+  agent?: {
+    id: string
+    username: string
+    email: string
+    brandLogo?: string | null
+    brandName?: string | null
+  }
 }
 
 type AuthState = {

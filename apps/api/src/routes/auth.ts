@@ -32,7 +32,7 @@ auth.post('/login', async (c) => {
       where: { email },
       include: {
         agent: {
-          select: { id: true, username: true, email: true }
+          select: { id: true, username: true, email: true, brandLogo: true, brandName: true }
         }
       }
     })

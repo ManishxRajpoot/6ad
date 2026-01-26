@@ -15,7 +15,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  ChevronUp,
   Plus,
   Minus,
   Download,
@@ -188,7 +187,7 @@ export default function FacebookPage() {
   const ITEMS_PER_PAGE = 10
   const { updateUser } = useAuthStore()
 
-  const [activeSubPage, setActiveSubPage] = useState<SubPage>('apply-ads-account')
+  const [activeSubPage, setActiveSubPage] = useState<SubPage>('account-list')
   const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['account-manage', 'deposit-manage', 'after-sale'])
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -254,33 +253,39 @@ export default function FacebookPage() {
   const [userAccounts, setUserAccounts] = useState<any[]>([])
   const [userApplications, setUserApplications] = useState<any[]>([])
   const [userRefunds, setUserRefunds] = useState<any[]>([])
+  const [balanceTransfers, setBalanceTransfers] = useState<any[]>([])
   const [bmShareHistory, setBmShareHistory] = useState<any[]>([])
   const [accountDeposits, setAccountDeposits] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [reportTab, setReportTab] = useState<'transfer' | 'refund'>('transfer')
 
   // Fetch user data on mount
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         setIsLoading(true)
-        const [userRes, accountsRes, applicationsRes, refundsRes, bmShareRes, depositsRes] = await Promise.all([
-          authApi.me(),
-          accountsApi.getAll('FACEBOOK'),
-          applicationsApi.getAll('FACEBOOK'),
-          transactionsApi.refunds.getAll('FACEBOOK').catch(() => ({ refunds: [] })),
+        const [userRes, accountsRes, applicationsRes, refundsRes, transfersRes, bmShareRes, depositsRes] = await Promise.all([
+          authApi.me().catch(() => ({ user: null })),
+          accountsApi.getAll('FACEBOOK').catch(() => ({ accounts: [] })),
+          applicationsApi.getAll('FACEBOOK').catch(() => ({ applications: [] })),
+          accountRefundsApi.getAll('FACEBOOK').catch(() => ({ refunds: [] })),
+          balanceTransfersApi.getAll('FACEBOOK').catch(() => ({ transfers: [] })),
           bmShareApi.getAll('FACEBOOK').catch(() => ({ bmShareRequests: [] })),
           accountDepositsApi.getAll('FACEBOOK').catch(() => ({ deposits: [] }))
         ])
-        setUser(userRes.user)
-        // Also update the auth store so Header balance updates
-        updateUser(userRes.user)
+        if (userRes.user) {
+          setUser(userRes.user)
+          // Also update the auth store so Header balance updates
+          updateUser(userRes.user)
+        }
         setUserAccounts(accountsRes.accounts || [])
         setUserApplications(applicationsRes.applications || [])
         setUserRefunds(refundsRes.refunds || [])
+        setBalanceTransfers(transfersRes.transfers || [])
         setBmShareHistory(bmShareRes.bmShareRequests || [])
         setAccountDeposits(depositsRes.deposits || [])
       } catch (error) {
-        console.error('Failed to fetch user data:', error)
+        // Silently handle errors
       } finally {
         setIsLoading(false)
       }
@@ -1046,33 +1051,39 @@ export default function FacebookPage() {
                       <span>{menu.icon}</span>
                       <span>{menu.title}</span>
                     </div>
-                    {expandedSections.includes(menu.section) ? (
-                      <ChevronUp className="w-4 h-4 text-[#8B5CF6]" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
-                    )}
+                    <ChevronDown
+                      className={`w-4 h-4 transition-all duration-300 ${
+                        expandedSections.includes(menu.section)
+                          ? 'rotate-180 text-[#8B5CF6]'
+                          : 'rotate-0 text-gray-400'
+                      }`}
+                    />
                   </button>
 
-                  {expandedSections.includes(menu.section) && (
-                    <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-[#8B5CF6]/20 pl-3">
-                      {menu.items.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            setActiveSubPage(item.id)
-                            setCurrentPage(1)
-                          }}
-                          className={`w-full text-left px-2 py-1.5 text-sm rounded transition-all ${
-                            activeSubPage === item.id
-                              ? 'bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white font-medium shadow-sm'
-                              : 'text-gray-600 hover:bg-[#8B5CF6]/5 hover:text-[#8B5CF6]'
-                          }`}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div
+                    className={`ml-5 space-y-0.5 border-l-2 border-[#8B5CF6]/20 pl-3 overflow-hidden transition-all duration-300 ease-in-out ${
+                      expandedSections.includes(menu.section)
+                        ? 'max-h-96 opacity-100 mt-1'
+                        : 'max-h-0 opacity-0 mt-0'
+                    }`}
+                  >
+                    {menu.items.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setActiveSubPage(item.id)
+                          setCurrentPage(1)
+                        }}
+                        className={`w-full text-left px-2 py-1.5 text-sm rounded transition-all ${
+                          activeSubPage === item.id
+                            ? 'bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white font-medium shadow-sm'
+                            : 'text-gray-600 hover:bg-[#8B5CF6]/5 hover:text-[#8B5CF6]'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1454,13 +1465,6 @@ export default function FacebookPage() {
                     )}
                   </Button>
 
-                  {!pageShareConfirmed && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
-                      <p className="text-sm text-red-600 font-medium text-center">
-                        ⚠️ Please scroll up and check the box to confirm you have shared your page with the profile
-                      </p>
-                    </div>
-                  )}
                     </div>
                   )}
                 </>
@@ -2141,10 +2145,40 @@ export default function FacebookPage() {
                     <span className="font-medium">Add Another Transfer</span>
                   </button>
 
-                  {/* Cost Summary */}
+                  {/* Transfer Summary */}
                   <div className="p-5 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Transfer Summary</h4>
-                    <div className="flex justify-between items-center">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-4">Transfer Summary</h4>
+
+                    {/* Individual Transfer Details */}
+                    <div className="space-y-3 mb-4">
+                      {transferRows.filter(row => row.fromAccount && row.toAccount && row.amount).map((row, index) => {
+                        const fromAccountLabel = adAccountOptions.find(opt => opt.value === row.fromAccount)?.label || 'Unknown'
+                        const toAccountLabel = adAccountOptions.find(opt => opt.value === row.toAccount)?.label || 'Unknown'
+                        return (
+                          <div key={row.id} className="flex items-center justify-between py-2 px-3 bg-white rounded-lg border border-gray-100">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="w-5 h-5 rounded-full bg-[#8B5CF6]/10 text-[#8B5CF6] text-xs font-bold flex items-center justify-center flex-shrink-0">
+                                {index + 1}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-xs text-gray-600 truncate">
+                                <span className="font-medium text-gray-700 truncate max-w-[120px]" title={fromAccountLabel}>{fromAccountLabel}</span>
+                                <svg className="w-3 h-3 text-[#8B5CF6] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                </svg>
+                                <span className="font-medium text-gray-700 truncate max-w-[120px]" title={toAccountLabel}>{toAccountLabel}</span>
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-[#8B5CF6] ml-3">${parseFloat(row.amount).toFixed(2)}</span>
+                          </div>
+                        )
+                      })}
+                      {transferRows.filter(row => row.fromAccount && row.toAccount && row.amount).length === 0 && (
+                        <p className="text-xs text-gray-400 text-center py-2">No transfers added yet</p>
+                      )}
+                    </div>
+
+                    {/* Total */}
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-200">
                       <span className="text-sm font-semibold text-gray-700">Total Transfer Amount</span>
                       <span className="text-lg font-bold text-[#8B5CF6]">${transferTotals.totalAmount.toFixed(2)}</span>
                     </div>
@@ -2263,75 +2297,174 @@ export default function FacebookPage() {
                 </div>
               )}
 
-              {/* Refund Report */}
+              {/* Refund Report - With tabs to switch between Transfer and Refund History */}
               {activeSubPage === 'refund-report' && (
                 <div className="p-6">
                   {isLoading ? (
                     <div className="py-16 text-center">
                       <Loader2 className="w-8 h-8 animate-spin text-[#8B5CF6] mx-auto mb-4" />
-                      <p className="text-sm text-gray-500">Loading refund history...</p>
+                      <p className="text-sm text-gray-500">Loading history...</p>
                     </div>
                   ) : (
                   <>
-                  {/* Section Header */}
+                  {/* Header with Tabs */}
                   <div className="flex items-center justify-between mb-6">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-800">Refund History</h3>
-                      <p className="text-sm text-gray-500 mt-1">View all your refund requests and their status</p>
+                      <h3 className="text-lg font-semibold text-gray-800">
+                        {reportTab === 'transfer' ? 'Balance Transfer History' : 'Refund Request History'}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {reportTab === 'transfer'
+                          ? 'View all your balance transfers between ad accounts'
+                          : 'View all your refund requests and their status'}
+                      </p>
+                    </div>
+                    {/* Tab Switcher */}
+                    <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
+                      <button
+                        onClick={() => setReportTab('transfer')}
+                        className={`px-4 py-2 text-xs font-medium rounded-md transition-all ${
+                          reportTab === 'transfer'
+                            ? 'bg-white text-[#8B5CF6] shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Transfer History
+                      </button>
+                      <button
+                        onClick={() => setReportTab('refund')}
+                        className={`px-4 py-2 text-xs font-medium rounded-md transition-all ${
+                          reportTab === 'refund'
+                            ? 'bg-white text-[#EF4444] shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Refund History
+                      </button>
                     </div>
                   </div>
 
-                  {paginatedData.length === 0 ? (
-                    <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#EF4444]/10 flex items-center justify-center">
-                        <span className="text-2xl">💸</span>
-                      </div>
-                      <h4 className="text-lg font-semibold text-gray-800 mb-2">No Refund Requests</h4>
-                      <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
-                        You haven't made any refund requests yet.
-                      </p>
-                      <button
-                        onClick={() => setActiveSubPage('refund')}
-                        className="px-4 py-2 bg-[#8B5CF6] text-white rounded-lg text-sm font-medium hover:bg-[#7C3AED] transition-colors"
-                      >
-                        Request a Refund
-                      </button>
-                    </div>
-                  ) : (
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-gradient-to-r from-[#8B5CF6]/5 to-gray-50">
-                        <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Account ID</th>
-                        <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Platform</th>
-                        <th className="text-left py-4 px-4 text-xs font-semibold text-[#EF4444] uppercase tracking-wider">Refund Amount</th>
-                        <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Request Time</th>
-                        <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {paginatedData.map((item: any, index: number) => (
-                        <tr key={item.id} className="table-row-animate hover:bg-[#8B5CF6]/5 transition-all duration-300" style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}>
-                          <td className="py-4 px-4 text-sm text-gray-700 font-mono">{item.accountId || '-'}</td>
-                          <td className="py-4 px-4">
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">{item.platform}</span>
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className="text-sm font-semibold text-[#EF4444]">${Number(item.amount).toFixed(2)}</span>
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className="text-sm text-gray-700">
-                              {new Date(item.createdAt).toLocaleDateString()} <span className="text-[#8B5CF6] font-medium">{new Date(item.createdAt).toLocaleTimeString()}</span>
-                            </span>
-                          </td>
-                          <td className="py-4 px-4">{getStatusBadge(item.status)}</td>
-                          <td className="py-4 px-4">
-                            <span className="text-xs text-gray-600 line-clamp-2" title={item.reason}>{item.reason || '-'}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {/* Transfer History Tab Content */}
+                  {reportTab === 'transfer' && (
+                    <>
+                      {balanceTransfers.length === 0 ? (
+                        <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center">
+                            <svg className="w-8 h-8 text-[#8B5CF6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                          </div>
+                          <h4 className="text-lg font-semibold text-gray-800 mb-2">No Transfer History</h4>
+                          <p className="text-sm text-gray-500 mb-4">You haven't made any balance transfers yet.</p>
+                          <button
+                            onClick={() => setActiveSubPage('transfer-balance')}
+                            className="px-4 py-2 bg-[#8B5CF6] text-white rounded-lg text-sm font-medium hover:bg-[#7C3AED] transition-colors"
+                          >
+                            Transfer Balance
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border border-gray-100">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="bg-gradient-to-r from-[#8B5CF6]/5 to-gray-50">
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">From Account</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider"></th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">To Account</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-[#8B5CF6] uppercase tracking-wider">Amount</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {balanceTransfers.map((transfer: any, index: number) => (
+                                <tr key={transfer.id} className="table-row-animate hover:bg-[#8B5CF6]/5 transition-all duration-300" style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}>
+                                  <td className="py-3 px-4">
+                                    <div className="text-sm text-gray-700 font-medium">{transfer.fromAccount?.accountName || 'Unknown'}</div>
+                                    <div className="text-xs text-gray-400 font-mono">{transfer.fromAccount?.accountId || '-'}</div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <svg className="w-4 h-4 text-[#8B5CF6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                    </svg>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="text-sm text-gray-700 font-medium">{transfer.toAccount?.accountName || 'Unknown'}</div>
+                                    <div className="text-xs text-gray-400 font-mono">{transfer.toAccount?.accountId || '-'}</div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span className="text-sm font-semibold text-[#8B5CF6]">${Number(transfer.amount).toFixed(2)}</span>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span className="text-xs text-gray-600">
+                                      {new Date(transfer.createdAt).toLocaleDateString()}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4">{getStatusBadge(transfer.status)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Refund History Tab Content */}
+                  {reportTab === 'refund' && (
+                    <>
+                      {userRefunds.length === 0 ? (
+                        <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#EF4444]/10 flex items-center justify-center">
+                            <span className="text-2xl">💸</span>
+                          </div>
+                          <h4 className="text-lg font-semibold text-gray-800 mb-2">No Refund Requests</h4>
+                          <p className="text-sm text-gray-500 mb-4">You haven't made any refund requests yet.</p>
+                          <button
+                            onClick={() => setActiveSubPage('refund')}
+                            className="px-4 py-2 bg-[#EF4444] text-white rounded-lg text-sm font-medium hover:bg-[#DC2626] transition-colors"
+                          >
+                            Request a Refund
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border border-gray-100">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="bg-gradient-to-r from-[#EF4444]/5 to-gray-50">
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Account</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-[#EF4444] uppercase tracking-wider">Amount</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {userRefunds.map((item: any, index: number) => (
+                                <tr key={item.id} className="table-row-animate hover:bg-[#EF4444]/5 transition-all duration-300" style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}>
+                                  <td className="py-3 px-4">
+                                    <div className="text-sm text-gray-700 font-medium">{item.adAccount?.accountName || 'Unknown'}</div>
+                                    <div className="text-xs text-gray-400 font-mono">{item.adAccount?.accountId || item.accountId || '-'}</div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span className="text-sm font-semibold text-[#EF4444]">${Number(item.amount).toFixed(2)}</span>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span className="text-xs text-gray-600">
+                                      {new Date(item.createdAt).toLocaleDateString()}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4">{getStatusBadge(item.status)}</td>
+                                  <td className="py-3 px-4">
+                                    <span className="text-xs text-gray-600 line-clamp-2" title={item.reason}>{item.reason || '-'}</span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
                   )}
                   </>
                   )}

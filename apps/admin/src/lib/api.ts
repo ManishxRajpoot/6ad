@@ -110,6 +110,16 @@ export const transactionsApi = {
     getPayLinkEnabled: () => api.get<{ payLinkEnabled: boolean }>('/transactions/settings/pay-link'),
     setPayLinkEnabled: (enabled: boolean) => api.post<{ payLinkEnabled: boolean }>('/transactions/settings/pay-link', { enabled }),
   },
+  creditAction: (data: {
+    userId: string
+    amount: number
+    mode: 'deposit' | 'remove'
+    transactionId?: string
+    payway?: string
+    description?: string
+    paymentProof?: string
+    remarks?: string
+  }) => api.post<{ message: string; user: any }>('/transactions/credit-action', data),
 }
 
 // Accounts API
@@ -181,11 +191,11 @@ export const applicationsApi = {
 
   // Bulk approve applications
   bulkApprove: (ids: string[], accountData: { [applicationId: string]: { name: string; accountId: string }[] }) =>
-    api.post<{ message: string; count: number }>('/applications/bulk-approve', { ids, accountData }),
+    api.post<{ message: string; count: number }>('/applications/bulk-approve', { applicationIds: ids, accountData }),
 
   // Bulk reject applications
   bulkReject: (ids: string[], refund: boolean, adminRemarks?: string) =>
-    api.post<{ message: string; count: number }>('/applications/bulk-reject', { ids, refund, adminRemarks }),
+    api.post<{ message: string; count: number }>('/applications/bulk-reject', { applicationIds: ids, refund, adminRemarks }),
 }
 
 // BM Share Requests API (Admin)
@@ -250,4 +260,18 @@ export const balanceTransfersApi = {
     api.post<{ message: string; transfer: any }>(`/accounts/transfers/${id}/reject`, { adminRemarks }),
   updateAmount: (id: string, amount: number) =>
     api.patch<{ message: string; transfer: any }>(`/accounts/transfers/${id}`, { amount }),
+}
+
+// Custom Domains API (Admin)
+export const domainsApi = {
+  getAll: (status?: string) => {
+    const params = new URLSearchParams()
+    if (status) params.append('status', status)
+    const queryString = params.toString()
+    return api.get<{ domains: any[] }>(`/domains/admin/all${queryString ? `?${queryString}` : ''}`)
+  },
+  approve: (id: string, adminRemarks?: string) =>
+    api.patch<{ message: string; domain: any }>(`/domains/admin/${id}`, { status: 'APPROVED', adminRemarks }),
+  reject: (id: string, adminRemarks?: string) =>
+    api.patch<{ message: string; domain: any }>(`/domains/admin/${id}`, { status: 'REJECTED', adminRemarks }),
 }

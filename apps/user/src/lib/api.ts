@@ -169,3 +169,8 @@ export const applicationsApi = {
     remarks?: string
   }) => api.post<{ message: string; application: any }>('/applications', data),
 }
+
+// Domains API (User - view agent's approved domain)
+export const domainsApi = {
+  getAgentDomain: () => api.get<{ domain: any; agent: any }>('/domains/user'),
+}

@@ -77,12 +77,12 @@ type SubPage = 'apply-ads-account' | 'account-list' | 'account-applied-records' 
 
 type MenuSection = 'account-manage' | 'deposit-manage' | 'after-sale'
 
-// Snapchat brand colors
-const brandColor = '#FFFC00'
-const brandColorDark = '#E6E300'
-const brandGradient = 'from-[#FFFC00] to-[#E6E300]'
+// Bing brand colors
+const brandColor = '#00809D'
+const brandColorDark = '#006B83'
+const brandGradient = 'from-[#00809D] to-[#006B83]'
 
-export default function SnapchatPage() {
+export default function BingPage() {
   const [activeSubPage, setActiveSubPage] = useState<SubPage>('apply-ads-account')
   const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['account-manage', 'deposit-manage', 'after-sale'])
   const [searchQuery, setSearchQuery] = useState('')
@@ -103,9 +103,9 @@ export default function SnapchatPage() {
         setLoading(true)
         const [userRes, accountsRes, refundsRes, depositsRes] = await Promise.all([
           authApi.me().catch(() => ({ user: null })),
-          accountsApi.getAll('SNAPCHAT').catch(() => ({ accounts: [] })),
-          transactionsApi.refunds.getAll('SNAPCHAT').catch(() => ({ refunds: [] })),
-          accountDepositsApi.getAll('SNAPCHAT').catch(() => ({ deposits: [] }))
+          accountsApi.getAll('BING').catch(() => ({ accounts: [] })),
+          transactionsApi.refunds.getAll('BING').catch(() => ({ refunds: [] })),
+          accountDepositsApi.getAll('BING').catch(() => ({ deposits: [] }))
         ])
         setUser(userRes.user)
         setUserAccounts(accountsRes.accounts || [])
@@ -120,8 +120,8 @@ export default function SnapchatPage() {
     fetchData()
   }, [])
 
-  // Get user's Snapchat commission rate from API (fallback to 5% if not set)
-  const snapchatCommissionRate = user?.snapchatCommission ? parseFloat(user.snapchatCommission) : 5
+  // Get user's Bing commission rate from API (fallback to 5% if not set)
+  const bingCommissionRate = user?.bingCommission ? parseFloat(user.bingCommission) : 5
 
   // User wallet balance from API
   const userBalance = user?.balance ? parseFloat(user.balance) : 0
@@ -136,10 +136,10 @@ export default function SnapchatPage() {
     pageUrl: '',
     domainName: '',
     isApp: 'no',
-    domain: 'Https:///ads.snapchat.com',
+    domain: 'Https:///ads.microsoft.com',
     hasShopify: 'no',
     adNumber: '',
-    adsAccount: 'Https:///ads.snapchat.com',
+    adsAccount: 'Https:///ads.microsoft.com',
     timeZone: '',
     depositAmount: '',
     message: ''
@@ -212,7 +212,7 @@ export default function SnapchatPage() {
   ]
 
   return (
-    <DashboardLayout title="Snapchat User Management Account" subtitle="">
+    <DashboardLayout title="Bing User Management Account" subtitle="">
       <div className="flex flex-col h-full">
       {/* Add global styles for animations */}
       <style jsx global>{`
@@ -225,8 +225,8 @@ export default function SnapchatPage() {
           100% { background-position: 200% 0; }
         }
         @keyframes pulse-glow {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(255, 252, 0, 0.4); }
-          50% { box-shadow: 0 0 20px 5px rgba(255, 252, 0, 0.2); }
+          0%, 100% { box-shadow: 0 0 0 0 rgba(0, 128, 157, 0.4); }
+          50% { box-shadow: 0 0 20px 5px rgba(0, 128, 157, 0.2); }
         }
         .animate-fadeInUp { animation: fadeInUp 0.3s ease-out forwards; }
         .table-row-animate { animation: fadeInUp 0.3s ease-out forwards; }
@@ -239,7 +239,7 @@ export default function SnapchatPage() {
         .table-row-animate:nth-child(7) { animation-delay: 0.35s; }
         .table-row-animate:nth-child(8) { animation-delay: 0.4s; }
         .stat-card { transition: all 0.3s ease; }
-        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px -5px rgba(255, 252, 0, 0.15); }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px -5px rgba(0, 128, 157, 0.15); }
         .brand-glow { animation: pulse-glow 3s ease-in-out infinite; }
       `}</style>
 
@@ -253,7 +253,7 @@ export default function SnapchatPage() {
             placeholder="Search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-[#FFFC00]/40 focus:border-[#FFFC00] focus:bg-white transition-all"
+            className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-[#00809D]/40 focus:border-[#00809D] focus:bg-white transition-all"
           />
         </div>
 
@@ -277,7 +277,7 @@ export default function SnapchatPage() {
           <Download className="w-3.5 h-3.5 mr-1.5" />
           Export Image
         </Button>
-        <Button className="bg-gradient-to-r from-[#FFFC00] to-[#E6E300] hover:from-[#E6E300] hover:to-[#CCCA00] text-black rounded-md shadow-sm whitespace-nowrap text-xs px-3 py-1.5 h-auto font-semibold">
+        <Button className="bg-gradient-to-r from-[#00809D] to-[#006B83] hover:from-[#006B83] hover:to-[#005A6F] text-white rounded-md shadow-sm whitespace-nowrap text-xs px-3 py-1.5 h-auto font-semibold">
           <Plus className="w-3.5 h-3.5 mr-1" />
           Ads Account
         </Button>
@@ -288,7 +288,7 @@ export default function SnapchatPage() {
         {statsData.map((stat, index) => (
           <Card key={index} className="stat-card p-3 border border-gray-100/50 bg-gradient-to-br from-white to-gray-50/30 relative overflow-hidden">
             {/* Decorative accent */}
-            <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-br from-[#FFFC00]/20 to-transparent rounded-bl-full" />
+            <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-br from-[#00809D]/20 to-transparent rounded-bl-full" />
 
             <div className="flex items-start justify-between relative z-10">
               <div>
@@ -307,9 +307,9 @@ export default function SnapchatPage() {
             <div className="mt-2 h-8 relative z-10">
               <svg viewBox="0 0 120 40" className="w-full h-full" preserveAspectRatio="none">
                 <defs>
-                  <linearGradient id={`gradient-snap-${index}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor={stat.trend === 'up' ? '#FFFC00' : '#EF4444'} stopOpacity="0.4" />
-                    <stop offset="100%" stopColor={stat.trend === 'up' ? '#FFFC00' : '#EF4444'} stopOpacity="0.05" />
+                  <linearGradient id={`gradient-bing-${index}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor={stat.trend === 'up' ? '#00809D' : '#EF4444'} stopOpacity="0.4" />
+                    <stop offset="100%" stopColor={stat.trend === 'up' ? '#00809D' : '#EF4444'} stopOpacity="0.05" />
                   </linearGradient>
                 </defs>
                 <path
@@ -317,7 +317,7 @@ export default function SnapchatPage() {
                     ? "M0,30 C10,28 20,25 30,22 C40,19 50,18 60,16 C70,14 80,12 90,10 C100,8 110,6 120,5"
                     : "M0,10 C10,12 20,15 30,18 C40,21 50,22 60,24 C70,26 80,28 90,30 C100,32 110,34 120,35"}
                   fill="none"
-                  stroke={stat.trend === 'up' ? '#CCCA00' : '#EF4444'}
+                  stroke={stat.trend === 'up' ? '#006B83' : '#EF4444'}
                   strokeWidth="2"
                   strokeLinecap="round"
                 />
@@ -325,7 +325,7 @@ export default function SnapchatPage() {
                   d={stat.trend === 'up'
                     ? "M0,30 C10,28 20,25 30,22 C40,19 50,18 60,16 C70,14 80,12 90,10 C100,8 110,6 120,5 L120,40 L0,40 Z"
                     : "M0,10 C10,12 20,15 30,18 C40,21 50,22 60,24 C70,26 80,28 90,30 C100,32 110,34 120,35 L120,40 L0,40 Z"}
-                  fill={`url(#gradient-snap-${index})`}
+                  fill={`url(#gradient-bing-${index})`}
                 />
               </svg>
             </div>
@@ -339,14 +339,14 @@ export default function SnapchatPage() {
         <div className="w-60 flex-shrink-0">
           <Card className="p-4 h-full border border-gray-100/50 bg-gradient-to-b from-white to-gray-50/50 relative overflow-hidden">
             {/* Decorative gradient background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[#FFFC00]/5 via-transparent to-[#52B788]/5" />
+            <div className="absolute inset-0 bg-gradient-to-br from-[#00809D]/5 via-transparent to-[#52B788]/5" />
 
-            {/* Snapchat Logo */}
+            {/* Bing Logo */}
             <div className="relative z-10 flex flex-col items-center mb-4 pb-4 border-b border-gray-100">
               <div className="relative">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#FFFC00] to-[#E6E300] flex items-center justify-center shadow-md shadow-yellow-500/20">
-                  <svg viewBox="0 0 500 500" className="w-7 h-7" fill="white">
-                    <path d="M417.93,340.71c-60.61-29.34-70.27-74.64-70.7-78-.52-4.07-1.11-7.27,3.38-11.41,4.33-4,23.54-15.89,28.87-19.61,8.81-6.16,12.69-12.31,9.83-19.87-2-5.23-6.87-7.2-12-7.2a22.3,22.3,0,0,0-4.81.54c-9.68,2.1-19.08,6.95-24.52,8.26a8.56,8.56,0,0,1-2,.27c-2.9,0-4-1.29-3.72-4.78.68-10.58,2.12-31.23.45-50.52-2.29-26.54-10.85-39.69-21-51.32C316.8,101.43,294,77.2,250,77.2S183.23,101.43,178.35,107c-10.18,11.63-18.73,24.78-21,51.32-1.67,19.29-.17,39.93.45,50.52.2,3.32-.82,4.78-3.72,4.78a8.64,8.64,0,0,1-2-.27c-5.43-1.31-14.83-6.16-24.51-8.26a22.3,22.3,0,0,0-4.81-.54c-5.15,0-10,2-12,7.2-2.86,7.56,1,13.71,9.84,19.87,5.33,3.72,24.54,15.6,28.87,19.61,4.48,4.14,3.9,7.34,3.38,11.41-.43,3.41-10.1,48.71-70.7,78-3.55,1.72-9.59,5.36,1.06,11.24,16.72,9.24,27.85,8.25,36.5,13.82,7.34,4.73,3,14.93,8.34,18.61,6.56,4.53,25.95-.32,51,7.95,21,6.92,33.76,26.47,71,26.47s50.37-19.64,71-26.47c25-8.27,44.43-3.42,51-7.95,5.33-3.68,1-13.88,8.34-18.61,8.65-5.57,19.77-4.58,36.5-13.82C427.52,346.07,421.48,342.43,417.93,340.71Z"/>
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#26B8F4] to-[#1B48EF] flex items-center justify-center shadow-md shadow-blue-500/20">
+                  <svg viewBox="0 0 29700 21000" className="w-7 h-7" fill="white">
+                    <polygon points="8475.16,1399.66 12124.09,2685.03 12136.1,15485.22 17223.25,12520.22 14741.02,11358.99 13148.22,7402.88 21223.77,10231.3 21217.16,14376.26 12123.05,19614.59 8487.02,17591.25"/>
                   </svg>
                 </div>
                 <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
@@ -366,29 +366,29 @@ export default function SnapchatPage() {
                 <div key={menu.section}>
                   <button
                     onClick={() => toggleSection(menu.section)}
-                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-semibold text-gray-700 hover:bg-[#FFFC00]/10 rounded-lg transition-all"
+                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-semibold text-gray-700 hover:bg-[#00809D]/10 rounded-lg transition-all"
                   >
                     <div className="flex items-center gap-2">
                       <span>{menu.icon}</span>
                       <span>{menu.title}</span>
                     </div>
                     {expandedSections.includes(menu.section) ? (
-                      <ChevronUp className="w-4 h-4 text-[#CCCA00]" />
+                      <ChevronUp className="w-4 h-4 text-[#006B83]" />
                     ) : (
                       <ChevronDown className="w-4 h-4 text-gray-400" />
                     )}
                   </button>
 
                   {expandedSections.includes(menu.section) && (
-                    <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-[#FFFC00]/30 pl-3">
+                    <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-[#00809D]/30 pl-3">
                       {menu.items.map((item) => (
                         <button
                           key={item.id}
                           onClick={() => setActiveSubPage(item.id)}
                           className={`w-full text-left px-2 py-1.5 text-sm rounded transition-all ${
                             activeSubPage === item.id
-                              ? 'bg-gradient-to-r from-[#FFFC00] to-[#E6E300] text-black font-semibold shadow-sm'
-                              : 'text-gray-600 hover:bg-[#FFFC00]/10 hover:text-gray-800'
+                              ? 'bg-gradient-to-r from-[#00809D] to-[#006B83] text-white font-semibold shadow-sm'
+                              : 'text-gray-600 hover:bg-[#00809D]/10 hover:text-gray-800'
                           }`}
                         >
                           {item.label}
@@ -444,26 +444,26 @@ export default function SnapchatPage() {
                       placeholder="Enter Page URL"
                       value={applyAdsForm.pageUrl}
                       onChange={(e) => setApplyAdsForm({...applyAdsForm, pageUrl: e.target.value})}
-                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFFC00]/30 focus:border-[#FFFC00] focus:bg-white transition-all"
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00809D]/30 focus:border-[#00809D] focus:bg-white transition-all"
                     />
                   </div>
 
                   {/* Checkbox */}
                   <div className="flex items-center gap-2.5">
-                    <input type="checkbox" id="shareProfile" className="w-4 h-4 rounded border-gray-300 text-[#FFFC00] focus:ring-[#FFFC00]" />
+                    <input type="checkbox" id="shareProfile" className="w-4 h-4 rounded border-gray-300 text-[#00809D] focus:ring-[#00809D]" />
                     <label htmlFor="shareProfile" className="text-sm text-gray-600">
                       Please make sure you have already shared your page with this profile
                     </label>
                   </div>
 
                   {/* URL Box */}
-                  <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-[#FFFC00]/10 to-[#52B788]/5 border border-[#FFFC00]/30 rounded-lg">
-                    <span className="text-sm text-gray-700 font-medium">Https:///ads.snapchat.com</span>
+                  <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-[#00809D]/10 to-[#52B788]/5 border border-[#00809D]/30 rounded-lg">
+                    <span className="text-sm text-gray-700 font-medium">Https:///ads.microsoft.com</span>
                     <button
-                      onClick={() => copyToClipboard('Https:///ads.snapchat.com', 1)}
+                      onClick={() => copyToClipboard('Https:///ads.microsoft.com', 1)}
                       className="p-1.5 hover:bg-white/80 rounded transition-colors"
                     >
-                      {copiedId === 1 ? <Check className="w-4 h-4 text-[#52B788]" /> : <Copy className="w-4 h-4 text-[#CCCA00]" />}
+                      {copiedId === 1 ? <Check className="w-4 h-4 text-[#52B788]" /> : <Copy className="w-4 h-4 text-[#006B83]" />}
                     </button>
                   </div>
 
@@ -487,7 +487,7 @@ export default function SnapchatPage() {
                         onClick={() => setApplyAdsForm({...applyAdsForm, isApp: 'yes'})}
                         className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
                           applyAdsForm.isApp === 'yes'
-                            ? 'bg-[#FFFC00] text-black shadow-sm shadow-yellow-500/25 font-semibold'
+                            ? 'bg-[#00809D] text-white shadow-sm shadow-teal-500/25 font-semibold'
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}
                       >
@@ -509,7 +509,7 @@ export default function SnapchatPage() {
                   {/* Domain */}
                   <div className="space-y-1">
                     <label className="block text-sm font-medium text-gray-700">Domain</label>
-                    <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-[#52B788]/5 to-[#FFFC00]/10 border border-[#52B788]/20 rounded-lg">
+                    <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-[#52B788]/5 to-[#00809D]/10 border border-[#52B788]/20 rounded-lg">
                       <span className="text-sm text-gray-700 font-medium">{applyAdsForm.domain}</span>
                     </div>
                   </div>
@@ -522,7 +522,7 @@ export default function SnapchatPage() {
                         onClick={() => setApplyAdsForm({...applyAdsForm, hasShopify: 'yes'})}
                         className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
                           applyAdsForm.hasShopify === 'yes'
-                            ? 'bg-[#FFFC00] text-black shadow-sm shadow-yellow-500/25 font-semibold'
+                            ? 'bg-[#00809D] text-white shadow-sm shadow-teal-500/25 font-semibold'
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}
                       >
@@ -557,7 +557,7 @@ export default function SnapchatPage() {
                   {/* Ads Account here */}
                   <div className="space-y-1">
                     <label className="block text-sm font-medium text-gray-700">Ads Account here</label>
-                    <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-[#52B788]/5 to-[#FFFC00]/10 border border-[#52B788]/20 rounded-lg">
+                    <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-[#52B788]/5 to-[#00809D]/10 border border-[#52B788]/20 rounded-lg">
                       <span className="text-sm text-gray-700 font-medium">{applyAdsForm.adsAccount}</span>
                     </div>
                   </div>
@@ -570,7 +570,7 @@ export default function SnapchatPage() {
                       placeholder="Time zone"
                       value={applyAdsForm.timeZone}
                       onChange={(e) => setApplyAdsForm({...applyAdsForm, timeZone: e.target.value})}
-                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFFC00]/30 focus:border-[#FFFC00] focus:bg-white transition-all"
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00809D]/30 focus:border-[#00809D] focus:bg-white transition-all"
                     />
                   </div>
 
@@ -588,7 +588,7 @@ export default function SnapchatPage() {
                   />
 
                   {/* Note */}
-                  <div className="p-3 bg-gradient-to-r from-[#FFFC00]/15 to-[#52B788]/10 border border-[#FFFC00]/30 rounded-lg">
+                  <div className="p-3 bg-gradient-to-r from-[#00809D]/15 to-[#52B788]/10 border border-[#00809D]/30 rounded-lg">
                     <p className="text-sm text-gray-700">
                       <span className="font-semibold">Note:</span> Ads account 2 is free No need opening fee
                     </p>
@@ -602,13 +602,13 @@ export default function SnapchatPage() {
                       value={applyAdsForm.message}
                       onChange={(e) => setApplyAdsForm({...applyAdsForm, message: e.target.value})}
                       rows={3}
-                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFFC00]/30 focus:border-[#FFFC00] focus:bg-white resize-none transition-all"
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00809D]/30 focus:border-[#00809D] focus:bg-white resize-none transition-all"
                     />
                   </div>
 
                   {/* Privacy Policy */}
                   <div className="flex items-center gap-2.5">
-                    <input type="checkbox" id="privacyPolicy" className="w-4 h-4 rounded border-gray-300 text-[#FFFC00] focus:ring-[#FFFC00]" />
+                    <input type="checkbox" id="privacyPolicy" className="w-4 h-4 rounded border-gray-300 text-[#00809D] focus:ring-[#00809D]" />
                     <label htmlFor="privacyPolicy" className="text-sm text-gray-600">
                       You agree to our friendly <span className="text-gray-800 underline cursor-pointer hover:text-black font-medium">privacy policy</span>.
                     </label>
@@ -616,7 +616,7 @@ export default function SnapchatPage() {
 
                   {/* Summary Cards */}
                   <div className="flex gap-3">
-                    <div className="flex-1 p-3 bg-gradient-to-br from-white to-[#FFFC00]/10 border border-[#FFFC00]/30 rounded-lg text-center">
+                    <div className="flex-1 p-3 bg-gradient-to-br from-white to-[#00809D]/10 border border-[#00809D]/30 rounded-lg text-center">
                       <p className="text-xs text-gray-500">Total Deposit of Ads</p>
                       <p className="text-base font-bold text-gray-800">50 USD</p>
                     </div>
@@ -631,7 +631,7 @@ export default function SnapchatPage() {
                   </div>
 
                   {/* Submit Button */}
-                  <Button className="w-full bg-gradient-to-r from-[#FFFC00] to-[#E6E300] hover:from-[#E6E300] hover:to-[#CCCA00] text-black rounded-lg py-3 text-base font-bold shadow-lg shadow-yellow-500/30 transition-all hover:shadow-xl hover:shadow-yellow-500/40">
+                  <Button className="w-full bg-gradient-to-r from-[#00809D] to-[#006B83] hover:from-[#006B83] hover:to-[#005A6F] text-white rounded-lg py-3 text-base font-bold shadow-lg shadow-teal-500/30 transition-all hover:shadow-xl hover:shadow-teal-500/40">
                     Pay and Submit
                   </Button>
                 </div>
@@ -641,7 +641,7 @@ export default function SnapchatPage() {
               {activeSubPage === 'account-list' && (
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gradient-to-r from-[#FFFC00]/10 to-gray-50">
+                    <tr className="bg-gradient-to-r from-[#00809D]/10 to-gray-50">
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">License</th>
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-700 uppercase tracking-wider">Ads Account ID</th>
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ads Account Name</th>
@@ -650,7 +650,7 @@ export default function SnapchatPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {accountListData.map((item) => (
-                      <tr key={item.id} className="table-row-animate hover:bg-[#FFFC00]/5 transition-all duration-300" style={{ opacity: 0 }}>
+                      <tr key={item.id} className="table-row-animate hover:bg-[#00809D]/5 transition-all duration-300" style={{ opacity: 0 }}>
                         <td className="py-4 px-5 text-sm text-gray-700">{item.license}</td>
                         <td className="py-4 px-5">
                           <span className="text-sm text-gray-800 font-medium font-mono">{item.adsAccountId}</span>
@@ -673,7 +673,7 @@ export default function SnapchatPage() {
               {activeSubPage === 'account-applied-records' && (
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gradient-to-r from-[#FFFC00]/10 to-gray-50">
+                    <tr className="bg-gradient-to-r from-[#00809D]/10 to-gray-50">
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">License</th>
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-700 uppercase tracking-wider">Request Start Time</th>
@@ -684,7 +684,7 @@ export default function SnapchatPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {appliedRecordsData.map((item) => (
-                      <tr key={item.id} className="table-row-animate hover:bg-[#FFFC00]/5 transition-all duration-300" style={{ opacity: 0 }}>
+                      <tr key={item.id} className="table-row-animate hover:bg-[#00809D]/5 transition-all duration-300" style={{ opacity: 0 }}>
                         <td className="py-4 px-5 text-sm text-gray-700 font-mono">{item.applyId}</td>
                         <td className="py-4 px-5 text-sm text-gray-700">{item.license}</td>
                         <td className="py-4 px-5">
@@ -708,7 +708,7 @@ export default function SnapchatPage() {
               {activeSubPage === 'bm-share-log' && (
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gradient-to-r from-[#FFFC00]/10 to-gray-50">
+                    <tr className="bg-gradient-to-r from-[#00809D]/10 to-gray-50">
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ads Account Name</th>
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-700 uppercase tracking-wider">Ads Account ID</th>
@@ -718,7 +718,7 @@ export default function SnapchatPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {bmShareLogData.map((item) => (
-                      <tr key={item.id} className="table-row-animate hover:bg-[#FFFC00]/5 transition-all duration-300" style={{ opacity: 0 }}>
+                      <tr key={item.id} className="table-row-animate hover:bg-[#00809D]/5 transition-all duration-300" style={{ opacity: 0 }}>
                         <td className="py-4 px-5 text-sm text-gray-700 font-mono">{item.applyId}</td>
                         <td className="py-4 px-5 text-sm text-gray-700">{item.adsAccountName}</td>
                         <td className="py-4 px-5">
@@ -741,7 +741,7 @@ export default function SnapchatPage() {
               {(activeSubPage === 'deposit' || activeSubPage === 'deposit-report') && (
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gradient-to-r from-[#FFFC00]/10 to-gray-50">
+                    <tr className="bg-gradient-to-r from-[#00809D]/10 to-gray-50">
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
                       <th className="text-left py-4 px-5 text-xs font-semibold text-gray-700 uppercase tracking-wider">Transaction ID</th>
@@ -749,9 +749,9 @@ export default function SnapchatPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {depositReportData.map((item) => (
-                      <tr key={item.id} className="table-row-animate hover:bg-[#FFFC00]/5 transition-all duration-300" style={{ opacity: 0 }}>
+                      <tr key={item.id} className="table-row-animate hover:bg-[#00809D]/5 transition-all duration-300" style={{ opacity: 0 }}>
                         <td className="py-4 px-5">
-                          <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#FFFC00]/20 to-[#FFFC00]/10 flex items-center justify-center text-sm font-semibold text-gray-800">
+                          <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#00809D]/20 to-[#00809D]/10 flex items-center justify-center text-sm font-semibold text-gray-800">
                             {item.id}
                           </span>
                         </td>
@@ -768,7 +768,7 @@ export default function SnapchatPage() {
               {/* Transfer Balance / Refund / Refund Report - Placeholder */}
               {(activeSubPage === 'transfer-balance' || activeSubPage === 'refund' || activeSubPage === 'refund-report') && (
                 <div className="p-16 text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#FFFC00]/20 to-[#52B788]/10 flex items-center justify-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#00809D]/20 to-[#52B788]/10 flex items-center justify-center">
                     <span className="text-3xl">🚧</span>
                   </div>
                   <p className="text-lg font-semibold text-gray-700">Coming Soon</p>
@@ -781,7 +781,7 @@ export default function SnapchatPage() {
           {activeSubPage !== 'apply-ads-account' && activeSubPage !== 'transfer-balance' && activeSubPage !== 'refund' && activeSubPage !== 'refund-report' && (
             <div className="p-3 border-t border-gray-100 flex items-center justify-between bg-white">
               <button
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 font-medium border border-gray-200 rounded-lg hover:bg-[#FFFC00]/10 hover:border-[#FFFC00]/40 hover:text-gray-800 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 font-medium border border-gray-200 rounded-lg hover:bg-[#00809D]/10 hover:border-[#00809D]/40 hover:text-gray-800 transition-all"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -795,10 +795,10 @@ export default function SnapchatPage() {
                     onClick={() => typeof page === 'number' && setCurrentPage(page)}
                     className={`w-8 h-8 rounded-lg text-xs font-medium transition-all ${
                       currentPage === page
-                        ? 'bg-gradient-to-r from-[#FFFC00] to-[#E6E300] text-black font-semibold shadow-sm'
+                        ? 'bg-gradient-to-r from-[#00809D] to-[#006B83] text-white font-semibold shadow-sm'
                         : page === '...'
                         ? 'text-gray-400 cursor-default'
-                        : 'text-gray-600 hover:bg-[#FFFC00]/15 hover:text-gray-800'
+                        : 'text-gray-600 hover:bg-[#00809D]/15 hover:text-gray-800'
                     }`}
                   >
                     {page}
@@ -807,7 +807,7 @@ export default function SnapchatPage() {
               </div>
 
               <button
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 font-medium border border-gray-200 rounded-lg hover:bg-[#FFFC00]/10 hover:border-[#FFFC00]/40 hover:text-gray-800 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 font-medium border border-gray-200 rounded-lg hover:bg-[#00809D]/10 hover:border-[#00809D]/40 hover:text-gray-800 transition-all"
                 onClick={() => setCurrentPage(p => p + 1)}
               >
                 Next
@@ -838,7 +838,7 @@ export default function SnapchatPage() {
               placeholder="Organization Id"
               value={bmShareForm.bmId}
               onChange={(e) => setBmShareForm({...bmShareForm, bmId: e.target.value})}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FFFC00]/30 focus:border-[#FFFC00] focus:bg-white transition-all"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00809D]/30 focus:border-[#00809D] focus:bg-white transition-all"
             />
           </div>
 
@@ -850,7 +850,7 @@ export default function SnapchatPage() {
               value={bmShareForm.message}
               onChange={(e) => setBmShareForm({...bmShareForm, message: e.target.value})}
               rows={4}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FFFC00]/30 focus:border-[#FFFC00] focus:bg-white resize-none transition-all"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00809D]/30 focus:border-[#00809D] focus:bg-white resize-none transition-all"
             />
           </div>
 
@@ -863,7 +863,7 @@ export default function SnapchatPage() {
             >
               Cancel
             </Button>
-            <Button className="flex-1 bg-gradient-to-r from-[#FFFC00] to-[#E6E300] hover:from-[#E6E300] hover:to-[#CCCA00] text-black font-semibold rounded-xl py-3 shadow-md shadow-yellow-500/25">
+            <Button className="flex-1 bg-gradient-to-r from-[#00809D] to-[#006B83] hover:from-[#006B83] hover:to-[#005A6F] text-white font-semibold rounded-xl py-3 shadow-md shadow-teal-500/25">
               Submit
             </Button>
           </div>

@@ -1,0 +1,56 @@
+# AWS CodeBuild specification for 6AD API
+# Used for CI/CD pipeline with CodePipeline
+
+version: 0.2
+
+env:
+  variables:
+    NODE_ENV: production
+  parameter-store:
+    DATABASE_URL: /6ad/production/DATABASE_URL
+    JWT_SECRET: /6ad/production/JWT_SECRET
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo Installing dependencies...
+      - npm ci
+
+  pre_build:
+    commands:
+      - echo Generating Prisma client...
+      - npx prisma generate --schema=packages/database/prisma/schema.prisma
+      - echo Running database migrations...
+      - npx prisma db push --schema=packages/database/prisma/schema.prisma --accept-data-loss
+
+  build:
+    commands:
+      - echo Building API...
+      - npm run build --workspace=apps/api
+      - echo Build completed on `date`
+
+  post_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - echo Building Docker image...
+      - docker build -t 6ad-api -f apps/api/Dockerfile .
+      - docker tag 6ad-api:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/6ad-api:latest
+      - docker tag 6ad-api:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/6ad-api:$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - echo Pushing Docker image...
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/6ad-api:latest
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/6ad-api:$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - echo Writing image definitions file...
+      - printf '[{"name":"6ad-api","imageUri":"%s"}]' $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/6ad-api:$CODEBUILD_RESOLVED_SOURCE_VERSION > imagedefinitions.json
+
+artifacts:
+  files:
+    - imagedefinitions.json
+    - appspec.yml
+    - taskdef.json
+
+cache:
+  paths:
+    - node_modules/**/*

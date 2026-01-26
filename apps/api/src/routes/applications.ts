@@ -120,17 +120,17 @@ applications.post('/', requireUser, async (c) => {
     }
 
     const adAccountQty = data.accountDetails.length
-    const depositAmount = new Prisma.Decimal(data.depositAmount)
-    const openingFee = user.openingFee.mul(adAccountQty)
-    const commissionAmount = depositAmount.mul(platformCommission).div(100)
+    const depositAmount = Number(data.depositAmount)
+    const openingFee = Number(user.openingFee) * adAccountQty
+    const commissionAmount = depositAmount * platformCommission / 100
 
     // If using coupon, only opening fee is waived - deposit + commission still charged
     const totalCost = useCoupon
-      ? depositAmount.add(commissionAmount).add(platformFee)
-      : depositAmount.add(openingFee).add(commissionAmount).add(platformFee)
+      ? depositAmount + commissionAmount + platformFee
+      : depositAmount + openingFee + commissionAmount + platformFee
 
     // Check if user has enough balance
-    if (user.walletBalance.lessThan(totalCost)) {
+    if (Number(user.walletBalance) < totalCost) {
       return c.json({
         error: 'Insufficient balance',
         required: totalCost.toString(),
@@ -166,7 +166,7 @@ applications.post('/', requireUser, async (c) => {
       }
 
       // Check balance
-      if (currentUser.walletBalance.lessThan(totalCost)) {
+      if (Number(currentUser.walletBalance) < totalCost) {
         throw new Error('Insufficient balance')
       }
 
@@ -190,8 +190,8 @@ applications.post('/', requireUser, async (c) => {
           data: {
             type: 'WITHDRAWAL',
             amount: totalCost,
-            balanceBefore: currentUser.walletBalance,
-            balanceAfter: currentUser.walletBalance.sub(totalCost),
+            balanceBefore: Number(currentUser.walletBalance),
+            balanceAfter: Number(currentUser.walletBalance) - totalCost,
             referenceType: 'ad_account_apply_coupon',
             userId,
             description: `Ad account application (Opening Fee Waived - Coupon used) - ${data.platform} (${adAccountQty} account${adAccountQty > 1 ? 's' : ''})`
@@ -211,8 +211,8 @@ applications.post('/', requireUser, async (c) => {
           data: {
             type: 'WITHDRAWAL',
             amount: totalCost,
-            balanceBefore: currentUser.walletBalance,
-            balanceAfter: currentUser.walletBalance.sub(totalCost),
+            balanceBefore: Number(currentUser.walletBalance),
+            balanceAfter: Number(currentUser.walletBalance) - totalCost,
             referenceType: 'ad_account_apply',
             userId,
             description: `Ad account application - ${data.platform} (${adAccountQty} account${adAccountQty > 1 ? 's' : ''})`
@@ -234,8 +234,8 @@ applications.post('/', requireUser, async (c) => {
           accountDetails: JSON.stringify(data.accountDetails.map(a => ({ name: a.name, accountId: '' }))),
           adAccountQty,
           depositAmount,
-          openingFee: useCoupon ? new Prisma.Decimal(0) : openingFee,
-          platformFee: commissionAmount.add(platformFee),
+          openingFee: useCoupon ? 0 : openingFee,
+          platformFee: commissionAmount + platformFee,
           totalCost,
           userId,
           remarks: useCoupon ? `${data.remarks || ''} [Opening Fee Waived - Coupon Used]`.trim() : data.remarks,
@@ -358,7 +358,7 @@ applications.get('/admin', requireAdmin, async (c) => {
 
     // Calculate stats
     const statsMap = {
-      totalBalance: new Prisma.Decimal(0),
+      totalBalance: 0,
       totalApproved: 0,
       totalPending: 0,
       totalRejected: 0
@@ -367,7 +367,7 @@ applications.get('/admin', requireAdmin, async (c) => {
     stats.forEach(s => {
       if (s.status === 'APPROVED') {
         statsMap.totalApproved = s._count
-        statsMap.totalBalance = statsMap.totalBalance.add(s._sum.totalCost || 0)
+        statsMap.totalBalance = statsMap.totalBalance + Number(s._sum.totalCost || 0)
       } else if (s.status === 'PENDING') {
         statsMap.totalPending = s._count
       } else if (s.status === 'REJECTED') {
@@ -601,8 +601,8 @@ applications.post('/:id/reject', requireAdmin, async (c) => {
             data: {
               type: 'REFUND',
               amount: application.totalCost,
-              balanceBefore: currentUser.walletBalance,
-              balanceAfter: currentUser.walletBalance.add(application.totalCost),
+              balanceBefore: Number(currentUser.walletBalance),
+              balanceAfter: Number(currentUser.walletBalance) + Number(application.totalCost),
               referenceType: 'refund',
               referenceId: application.id,
               userId: application.userId,
@@ -736,8 +736,8 @@ applications.post('/bulk-reject', requireAdmin, async (c) => {
                 data: {
                   type: 'CREDIT',
                   amount: application.totalCost,
-                  balanceBefore: currentUser.walletBalance,
-                  balanceAfter: currentUser.walletBalance.add(application.totalCost),
+                  balanceBefore: Number(currentUser.walletBalance),
+                  balanceAfter: Number(currentUser.walletBalance) + Number(application.totalCost),
                   referenceType: 'refund',
                   referenceId: application.id,
                   userId: application.userId,

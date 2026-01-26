@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
-import { transactionsApi, paymentMethodsApi, usersApi } from '@/lib/api'
+import { transactionsApi, paymentMethodsApi, usersApi, agentsApi } from '@/lib/api'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import {
@@ -127,9 +127,9 @@ export default function TransactionsPage() {
   const [usersLoading, setUsersLoading] = useState(false)
   const [creditTransactionId, setCreditTransactionId] = useState('')
   const [creditAmount, setCreditAmount] = useState('')
-  const [creditPayway, setCreditPayway] = useState<PaymentMethodType | null>(null)
-  const [creditPaywayDropdownOpen, setCreditPaywayDropdownOpen] = useState(false)
+  const [creditPayway, setCreditPayway] = useState('')
   const [creditImage, setCreditImage] = useState<File | null>(null)
+  const [creditRemarks, setCreditRemarks] = useState('')
 
   // Payment Methods
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodType[]>([])
@@ -175,7 +175,6 @@ export default function TransactionsPage() {
   // Refs for custom dropdowns
   const userSearchRef = useRef<HTMLDivElement>(null)
   const roleDropdownRef = useRef<HTMLDivElement>(null)
-  const paywayDropdownRef = useRef<HTMLDivElement>(null)
 
   // Show toast notification
   const showToast = (type: 'success' | 'error', message: string) => {
@@ -242,13 +241,23 @@ export default function TransactionsPage() {
     }
   }
 
-  // Fetch users for credit action modal
-  const fetchUsers = async () => {
-    if (allUsers.length > 0) return // Already loaded
+  // Fetch users and agents for credit action modal
+  const fetchUsers = async (forceRefresh = false) => {
+    if (allUsers.length > 0 && !forceRefresh) return // Already loaded
     setUsersLoading(true)
     try {
-      const data = await usersApi.getAll()
-      setAllUsers(data.users || [])
+      // Fetch both users and agents
+      const [usersData, agentsData] = await Promise.all([
+        usersApi.getAll(),
+        agentsApi.getAll()
+      ])
+
+      // Combine users (with role USER) and agents (with role AGENT)
+      const users = (usersData.users || []).map((u: any) => ({ ...u, role: 'USER' }))
+      const agents = (agentsData.agents || []).map((a: any) => ({ ...a, role: 'AGENT' }))
+
+      console.log('Fetched users:', users.length, 'agents:', agents.length)
+      setAllUsers([...users, ...agents])
     } catch (error) {
       console.error('Failed to fetch users:', error)
     } finally {
@@ -278,9 +287,9 @@ export default function TransactionsPage() {
     if ((paymentMethodModalOpen || creditModalOpen) && paymentMethods.length === 0) {
       fetchPaymentMethods()
     }
-    // Also fetch users when credit modal opens
-    if (creditModalOpen && allUsers.length === 0) {
-      fetchUsers()
+    // Fetch users and agents when credit modal opens
+    if (creditModalOpen) {
+      fetchUsers(true) // Always refresh to get latest data
     }
   }, [paymentMethodModalOpen, creditModalOpen])
 
@@ -292,9 +301,6 @@ export default function TransactionsPage() {
       }
       if (roleDropdownRef.current && !roleDropdownRef.current.contains(e.target as Node)) {
         setCreditRoleDropdownOpen(false)
-      }
-      if (paywayDropdownRef.current && !paywayDropdownRef.current.contains(e.target as Node)) {
-        setCreditPaywayDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -383,14 +389,13 @@ export default function TransactionsPage() {
     }
   }
 
-  // Filter users for search autocomplete
-  const filteredUsers = creditMemberSearch.length >= 2
-    ? allUsers.filter(u =>
-        (creditRole === 'all' || u.role.toLowerCase() === creditRole.toLowerCase()) &&
-        (u.username.toLowerCase().includes(creditMemberSearch.toLowerCase()) ||
-         u.email.toLowerCase().includes(creditMemberSearch.toLowerCase()))
-      ).slice(0, 10)
-    : []
+  // Filter users for search autocomplete - show all users filtered by role, then by search term
+  const filteredUsers = allUsers.filter(u =>
+    (creditRole === 'all' || (u.role && u.role.toLowerCase() === creditRole.toLowerCase())) &&
+    (creditMemberSearch.length === 0 ||
+     (u.username && u.username.toLowerCase().includes(creditMemberSearch.toLowerCase())) ||
+     (u.email && u.email.toLowerCase().includes(creditMemberSearch.toLowerCase())))
+  ).slice(0, 20)
 
   // Filter data
   const getFilteredData = () => {
@@ -526,30 +531,63 @@ export default function TransactionsPage() {
     }
   }
 
-  const handleCreditSubmit = () => {
-    // Submit credit action
-    console.log({
-      mode: creditMode,
-      role: creditRole,
-      member: creditMember,
-      transactionId: creditTransactionId,
-      amount: creditAmount,
-      payway: creditPayway,
-      image: creditImage
-    })
-    setCreditModalOpen(false)
-    // Reset form
-    setCreditMode('deposit')
-    setCreditRole('user')
-    setCreditRoleDropdownOpen(false)
-    setCreditMember(null)
-    setCreditMemberSearch('')
-    setCreditMemberDropdownOpen(false)
-    setCreditTransactionId('')
-    setCreditAmount('')
-    setCreditPayway(null)
-    setCreditPaywayDropdownOpen(false)
-    setCreditImage(null)
+  const handleCreditSubmit = async () => {
+    // Validate
+    if (!creditMember) {
+      showToast('error', 'Please select a member')
+      return
+    }
+    if (!creditAmount || parseFloat(creditAmount) <= 0) {
+      showToast('error', 'Please enter a valid amount')
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      // Convert image to base64 if provided
+      let paymentProofBase64: string | undefined
+      if (creditImage) {
+        const reader = new FileReader()
+        paymentProofBase64 = await new Promise<string>((resolve) => {
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.readAsDataURL(creditImage)
+        })
+      }
+
+      const result = await transactionsApi.creditAction({
+        userId: creditMember.id,
+        amount: parseFloat(creditAmount),
+        mode: creditMode as 'deposit' | 'remove',
+        transactionId: creditTransactionId || undefined,
+        payway: creditPayway || undefined,
+        description: `${creditMode === 'deposit' ? 'Deposit' : 'Removal'} by admin - ${creditPayway || 'Manual'}`,
+        paymentProof: paymentProofBase64,
+        remarks: creditRemarks || undefined
+      })
+
+      showToast('success', result.message)
+      setCreditModalOpen(false)
+
+      // Reset form
+      setCreditMode('deposit')
+      setCreditRole('user')
+      setCreditRoleDropdownOpen(false)
+      setCreditMember(null)
+      setCreditMemberSearch('')
+      setCreditMemberDropdownOpen(false)
+      setCreditTransactionId('')
+      setCreditAmount('')
+      setCreditPayway('')
+      setCreditImage(null)
+      setCreditRemarks('')
+
+      // Refresh data
+      refreshData()
+    } catch (error: any) {
+      showToast('error', error.message || 'Failed to process credit action')
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const setDefaultPaymentMethod = async (id: string) => {
@@ -1180,9 +1218,15 @@ export default function TransactionsPage() {
                           <div className="flex items-center gap-2">
                             <span className={cn(
                               'text-sm font-semibold',
-                              activeTab === 'deposits' ? 'text-green-600' : 'text-red-600'
+                              activeTab === 'deposits'
+                                ? (transaction.amount < 0 ? 'text-red-600' : 'text-green-600')
+                                : 'text-red-600'
                             )}>
-                              {activeTab === 'deposits' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                              {activeTab === 'deposits'
+                                ? (transaction.amount < 0
+                                    ? `-${formatCurrency(Math.abs(transaction.amount))}`
+                                    : `+${formatCurrency(transaction.amount)}`)
+                                : `-${formatCurrency(transaction.amount)}`}
                             </span>
                             {transaction.status === 'PENDING' && activeTab === 'deposits' && (
                               <button
@@ -1586,14 +1630,10 @@ export default function TransactionsPage() {
                       value={creditMemberSearch}
                       onChange={(e) => {
                         setCreditMemberSearch(e.target.value)
-                        setCreditMemberDropdownOpen(e.target.value.length >= 2)
+                        setCreditMemberDropdownOpen(true)
                       }}
-                      onFocus={() => {
-                        if (creditMemberSearch.length >= 2) {
-                          setCreditMemberDropdownOpen(true)
-                        }
-                      }}
-                      placeholder="Type 2+ letters to search users..."
+                      onFocus={() => setCreditMemberDropdownOpen(true)}
+                      placeholder="Click to select or type to search..."
                       className="w-full h-10 pl-10 pr-4 rounded-lg border border-gray-200 bg-white text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]"
                     />
                     {usersLoading && (
@@ -1618,11 +1658,11 @@ export default function TransactionsPage() {
                           className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
                         >
                           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-purple-400 to-purple-600 text-xs font-medium text-white">
-                            {user.username.charAt(0).toUpperCase()}
+                            {(user.username || '?').charAt(0).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{user.username}</p>
-                            <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                            <p className="text-sm font-medium text-gray-900 truncate">{user.username || 'Unknown'}</p>
+                            <p className="text-xs text-gray-500 truncate">{user.email || ''}</p>
                           </div>
                           <span className={cn(
                             'text-xs font-medium px-2 py-0.5 rounded-full',
@@ -1630,7 +1670,7 @@ export default function TransactionsPage() {
                             user.role === 'AGENT' ? 'bg-blue-100 text-blue-700' :
                             'bg-gray-100 text-gray-700'
                           )}>
-                            {user.role}
+                            {user.role || 'USER'}
                           </span>
                         </button>
                       ))}
@@ -1638,9 +1678,11 @@ export default function TransactionsPage() {
                   )}
 
                   {/* No results message */}
-                  {creditMemberDropdownOpen && creditMemberSearch.length >= 2 && filteredUsers.length === 0 && !usersLoading && (
+                  {creditMemberDropdownOpen && filteredUsers.length === 0 && !usersLoading && (
                     <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center">
-                      <p className="text-sm text-gray-500">No users found matching "{creditMemberSearch}"</p>
+                      <p className="text-sm text-gray-500">
+                        {creditMemberSearch ? `No users found matching "${creditMemberSearch}"` : 'No users available'}
+                      </p>
                     </div>
                   )}
                 </>
@@ -1672,83 +1714,16 @@ export default function TransactionsPage() {
             />
           </div>
 
-          {/* Payway - Custom Dropdown */}
-          <div ref={paywayDropdownRef}>
+          {/* Payway */}
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Payway</label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setCreditPaywayDropdownOpen(!creditPaywayDropdownOpen)}
-                className={cn(
-                  "w-full h-10 flex items-center justify-between px-4 rounded-lg border bg-white text-sm transition-colors",
-                  creditPaywayDropdownOpen
-                    ? "border-[#8B5CF6] ring-1 ring-[#8B5CF6]"
-                    : "border-gray-200 hover:border-gray-300"
-                )}
-              >
-                {creditPayway ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{creditPayway.icon}</span>
-                    <span className="text-gray-900">{creditPayway.name}</span>
-                  </div>
-                ) : (
-                  <span className="text-gray-400">Select payment method</span>
-                )}
-                <ChevronDown className={cn(
-                  "h-4 w-4 text-gray-400 transition-transform",
-                  creditPaywayDropdownOpen && "rotate-180"
-                )} />
-              </button>
-
-              {/* Dropdown */}
-              {creditPaywayDropdownOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                  {paymentMethods.filter(pm => pm.isEnabled).length === 0 ? (
-                    <div className="px-4 py-3 text-center text-sm text-gray-500">
-                      No payment methods available
-                    </div>
-                  ) : (
-                    paymentMethods.filter(pm => pm.isEnabled).map((pm) => (
-                      <button
-                        key={pm.id}
-                        type="button"
-                        onClick={() => {
-                          setCreditPayway(pm)
-                          setCreditPaywayDropdownOpen(false)
-                        }}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors",
-                          creditPayway?.id === pm.id
-                            ? "bg-purple-50"
-                            : "hover:bg-gray-50"
-                        )}
-                      >
-                        <span className="text-xl">{pm.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className={cn(
-                            "text-sm font-medium truncate",
-                            creditPayway?.id === pm.id ? "text-[#8B5CF6]" : "text-gray-900"
-                          )}>
-                            {pm.name}
-                          </p>
-                          {pm.description && (
-                            <p className="text-xs text-gray-500 truncate">{pm.description}</p>
-                          )}
-                        </div>
-                        {pm.isDefault && (
-                          <span className="text-xs font-medium text-[#8B5CF6] bg-purple-100 px-2 py-0.5 rounded-full">
-                            Default
-                          </span>
-                        )}
-                        {creditPayway?.id === pm.id && (
-                          <Check className="h-4 w-4 text-[#8B5CF6] flex-shrink-0" />
-                        )}
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+            <input
+              type="text"
+              value={creditPayway}
+              onChange={(e) => setCreditPayway(e.target.value)}
+              placeholder="Enter payment method"
+              className="w-full h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]"
+            />
           </div>
 
           {/* Upload Image */}
@@ -1771,20 +1746,39 @@ export default function TransactionsPage() {
             </div>
           </div>
 
+          {/* Remarks */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Remarks {creditMode === 'remove' && <span className="text-red-500">*</span>}
+            </label>
+            <textarea
+              value={creditRemarks}
+              onChange={(e) => setCreditRemarks(e.target.value)}
+              placeholder={creditMode === 'remove' ? "Enter reason for deduction (visible to user)" : "Enter remarks (optional)"}
+              rows={2}
+              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6] resize-none"
+            />
+          </div>
+
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={() => setCreditModalOpen(false)}
-              className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={actionLoading}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleCreditSubmit}
-              className="px-4 py-2 rounded-lg bg-[#8B5CF6] text-sm font-medium text-white hover:bg-[#7C4CEF]"
+              disabled={actionLoading || !creditMember || !creditAmount}
+              className="px-4 py-2 rounded-lg bg-[#8B5CF6] text-sm font-medium text-white hover:bg-[#7C4CEF] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Submit
+              {actionLoading && (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              )}
+              {creditMode === 'deposit' ? 'Add Deposit' : 'Remove Amount'}
             </button>
           </div>
         </div>

@@ -11,6 +11,7 @@ import {
   Receipt,
   Settings,
   LogOut,
+  Globe,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
@@ -157,6 +158,20 @@ export function Sidebar() {
         <div>
           <p className="text-xs text-gray-400 uppercase tracking-wider mb-3 px-3">Settings</p>
           <ul className="space-y-1">
+            <li>
+              <Link
+                href="/domains"
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                  pathname === '/domains'
+                    ? 'bg-primary-500 text-white'
+                    : 'text-gray-300 hover:bg-sidebar-hover hover:text-white'
+                )}
+              >
+                <Globe className="w-5 h-5" />
+                Custom Domains
+              </Link>
+            </li>
             <li>
               <Link
                 href="/settings"

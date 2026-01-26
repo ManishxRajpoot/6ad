@@ -439,6 +439,15 @@ export default function UsersPage() {
               )}
             </div>
           </div>
+
+          {/* Add User Button - Right Side */}
+          <button
+            onClick={handleAddUser}
+            className="h-9 px-4 rounded-lg bg-[#8B5CF6] text-white text-sm font-medium hover:bg-[#7C3AED] transition-colors flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Add User
+          </button>
         </div>
 
         {/* Stats Row */}
@@ -460,8 +469,8 @@ export default function UsersPage() {
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#8B5CF6] border-t-transparent" />
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          <div className="overflow-x-auto overflow-y-visible">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
@@ -549,41 +558,21 @@ export default function UsersPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-center">
-                          <div className="relative">
-                            <button
-                              onClick={() => setActiveDropdown(activeDropdown === user.id ? null : user.id)}
-                              className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
-
-                            {activeDropdown === user.id && (
-                              <>
-                                <div
-                                  className="fixed inset-0 z-[60]"
-                                  onClick={() => setActiveDropdown(null)}
-                                />
-                                <div className="absolute right-0 top-8 z-[70] w-40 bg-white rounded-lg shadow-lg border border-gray-100 py-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                                  <button
-                                    onClick={() => handleEditUser(user)}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                    Edit User
-                                  </button>
-                                  <div className="h-px bg-gray-100 my-1" />
-                                  <button
-                                    onClick={() => handleDeleteUser(user)}
-                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    Delete User
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleEditUser(user)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-[#8B5CF6] hover:bg-[#8B5CF6]/10 transition-colors"
+                            title="Edit User"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(user)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            title="Delete User"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -600,91 +589,89 @@ export default function UsersPage() {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center py-4 gap-1 border-t border-gray-100">
-              {/* Previous Button */}
-              {currentPage > 1 && (
+          {filteredAndSortedUsers.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+              {/* Left: Page info */}
+              <div className="text-sm text-gray-500">
+                Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredAndSortedUsers.length)} of {filteredAndSortedUsers.length} users
+              </div>
+
+              {/* Right: Navigation */}
+              <div className="flex items-center gap-1">
+                {/* Previous Button */}
                 <button
                   onClick={() => setCurrentPage(currentPage - 1)}
-                  className="px-3 h-9 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6] hover:scale-105 active:scale-95 transition-all duration-200 font-medium"
+                  disabled={currentPage === 1}
+                  className={`px-3 h-9 rounded-lg border text-sm font-medium transition-all duration-200 ${
+                    currentPage === 1
+                      ? 'border-gray-100 text-gray-300 cursor-not-allowed'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6]'
+                  }`}
                 >
                   ← Prev
                 </button>
-              )}
 
-              {/* Page Numbers */}
-              {(() => {
-                const pages = []
-                const maxVisiblePages = 5
+                {/* Page Numbers */}
+                {(() => {
+                  const pages: (number | string)[] = []
+                  const maxVisiblePages = 5
 
-                if (totalPages <= maxVisiblePages) {
-                  // Show all pages if total is less than max visible
-                  for (let i = 1; i <= totalPages; i++) {
-                    pages.push(i)
-                  }
-                } else {
-                  // Always show first page
-                  pages.push(1)
-
-                  if (currentPage > 3) {
-                    pages.push('...')
-                  }
-
-                  // Show pages around current page
-                  const start = Math.max(2, currentPage - 1)
-                  const end = Math.min(totalPages - 1, currentPage + 1)
-
-                  for (let i = start; i <= end; i++) {
-                    if (!pages.includes(i)) {
+                  if (totalPages <= maxVisiblePages) {
+                    for (let i = 1; i <= totalPages; i++) {
                       pages.push(i)
+                    }
+                  } else {
+                    pages.push(1)
+                    if (currentPage > 3) {
+                      pages.push('...')
+                    }
+                    const start = Math.max(2, currentPage - 1)
+                    const end = Math.min(totalPages - 1, currentPage + 1)
+                    for (let i = start; i <= end; i++) {
+                      if (!pages.includes(i)) {
+                        pages.push(i)
+                      }
+                    }
+                    if (currentPage < totalPages - 2) {
+                      pages.push('...')
+                    }
+                    if (!pages.includes(totalPages)) {
+                      pages.push(totalPages)
                     }
                   }
 
-                  if (currentPage < totalPages - 2) {
-                    pages.push('...')
-                  }
+                  return pages.map((page, index) => (
+                    page === '...' ? (
+                      <span key={`ellipsis-${index}`} className="text-sm text-gray-400 px-2">...</span>
+                    ) : (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page as number)}
+                        className={`w-9 h-9 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          currentPage === page
+                            ? 'bg-[#8B5CF6] text-white shadow-md'
+                            : 'border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6]'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )
+                  ))
+                })()}
 
-                  // Always show last page
-                  if (!pages.includes(totalPages)) {
-                    pages.push(totalPages)
-                  }
-                }
-
-                return pages.map((page, index) => (
-                  page === '...' ? (
-                    <span key={`ellipsis-${index}`} className="text-sm text-gray-500 px-1">...</span>
-                  ) : (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page as number)}
-                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-all duration-200 hover:scale-105 active:scale-95 ${
-                        currentPage === page
-                          ? 'bg-[#8B5CF6] text-white shadow-lg shadow-purple-500/30 hover:bg-[#7C3AED]'
-                          : 'border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6]'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  )
-                ))
-              })()}
-
-              {/* Next Button */}
-              {currentPage < totalPages && (
+                {/* Next Button */}
                 <button
                   onClick={() => setCurrentPage(currentPage + 1)}
-                  className="px-3 h-9 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6] hover:scale-105 active:scale-95 transition-all duration-200 font-medium"
+                  disabled={currentPage >= totalPages}
+                  className={`px-3 h-9 rounded-lg border text-sm font-medium transition-all duration-200 ${
+                    currentPage >= totalPages
+                      ? 'border-gray-100 text-gray-300 cursor-not-allowed'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6]'
+                  }`}
                 >
                   Next →
                 </button>
-              )}
-            </div>
-          )}
-
-          {/* Show page info when there's data */}
-          {filteredAndSortedUsers.length > 0 && (
-            <div className="flex items-center justify-center py-2 text-xs text-gray-500">
-              Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredAndSortedUsers.length)} of {filteredAndSortedUsers.length} users
+              </div>
             </div>
           )}
         </div>

@@ -172,13 +172,13 @@ export default function DepositsPage() {
         setLoadingPayLinks(true)
         try {
           const [requestsData, settingsData] = await Promise.all([
-            transactionsApi.payLinkRequests.getAll(),
-            transactionsApi.settings.getPayLinkEnabled()
+            transactionsApi.payLinkRequests.getAll().catch(() => ({ payLinkRequests: [] })),
+            transactionsApi.settings.getPayLinkEnabled().catch(() => ({ payLinkEnabled: false }))
           ])
           setPayLinkRequests(requestsData.payLinkRequests || [])
           setPayLinkEnabled(settingsData.payLinkEnabled)
         } catch (error) {
-          console.error('Failed to fetch pay link data:', error)
+          // Silently handle errors
         } finally {
           setLoadingPayLinks(false)
         }
@@ -820,10 +820,12 @@ export default function DepositsPage() {
                         <span className="text-xs text-gray-700 font-mono bg-gray-50 px-2 py-0.5 rounded whitespace-nowrap">{item.applyId || `WD${item.id.slice(-8).toUpperCase()}`}</span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-xs font-bold text-[#52B788] whitespace-nowrap">${item.amount.toLocaleString()}</span>
+                        <span className={`text-xs font-bold whitespace-nowrap ${item.amount < 0 ? 'text-red-500' : 'text-[#52B788]'}`}>
+                          {item.amount < 0 ? `-$${Math.abs(item.amount).toLocaleString()}` : `$${item.amount.toLocaleString()}`}
+                        </span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-xs text-gray-600 font-mono truncate max-w-[150px] block" title={item.transactionId || ''}>{item.transactionId || '---'}</span>
+                        <span className="text-xs text-gray-600 font-mono" title={item.transactionId || ''}>{item.transactionId || '---'}</span>
                       </td>
                       <td className="py-3 px-4">
                         {item.paymentProof ? (
@@ -852,7 +854,21 @@ export default function DepositsPage() {
                           {item.paymentMethod || '---'}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-xs text-gray-400 truncate max-w-[80px]" title={item.remarks || ''}>{item.remarks || '---'}</td>
+                      <td className="py-3 px-4 text-xs text-gray-400 max-w-[80px]">
+                        {item.remarks ? (
+                          <div className="relative group/remarks">
+                            <span className="block truncate cursor-pointer hover:text-gray-600">{item.remarks}</span>
+                            <div className="absolute z-50 left-0 top-full mt-1 hidden group-hover/remarks:block">
+                              <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 max-w-[250px] shadow-lg whitespace-normal">
+                                {item.remarks}
+                                <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 rotate-45"></div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <span>---</span>
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">
                         {new Date(item.createdAt).toLocaleDateString()}
                       </td>
@@ -1120,10 +1136,11 @@ export default function DepositsPage() {
                               <p className="text-sm font-medium text-gray-900">
                                 {flow.description || (
                                   flow.referenceType === 'deposit' ? 'Deposit Added' :
-                                  flow.referenceType === 'withdrawal' ? 'Withdrawal' :
+                                  flow.referenceType === 'withdrawal' ? 'Withdrawal Request' :
                                   flow.referenceType === 'refund' ? 'Refund Approved' :
                                   flow.referenceType === 'ad_account_recharge' ? 'Ad Account Recharge' :
                                   flow.referenceType === 'ad_account_apply' ? 'Ad Account Apply' :
+                                  flow.type === 'WITHDRAWAL' ? 'Amount Deducted' :
                                   'Wallet Transaction'
                                 )}
                               </p>

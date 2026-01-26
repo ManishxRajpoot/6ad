@@ -88,3 +88,13 @@ export const brandingApi = {
   update: (data: { brandLogo?: string; brandName?: string }) =>
     api.patch<{ message: string; agent: any }>('/agents/branding', data),
 }
+
+// Domains API (Agent custom domains)
+export const domainsApi = {
+  getAll: () => api.get<{ domains: any[] }>('/domains'),
+  submit: (data: { domain: string }) =>
+    api.post<{ message: string; domain: any; dnsInstructions: any }>('/domains', data),
+  verify: (id: string) =>
+    api.post<{ message: string; dnsVerified: boolean }>(`/domains/${id}/verify`, {}),
+  delete: (id: string) => api.delete<{ message: string }>(`/domains/${id}`),
+}

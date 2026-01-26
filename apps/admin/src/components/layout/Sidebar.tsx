@@ -13,6 +13,7 @@ import {
   Bell,
   LogOut,
   Settings2,
+  Globe,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -72,6 +73,7 @@ const menuItems = [
     )
   },
   { name: 'Withdrawals', href: '/withdrawals', icon: ArrowUpRight },
+  { name: 'Domain Requests', href: '/domain-requests', icon: Globe },
   { name: 'User Setting', href: '/user-settings', icon: Settings2 },
   { name: 'Notices', href: '/notices', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings },
