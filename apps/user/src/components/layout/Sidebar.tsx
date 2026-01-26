@@ -10,6 +10,7 @@ import {
   LogOut,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
+import { useDomainStore } from '@/store/domain'
 import { useRouter } from 'next/navigation'
 
 // Platform icons
@@ -56,6 +57,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { logout, user } = useAuthStore()
+  const { isCustomDomain, branding } = useDomainStore()
 
   const handleLogout = () => {
     logout()
@@ -67,16 +69,24 @@ export function Sidebar() {
     return pathname.startsWith(href)
   }
 
+  // Use custom domain branding if available, otherwise fall back to user's agent branding
+  const displayBrandName = isCustomDomain && branding?.brandName
+    ? branding.brandName
+    : user?.agent?.brandName || 'COINEST'
+  const displayBrandLogo = isCustomDomain && branding?.brandLogo
+    ? branding.brandLogo
+    : user?.agent?.brandLogo
+
   return (
     <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-gray-100 flex flex-col">
       {/* Logo */}
       <div className="px-6 py-5">
         <Link href="/dashboard" className="flex items-center gap-3">
-          {/* Show agent's branding if user belongs to an agent with custom branding */}
-          {user?.agent?.brandLogo ? (
+          {/* Show custom domain branding or agent's branding */}
+          {displayBrandLogo ? (
             <img
-              src={user.agent.brandLogo}
-              alt={user.agent.brandName || 'Brand Logo'}
+              src={displayBrandLogo}
+              alt={displayBrandName || 'Brand Logo'}
               className="h-8 max-w-[200px] object-contain"
             />
           ) : (
@@ -85,7 +95,7 @@ export function Sidebar() {
                 <span className="text-yellow-400 text-lg">⚡</span>
               </div>
               <span className="text-gray-900 font-semibold text-xl tracking-tight">
-                {user?.agent?.brandName || 'COINEST'}
+                {displayBrandName}
               </span>
             </>
           )}

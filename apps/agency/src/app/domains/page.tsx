@@ -233,11 +233,11 @@ export default function DomainsPage() {
                             onClick={() => {
                               setSelectedDomain(domain)
                               setDnsInstructions({
-                                type: 'CNAME',
+                                type: 'A',
                                 name: domain.domain,
-                                value: 'app.coinest.com',
+                                value: '72.61.172.38',
                                 txtRecord: {
-                                  name: `_coinest-verify.${domain.domain}`,
+                                  name: `_6ad-verify.${domain.domain}`,
                                   value: domain.verificationToken,
                                 },
                               })
@@ -344,28 +344,28 @@ export default function DomainsPage() {
               To verify ownership of <strong>{selectedDomain.domain}</strong>, please add the following DNS records:
             </p>
 
-            {/* CNAME Record */}
+            {/* A Record */}
             <div className="space-y-2">
-              <h4 className="font-medium text-gray-900">1. CNAME Record</h4>
+              <h4 className="font-medium text-gray-900">1. A Record</h4>
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-xs text-gray-500 block">Type</span>
-                    <span className="font-mono text-sm">CNAME</span>
+                    <span className="font-mono text-sm">A</span>
                   </div>
                   <div className="flex-1 mx-4">
                     <span className="text-xs text-gray-500 block">Name/Host</span>
                     <span className="font-mono text-sm">{dnsInstructions.name}</span>
                   </div>
                   <div className="flex-1">
-                    <span className="text-xs text-gray-500 block">Points to</span>
+                    <span className="text-xs text-gray-500 block">Points to (IP Address)</span>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-sm">{dnsInstructions.value}</span>
                       <button
-                        onClick={() => copyToClipboard(dnsInstructions.value, 'cname')}
+                        onClick={() => copyToClipboard(dnsInstructions.value, 'arecord')}
                         className="p-1 hover:bg-gray-200 rounded"
                       >
-                        {copiedField === 'cname' ? (
+                        {copiedField === 'arecord' ? (
                           <Check className="w-4 h-4 text-green-600" />
                         ) : (
                           <Copy className="w-4 h-4 text-gray-400" />

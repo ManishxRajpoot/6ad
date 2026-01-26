@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { authApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { useDomainStore } from '@/store/domain'
 
 export default function LoginPage() {
   const router = useRouter()
   const { setAuth } = useAuthStore()
+  const { isCustomDomain, branding } = useDomainStore()
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -48,16 +50,34 @@ export default function LoginPage() {
     }
   }
 
+  // Use custom domain branding if available
+  const displayBrandName = isCustomDomain && branding?.brandName
+    ? branding.brandName
+    : 'COINEST'
+  const displayBrandLogo = isCustomDomain && branding?.brandLogo
+    ? branding.brandLogo
+    : null
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-card p-8">
-          {/* Logo */}
+          {/* Logo - Show custom domain branding if available */}
           <div className="flex items-center justify-center gap-2 mb-8">
-            <div className="w-10 h-10 rounded-lg bg-primary-500 flex items-center justify-center">
-              <span className="text-white font-bold text-xl">6</span>
-            </div>
-            <span className="text-2xl font-bold text-gray-900">COINEST</span>
+            {displayBrandLogo ? (
+              <img
+                src={displayBrandLogo}
+                alt={displayBrandName}
+                className="h-10 max-w-[200px] object-contain"
+              />
+            ) : (
+              <>
+                <div className="w-10 h-10 rounded-lg bg-primary-500 flex items-center justify-center">
+                  <span className="text-white font-bold text-xl">6</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{displayBrandName}</span>
+              </>
+            )}
           </div>
 
           <h1 className="text-xl font-semibold text-center mb-2">

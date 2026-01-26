@@ -284,11 +284,11 @@ domains.post('/', async (c) => {
       message: 'Domain request submitted successfully',
       domain: customDomain,
       dnsInstructions: {
-        type: 'CNAME',
+        type: 'A',
         name: domain.toLowerCase(),
-        value: 'app.coinest.com', // Your main platform domain
+        value: '72.61.172.38', // VPS IP address
         txtRecord: {
-          name: `_coinest-verify.${domain.toLowerCase()}`,
+          name: `_6ad-verify.${domain.toLowerCase()}`,
           value: verificationToken,
         },
       },

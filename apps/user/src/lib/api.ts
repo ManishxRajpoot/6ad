@@ -173,4 +173,9 @@ export const applicationsApi = {
 // Domains API (User - view agent's approved domain)
 export const domainsApi = {
   getAgentDomain: () => api.get<{ domain: any; agent: any }>('/domains/user'),
+  // Check if a custom domain is valid and get branding info (public API)
+  checkDomain: (domain: string) =>
+    fetch(`${API_URL}/domains/check/${domain}`)
+      .then(res => res.json())
+      .then(data => data as { valid: boolean; domain?: string; branding?: { brandName: string | null; brandLogo: string | null }; agentId?: string; message?: string }),
 }
