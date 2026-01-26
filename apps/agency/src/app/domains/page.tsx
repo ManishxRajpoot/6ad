@@ -148,8 +148,8 @@ export default function DomainsPage() {
               Set up a custom domain so your users can access the panel via your own branded URL.
             </p>
           </div>
-          {/* Only show Add Domain button if no domains exist */}
-          {domains.length === 0 && (
+          {/* Show Add Domain button if no domains exist OR only rejected domains exist */}
+          {(domains.length === 0 || domains.every(d => d.status === 'REJECTED')) && (
             <Button onClick={() => setShowAddModal(true)} className="bg-primary-600 hover:bg-primary-700">
               <Plus className="w-4 h-4 mr-2" />
               Add Domain
@@ -251,18 +251,19 @@ export default function DomainsPage() {
                             Configure DNS
                           </Button>
                         )}
-                        {domain.status === 'PENDING' && (
+                        {(domain.status === 'PENDING' || domain.status === 'REJECTED') && (
                           <Button
                             variant="outline"
                             size="sm"
                             className="text-red-600 hover:bg-red-50"
                             onClick={() => handleDeleteDomain(domain.id)}
+                            title="Delete domain"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         )}
                         {domain.status === 'REJECTED' && domain.adminRemarks && (
-                          <span className="text-xs text-red-600" title={domain.adminRemarks}>
+                          <span className="text-xs text-red-600 ml-2" title={domain.adminRemarks}>
                             Reason: {domain.adminRemarks}
                           </span>
                         )}

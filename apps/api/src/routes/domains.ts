@@ -432,8 +432,9 @@ domains.delete('/:id', async (c) => {
       return c.json({ error: 'Domain not found' }, 404)
     }
 
-    if (customDomain.status !== 'PENDING') {
-      return c.json({ error: 'Only pending domain requests can be deleted' }, 400)
+    // Allow deleting PENDING or REJECTED domains (not APPROVED)
+    if (customDomain.status === 'APPROVED') {
+      return c.json({ error: 'Approved domains cannot be deleted. Please contact admin.' }, 400)
     }
 
     await prisma.customDomain.delete({
