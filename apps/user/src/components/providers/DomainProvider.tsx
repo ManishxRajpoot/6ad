@@ -64,21 +64,58 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
     checkCustomDomain()
   }, [isChecked, setDomainInfo, setLoading, setChecked])
 
-  // Show error page for unapproved custom domains
+  // Show error page for unapproved custom domains (using inline styles to avoid CSS dependency)
   if (isInvalidDomain) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md text-center">
-          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f3f4f6',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '16px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+          padding: '32px',
+          maxWidth: '400px',
+          textAlign: 'center',
+          margin: '16px',
+        }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            backgroundColor: '#fee2e2',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <svg style={{ width: '32px', height: '32px', color: '#ef4444' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">Domain Not Configured</h1>
-          <p className="text-gray-600 mb-4">
+          <h1 style={{
+            fontSize: '20px',
+            fontWeight: '600',
+            color: '#111827',
+            marginBottom: '8px',
+          }}>Domain Not Configured</h1>
+          <p style={{
+            color: '#4b5563',
+            marginBottom: '16px',
+            lineHeight: '1.5',
+          }}>
             The domain <strong>{invalidHostname}</strong> is not configured or not yet approved.
           </p>
-          <p className="text-sm text-gray-500">
+          <p style={{
+            fontSize: '14px',
+            color: '#6b7280',
+            lineHeight: '1.5',
+          }}>
             If you are the domain owner, please contact your administrator to complete the domain verification and approval process.
           </p>
         </div>
