@@ -2,7 +2,12 @@ import { Hono } from 'hono'
 import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import crypto from 'crypto'
+import dns from 'dns'
+import { promisify } from 'util'
 import { verifyToken } from '../middleware/auth.js'
+
+const resolveTxt = promisify(dns.resolveTxt)
+const resolve4 = promisify(dns.resolve4)
 
 const prisma = new PrismaClient()
 
@@ -321,12 +326,52 @@ domains.post('/:id/verify', async (c) => {
       return c.json({ error: 'Domain not found' }, 404)
     }
 
-    // In production, you would actually check DNS records here
-    // For now, we'll simulate DNS verification
-    // You could use a library like 'dns' to check TXT records
+    // Real DNS verification
+    const domain = customDomain.domain
+    const expectedToken = customDomain.verificationToken
+    const expectedIP = '72.61.172.38'
 
-    // Simulated verification (in production, implement real DNS check)
-    const dnsVerified = true // Replace with actual DNS verification
+    let aRecordValid = false
+    let txtRecordValid = false
+    const errors: string[] = []
+
+    // Check A record - domain should point to our VPS IP
+    try {
+      const aRecords = await resolve4(domain)
+      if (aRecords.includes(expectedIP)) {
+        aRecordValid = true
+      } else {
+        errors.push(`A record points to ${aRecords.join(', ')} instead of ${expectedIP}`)
+      }
+    } catch (err: any) {
+      if (err.code === 'ENODATA' || err.code === 'ENOTFOUND') {
+        errors.push('A record not found. Please add an A record pointing to ' + expectedIP)
+      } else {
+        errors.push('Could not verify A record: ' + err.message)
+      }
+    }
+
+    // Check TXT record for verification token
+    try {
+      const txtHost = `_6ad-verify.${domain}`
+      const txtRecords = await resolveTxt(txtHost)
+      // txtRecords is an array of arrays, flatten and check
+      const flatRecords = txtRecords.flat()
+      if (flatRecords.includes(expectedToken)) {
+        txtRecordValid = true
+      } else {
+        errors.push(`TXT record value doesn't match. Expected: ${expectedToken}`)
+      }
+    } catch (err: any) {
+      if (err.code === 'ENODATA' || err.code === 'ENOTFOUND') {
+        errors.push('TXT verification record not found. Please add the TXT record.')
+      } else {
+        errors.push('Could not verify TXT record: ' + err.message)
+      }
+    }
+
+    // Both records must be valid
+    const dnsVerified = aRecordValid && txtRecordValid
 
     if (dnsVerified) {
       await prisma.customDomain.update({
@@ -335,13 +380,22 @@ domains.post('/:id/verify', async (c) => {
       })
 
       return c.json({
-        message: 'DNS verified successfully',
+        message: 'DNS verified successfully! Your domain is now pending admin approval.',
         dnsVerified: true,
+        details: {
+          aRecord: 'Valid',
+          txtRecord: 'Valid',
+        },
       })
     } else {
       return c.json({
-        message: 'DNS verification failed. Please ensure your DNS records are configured correctly.',
+        message: 'DNS verification failed. Please check the errors below.',
         dnsVerified: false,
+        errors,
+        details: {
+          aRecord: aRecordValid ? 'Valid' : 'Invalid',
+          txtRecord: txtRecordValid ? 'Valid' : 'Invalid',
+        },
       }, 400)
     }
   } catch (error) {
