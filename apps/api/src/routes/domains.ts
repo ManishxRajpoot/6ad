@@ -20,7 +20,7 @@ const updateDomainStatusSchema = z.object({
 
 // Helper to generate verification token
 function generateVerificationToken(): string {
-  return `coinest-verify-${crypto.randomBytes(16).toString('hex')}`
+  return `sixmedia-verify-${crypto.randomBytes(16).toString('hex')}`
 }
 
 // ==================== PUBLIC ROUTE (NO AUTH) ====================
