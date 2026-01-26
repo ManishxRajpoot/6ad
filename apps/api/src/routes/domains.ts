@@ -260,10 +260,19 @@ domains.post('/', async (c) => {
       return c.json({ error: 'Only agents can submit domain requests' }, 403)
     }
 
+    // Check if agent already has a domain (limit: 1 domain per agent)
+    const agentExistingDomain = await prisma.customDomain.findFirst({
+      where: { agentId: userId },
+    })
+
+    if (agentExistingDomain) {
+      return c.json({ error: 'You can only have one custom domain. Please delete your existing domain first if you want to add a new one.' }, 400)
+    }
+
     const body = await c.req.json()
     const { domain } = submitDomainSchema.parse(body)
 
-    // Check if domain already exists
+    // Check if domain already exists (registered by another agent)
     const existingDomain = await prisma.customDomain.findUnique({
       where: { domain: domain.toLowerCase() },
     })

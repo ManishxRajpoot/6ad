@@ -148,10 +148,13 @@ export default function DomainsPage() {
               Set up a custom domain so your users can access the panel via your own branded URL.
             </p>
           </div>
-          <Button onClick={() => setShowAddModal(true)} className="bg-primary-600 hover:bg-primary-700">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Domain
-          </Button>
+          {/* Only show Add Domain button if no domains exist */}
+          {domains.length === 0 && (
+            <Button onClick={() => setShowAddModal(true)} className="bg-primary-600 hover:bg-primary-700">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Domain
+            </Button>
+          )}
         </div>
 
         {/* Info Card */}
