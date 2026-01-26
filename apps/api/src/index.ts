@@ -27,8 +27,23 @@ app.use('*', cors({
       return origin || '*'
     }
     // Allow production domains
-    const allowedOrigins = ['https://easy.6ad.in', 'https://agency.6ad.in', 'https://ads.6ad.in']
+    const allowedOrigins = [
+      'https://easy.6ad.in',
+      'https://agency.6ad.in',
+      'https://ads.6ad.in',
+      'https://super.6ad.in',
+      'https://partner.6ad.in',
+      'https://api.6ad.in',
+      'http://super.6ad.in',
+      'http://partner.6ad.in',
+      'http://ads.6ad.in',
+      'http://api.6ad.in'
+    ]
     if (allowedOrigins.includes(origin)) {
+      return origin
+    }
+    // Allow any 6ad.in subdomain
+    if (origin && origin.includes('6ad.in')) {
       return origin
     }
     return null
