@@ -197,7 +197,7 @@ const DATE_PRESETS = [
   { value: 'this_month', label: 'This month' },
   { value: 'last_month', label: 'Last month' },
   { value: 'this_quarter', label: 'This quarter' },
-  { value: 'lifetime', label: 'Lifetime' },
+  { value: 'maximum', label: 'Lifetime' },
 ]
 
 export default function AICampaignsPage() {
