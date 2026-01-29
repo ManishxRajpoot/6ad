@@ -127,6 +127,11 @@ model User {
   twoFactorEnabled  Boolean     @default(false)
   twoFactorSecret   String?
 
+  // Email verification
+  emailVerified     Boolean     @default(false)
+  emailVerifyToken  String?
+  emailVerifyExpiry DateTime?
+
   // Remarks
   personalRemarks   String?
   contactRemarks    String?
@@ -605,6 +610,40 @@ model GlobalSettings {
   // Pay Link feature toggle
   payLinkEnabled    Boolean   @default(true)
 
+  // Platform Visibility Settings
+  // "active" = visible and can apply, "stop" = visible but can't apply, "hidden" = completely hidden
+  facebookStatus    String    @default("active")  // active | stop | hidden
+  googleStatus      String    @default("active")
+  tiktokStatus      String    @default("active")
+  snapchatStatus    String    @default("active")
+  bingStatus        String    @default("active")
+
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+// Facebook Profile - Store connected Facebook accounts
+model FacebookProfile {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Facebook User Info
+  facebookUserId    String    // Facebook user ID
+  name              String    // User's name on Facebook
+  email             String?   // User's email from Facebook
+
+  // Access Token (encrypted/hashed in production)
+  accessToken       String
+  tokenExpiresAt    DateTime?
+
+  // Status
+  isActive          Boolean   @default(true)
+
+  // Owner - the user in our system who connected this profile
+  userId            String    @db.ObjectId
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([userId, facebookUserId]) // One user can't connect same FB profile twice
+  @@index([userId])
 }
