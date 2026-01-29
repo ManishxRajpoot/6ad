@@ -11,6 +11,7 @@ type User = {
   agentId?: string
   twoFactorEnabled?: boolean
   emailVerified?: boolean
+  profileImage?: string | null
   agent?: {
     id: string
     username: string
