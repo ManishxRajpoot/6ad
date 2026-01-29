@@ -3,12 +3,15 @@
 import { useEffect, useState } from 'react'
 import { useDomainStore } from '@/store/domain'
 import { domainsApi } from '@/lib/api'
+import { TutorialOverlay } from '@/components/TutorialOverlay'
 
 const DEFAULT_DOMAINS = [
   'localhost',
   '127.0.0.1',
   'ads.6ad.in',
   '6ad.in',
+  'ngrok-free.dev',
+  'ngrok.io',
 ]
 
 export function DomainProvider({ children }: { children: React.ReactNode }) {
@@ -123,5 +126,10 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
     )
   }
 
-  return <>{children}</>
+  return (
+    <>
+      {children}
+      <TutorialOverlay />
+    </>
+  )
 }

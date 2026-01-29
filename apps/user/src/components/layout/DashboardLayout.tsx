@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/lib/api'
+import { Mandatory2FASetup } from '@/components/Mandatory2FASetup'
 
 type DashboardLayoutProps = {
   children: React.ReactNode
@@ -15,7 +16,7 @@ type DashboardLayoutProps = {
 
 export function DashboardLayout({ children, title, subtitle }: DashboardLayoutProps) {
   const router = useRouter()
-  const { isAuthenticated, isHydrated, setAuth, logout } = useAuthStore()
+  const { isAuthenticated, isHydrated, setAuth, logout, user } = useAuthStore()
 
   useEffect(() => {
     // Wait for zustand to hydrate from localStorage
@@ -61,6 +62,9 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
     return null
   }
 
+  // Check if user needs to complete 2FA setup
+  const needs2FASetup = user && (!user.emailVerified || !user.twoFactorEnabled)
+
   return (
     <div className="h-screen overflow-hidden bg-[#F8F9FA]">
       <Sidebar />
@@ -68,6 +72,8 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
         <Header title={title} subtitle={subtitle} />
         <main className="flex-1 p-6 overflow-hidden flex flex-col">{children}</main>
       </div>
+      {/* Mandatory 2FA Setup Modal - Non-cancellable */}
+      {needs2FASetup && <Mandatory2FASetup />}
     </div>
   )
 }

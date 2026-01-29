@@ -2,54 +2,49 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
   Wallet,
   Settings,
   LogOut,
+  BookOpen,
+  Sparkles,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useDomainStore } from '@/store/domain'
 import { useRouter } from 'next/navigation'
+import { settingsApi, PlatformSettings } from '@/lib/api'
 
-// Platform icons
+// Platform icons - Black/White outline style (w-6 h-6 to match other icons)
 const FacebookIcon = () => (
-  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">
-    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+  <svg viewBox="0 0 18 18" className="w-6 h-6" fill="currentColor">
+    <path d="M9.0007 1.58039e-06C11.2829 -0.00135006 13.4803 0.864345 15.1484 2.42189C16.8164 3.97944 17.8305 6.11251 17.9853 8.38943C18.1401 10.6663 17.4242 12.9171 15.9823 14.6861C14.5405 16.4551 12.4804 17.6103 10.2191 17.9179V11.4435H12.5478L12.9146 9.06638H10.2191V7.76588C10.2191 6.83325 10.506 5.99963 11.3115 5.90963L11.46 5.90175H12.9371V3.82613L12.6097 3.78563C12.2947 3.75188 11.8098 3.71363 11.091 3.71363C8.99845 3.71363 7.7407 4.78913 7.6597 7.227L7.6552 7.4835V9.0675H5.42883V11.4446H7.65633V17.9021C5.4129 17.5609 3.38111 16.385 1.96761 14.6097C0.554103 12.8345 -0.136826 10.591 0.033105 8.32811C0.203036 6.06526 1.22129 3.95005 2.88407 2.40584C4.54685 0.861639 6.73147 0.00236515 9.0007 1.58039e-06Z"/>
   </svg>
 )
 
 const GoogleIcon = () => (
-  <svg viewBox="0 0 24 24" className="w-5 h-5">
-    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+  <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor">
+    <path d="M2.97714 6.87661C3.74157 5.35537 4.91382 4.07656 6.36298 3.183C7.81214 2.28943 9.48117 1.81629 11.1837 1.81641C13.6587 1.81641 15.7379 2.72651 17.3276 4.20875L14.6946 6.84263C13.7422 5.93253 12.5318 5.46875 11.1837 5.46875C8.79133 5.46875 6.76633 7.08508 6.04541 9.25518C5.86174 9.8062 5.75704 10.394 5.75704 11.0001C5.75704 11.6062 5.86174 12.194 6.04541 12.745C6.76725 14.916 8.79133 16.5314 11.1837 16.5314C12.4189 16.5314 13.4704 16.2054 14.2933 15.6544C14.7703 15.3403 15.1787 14.9327 15.4938 14.4564C15.8088 13.98 16.024 13.4446 16.1263 12.8827H11.1837V9.33049H19.8329C19.9412 9.9311 20 10.5574 20 11.2085C20 14.0059 18.999 16.3606 17.2614 17.9585C15.7424 19.3618 13.6633 20.1838 11.1837 20.1838C9.97752 20.1842 8.7831 19.947 7.66866 19.4857C6.55423 19.0243 5.54164 18.3479 4.68876 17.495C3.83588 16.6421 3.15943 15.6295 2.69808 14.5151C2.23673 13.4007 1.99952 12.2062 2 11.0001C2 9.51784 2.35449 8.11641 2.97714 6.87661Z"/>
   </svg>
 )
 
 const SnapchatIcon = () => (
-  <svg viewBox="0 0 500 500" className="w-5 h-5">
-    <path fill="#FFFC00" d="M417.93,340.71c-60.61-29.34-70.27-74.64-70.7-78-.52-4.07-1.11-7.27,3.38-11.41,4.33-4,23.54-15.89,28.87-19.61,8.81-6.16,12.69-12.31,9.83-19.87-2-5.23-6.87-7.2-12-7.2a22.3,22.3,0,0,0-4.81.54c-9.68,2.1-19.08,6.95-24.52,8.26a8.56,8.56,0,0,1-2,.27c-2.9,0-4-1.29-3.72-4.78.68-10.58,2.12-31.23.45-50.52-2.29-26.54-10.85-39.69-21-51.32C316.8,101.43,294,77.2,250,77.2S183.23,101.43,178.35,107c-10.18,11.63-18.73,24.78-21,51.32-1.67,19.29-.17,39.93.45,50.52.2,3.32-.82,4.78-3.72,4.78a8.64,8.64,0,0,1-2-.27c-5.43-1.31-14.83-6.16-24.51-8.26a22.3,22.3,0,0,0-4.81-.54c-5.15,0-10,2-12,7.2-2.86,7.56,1,13.71,9.84,19.87,5.33,3.72,24.54,15.6,28.87,19.61,4.48,4.14,3.9,7.34,3.38,11.41-.43,3.41-10.1,48.71-70.7,78-3.55,1.72-9.59,5.36,1.06,11.24,16.72,9.24,27.85,8.25,36.5,13.82,7.34,4.73,3,14.93,8.34,18.61,6.56,4.53,25.95-.32,51,7.95,21,6.92,33.76,26.47,71,26.47s50.37-19.64,71-26.47c25-8.27,44.43-3.42,51-7.95,5.33-3.68,1-13.88,8.34-18.61,8.65-5.57,19.77-4.58,36.5-13.82C427.52,346.07,421.48,342.43,417.93,340.71Z"/>
+  <svg viewBox="0 0 20 19" className="w-6 h-6" fill="currentColor">
+    <path d="M9.87076 18.765C8.68076 18.765 7.88676 18.203 7.17776 17.708C6.67376 17.351 6.20176 17.012 5.64476 16.918C5.37954 16.8726 5.11084 16.8505 4.84176 16.852C4.36976 16.852 3.99476 16.923 3.72776 16.977C3.55776 17.007 3.41576 17.035 3.30376 17.035C3.18776 17.035 3.04076 17.003 2.98376 16.807C2.93376 16.647 2.90276 16.495 2.87176 16.348C2.79176 15.978 2.72476 15.751 2.58576 15.728C1.09676 15.501 0.205758 15.158 0.0317582 14.752C0.0177582 14.708 0.00075833 14.662 0.00075833 14.627C-0.00924167 14.503 0.0807583 14.4 0.205758 14.377C1.38676 14.182 2.44776 13.553 3.34376 12.519C4.03976 11.716 4.37876 10.94 4.40976 10.856C4.40976 10.846 4.41876 10.846 4.41876 10.846C4.58943 10.4947 4.62343 10.1963 4.52076 9.951C4.32876 9.491 3.69576 9.295 3.26376 9.161C3.15276 9.131 3.05876 9.095 2.97876 9.068C2.60876 8.921 1.99276 8.608 2.07376 8.176C2.13176 7.864 2.54576 7.641 2.88476 7.641C2.97876 7.63967 3.05876 7.65633 3.12476 7.691C3.50476 7.864 3.84776 7.953 4.14176 7.953C4.50776 7.953 4.68176 7.815 4.72576 7.771C4.71644 7.5732 4.70477 7.37552 4.69076 7.178C4.60076 5.813 4.49876 4.119 4.93076 3.148C6.22876 0.241 8.98376 0.0079999 9.79976 0.0079999L10.1558 0H10.2058C11.0208 0 13.7758 0.227 15.0738 3.139C15.5108 4.11 15.4038 5.809 15.3138 7.169L15.3048 7.236C15.2968 7.418 15.2828 7.592 15.2748 7.771C15.3188 7.806 15.4788 7.94 15.8088 7.944C16.0948 7.936 16.4068 7.842 16.7628 7.681C16.8613 7.63828 16.9674 7.61584 17.0748 7.615C17.1998 7.615 17.3248 7.645 17.4318 7.681H17.4408C17.7398 7.793 17.9358 8.002 17.9358 8.221C17.9448 8.426 17.7838 8.738 17.0218 9.046C16.9418 9.076 16.8478 9.113 16.7368 9.139C16.3128 9.269 15.6798 9.474 15.4788 9.929C15.3678 10.169 15.4118 10.477 15.5818 10.825C15.5818 10.833 15.5908 10.833 15.5908 10.833C15.6398 10.958 16.9278 13.883 19.7948 14.36C19.8534 14.3699 19.9064 14.4006 19.9441 14.4466C19.9818 14.4926 20.0016 14.5506 19.9998 14.61C20.0004 14.6547 19.9901 14.6977 19.9688 14.739C19.7948 15.149 18.9118 15.483 17.4138 15.715C17.2758 15.737 17.2088 15.965 17.1288 16.335C17.0969 16.4892 17.0599 16.6423 17.0178 16.794C16.9728 16.941 16.8788 17.021 16.7178 17.021H16.6968C16.5542 17.0184 16.4122 17.002 16.2728 16.972C15.9062 16.894 15.5325 16.8551 15.1578 16.856C14.8891 16.8567 14.6209 16.8792 14.3558 16.923C13.8028 17.013 13.3258 17.356 12.8218 17.713C12.1038 18.203 11.3058 18.765 10.1248 18.765H9.87076Z"/>
   </svg>
 )
 
 const TikTokIcon = () => (
-  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#000000">
-    <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+  <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor">
+    <path d="M16.6002 5.82C15.9167 5.03953 15.5401 4.0374 15.5402 3H12.4502V15.4C12.4268 16.0712 12.1437 16.7071 11.6605 17.1735C11.1773 17.6399 10.5318 17.9004 9.86016 17.9C8.44016 17.9 7.26016 16.74 7.26016 15.3C7.26016 13.58 8.92016 12.29 10.6302 12.82V9.66C7.18016 9.2 4.16016 11.88 4.16016 15.3C4.16016 18.63 6.92016 21 9.85016 21C12.9902 21 15.5402 18.45 15.5402 15.3V9.01C16.7932 9.90985 18.2975 10.3926 19.8402 10.39V7.3C19.8402 7.3 17.9602 7.39 16.6002 5.82Z"/>
   </svg>
 )
 
 const BingIcon = () => (
-  <svg viewBox="0 0 29700 21000" className="w-5 h-5">
-    <defs>
-      <linearGradient id="bingGradient" x1="9438.21" y1="2509.42" x2="9012.51" y2="23085.06" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stopColor="#26B8F4"/>
-        <stop offset="1" stopColor="#1B48EF"/>
-      </linearGradient>
-    </defs>
-    <polygon fill="url(#bingGradient)" points="8475.16,1399.66 12124.09,2685.03 12136.1,15485.22 17223.25,12520.22 14741.02,11358.99 13148.22,7402.88 21223.77,10231.3 21217.16,14376.26 12123.05,19614.59 8487.02,17591.25"/>
+  <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor">
+    <path d="M10.1 8.6L11.8 12.9L14.6 14.2L9 17.5V3.4L5 2V19.8L9 22L19 16.2V11.7L10.1 8.6Z"/>
   </svg>
 )
 
@@ -58,6 +53,26 @@ export function Sidebar() {
   const router = useRouter()
   const { logout, user } = useAuthStore()
   const { isCustomDomain, branding } = useDomainStore()
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>({
+    facebook: 'active',
+    google: 'active',
+    tiktok: 'active',
+    snapchat: 'active',
+    bing: 'active',
+  })
+
+  // Fetch platform visibility settings
+  useEffect(() => {
+    const fetchPlatformSettings = async () => {
+      try {
+        const response = await settingsApi.platforms.get()
+        setPlatformSettings(response.platforms)
+      } catch (error) {
+        console.error('Failed to fetch platform settings:', error)
+      }
+    }
+    fetchPlatformSettings()
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -67,6 +82,11 @@ export function Sidebar() {
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard'
     return pathname.startsWith(href)
+  }
+
+  // Helper to check if a platform should be shown (not 'hidden')
+  const shouldShowPlatform = (platform: keyof PlatformSettings) => {
+    return platformSettings[platform] !== 'hidden'
   }
 
   // Use custom domain branding if available, otherwise fall back to user's agent branding
@@ -92,7 +112,9 @@ export function Sidebar() {
           ) : (
             <>
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                <span className="text-yellow-400 text-lg">⚡</span>
+                <svg viewBox="0 0 24 24" className="w-5 h-5 text-yellow-400" fill="currentColor">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                </svg>
               </div>
               <span className="text-gray-900 font-semibold text-xl tracking-tight">
                 {displayBrandName}
@@ -107,6 +129,7 @@ export function Sidebar() {
         {/* Dashboard */}
         <Link
           href="/dashboard"
+          data-tutorial="dashboard-menu"
           className={cn(
             'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
             isActive('/dashboard')
@@ -114,13 +137,14 @@ export function Sidebar() {
               : 'text-gray-600 hover:bg-gray-50'
           )}
         >
-          <LayoutDashboard className="w-5 h-5" />
+          <LayoutDashboard className="w-6 h-6" />
           Dashboard
         </Link>
 
         {/* Wallet */}
         <Link
           href="/deposits"
+          data-tutorial="wallet-menu"
           className={cn(
             'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
             isActive('/deposits') || isActive('/withdrawals')
@@ -128,74 +152,115 @@ export function Sidebar() {
               : 'text-gray-600 hover:bg-gray-50'
           )}
         >
-          <Wallet className="w-5 h-5" />
+          <Wallet className="w-6 h-6" />
           Wallet
         </Link>
 
-        {/* Platform Links */}
+        {/* AI Campaigns */}
         <Link
-          href="/facebook"
+          href="/ai-campaigns"
+          data-tutorial="ai-campaigns-menu"
           className={cn(
             'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            pathname === '/facebook'
+            isActive('/ai-campaigns')
               ? 'bg-[#52B788] text-white'
               : 'text-gray-600 hover:bg-gray-50'
           )}
         >
-          <FacebookIcon />
-          Facebook
+          <Sparkles className="w-6 h-6" />
+          AI Campaigns
         </Link>
 
-        <Link
-          href="/google"
-          className={cn(
-            'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            pathname === '/google'
-              ? 'bg-[#52B788] text-white'
-              : 'text-gray-600 hover:bg-gray-50'
-          )}
-        >
-          <GoogleIcon />
-          Google
-        </Link>
+        {/* Platform Links - Conditionally rendered based on visibility settings */}
+        {shouldShowPlatform('facebook') && (
+          <Link
+            href="/facebook"
+            data-tutorial="facebook-menu"
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+              pathname === '/facebook'
+                ? 'bg-[#52B788] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <FacebookIcon />
+            Facebook
+          </Link>
+        )}
 
-        <Link
-          href="/snapchat"
-          className={cn(
-            'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            pathname === '/snapchat'
-              ? 'bg-[#52B788] text-white'
-              : 'text-gray-600 hover:bg-gray-50'
-          )}
-        >
-          <SnapchatIcon />
-          Snapchat
-        </Link>
+        {shouldShowPlatform('google') && (
+          <Link
+            href="/google"
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+              pathname === '/google'
+                ? 'bg-[#52B788] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <GoogleIcon />
+            Google
+          </Link>
+        )}
 
-        <Link
-          href="/tiktok"
-          className={cn(
-            'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            pathname === '/tiktok'
-              ? 'bg-[#52B788] text-white'
-              : 'text-gray-600 hover:bg-gray-50'
-          )}
-        >
-          <TikTokIcon />
-          Tiktok
-        </Link>
+        {shouldShowPlatform('snapchat') && (
+          <Link
+            href="/snapchat"
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+              pathname === '/snapchat'
+                ? 'bg-[#52B788] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <SnapchatIcon />
+            Snapchat
+          </Link>
+        )}
 
+        {shouldShowPlatform('tiktok') && (
+          <Link
+            href="/tiktok"
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+              pathname === '/tiktok'
+                ? 'bg-[#52B788] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <TikTokIcon />
+            Tiktok
+          </Link>
+        )}
+
+        {shouldShowPlatform('bing') && (
+          <Link
+            href="/bing"
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+              pathname === '/bing'
+                ? 'bg-[#52B788] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <BingIcon />
+            Bing
+          </Link>
+        )}
+
+        {/* Guide */}
         <Link
-          href="/bing"
+          href="/guide"
+          data-tutorial="guide-menu"
           className={cn(
             'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            pathname === '/bing'
+            isActive('/guide')
               ? 'bg-[#52B788] text-white'
               : 'text-gray-600 hover:bg-gray-50'
           )}
         >
-          <BingIcon />
-          Bing
+          <BookOpen className="w-6 h-6" />
+          Guide
         </Link>
 
         {/* Settings */}
@@ -208,7 +273,7 @@ export function Sidebar() {
               : 'text-gray-600 hover:bg-gray-50'
           )}
         >
-          <Settings className="w-5 h-5" />
+          <Settings className="w-6 h-6" />
           Settings
         </Link>
       </nav>

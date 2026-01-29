@@ -24,11 +24,32 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     config.body = JSON.stringify(body)
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, config)
+  let response: Response
+  try {
+    response = await fetch(`${API_URL}${endpoint}`, config)
+  } catch (err) {
+    // Network error - API server likely not running
+    throw new Error(`Unable to connect to API server at ${API_URL}. Please ensure the API is running.`)
+  }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }))
-    throw new Error(error.message || 'Request failed')
+    // Handle specific HTTP status codes
+    if (response.status === 401) {
+      // Clear invalid token and redirect to login
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+      }
+      throw new Error('Session expired. Please login again.')
+    }
+
+    if (response.status === 403) {
+      throw new Error('You do not have permission to access this resource.')
+    }
+
+    const error = await response.json().catch(() => ({ message: `Request failed with status ${response.status}` }))
+    throw new Error(error.message || error.error || `Request failed with status ${response.status}`)
   }
 
   return response.json()

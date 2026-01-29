@@ -327,6 +327,90 @@ settings.patch('/modules/:id', requireAdmin, async (c) => {
   }
 })
 
+// ============= PLATFORM SETTINGS =============
+
+// GET /settings/platforms - Get platform visibility settings
+settings.get('/platforms', async (c) => {
+  try {
+    let globalSettings = await prisma.globalSettings.findFirst()
+
+    // Create default settings if not exists
+    if (!globalSettings) {
+      globalSettings = await prisma.globalSettings.create({
+        data: {
+          payLinkEnabled: true,
+          facebookStatus: 'active',
+          googleStatus: 'active',
+          tiktokStatus: 'active',
+          snapchatStatus: 'active',
+          bingStatus: 'active',
+        }
+      })
+    }
+
+    return c.json({
+      platforms: {
+        facebook: globalSettings.facebookStatus || 'active',
+        google: globalSettings.googleStatus || 'active',
+        tiktok: globalSettings.tiktokStatus || 'active',
+        snapchat: globalSettings.snapchatStatus || 'active',
+        bing: globalSettings.bingStatus || 'active',
+      }
+    })
+  } catch (error) {
+    console.error('Get platform settings error:', error)
+    return c.json({ error: 'Failed to get platform settings' }, 500)
+  }
+})
+
+// PATCH /settings/platforms - Update platform visibility settings (Admin only)
+settings.patch('/platforms', requireAdmin, async (c) => {
+  try {
+    const { facebook, google, tiktok, snapchat, bing } = await c.req.json()
+
+    let globalSettings = await prisma.globalSettings.findFirst()
+
+    const updateData: any = {}
+    if (facebook !== undefined) updateData.facebookStatus = facebook
+    if (google !== undefined) updateData.googleStatus = google
+    if (tiktok !== undefined) updateData.tiktokStatus = tiktok
+    if (snapchat !== undefined) updateData.snapchatStatus = snapchat
+    if (bing !== undefined) updateData.bingStatus = bing
+
+    if (globalSettings) {
+      globalSettings = await prisma.globalSettings.update({
+        where: { id: globalSettings.id },
+        data: updateData
+      })
+    } else {
+      globalSettings = await prisma.globalSettings.create({
+        data: {
+          payLinkEnabled: true,
+          facebookStatus: facebook || 'active',
+          googleStatus: google || 'active',
+          tiktokStatus: tiktok || 'active',
+          snapchatStatus: snapchat || 'active',
+          bingStatus: bing || 'active',
+        }
+      })
+    }
+
+    return c.json({
+      message: 'Platform settings updated',
+      platforms: {
+        facebook: globalSettings.facebookStatus,
+        google: globalSettings.googleStatus,
+        tiktok: globalSettings.tiktokStatus,
+        snapchat: globalSettings.snapchatStatus,
+        bing: globalSettings.bingStatus,
+      }
+    })
+  } catch (error) {
+    console.error('Update platform settings error:', error)
+    return c.json({ error: 'Failed to update platform settings' }, 500)
+  }
+})
+
 // ============= PROFILE =============
 
 // PATCH /settings/profile - Update own profile
@@ -370,6 +454,33 @@ settings.patch('/profile', requireUser, async (c) => {
   } catch (error) {
     console.error('Update profile error:', error)
     return c.json({ error: 'Failed to update profile' }, 500)
+  }
+})
+
+// PATCH /settings/profile/avatar - Update profile image
+settings.patch('/profile/avatar', requireUser, async (c) => {
+  try {
+    const userId = c.get('userId')
+    const { profileImage } = await c.req.json()
+
+    if (!profileImage) {
+      return c.json({ error: 'Profile image is required' }, 400)
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { profileImage },
+      select: {
+        id: true,
+        profileImage: true,
+        updatedAt: true,
+      }
+    })
+
+    return c.json({ message: 'Avatar updated', user })
+  } catch (error) {
+    console.error('Update avatar error:', error)
+    return c.json({ error: 'Failed to update avatar' }, 500)
   }
 })
 

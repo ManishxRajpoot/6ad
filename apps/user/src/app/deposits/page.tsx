@@ -504,9 +504,9 @@ export default function DepositsPage() {
   }
 
   const tabs = [
-    { id: 'add-money' as Tab, label: 'Add Money' },
-    { id: 'pay-link' as Tab, label: 'Pay Link' },
-    { id: 'wallet-flow' as Tab, label: 'Wallet Flow' },
+    { id: 'add-money' as Tab, label: 'Add Money', dataTutorial: '' },
+    { id: 'pay-link' as Tab, label: 'Pay Link', dataTutorial: 'paylink-tab' },
+    { id: 'wallet-flow' as Tab, label: 'Wallet Flow', dataTutorial: '' },
   ]
 
   return (
@@ -630,13 +630,13 @@ export default function DepositsPage() {
           <div className="flex items-center justify-between gap-4">
             {/* Search */}
             <div className="relative flex-1 max-w-xs group">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#52B788]" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#8B5CF6]" />
               <input
                 type="text"
                 placeholder="Search transactions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788] hover:border-gray-300"
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] hover:border-gray-300"
               />
             </div>
 
@@ -678,7 +678,8 @@ export default function DepositsPage() {
               {activeTab === 'pay-link' ? (
                 payLinkEnabled && (
                   <Button
-                    className="bg-[#52B788] hover:bg-[#16A34A] text-white rounded-xl shadow-lg shadow-green-200/50 hover:shadow-green-300/50 transition-all duration-300 hover:scale-[1.02]"
+                    data-tutorial="create-paylink-btn"
+                    className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded-xl shadow-lg shadow-purple-200/50 hover:shadow-purple-300/50 transition-all duration-300 hover:scale-[1.02]"
                     onClick={() => setShowPayLinkModal(true)}
                   >
                     <Plus className="w-4 h-4 mr-2" />
@@ -687,7 +688,8 @@ export default function DepositsPage() {
                 )
               ) : (
                 <Button
-                  className="bg-[#52B788] hover:bg-[#16A34A] text-white rounded-xl shadow-lg shadow-green-200/50 hover:shadow-green-300/50 transition-all duration-300 hover:scale-[1.02]"
+                  data-tutorial="deposit-button"
+                  className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white rounded-xl shadow-lg shadow-purple-200/50 hover:shadow-purple-300/50 transition-all duration-300 hover:scale-[1.02]"
                   onClick={() => setShowDepositModal(true)}
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -705,14 +707,15 @@ export default function DepositsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                data-tutorial={tab.dataTutorial || undefined}
                 className={`px-6 py-3 text-sm font-medium rounded-t-xl transition-all duration-300 relative overflow-hidden ${
                   activeTab === tab.id
-                    ? 'bg-[#52B788] text-white shadow-lg shadow-green-200/40'
+                    ? 'bg-[#8B5CF6] text-white shadow-lg shadow-purple-200/40'
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 {activeTab === tab.id && (
-                  <span className="absolute inset-0 bg-gradient-to-r from-[#52B788] to-[#16A34A]" />
+                  <span className="absolute inset-0 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED]" />
                 )}
                 <span className="relative">{tab.label}</span>
               </button>
@@ -723,7 +726,7 @@ export default function DepositsPage() {
               <span className="text-gray-500">
                 {activeTab === 'wallet-flow' ? 'Total Transactions' : activeTab === 'pay-link' ? 'Pending Requests' : 'Pending Applications'}
               </span>
-              <span className="px-3 py-1.5 bg-[#52B788] text-white rounded-full font-semibold shadow-md shadow-green-200/50 animate-pulse">
+              <span className="px-3 py-1.5 bg-[#8B5CF6] text-white rounded-full font-semibold shadow-md shadow-purple-200/50 animate-pulse">
                 {activeTab === 'wallet-flow' ? walletFlows.length : activeTab === 'pay-link' ? pendingPayLinkCount : pendingCount}
               </span>
             </div>
@@ -738,7 +741,7 @@ export default function DepositsPage() {
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50">
                   <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
                   <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold text-[#52B788] uppercase tracking-wider">Charge Amount</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold text-[#8B5CF6] uppercase tracking-wider">Charge Amount</th>
                   <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Transaction</th>
                   <th className="text-left py-4 px-5 text-xs font-semibold text-[#3B82F6] uppercase tracking-wider">Image</th>
                   <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Payway</th>
@@ -775,7 +778,7 @@ export default function DepositsPage() {
                         <p className="text-sm text-gray-500 mb-4">Click "+ Add Deposit" to create your first deposit request</p>
                         <button
                           onClick={() => setShowDepositModal(true)}
-                          className="px-4 py-2 bg-[#52B788] text-white text-sm font-medium rounded-lg hover:bg-[#40916C] transition-colors flex items-center gap-2"
+                          className="px-4 py-2 bg-[#8B5CF6] text-white text-sm font-medium rounded-lg hover:bg-[#7C3AED] transition-colors flex items-center gap-2"
                         >
                           <Plus className="w-4 h-4" />
                           Add Deposit
@@ -812,7 +815,7 @@ export default function DepositsPage() {
                       style={{ opacity: 0 }}
                     >
                       <td className="py-3 px-4">
-                        <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600 group-hover:bg-[#52B788]/10 group-hover:text-[#52B788] transition-all duration-300">
+                        <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600 group-hover:bg-[#8B5CF6]/10 group-hover:text-[#8B5CF6] transition-all duration-300">
                           {index + 1}
                         </span>
                       </td>
@@ -904,7 +907,7 @@ export default function DepositsPage() {
                   {payLinkEnabled ? (
                     <button
                       onClick={() => setShowPayLinkModal(true)}
-                      className="px-4 py-2 bg-[#52B788] text-white text-sm font-medium rounded-lg hover:bg-[#40916C] transition-colors flex items-center gap-2"
+                      className="px-4 py-2 bg-[#8B5CF6] text-white text-sm font-medium rounded-lg hover:bg-[#7C3AED] transition-colors flex items-center gap-2"
                     >
                       <Plus className="w-4 h-4" />
                       Apply Pay Link
@@ -937,7 +940,7 @@ export default function DepositsPage() {
                       style={{ opacity: 0 }}
                     >
                       <td className="py-3 px-4">
-                        <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600 group-hover:bg-[#52B788]/10 group-hover:text-[#52B788] transition-all duration-300">
+                        <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600 group-hover:bg-[#8B5CF6]/10 group-hover:text-[#8B5CF6] transition-all duration-300">
                           {index + 1}
                         </span>
                       </td>
@@ -1096,7 +1099,7 @@ export default function DepositsPage() {
                         style={{ opacity: 0 }}
                       >
                         <td className="py-3 px-4">
-                          <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600 group-hover:bg-[#52B788]/10 group-hover:text-[#52B788] transition-all duration-300">
+                          <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600 group-hover:bg-[#8B5CF6]/10 group-hover:text-[#8B5CF6] transition-all duration-300">
                             {startIndex + index + 1}
                           </span>
                         </td>
@@ -1202,7 +1205,7 @@ export default function DepositsPage() {
                     onClick={() => setCurrentPage(page)}
                     className={`w-10 h-10 rounded-xl text-sm font-medium transition-all duration-300 ${
                       currentPage === page
-                        ? 'bg-[#52B788] text-white shadow-lg shadow-green-200/50 scale-110'
+                        ? 'bg-[#8B5CF6] text-white shadow-lg shadow-purple-200/50 scale-110'
                         : 'text-gray-600 hover:bg-gray-100 hover:scale-105'
                     }`}
                   >
@@ -1291,7 +1294,7 @@ export default function DepositsPage() {
                           onClick={() => setWalletFlowPage(page)}
                           className={`w-10 h-10 rounded-xl text-sm font-medium transition-all duration-300 ${
                             walletFlowPage === page
-                              ? 'bg-[#52B788] text-white shadow-lg shadow-green-200/50 scale-110'
+                              ? 'bg-[#8B5CF6] text-white shadow-lg shadow-purple-200/50 scale-110'
                               : 'text-gray-600 hover:bg-gray-100 hover:scale-105'
                           }`}
                         >
@@ -1336,19 +1339,21 @@ export default function DepositsPage() {
         <div className="space-y-4">
           {/* Row 1: Payway and Transaction ID side by side */}
           <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Payway"
-              options={paymentMethods.map(pm => ({
-                value: pm.id,
-                label: `${pm.icon} ${pm.name}`
-              }))}
-              value={depositForm.payway}
-              onChange={(value) => setDepositForm({...depositForm, payway: value})}
-              placeholder={loadingPaymentMethods ? "Loading..." : "Select Pay method"}
-              disabled={loadingPaymentMethods}
-            />
+            <div data-tutorial="payment-method">
+              <Select
+                label="Payway"
+                options={paymentMethods.map(pm => ({
+                  value: pm.id,
+                  label: `${pm.icon} ${pm.name}`
+                }))}
+                value={depositForm.payway}
+                onChange={(value) => setDepositForm({...depositForm, payway: value})}
+                placeholder={loadingPaymentMethods ? "Loading..." : "Select Pay method"}
+                disabled={loadingPaymentMethods}
+              />
+            </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" data-tutorial="transaction-id">
               <label className="block text-sm font-medium text-gray-700">
                 Transaction ID <span className="text-red-500">*</span>
               </label>
@@ -1367,10 +1372,10 @@ export default function DepositsPage() {
             const selectedMethod = paymentMethods.find(pm => pm.id === depositForm.payway)
             if (!selectedMethod?.description) return null
             return (
-              <div className="bg-[#52B788]/10 border border-[#52B788]/30 rounded-xl p-4">
+              <div className="bg-[#8B5CF6]/10 border border-[#8B5CF6]/30 rounded-xl p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1">
-                    <p className="text-xs text-[#52B788] font-medium mb-1">Payment Address / Details</p>
+                    <p className="text-xs text-[#8B5CF6] font-medium mb-1">Payment Address / Details</p>
                     <p className="text-sm text-gray-800 font-mono break-all">{selectedMethod.description}</p>
                   </div>
                   <button
@@ -1380,7 +1385,7 @@ export default function DepositsPage() {
                       setCopiedId(-1)
                       setTimeout(() => setCopiedId(null), 2000)
                     }}
-                    className="flex-shrink-0 p-2 rounded-lg bg-[#52B788] text-white hover:bg-[#40916C] transition-colors"
+                    className="flex-shrink-0 p-2 rounded-lg bg-[#8B5CF6] text-white hover:bg-[#7C3AED] transition-colors"
                     title="Copy to clipboard"
                   >
                     {copiedId === -1 ? (
@@ -1395,7 +1400,7 @@ export default function DepositsPage() {
           })()}
 
           {/* Row 2: Charge Amount */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-tutorial="amount-input">
             <label className="block text-sm font-medium text-gray-700">Charge Amount</label>
             <input
               type="text"
@@ -1407,11 +1412,11 @@ export default function DepositsPage() {
           </div>
 
           {/* Row 3: Remarks */}
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-gray-700">remarks</label>
+          <div className="space-y-1.5" data-tutorial="remarks-input">
+            <label className="block text-sm font-medium text-gray-700">Remarks</label>
             <input
               type="text"
-              placeholder="remarks (optional)"
+              placeholder="Remarks (optional)"
               value={depositForm.remarks}
               onChange={(e) => setDepositForm({...depositForm, remarks: e.target.value})}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788] focus:bg-white"
@@ -1419,7 +1424,7 @@ export default function DepositsPage() {
           </div>
 
           {/* Row 4: Attach Screenshot Image - Purple dashed border (Required) */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-tutorial="screenshot-upload">
             <label className="block text-sm font-medium text-gray-700">
               Attach Screenshot Image <span className="text-red-500">*</span>
             </label>
@@ -1455,7 +1460,7 @@ export default function DepositsPage() {
                       {uploadedFile && (uploadedFile.size / 1024).toFixed(1)} KB
                     </p>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-[#52B788]/20 text-[#52B788] text-xs font-medium rounded-full">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-[#8B5CF6]/20 text-[#8B5CF6] text-xs font-medium rounded-full">
                         <Check className="w-3 h-3" />
                         Uploaded
                       </span>
@@ -1515,7 +1520,8 @@ export default function DepositsPage() {
               Cancel
             </Button>
             <Button
-              className="flex-1 bg-[#52B788] hover:bg-[#16A34A] rounded-xl py-3"
+              data-tutorial="confirm-deposit"
+              className="flex-1 bg-[#8B5CF6] hover:bg-[#7C3AED] rounded-xl py-3"
               onClick={handleSubmitDeposit}
               disabled={submittingDeposit}
             >
@@ -1538,7 +1544,7 @@ export default function DepositsPage() {
 
         <div className="space-y-4">
           {/* Individual / Company Toggle */}
-          <div className="grid grid-cols-2 gap-0 bg-gray-100 rounded-xl p-1">
+          <div className="grid grid-cols-2 gap-0 bg-gray-100 rounded-xl p-1" data-tutorial="paylink-type-toggle">
             <button
               onClick={() => setPayLinkType('individual')}
               className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium transition-all duration-300 ${
@@ -1554,7 +1560,7 @@ export default function DepositsPage() {
               onClick={() => setPayLinkType('company')}
               className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-medium transition-all duration-300 ${
                 payLinkType === 'company'
-                  ? 'bg-[#52B788] text-white shadow-sm'
+                  ? 'bg-[#8B5CF6] text-white shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -1567,7 +1573,7 @@ export default function DepositsPage() {
             {payLinkType === 'individual' ? (
               <>
                 {/* Row 1: Full Name and Email */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4" data-tutorial="paylink-name-email">
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-gray-700">Full Name *</label>
                     <input
@@ -1591,7 +1597,7 @@ export default function DepositsPage() {
                 </div>
 
                 {/* Row 2: Country and Amount */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4" data-tutorial="paylink-country-amount">
                   <div className="space-y-1.5">
                     <label className="block text-sm font-medium text-gray-700">Country *</label>
                     <input
@@ -1615,7 +1621,7 @@ export default function DepositsPage() {
                 </div>
 
                 {/* Note */}
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-100" data-tutorial="paylink-note">
                   <p className="text-sm text-amber-700">
                     <span className="font-semibold">Note:</span> After submission, our team will review your request and create a payment link for you.
                   </p>
@@ -1715,7 +1721,8 @@ export default function DepositsPage() {
               Cancel
             </Button>
             <Button
-              className="flex-1 bg-[#52B788] hover:bg-[#16A34A] rounded-xl py-3"
+              data-tutorial="paylink-submit"
+              className="flex-1 bg-[#8B5CF6] hover:bg-[#7C3AED] rounded-xl py-3"
               onClick={handleSubmitPayLink}
               disabled={submittingPayLink}
             >

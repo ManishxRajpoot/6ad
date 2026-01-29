@@ -44,11 +44,25 @@ export const api = {
 
 // Auth API
 export const authApi = {
-  login: (data: { email: string; password: string }) =>
-    api.post<{ token: string; user: any }>('/auth/login', data),
+  login: (data: { email: string; password: string; totpCode?: string }) =>
+    api.post<{ token: string; user: any; requires2FA?: boolean; message?: string }>('/auth/login', data),
   register: (data: { email: string; password: string; username: string }) =>
     api.post<{ token: string; user: any }>('/auth/register', data),
   me: () => api.get<{ user: any }>('/auth/me'),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.post<{ message: string }>('/auth/change-password', data),
+  // 2FA
+  twoFactor: {
+    setup: () => api.post<{ secret: string; otpauthUrl: string; message: string }>('/auth/2fa/setup', {}),
+    verify: (code: string) => api.post<{ message: string }>('/auth/2fa/verify', { code }),
+    disable: (data: { password: string; code?: string }) => api.post<{ message: string }>('/auth/2fa/disable', data),
+    status: () => api.get<{ enabled: boolean }>('/auth/2fa/status'),
+  },
+  // Email verification
+  email: {
+    sendCode: () => api.post<{ message: string; code?: string }>('/auth/email/send-code', {}),
+    verify: (code: string) => api.post<{ message: string }>('/auth/email/verify', { code }),
+  },
 }
 
 // Dashboard API (User specific)
@@ -178,4 +192,26 @@ export const domainsApi = {
     fetch(`${API_URL}/domains/check/${domain}`)
       .then(res => res.json())
       .then(data => data as { valid: boolean; domain?: string; branding?: { brandName: string | null; brandLogo: string | null }; agentId?: string; message?: string }),
+}
+
+// Platform Settings API (for visibility settings)
+export type PlatformStatus = 'active' | 'stop' | 'hidden'
+export type PlatformSettings = {
+  facebook: PlatformStatus
+  google: PlatformStatus
+  tiktok: PlatformStatus
+  snapchat: PlatformStatus
+  bing: PlatformStatus
+}
+
+export const settingsApi = {
+  platforms: {
+    get: () => api.get<{ platforms: PlatformSettings }>('/settings/platforms'),
+  },
+  profile: {
+    update: (data: { username?: string; phone?: string; phone2?: string; realName?: string; address?: string; website?: string; profileImage?: string }) =>
+      api.patch<{ message: string; user: any }>('/settings/profile', data),
+    updateAvatar: (profileImage: string) =>
+      api.patch<{ message: string; user: any }>('/settings/profile/avatar', { profileImage }),
+  },
 }

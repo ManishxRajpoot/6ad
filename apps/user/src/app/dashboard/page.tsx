@@ -252,17 +252,19 @@ export default function DashboardPage() {
           <div className="absolute right-8 top-0 bottom-0 w-[220px] flex items-center justify-center">
             {/* Center glowing orb */}
             <div className="relative">
-              <div className="w-28 h-28 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm animate-pulse-glow">
-                <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full shadow-lg shadow-orange-500/30 flex items-center justify-center">
-                  <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                  </svg>
+              <div className="w-28 h-28 bg-white/15 rounded-full flex items-center justify-center backdrop-blur-sm animate-pulse-glow">
+                <div className="w-20 h-20 bg-white rounded-full shadow-xl shadow-white/20 flex items-center justify-center">
+                  <div className="w-14 h-14 bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] rounded-full flex items-center justify-center shadow-lg shadow-purple-500/40">
+                    <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                  </div>
                 </div>
               </div>
 
               {/* Orbiting ring */}
-              <div className="absolute inset-0 w-28 h-28 border border-white/20 rounded-full animate-spin-slow" />
-              <div className="absolute -inset-4 w-36 h-36 border border-dashed border-white/10 rounded-full animate-spin-slow" style={{ animationDirection: 'reverse', animationDuration: '40s' }} />
+              <div className="absolute inset-0 w-28 h-28 border-2 border-white/25 rounded-full animate-spin-slow" />
+              <div className="absolute -inset-4 w-36 h-36 border border-dashed border-white/15 rounded-full animate-spin-slow" style={{ animationDirection: 'reverse', animationDuration: '40s' }} />
             </div>
 
             {/* TikTok - Top Left */}
@@ -308,7 +310,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Circular Stats Card - Redesigned with Animations */}
-        <Card className="p-6 rounded-2xl overflow-hidden relative bg-gradient-to-br from-white to-gray-50/50">
+        <Card data-tutorial="stats-section" className="p-6 rounded-2xl overflow-hidden relative bg-gradient-to-br from-white to-gray-50/50">
           {/* Animated background elements */}
           <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-[#52B788]/8 via-emerald-400/5 to-transparent rounded-full -translate-y-1/2 translate-x-1/3 animate-pulse" style={{ animationDuration: '4s' }} />
           <div className="absolute bottom-0 left-0 w-36 h-36 bg-gradient-to-tr from-blue-500/8 via-indigo-400/5 to-transparent rounded-full translate-y-1/2 -translate-x-1/3 animate-pulse" style={{ animationDuration: '5s', animationDelay: '1s' }} />
@@ -510,14 +512,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Create Deposit Banner - Dashed Purple Border */}
-      <div className="border-2 border-dashed border-purple-400 rounded-xl p-5 mb-6 bg-white">
+      <div data-tutorial="balance-card" className="border-2 border-dashed border-purple-400 rounded-xl p-5 mb-6 bg-white">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold text-[#1E293B]">Create Deposit in your Wallet Balance</h3>
             <p className="text-sm text-gray-500">Click on add and create a deposit in your wallet</p>
           </div>
           <Link href="/deposits">
-            <Button className="bg-[#52B788] hover:bg-[#16A34A] text-white px-5 rounded-xl">
+            <Button className="bg-[#8B5CF6] hover:bg-[#7C3AED] text-white px-5 rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
               Add Money
             </Button>
@@ -593,7 +595,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Active Accounts Status */}
-        <Card className="p-6 rounded-xl">
+        <Card data-tutorial="recent-activity" className="p-6 rounded-xl">
           <h3 className="text-base font-semibold text-[#1E293B] mb-4">Active Accounts Status</h3>
           <div className="space-y-3">
             {loading ? (

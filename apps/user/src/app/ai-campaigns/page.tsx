@@ -49,11 +49,11 @@ import {
 } from 'lucide-react'
 
 // Facebook OAuth URL builder
-const NGROK_URL = 'https://nonflatulent-letisha-parachronistic.ngrok-free.dev'
-
 const getFacebookOAuthUrl = () => {
   const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID
-  const redirectUri = encodeURIComponent(`${NGROK_URL}/ai-campaigns/callback`)
+  // Use current window origin for redirect URI (works in both dev and production)
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://ads.6ad.in'
+  const redirectUri = encodeURIComponent(`${baseUrl}/ai-campaigns`)
   const scope = encodeURIComponent('ads_management,ads_read,business_management')
   const state = Math.random().toString(36).substring(7)
 
@@ -632,7 +632,8 @@ export default function AICampaignsPage() {
   useEffect(() => {
     const checkConnection = async () => {
       const urlParams = new URLSearchParams(window.location.search)
-      const fbCode = urlParams.get('fb_code')
+      // Handle both 'fb_code' (from callback page) and 'code' (direct from Facebook OAuth)
+      const fbCode = urlParams.get('fb_code') || urlParams.get('code')
 
       if (fbCode) {
         window.history.replaceState({}, '', '/ai-campaigns')

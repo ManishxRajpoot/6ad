@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Table, TableHeader, TableBody, TableRow, TableCell } from '@/components/ui/Table'
 import { settingsApi } from '@/lib/api'
-import { Plus, Edit, Trash2, CreditCard, Copy, Check } from 'lucide-react'
+import { Plus, Edit, Trash2, CreditCard, Copy, Check, Globe, Eye, EyeOff, Ban } from 'lucide-react'
+import { FacebookPlatformIcon, GooglePlatformIcon, TikTokPlatformIcon, SnapchatPlatformIcon, BingPlatformIcon } from '@/components/icons/PlatformIcons'
 
 type PayLink = {
   id: string
@@ -19,6 +20,16 @@ type PayLink = {
   accountNumber: string | null
   ifscCode: string | null
   isActive: boolean
+}
+
+type PlatformStatus = 'active' | 'stop' | 'hidden'
+
+type PlatformSettings = {
+  facebook: PlatformStatus
+  google: PlatformStatus
+  tiktok: PlatformStatus
+  snapchat: PlatformStatus
+  bing: PlatformStatus
 }
 
 export default function SettingsPage() {
@@ -38,6 +49,40 @@ export default function SettingsPage() {
   })
   const [formLoading, setFormLoading] = useState(false)
 
+  // Platform settings state
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>({
+    facebook: 'active',
+    google: 'active',
+    tiktok: 'active',
+    snapchat: 'active',
+    bing: 'active',
+  })
+  const [platformLoading, setPlatformLoading] = useState(true)
+  const [savingPlatform, setSavingPlatform] = useState<string | null>(null)
+
+  const fetchPlatformSettings = async () => {
+    try {
+      const { platforms } = await settingsApi.platforms.get()
+      setPlatformSettings(platforms as PlatformSettings)
+    } catch (error) {
+      console.error('Failed to fetch platform settings:', error)
+    } finally {
+      setPlatformLoading(false)
+    }
+  }
+
+  const updatePlatformStatus = async (platform: keyof PlatformSettings, status: PlatformStatus) => {
+    setSavingPlatform(platform)
+    try {
+      await settingsApi.platforms.update({ [platform]: status })
+      setPlatformSettings(prev => ({ ...prev, [platform]: status }))
+    } catch (error) {
+      console.error('Failed to update platform status:', error)
+    } finally {
+      setSavingPlatform(null)
+    }
+  }
+
   const fetchPaylinks = async () => {
     try {
       const { paylinks } = await settingsApi.paylinks.getAll()
@@ -51,6 +96,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchPaylinks()
+    fetchPlatformSettings()
   }, [])
 
   const handleOpenModal = (paylink?: PayLink) => {
@@ -117,9 +163,94 @@ export default function SettingsPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  const platformList = [
+    { key: 'facebook' as const, name: 'Facebook', icon: <FacebookPlatformIcon className="w-5 h-5" />, color: 'bg-blue-500' },
+    { key: 'google' as const, name: 'Google', icon: <GooglePlatformIcon className="w-5 h-5" />, color: 'bg-red-500' },
+    { key: 'tiktok' as const, name: 'TikTok', icon: <TikTokPlatformIcon className="w-5 h-5" />, color: 'bg-black' },
+    { key: 'snapchat' as const, name: 'Snapchat', icon: <SnapchatPlatformIcon className="w-5 h-5" />, color: 'bg-yellow-400' },
+    { key: 'bing' as const, name: 'Bing', icon: <BingPlatformIcon className="w-5 h-5" />, color: 'bg-teal-500' },
+  ]
+
+  const getStatusBadge = (status: PlatformStatus) => {
+    switch (status) {
+      case 'active':
+        return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700"><Eye className="h-3 w-3" /> Active</span>
+      case 'stop':
+        return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700"><Ban className="h-3 w-3" /> Stop Opening</span>
+      case 'hidden':
+        return <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700"><EyeOff className="h-3 w-3" /> Hidden</span>
+    }
+  }
+
   return (
     <DashboardLayout title="Settings">
       <div className="space-y-6">
+        {/* Platform Visibility Settings */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
+                <Globe className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <CardTitle>Platform Visibility</CardTitle>
+                <p className="text-sm text-gray-500">Control which platforms are visible to users</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {platformLoading ? (
+              <div className="flex h-32 items-center justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {platformList.map((platform) => (
+                  <div key={platform.key} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${platform.color} text-white text-xl`}>
+                        {platform.icon}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-800">{platform.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {platformSettings[platform.key] === 'active' && 'Users can see and apply for new accounts'}
+                          {platformSettings[platform.key] === 'stop' && 'Users can see but cannot apply for new accounts'}
+                          {platformSettings[platform.key] === 'hidden' && 'Platform is completely hidden from users'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {getStatusBadge(platformSettings[platform.key])}
+                      <select
+                        value={platformSettings[platform.key]}
+                        onChange={(e) => updatePlatformStatus(platform.key, e.target.value as PlatformStatus)}
+                        disabled={savingPlatform === platform.key}
+                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+                      >
+                        <option value="active">✓ Active</option>
+                        <option value="stop">⏸ Stop Opening</option>
+                        <option value="hidden">👁 Super Hide</option>
+                      </select>
+                      {savingPlatform === platform.key && (
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                  <p className="text-sm text-blue-800 font-medium mb-2">Status Descriptions:</p>
+                  <ul className="text-xs text-blue-700 space-y-1">
+                    <li><strong>Active:</strong> Platform tab visible, users can apply for new ad accounts</li>
+                    <li><strong>Stop Opening:</strong> Platform tab visible, users can only manage existing accounts (cannot apply for new)</li>
+                    <li><strong>Super Hide:</strong> Platform tab completely hidden from user sidebar</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Payment Methods */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">

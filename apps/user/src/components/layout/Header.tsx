@@ -94,11 +94,19 @@ export function Header({ title, subtitle }: HeaderProps) {
           <Link href="/settings" className="group">
             <div className="flex items-center gap-2.5 pl-1 pr-2 py-1 rounded-xl hover:bg-gray-50 transition-all duration-300">
               <div className="relative">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
-                  <span className="text-white font-semibold text-sm">
-                    {user?.username?.charAt(0).toUpperCase() || 'U'}
-                  </span>
-                </div>
+                {user?.profileImage ? (
+                  <img
+                    src={user.profileImage}
+                    alt={user.username || 'Profile'}
+                    className="w-9 h-9 rounded-full object-cover shadow-sm group-hover:scale-110 transition-transform duration-300"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300">
+                    <span className="text-white font-semibold text-sm">
+                      {user?.username?.charAt(0).toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                )}
                 <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-[#52B788] rounded-full border-2 border-white" />
               </div>
               <span className="text-sm font-medium text-gray-700 group-hover:text-[#52B788] transition-colors hidden sm:block">

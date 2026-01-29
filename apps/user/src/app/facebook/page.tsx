@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -8,7 +8,8 @@ import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { Input } from '@/components/ui/Input'
-import { applicationsApi, authApi, accountsApi, transactionsApi, accountDepositsApi, bmShareApi, balanceTransfersApi, accountRefundsApi } from '@/lib/api'
+import { applicationsApi, authApi, accountsApi, transactionsApi, accountDepositsApi, bmShareApi, balanceTransfersApi, accountRefundsApi, dashboardApi, settingsApi, PlatformStatus } from '@/lib/api'
+import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon, EmptyStateIcon } from '@/components/icons/MenuIcons'
 import { useAuthStore } from '@/store/auth'
 import {
   Search,
@@ -128,13 +129,42 @@ const timezoneOptions = [
   { value: 'UTC-1', label: 'UTC-1 (Azores, Portugal)' },
 ]
 
-// Stats data
-const statsData = [
-  { label: 'Pending Applications', value: '06', trend: 'up', badge: 'Growth 10x' },
-  { label: 'Pending Deposits', value: '29', trend: 'up', badge: 'Growth 10x' },
-  { label: 'Pending Shares', value: '250', trend: 'up', badge: 'Growth 10x' },
-  { label: 'Pending Refunds', value: '25', trend: 'down', badge: 'Decrease 10x' },
-]
+// Stats data will be computed from dashboard API response
+
+// Animated Counter Component - smoothly animates number changes
+function AnimatedCounter({ value, duration = 500 }: { value: number; duration?: number }) {
+  const [displayValue, setDisplayValue] = useState(value)
+  const previousValue = useRef(value)
+
+  useEffect(() => {
+    if (previousValue.current === value) return
+
+    const startValue = previousValue.current
+    const endValue = value
+    const startTime = Date.now()
+
+    const animate = () => {
+      const now = Date.now()
+      const progress = Math.min((now - startTime) / duration, 1)
+
+      // Easing function for smooth animation
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4)
+
+      const currentValue = Math.round(startValue + (endValue - startValue) * easeOutQuart)
+      setDisplayValue(currentValue)
+
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+      } else {
+        previousValue.current = value
+      }
+    }
+
+    requestAnimationFrame(animate)
+  }, [value, duration])
+
+  return <>{String(displayValue).padStart(2, '0')}</>
+}
 
 // NOTE: Mock data has been removed - now using real API data from:
 // - userAccounts: accountsApi.getAll('FACEBOOK')
@@ -258,32 +288,188 @@ export default function FacebookPage() {
   const [accountDeposits, setAccountDeposits] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [reportTab, setReportTab] = useState<'transfer' | 'refund'>('transfer')
+  const [dashboardStats, setDashboardStats] = useState<any>(null)
+  const [previousStats, setPreviousStats] = useState<any>(null)
+  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>('active')
+
+  // Generate dynamic chart path based on count - creates wave peaks for each pending item
+  const generateChartPath = (count: number, trend: 'up' | 'down') => {
+    // If count is 0, show flat line at bottom
+    if (count === 0) {
+      return 'M0,38 L120,38'
+    }
+
+    // Generate peaks based on count (max 6 peaks for readability)
+    const numPeaks = Math.min(count, 6)
+    const segmentWidth = 120 / numPeaks
+
+    let path = 'M0,35' // Start slightly above bottom
+
+    for (let i = 0; i < numPeaks; i++) {
+      const startX = i * segmentWidth
+      const peakX = startX + segmentWidth * 0.5
+      const endX = (i + 1) * segmentWidth
+
+      // Create varying peak heights for visual interest
+      const baseHeight = trend === 'up' ? 8 : 25
+      const variation = (i % 2 === 0) ? 0 : 8 // Alternate peak heights
+      const peakY = trend === 'up'
+        ? baseHeight + variation + (i * 2)
+        : baseHeight - variation + (i * 2)
+
+      // Create smooth wave using cubic bezier for rounder peaks
+      const cp1x = startX + segmentWidth * 0.2
+      const cp2x = peakX - segmentWidth * 0.15
+      const cp3x = peakX + segmentWidth * 0.15
+      const cp4x = startX + segmentWidth * 0.8
+
+      path += ` C${cp1x},35 ${cp2x},${peakY} ${peakX},${peakY}`
+      path += ` C${cp3x},${peakY} ${cp4x},35 ${endX},35`
+    }
+
+    return path
+  }
+
+  // Helper function to calculate growth percentage and trend
+  const calculateGrowth = (current: number, previous: number | undefined, isRefund: boolean = false) => {
+    // If no previous data, show current count as status
+    if (previous === undefined) {
+      if (current > 0) {
+        return {
+          trend: isRefund ? 'down' as const : 'up' as const,
+          badge: `${current} Active`
+        }
+      }
+      return { trend: 'neutral' as const, badge: 'None' }
+    }
+
+    const diff = current - previous
+
+    if (diff > 0) {
+      return { trend: 'up' as const, badge: `+${diff} New` }
+    } else if (diff < 0) {
+      return { trend: 'down' as const, badge: `${diff} Resolved` }
+    }
+
+    // No change - show current count
+    if (current > 0) {
+      return {
+        trend: isRefund ? 'down' as const : 'up' as const,
+        badge: `${current} Active`
+      }
+    }
+    return { trend: 'neutral' as const, badge: 'None' }
+  }
+
+  // Compute statsData from dashboard API with dynamic chart paths based on pending counts
+  const statsData = useMemo(() => {
+    const pendingApps = dashboardStats?.pendingApplications || 0
+    const pendingDeps = dashboardStats?.pendingDeposits || 0
+    const pendingSharesCount = dashboardStats?.pendingShares || 0
+    const pendingRefundsCount = dashboardStats?.pendingRefunds || 0
+
+    const prevApps = previousStats?.pendingApplications
+    const prevDeps = previousStats?.pendingDeposits
+    const prevShares = previousStats?.pendingShares
+    const prevRefunds = previousStats?.pendingRefunds
+
+    const appsGrowth = calculateGrowth(pendingApps, prevApps, false)
+    const depsGrowth = calculateGrowth(pendingDeps, prevDeps, false)
+    const sharesGrowth = calculateGrowth(pendingSharesCount, prevShares, false)
+    const refundsGrowth = calculateGrowth(pendingRefundsCount, prevRefunds, true)
+
+    return [
+      {
+        label: 'Pending Applications',
+        numericValue: pendingApps,
+        trend: appsGrowth.trend,
+        badge: appsGrowth.badge,
+        color: '#8B5CF6',
+        chartPath: generateChartPath(pendingApps, 'up')
+      },
+      {
+        label: 'Pending Deposits',
+        numericValue: pendingDeps,
+        trend: depsGrowth.trend,
+        badge: depsGrowth.badge,
+        color: '#22C55E',
+        chartPath: generateChartPath(pendingDeps, 'up')
+      },
+      {
+        label: 'Pending Shares',
+        numericValue: pendingSharesCount,
+        trend: sharesGrowth.trend,
+        badge: sharesGrowth.badge,
+        color: '#F97316',
+        chartPath: generateChartPath(pendingSharesCount, 'up')
+      },
+      {
+        label: 'Pending Refunds',
+        numericValue: pendingRefundsCount,
+        trend: refundsGrowth.trend,
+        badge: refundsGrowth.badge,
+        color: '#EF4444',
+        chartPath: generateChartPath(pendingRefundsCount, 'down')
+      },
+    ]
+  }, [dashboardStats, previousStats])
+
+  // Function to refresh only dashboard stats (for real-time updates)
+  const refreshStats = async () => {
+    try {
+      const statsRes = await dashboardApi.getStats().catch(() => ({}))
+      // Store previous stats before updating (only if values changed)
+      if (dashboardStats && (
+        statsRes.pendingApplications !== dashboardStats.pendingApplications ||
+        statsRes.pendingDeposits !== dashboardStats.pendingDeposits ||
+        statsRes.pendingShares !== dashboardStats.pendingShares ||
+        statsRes.pendingRefunds !== dashboardStats.pendingRefunds
+      )) {
+        setPreviousStats(dashboardStats)
+      }
+      setDashboardStats(statsRes)
+    } catch (error) {
+      // Silently handle errors
+    }
+  }
+
+  // Function to refresh all data
+  const refreshAllData = async () => {
+    try {
+      const [userRes, accountsRes, applicationsRes, refundsRes, transfersRes, bmShareRes, depositsRes, statsRes, platformRes] = await Promise.all([
+        authApi.me().catch(() => ({ user: null })),
+        accountsApi.getAll('FACEBOOK').catch(() => ({ accounts: [] })),
+        applicationsApi.getAll('FACEBOOK').catch(() => ({ applications: [] })),
+        accountRefundsApi.getAll('FACEBOOK').catch(() => ({ refunds: [] })),
+        balanceTransfersApi.getAll('FACEBOOK').catch(() => ({ transfers: [] })),
+        bmShareApi.getAll('FACEBOOK').catch(() => ({ bmShareRequests: [] })),
+        accountDepositsApi.getAll('FACEBOOK').catch(() => ({ deposits: [] })),
+        dashboardApi.getStats().catch(() => ({})),
+        settingsApi.platforms.get().catch(() => ({ platforms: { facebook: 'active', google: 'active', tiktok: 'active', snapchat: 'active', bing: 'active' } }))
+      ])
+      if (userRes.user) {
+        setUser(userRes.user)
+        updateUser(userRes.user)
+      }
+      setUserAccounts(accountsRes.accounts || [])
+      setUserApplications(applicationsRes.applications || [])
+      setUserRefunds(refundsRes.refunds || [])
+      setBalanceTransfers(transfersRes.transfers || [])
+      setBmShareHistory(bmShareRes.bmShareRequests || [])
+      setAccountDeposits(depositsRes.deposits || [])
+      setDashboardStats(statsRes)
+      setPlatformStatus((platformRes.platforms?.facebook || 'active') as PlatformStatus)
+    } catch (error) {
+      // Silently handle errors
+    }
+  }
 
   // Fetch user data on mount
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         setIsLoading(true)
-        const [userRes, accountsRes, applicationsRes, refundsRes, transfersRes, bmShareRes, depositsRes] = await Promise.all([
-          authApi.me().catch(() => ({ user: null })),
-          accountsApi.getAll('FACEBOOK').catch(() => ({ accounts: [] })),
-          applicationsApi.getAll('FACEBOOK').catch(() => ({ applications: [] })),
-          accountRefundsApi.getAll('FACEBOOK').catch(() => ({ refunds: [] })),
-          balanceTransfersApi.getAll('FACEBOOK').catch(() => ({ transfers: [] })),
-          bmShareApi.getAll('FACEBOOK').catch(() => ({ bmShareRequests: [] })),
-          accountDepositsApi.getAll('FACEBOOK').catch(() => ({ deposits: [] }))
-        ])
-        if (userRes.user) {
-          setUser(userRes.user)
-          // Also update the auth store so Header balance updates
-          updateUser(userRes.user)
-        }
-        setUserAccounts(accountsRes.accounts || [])
-        setUserApplications(applicationsRes.applications || [])
-        setUserRefunds(refundsRes.refunds || [])
-        setBalanceTransfers(transfersRes.transfers || [])
-        setBmShareHistory(bmShareRes.bmShareRequests || [])
-        setAccountDeposits(depositsRes.deposits || [])
+        await refreshAllData()
       } catch (error) {
         // Silently handle errors
       } finally {
@@ -292,6 +478,15 @@ export default function FacebookPage() {
     }
     fetchUserData()
   }, [updateUser])
+
+  // Auto-refresh stats every 1 second for real-time updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshStats()
+    }, 1000) // 1 second
+
+    return () => clearInterval(interval)
+  }, [])
 
   // Handle submit application
   const handleSubmitApplication = async () => {
@@ -329,6 +524,8 @@ export default function FacebookPage() {
       const response = await applicationsApi.create(applicationData)
 
       setSubmitSuccess(true)
+      // Refresh stats immediately to update pending count
+      refreshStats()
 
       // Reset form
       setLicenseType('new')
@@ -373,7 +570,9 @@ export default function FacebookPage() {
   }
 
   // Check if platform is enabled and if user has existing accounts
-  const platformEnabled = ADMIN_SETTINGS.platformsEnabled.facebook
+  // platformStatus: 'active' = can apply, 'stop' = visible but can't apply, 'hidden' = not shown
+  const platformEnabled = platformStatus === 'active'
+  const platformStopped = platformStatus === 'stop'
   const hasExistingAccounts = userAccounts.length > 0
 
   // Generate ad account options for searchable dropdown from userAccounts
@@ -565,9 +764,10 @@ export default function FacebookPage() {
         // Show success toast
         setRefundToastSuccess(true)
         setTimeout(() => setRefundToastSuccess(false), 3000)
-        // Refresh data
+        // Refresh data and stats immediately
         const refundsRes = await accountRefundsApi.getAll('FACEBOOK').catch(() => ({ refunds: [] }))
         setUserRefunds(refundsRes.refunds || [])
+        refreshStats()
       } catch (error: any) {
         alert(error.message || 'Failed to submit refund request')
       } finally {
@@ -596,6 +796,8 @@ export default function FacebookPage() {
       // Show success toast
       setTransferToastSuccess(true)
       setTimeout(() => setTransferToastSuccess(false), 3000)
+      // Refresh stats immediately
+      refreshStats()
     } catch (error: any) {
       alert(error.message || 'Failed to submit transfer request')
     } finally {
@@ -647,6 +849,8 @@ export default function FacebookPage() {
       setShowBmShareModal(false)
       setBmShareForm({ bmId: '', message: '' })
       setBmShareSuccess(true)
+      // Refresh stats immediately to update pending shares count
+      refreshStats()
 
       // Hide toast after 2.5 seconds
       setTimeout(() => {
@@ -689,6 +893,8 @@ export default function FacebookPage() {
       // Also update auth store so Header balance updates
       updateUser(userRes.user)
       setAccountDeposits(depositsRes.deposits || [])
+      // Refresh stats immediately to update pending deposits count
+      refreshStats()
 
       // Show floating toast success
       setDepositToastSuccess(true)
@@ -765,7 +971,8 @@ export default function FacebookPage() {
     const extraPagesCost = extraPages * ADMIN_SETTINGS.extraPageFee
     const domainCost = unlimitedDomain === 'yes' ? ADMIN_SETTINGS.unlimitedDomainFee : 0
     const totalDeposits = adAccounts.reduce((sum, acc) => sum + parseInt(acc.deposit || '0'), 0)
-    const depositWithMarkup = totalDeposits + (totalDeposits * fbCommissionRate / 100)
+    const depositMarkupAmount = totalDeposits * fbCommissionRate / 100
+    const depositWithMarkup = totalDeposits + depositMarkupAmount
     const openingFee = user?.openingFee ? parseFloat(user.openingFee) : ADMIN_SETTINGS.openingFee
     const totalCostRegular = openingFee + domainCost + extraPagesCost + depositWithMarkup
 
@@ -773,7 +980,18 @@ export default function FacebookPage() {
     const totalCost = useCoupon ? depositWithMarkup : totalCostRegular
     const savings = useCoupon ? openingFee + domainCost + extraPagesCost : 0
 
-    return { depositWithMarkup, totalCost, totalCostRegular, savings, openingFee, commissionRate: fbCommissionRate }
+    return {
+      totalDeposits,
+      depositMarkupAmount,
+      depositWithMarkup,
+      totalCost,
+      totalCostRegular,
+      savings,
+      openingFee,
+      domainCost,
+      extraPagesCost,
+      commissionRate: fbCommissionRate
+    }
   }, [pageCount, unlimitedDomain, adAccounts, fbCommissionRate, user, useCoupon])
 
   const toggleSection = (section: MenuSection) => {
@@ -855,10 +1073,11 @@ export default function FacebookPage() {
     {
       section: 'account-manage' as MenuSection,
       title: 'Account Manage',
-      icon: '📋',
+      icon: <AccountManageIcon />,
+      tutorialId: 'account-manage-section',
       items: [
-        { id: 'apply-ads-account' as SubPage, label: 'Apply Ads Account' },
-        { id: 'account-list' as SubPage, label: 'Account List' },
+        { id: 'apply-ads-account' as SubPage, label: 'Apply Ads Account', tutorialId: 'apply-account-btn' },
+        { id: 'account-list' as SubPage, label: 'Account List', tutorialId: 'account-list-btn' },
         { id: 'account-applied-records' as SubPage, label: 'Account Applied Records' },
         { id: 'bm-share-log' as SubPage, label: 'BM Share Log' },
       ]
@@ -866,16 +1085,17 @@ export default function FacebookPage() {
     {
       section: 'deposit-manage' as MenuSection,
       title: 'Deposit Manage',
-      icon: '💰',
+      icon: <DepositManageIcon />,
+      tutorialId: 'deposit-manage-section',
       items: [
-        { id: 'deposit' as SubPage, label: 'Deposit' },
+        { id: 'deposit' as SubPage, label: 'Deposit', tutorialId: 'deposit-menu-btn' },
         { id: 'deposit-report' as SubPage, label: 'Deposit Report' },
       ]
     },
     {
       section: 'after-sale' as MenuSection,
       title: 'After Sale',
-      icon: '🔄',
+      icon: <AfterSaleIcon />,
       items: [
         { id: 'transfer-balance' as SubPage, label: 'Transfer Balance' },
         { id: 'refund' as SubPage, label: 'Refund' },
@@ -890,8 +1110,8 @@ export default function FacebookPage() {
       {!platformEnabled && !hasExistingAccounts ? (
         <div className="flex items-center justify-center h-full">
           <div className="text-center p-16">
-            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#52B788]/10 flex items-center justify-center">
-              <span className="text-5xl">🚧</span>
+            <div className="w-24 h-24 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#52B788]/10 flex items-center justify-center text-[#8B5CF6]">
+              <ComingSoonIcon />
             </div>
             <p className="text-2xl font-bold text-gray-800 mb-2">Coming Soon</p>
             <p className="text-base text-gray-600 mb-4">Facebook Ads platform is currently unavailable</p>
@@ -962,52 +1182,78 @@ export default function FacebookPage() {
           <Download className="w-3.5 h-3.5 mr-1.5" />
           Export Image
         </Button>
-        <Button className="bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-md shadow-sm whitespace-nowrap text-xs px-3 py-1.5 h-auto">
+        <Button
+          onClick={() => setActiveSubPage('apply-ads-account')}
+          className="bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-md shadow-sm whitespace-nowrap text-xs px-3 py-1.5 h-auto"
+        >
           <Plus className="w-3.5 h-3.5 mr-1" />
           Ads Account
         </Button>
       </div>
 
-      {/* Row 2: Stats Cards */}
-      <div className="grid grid-cols-4 gap-3 mb-3">
+      {/* Row 2: Stats Cards - Matching reference design with animations */}
+      <style jsx>{`
+        @keyframes chartPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+        .chart-animate {
+          transition: d 0.6s ease-in-out;
+        }
+        .chart-glow {
+          animation: chartPulse 2s ease-in-out infinite;
+        }
+      `}</style>
+      <div className="grid grid-cols-4 gap-4 mb-4">
         {statsData.map((stat, index) => (
-          <Card key={index} className="stat-card p-3 border border-gray-100/50 bg-gradient-to-br from-white to-gray-50/30 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-br from-[#8B5CF6]/10 to-transparent rounded-bl-full" />
-            <div className="flex items-start justify-between relative z-10">
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">{stat.label}</p>
-                <p className="text-xl font-bold text-gray-800">{stat.value}</p>
-              </div>
-              <span className={`text-[10px] px-2 py-1 rounded-full font-semibold whitespace-nowrap ${
-                stat.trend === 'up' ? 'bg-[#52B788] text-white' : 'bg-[#EF4444] text-white'
-              }`}>
-                {stat.badge}
-              </span>
+          <Card key={index} className="stat-card p-4 border border-gray-100 bg-white rounded-xl relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02]">
+            {/* Top row: Title and Badge */}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
+              {stat.badge !== 'None' && (
+                <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold whitespace-nowrap transition-all duration-500 ${
+                  stat.trend === 'up'
+                    ? 'bg-[#22C55E] text-white animate-pulse'
+                    : stat.trend === 'down'
+                      ? 'bg-[#EF4444] text-white animate-pulse'
+                      : 'bg-blue-100 text-blue-600'
+                }`}>
+                  {stat.badge}
+                </span>
+              )}
             </div>
-            <div className="mt-2 h-8 relative z-10">
-              <svg viewBox="0 0 120 40" className="w-full h-full" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id={`gradient-${index}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor={stat.trend === 'up' ? '#8B5CF6' : '#EF4444'} stopOpacity="0.3" />
-                    <stop offset="100%" stopColor={stat.trend === 'up' ? '#8B5CF6' : '#EF4444'} stopOpacity="0.05" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d={stat.trend === 'up'
-                    ? "M0,30 C10,28 20,25 30,22 C40,19 50,18 60,16 C70,14 80,12 90,10 C100,8 110,6 120,5"
-                    : "M0,10 C10,12 20,15 30,18 C40,21 50,22 60,24 C70,26 80,28 90,30 C100,32 110,34 120,35"}
-                  fill="none"
-                  stroke={stat.trend === 'up' ? '#8B5CF6' : '#EF4444'}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-                <path
-                  d={stat.trend === 'up'
-                    ? "M0,30 C10,28 20,25 30,22 C40,19 50,18 60,16 C70,14 80,12 90,10 C100,8 110,6 120,5 L120,40 L0,40 Z"
-                    : "M0,10 C10,12 20,15 30,18 C40,21 50,22 60,24 C70,26 80,28 90,30 C100,32 110,34 120,35 L120,40 L0,40 Z"}
-                  fill={`url(#gradient-${index})`}
-                />
-              </svg>
+            {/* Bottom row: Number on left, Chart on right */}
+            <div className="flex items-end justify-between">
+              <p className="text-2xl font-bold text-gray-900 tabular-nums">
+                <AnimatedCounter value={stat.numericValue} duration={600} />
+              </p>
+              {/* Chart container - positioned on the right with smooth transitions */}
+              <div className="w-24 h-12 relative">
+                <svg viewBox="0 0 100 50" className="w-full h-full" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id={`stat-gradient-${index}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor={stat.color} stopOpacity="0.4" />
+                      <stop offset="100%" stopColor={stat.color} stopOpacity="0.05" />
+                    </linearGradient>
+                  </defs>
+                  {/* Area fill with transition */}
+                  <path
+                    d={`${stat.chartPath.replace(/120/g, '100').replace(/40/g, '50').replace(/38/g, '48')} L100,50 L0,50 Z`}
+                    fill={`url(#stat-gradient-${index})`}
+                    className="transition-all duration-700 ease-in-out"
+                  />
+                  {/* Line stroke with transition */}
+                  <path
+                    d={stat.chartPath.replace(/120/g, '100').replace(/40/g, '50').replace(/38/g, '48')}
+                    fill="none"
+                    stroke={stat.color}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="transition-all duration-700 ease-in-out"
+                  />
+                </svg>
+              </div>
             </div>
           </Card>
         ))}
@@ -1045,6 +1291,7 @@ export default function FacebookPage() {
                 <div key={menu.section}>
                   <button
                     onClick={() => toggleSection(menu.section)}
+                    data-tutorial={(menu as any).tutorialId}
                     className="w-full flex items-center justify-between px-2 py-2 text-sm font-semibold text-gray-700 hover:bg-[#8B5CF6]/5 rounded-lg transition-all"
                   >
                     <div className="flex items-center gap-2">
@@ -1070,6 +1317,7 @@ export default function FacebookPage() {
                     {menu.items.map((item) => (
                       <button
                         key={item.id}
+                        data-tutorial={(item as any).tutorialId}
                         onClick={() => {
                           setActiveSubPage(item.id)
                           setCurrentPage(1)
@@ -1096,19 +1344,30 @@ export default function FacebookPage() {
               {/* Apply Ads Account Form */}
               {activeSubPage === 'apply-ads-account' && (
                 <>
-                  {/* Show "Coming Soon" if platform disabled and no existing accounts OR if platform disabled */}
-                  {!platformEnabled && !hasExistingAccounts ? (
+                  {/* Show message if platform stopped - user can see but can't apply */}
+                  {platformStopped ? (
                     <div className="p-16 text-center">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#52B788]/10 flex items-center justify-center">
-                        <span className="text-3xl">🚧</span>
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#F59E0B]/10 to-[#EF4444]/10 flex items-center justify-center">
+                        <span className="text-3xl">⏸️</span>
+                      </div>
+                      <p className="text-lg font-semibold text-gray-700">New Applications Paused</p>
+                      <p className="text-sm text-gray-500 mt-2">New ad account applications are temporarily paused</p>
+                      {hasExistingAccounts && (
+                        <p className="text-xs text-gray-400 mt-3">You can still manage your existing accounts through the menu</p>
+                      )}
+                    </div>
+                  ) : !platformEnabled && !hasExistingAccounts ? (
+                    <div className="p-16 text-center">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#52B788]/10 flex items-center justify-center text-[#8B5CF6]">
+                        <ComingSoonIcon />
                       </div>
                       <p className="text-lg font-semibold text-gray-700">Coming Soon</p>
                       <p className="text-sm text-gray-500 mt-2">Facebook Ads platform is currently unavailable</p>
                     </div>
                   ) : !platformEnabled && hasExistingAccounts ? (
                     <div className="p-16 text-center">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#52B788]/10 flex items-center justify-center">
-                        <span className="text-3xl">🚧</span>
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#52B788]/10 flex items-center justify-center text-[#8B5CF6]">
+                        <ComingSoonIcon />
                       </div>
                       <p className="text-lg font-semibold text-gray-700">Coming Soon</p>
                       <p className="text-sm text-gray-500 mt-2">New account applications are currently disabled</p>
@@ -1118,7 +1377,7 @@ export default function FacebookPage() {
                     <div className="px-8 py-6 space-y-5">
 
                       {/* License */}
-                      <div className="space-y-3">
+                      <div className="space-y-3" data-tutorial="license-section">
                     <label className="block text-sm font-semibold text-gray-800">License</label>
                     <div className="flex gap-2">
                       <button
@@ -1171,7 +1430,7 @@ export default function FacebookPage() {
                   </div>
 
                   {/* Pages */}
-                  <div className="space-y-3">
+                  <div className="space-y-3" data-tutorial="pages-section">
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-semibold text-gray-800">
                         Number of Pages
@@ -1202,15 +1461,35 @@ export default function FacebookPage() {
 
                   {/* Share Profile */}
                   <div className="space-y-3">
-                    <div className="flex items-start gap-2.5">
-                      <input
-                        type="checkbox"
-                        id="shareProfile"
-                        checked={pageShareConfirmed}
-                        onChange={(e) => setPageShareConfirmed(e.target.checked)}
-                        className="w-4 h-4 mt-0.5 rounded border-gray-300 text-[#8B5CF6] focus:ring-[#8B5CF6]"
-                      />
-                      <label htmlFor="shareProfile" className="text-sm text-gray-600">
+                    <div className="flex items-start gap-2.5" data-tutorial="share-profile-checkbox">
+                      <div className="relative mt-0.5">
+                        <input
+                          type="checkbox"
+                          id="shareProfile"
+                          checked={pageShareConfirmed}
+                          onChange={(e) => setPageShareConfirmed(e.target.checked)}
+                          className="peer sr-only"
+                        />
+                        <label
+                          htmlFor="shareProfile"
+                          className={`flex items-center justify-center w-5 h-5 rounded border-2 cursor-pointer transition-all duration-200 ease-out
+                            ${pageShareConfirmed
+                              ? 'bg-[#8B5CF6] border-[#8B5CF6] scale-110'
+                              : 'bg-white border-gray-300 hover:border-[#8B5CF6]/50 active:scale-95'
+                            }`}
+                        >
+                          <svg
+                            className={`w-3 h-3 text-white transition-all duration-200 ${pageShareConfirmed ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </label>
+                      </div>
+                      <label htmlFor="shareProfile" className="text-sm text-gray-600 cursor-pointer select-none">
                         Please make sure you have already shared your page with this profile
                       </label>
                     </div>
@@ -1231,9 +1510,6 @@ export default function FacebookPage() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-semibold text-gray-800">Unlimited Domain?</label>
-                      {unlimitedDomain === 'yes' && (
-                        <span className="text-xs text-[#8B5CF6] font-medium">+${ADMIN_SETTINGS.unlimitedDomainFee}</span>
-                      )}
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -1322,7 +1598,7 @@ export default function FacebookPage() {
                   </div>
 
                   {/* Ad Accounts */}
-                  <div className="space-y-3">
+                  <div className="space-y-3" data-tutorial="ad-accounts-section">
                     <label className="block text-sm font-semibold text-gray-800">
                       How many Ad Accounts?
                       <span className="text-xs font-normal text-gray-500 ml-2">(1-5 accounts, same fee)</span>
@@ -1377,28 +1653,36 @@ export default function FacebookPage() {
                     />
                   </div>
 
-                  {/* Summary Cards */}
-                  <div className="flex gap-3">
-                    <div className="flex-1 p-3 bg-gradient-to-br from-white to-[#8B5CF6]/5 border border-[#8B5CF6]/20 rounded-xl text-center">
-                      <p className="text-xs text-gray-500">Total Deposit of Ads</p>
-                      <p className="text-lg font-bold text-[#8B5CF6]">${costs.depositWithMarkup.toFixed(2)}</p>
+                  {/* Cost Summary - Compact */}
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    {/* Cost Items - Inline */}
+                    <div className="px-4 py-3 bg-gray-50 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                      <span className="text-gray-500">Opening Fee: <span className={useCoupon ? 'line-through text-gray-400' : 'font-medium text-gray-700'}>${costs.openingFee}</span></span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-500">Deposit: <span className="font-medium text-gray-700">${costs.totalDeposits}</span></span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-500">Fee ({costs.commissionRate}%): <span className="font-medium text-[#F59E0B]">+${costs.depositMarkupAmount.toFixed(2)}</span></span>
+                      {costs.domainCost > 0 && <><span className="text-gray-300">|</span><span className="text-gray-500">Domain: <span className={useCoupon ? 'line-through text-gray-400' : 'font-medium text-gray-700'}>${costs.domainCost}</span></span></>}
+                      {costs.extraPagesCost > 0 && <><span className="text-gray-300">|</span><span className="text-gray-500">Extra Pages: <span className={useCoupon ? 'line-through text-gray-400' : 'font-medium text-gray-700'}>${costs.extraPagesCost}</span></span></>}
+                      {useCoupon && costs.savings > 0 && <><span className="text-gray-300">|</span><span className="text-[#22C55E]">Saved: -${costs.savings.toFixed(2)}</span></>}
                     </div>
-                    <div className="flex-1 p-3 bg-gradient-to-br from-white to-[#52B788]/5 border border-[#52B788]/20 rounded-xl text-center">
-                      <p className="text-xs text-gray-500">Total Cost</p>
-                      <p className="text-lg font-bold text-[#52B788]">
-                        {useCoupon && costs.savings > 0 ? (
-                          <>
-                            <span className="line-through text-gray-400 text-sm mr-2">${costs.totalCostRegular.toFixed(2)}</span>
-                            ${costs.totalCost.toFixed(2)}
-                          </>
-                        ) : (
-                          `$${costs.totalCost.toFixed(2)}`
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex-1 p-3 bg-gradient-to-br from-white to-[#3B82F6]/5 border border-[#3B82F6]/20 rounded-xl text-center">
-                      <p className="text-xs text-gray-500">Your Balance</p>
-                      <p className="text-lg font-bold text-[#3B82F6]">${userBalance.toLocaleString()}</p>
+                    {/* Total Row */}
+                    <div className="px-4 py-2.5 bg-white flex items-center justify-between border-t border-gray-100">
+                      <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">Total:</span>
+                          <span className="text-base font-bold text-[#52B788]">${costs.totalCost.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">Balance:</span>
+                          <span className="text-base font-bold text-[#3B82F6]">${userBalance.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      {userBalance < costs.totalCost && (
+                        <span className="text-[10px] px-2 py-1 rounded-full font-medium bg-[#EF4444]/10 text-[#EF4444]">
+                          ✗ Insufficient Balance
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1447,6 +1731,7 @@ export default function FacebookPage() {
 
                   {/* Submit Button */}
                   <Button
+                    data-tutorial="submit-application"
                     className="w-full bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-xl py-3 text-base font-semibold shadow-lg shadow-purple-500/30 transition-all hover:shadow-xl hover:shadow-purple-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={!pageShareConfirmed || userBalance < costs.totalCost || isSubmitting || submitSuccess}
                     onClick={handleSubmitApplication}
@@ -1570,12 +1855,14 @@ export default function FacebookPage() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleBmShareClick(item)}
+                              data-tutorial="get-bm-access-btn"
                               className="px-4 py-2 bg-[#8B5CF6]/10 text-[#8B5CF6] rounded-lg text-sm font-medium hover:bg-[#8B5CF6] hover:text-white transition-all duration-200"
                             >
                               Get Access
                             </button>
                             <button
                               onClick={handleDepositClick}
+                              data-tutorial="account-deposit-btn"
                               className="px-4 py-2 bg-[#52B788]/10 text-[#52B788] rounded-lg text-sm font-medium hover:bg-[#52B788] hover:text-white transition-all duration-200"
                             >
                               Deposit
@@ -1600,8 +1887,8 @@ export default function FacebookPage() {
                     </div>
                   ) : paginatedData.length === 0 ? (
                     <div className="p-16 text-center">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#52B788]/10 flex items-center justify-center">
-                        <span className="text-3xl">📋</span>
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#52B788]/10 flex items-center justify-center text-[#8B5CF6]">
+                        <EmptyStateIcon />
                       </div>
                       <p className="text-lg font-semibold text-gray-700">No Applications Yet</p>
                       <p className="text-sm text-gray-500 mt-2">Submit your first ad account application to get started</p>
@@ -1797,7 +2084,7 @@ export default function FacebookPage() {
 
               {/* Deposit Form */}
               {activeSubPage === 'deposit' && (
-                <div className="p-6 space-y-6">
+                <div className="p-6 space-y-6" data-tutorial="deposit-form-section">
                   {/* Section Header */}
                   <div className="flex items-center justify-between">
                     <div>
@@ -1814,12 +2101,13 @@ export default function FacebookPage() {
                   </div>
 
                   {/* Deposit Rows */}
-                  <div className="space-y-4">
+                  <div className="space-y-4" data-tutorial="deposit-rows-section">
                     {depositRows.map((row, index) => (
                       <div
                         key={row.id}
                         className="table-row-animate p-5 bg-white border border-gray-100 rounded-xl hover:border-[#8B5CF6]/30 hover:shadow-lg hover:shadow-[#8B5CF6]/5 transition-all duration-300 overflow-visible"
                         style={{ opacity: 0, animationDelay: `${index * 0.05}s`, position: 'relative', zIndex: depositRows.length - index }}
+                        data-tutorial={index === 0 ? "deposit-row-first" : undefined}
                       >
                         <div className="flex items-center gap-4">
                           {/* Row Number */}
@@ -1890,7 +2178,7 @@ export default function FacebookPage() {
                   </button>
 
                   {/* Cost Breakdown */}
-                  <div className="p-5 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100 space-y-4">
+                  <div className="p-5 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100 space-y-4" data-tutorial="deposit-cost-breakdown">
                     <h4 className="text-sm font-semibold text-gray-700">Cost Breakdown</h4>
 
                     <div className="space-y-3">
@@ -1928,6 +2216,7 @@ export default function FacebookPage() {
 
                   {/* Submit Button */}
                   <Button
+                    data-tutorial="deposit-submit-btn"
                     className="w-full bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-xl py-3.5 text-base font-semibold shadow-lg shadow-purple-500/30 transition-all hover:shadow-xl hover:shadow-purple-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={!isDepositFormValid || isSubmitting}
                     onClick={handleDepositSubmit}
@@ -2614,7 +2903,7 @@ export default function FacebookPage() {
               </div>
             </div>
           )}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-tutorial="bm-id-input">
             <label className="block text-sm font-medium text-gray-700">Business Manager ID (BM ID)</label>
             <input
               type="text"
@@ -2651,6 +2940,7 @@ export default function FacebookPage() {
               Cancel
             </Button>
             <Button
+              data-tutorial="bm-share-submit"
               className="flex-1 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] rounded-xl py-3 shadow-md shadow-purple-500/25"
               disabled={!bmShareForm.bmId.trim() || bmShareSubmitting}
               onClick={handleBmShareSubmit}

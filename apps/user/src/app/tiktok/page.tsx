@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -20,7 +20,34 @@ import {
   Check,
   Wallet,
 } from 'lucide-react'
-import { authApi, accountsApi, transactionsApi, accountDepositsApi } from '@/lib/api'
+import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, PlatformStatus } from '@/lib/api'
+import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon } from '@/components/icons/MenuIcons'
+
+// Animated Counter Component
+function AnimatedCounter({ value, duration = 500 }: { value: number; duration?: number }) {
+  const [displayValue, setDisplayValue] = useState(value)
+  const previousValue = useRef(value)
+
+  useEffect(() => {
+    if (previousValue.current === value) return
+    const startValue = previousValue.current
+    const endValue = value
+    const startTime = Date.now()
+
+    const animate = () => {
+      const now = Date.now()
+      const progress = Math.min((now - startTime) / duration, 1)
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4)
+      const currentValue = Math.round(startValue + (endValue - startValue) * easeOutQuart)
+      setDisplayValue(currentValue)
+      if (progress < 1) requestAnimationFrame(animate)
+      else previousValue.current = value
+    }
+    requestAnimationFrame(animate)
+  }, [value, duration])
+
+  return <>{String(displayValue).padStart(2, '0')}</>
+}
 
 // TikTok brand colors
 const brandColor = '#FF0050'
@@ -123,13 +150,7 @@ const timezoneOptions = [
   { value: 'UTC-1', label: 'UTC-1 (Azores, Portugal)' },
 ]
 
-// Stats data
-const statsData = [
-  { label: 'Pending Applications', value: '06', trend: 'up', badge: 'Growth 10x' },
-  { label: 'Pending Deposits', value: '29', trend: 'up', badge: 'Growth 10x' },
-  { label: 'Pending Shares', value: '250', trend: 'up', badge: 'Growth 10x' },
-  { label: 'Pending Refunds', value: '25', trend: 'down', badge: 'Decrease 10x' },
-]
+// Stats data will be computed from dashboard API response
 
 // Account List data
 const accountListData = [
@@ -293,22 +314,103 @@ export default function TikTokPage() {
   const [userRefunds, setUserRefunds] = useState<any[]>([])
   const [userDeposits, setUserDeposits] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [dashboardStats, setDashboardStats] = useState<any>(null)
+  const [previousStats, setPreviousStats] = useState<any>(null)
+  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>('active')
+
+  // Generate dynamic chart path based on count
+  const generateChartPath = (count: number, trend: 'up' | 'down') => {
+    if (count === 0) return 'M0,38 L120,38'
+    const numPeaks = Math.min(count, 6)
+    const segmentWidth = 120 / numPeaks
+    let path = 'M0,35'
+    for (let i = 0; i < numPeaks; i++) {
+      const startX = i * segmentWidth
+      const peakX = startX + segmentWidth * 0.5
+      const endX = (i + 1) * segmentWidth
+      const baseHeight = trend === 'up' ? 8 : 25
+      const variation = (i % 2 === 0) ? 0 : 8
+      const peakY = trend === 'up' ? baseHeight + variation + (i * 2) : baseHeight - variation + (i * 2)
+      const cp1x = startX + segmentWidth * 0.2
+      const cp2x = peakX - segmentWidth * 0.15
+      const cp3x = peakX + segmentWidth * 0.15
+      const cp4x = startX + segmentWidth * 0.8
+      path += ` C${cp1x},35 ${cp2x},${peakY} ${peakX},${peakY}`
+      path += ` C${cp3x},${peakY} ${cp4x},35 ${endX},35`
+    }
+    return path
+  }
+
+  // Calculate growth percentage and trend
+  const calculateGrowth = (current: number, previous: number | undefined, isRefund: boolean = false) => {
+    if (previous === undefined) {
+      if (current > 0) return { trend: isRefund ? 'down' as const : 'up' as const, badge: `${current} Active` }
+      return { trend: 'neutral' as const, badge: 'None' }
+    }
+    const diff = current - previous
+    if (diff > 0) return { trend: 'up' as const, badge: `+${diff} New` }
+    if (diff < 0) return { trend: 'down' as const, badge: `${diff} Resolved` }
+    if (current > 0) return { trend: isRefund ? 'down' as const : 'up' as const, badge: `${current} Active` }
+    return { trend: 'neutral' as const, badge: 'None' }
+  }
+
+  // Compute statsData from dashboard API
+  const statsData = useMemo(() => {
+    const pendingApps = dashboardStats?.pendingApplications || 0
+    const pendingDeps = dashboardStats?.pendingDeposits || 0
+    const pendingSharesCount = dashboardStats?.pendingShares || 0
+    const pendingRefundsCount = dashboardStats?.pendingRefunds || 0
+    const prevApps = previousStats?.pendingApplications
+    const prevDeps = previousStats?.pendingDeposits
+    const prevShares = previousStats?.pendingShares
+    const prevRefunds = previousStats?.pendingRefunds
+    const appsGrowth = calculateGrowth(pendingApps, prevApps, false)
+    const depsGrowth = calculateGrowth(pendingDeps, prevDeps, false)
+    const sharesGrowth = calculateGrowth(pendingSharesCount, prevShares, false)
+    const refundsGrowth = calculateGrowth(pendingRefundsCount, prevRefunds, true)
+    return [
+      { label: 'Pending Applications', numericValue: pendingApps, trend: appsGrowth.trend, badge: appsGrowth.badge, color: '#FF0050', chartPath: generateChartPath(pendingApps, 'up') },
+      { label: 'Pending Deposits', numericValue: pendingDeps, trend: depsGrowth.trend, badge: depsGrowth.badge, color: '#00F2EA', chartPath: generateChartPath(pendingDeps, 'up') },
+      { label: 'Pending Shares', numericValue: pendingSharesCount, trend: sharesGrowth.trend, badge: sharesGrowth.badge, color: '#F97316', chartPath: generateChartPath(pendingSharesCount, 'up') },
+      { label: 'Pending Refunds', numericValue: pendingRefundsCount, trend: refundsGrowth.trend, badge: refundsGrowth.badge, color: '#EF4444', chartPath: generateChartPath(pendingRefundsCount, 'down') },
+    ]
+  }, [dashboardStats, previousStats])
+
+  // Refresh only dashboard stats
+  const refreshStats = async () => {
+    try {
+      const statsRes = await dashboardApi.getStats().catch(() => ({}))
+      if (dashboardStats && (
+        statsRes.pendingApplications !== dashboardStats.pendingApplications ||
+        statsRes.pendingDeposits !== dashboardStats.pendingDeposits ||
+        statsRes.pendingShares !== dashboardStats.pendingShares ||
+        statsRes.pendingRefunds !== dashboardStats.pendingRefunds
+      )) {
+        setPreviousStats(dashboardStats)
+      }
+      setDashboardStats(statsRes)
+    } catch (error) {}
+  }
 
   // Fetch user data from API
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [userRes, accountsRes, refundsRes, depositsRes] = await Promise.all([
+        const [userRes, accountsRes, refundsRes, depositsRes, statsRes, platformRes] = await Promise.all([
           authApi.me().catch(() => ({ user: null })),
           accountsApi.getAll('TIKTOK').catch(() => ({ accounts: [] })),
           transactionsApi.refunds.getAll('TIKTOK').catch(() => ({ refunds: [] })),
-          accountDepositsApi.getAll('TIKTOK').catch(() => ({ deposits: [] }))
+          accountDepositsApi.getAll('TIKTOK').catch(() => ({ deposits: [] })),
+          dashboardApi.getStats().catch(() => ({})),
+          settingsApi.platforms.get().catch(() => ({ platforms: { facebook: 'active', google: 'active', tiktok: 'active', snapchat: 'active', bing: 'active' } }))
         ])
         setUser(userRes.user)
         setUserAccounts(accountsRes.accounts || [])
         setUserRefunds(refundsRes.refunds || [])
         setUserDeposits(depositsRes.deposits || [])
+        setDashboardStats(statsRes)
+        setPlatformStatus((platformRes.platforms?.tiktok || 'active') as PlatformStatus)
       } catch (error) {
         // Silently handle errors
       } finally {
@@ -318,11 +420,23 @@ export default function TikTokPage() {
     fetchData()
   }, [])
 
+  // Auto-refresh stats every 1 second
+  useEffect(() => {
+    const interval = setInterval(() => refreshStats(), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
   // Get user's TikTok commission rate from API (fallback to 5% if not set)
   const tiktokCommissionRate = user?.tiktokCommission ? parseFloat(user.tiktokCommission) : 5
 
   // User wallet balance from API
   const userBalance = user?.balance ? parseFloat(user.balance) : 0
+
+  // Check if platform is enabled and if user has existing accounts
+  // platformStatus: 'active' = can apply, 'stop' = visible but can't apply, 'hidden' = not shown
+  const platformEnabled = platformStatus === 'active'
+  const platformStopped = platformStatus === 'stop'
+  const hasExistingAccounts = userAccounts.length > 0
 
   // Modal states
   const [showBcShareModal, setShowBcShareModal] = useState(false)
@@ -527,7 +641,7 @@ export default function TikTokPage() {
     {
       section: 'account-manage' as MenuSection,
       title: 'Account Manage',
-      icon: '📋',
+      icon: <AccountManageIcon />,
       items: [
         { id: 'apply-ads-account' as SubPage, label: 'Apply Ads Account' },
         { id: 'account-list' as SubPage, label: 'Account List' },
@@ -538,7 +652,7 @@ export default function TikTokPage() {
     {
       section: 'deposit-manage' as MenuSection,
       title: 'Deposit Manage',
-      icon: '💰',
+      icon: <DepositManageIcon />,
       items: [
         { id: 'deposit' as SubPage, label: 'Deposit' },
         { id: 'deposit-report' as SubPage, label: 'Deposit Report' },
@@ -547,7 +661,7 @@ export default function TikTokPage() {
     {
       section: 'after-sale' as MenuSection,
       title: 'After Sale',
-      icon: '🔄',
+      icon: <AfterSaleIcon />,
       items: [
         { id: 'transfer-balance' as SubPage, label: 'Transfer Balance' },
         { id: 'refund' as SubPage, label: 'Refund' },
@@ -609,52 +723,63 @@ export default function TikTokPage() {
           <Download className="w-3.5 h-3.5 mr-1.5" />
           Export Image
         </Button>
-        <Button className="bg-gradient-to-r from-[#FF0050] to-[#00F2EA] hover:from-[#E60045] hover:to-[#00D9D1] text-white rounded-md shadow-sm whitespace-nowrap text-xs px-3 py-1.5 h-auto">
+        <Button
+          onClick={() => setActiveSubPage('apply-ads-account')}
+          className="bg-gradient-to-r from-[#FF0050] to-[#00F2EA] hover:from-[#E60045] hover:to-[#00D9D1] text-white rounded-md shadow-sm whitespace-nowrap text-xs px-3 py-1.5 h-auto"
+        >
           <Plus className="w-3.5 h-3.5 mr-1" />
           Ads Account
         </Button>
       </div>
 
-      {/* Row 2: Stats Cards */}
-      <div className="grid grid-cols-4 gap-3 mb-3">
+      {/* Row 2: Stats Cards - Real-time Updates */}
+      <div className="grid grid-cols-4 gap-4 mb-4">
         {statsData.map((stat, index) => (
-          <Card key={index} className="stat-card p-3 border border-gray-100/50 bg-gradient-to-br from-white to-gray-50/30 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-12 h-12 bg-gradient-to-br from-[#FF0050]/10 to-transparent rounded-bl-full" />
-            <div className="flex items-start justify-between relative z-10">
-              <div>
-                <p className="text-xs text-gray-500 mb-0.5">{stat.label}</p>
-                <p className="text-xl font-bold text-gray-800">{stat.value}</p>
-              </div>
-              <span className={`text-[10px] px-2 py-1 rounded-full font-semibold whitespace-nowrap ${
-                stat.trend === 'up' ? 'bg-[#52B788] text-white' : 'bg-[#EF4444] text-white'
-              }`}>
-                {stat.badge}
-              </span>
+          <Card key={index} className="stat-card p-4 border border-gray-100 bg-white rounded-xl relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02]">
+            {/* Top row: Title and Badge */}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
+              {stat.badge !== 'None' && (
+                <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold whitespace-nowrap transition-all duration-500 ${
+                  stat.trend === 'up'
+                    ? 'bg-[#22C55E] text-white animate-pulse'
+                    : stat.trend === 'down'
+                      ? 'bg-[#EF4444] text-white animate-pulse'
+                      : 'bg-blue-100 text-blue-600'
+                }`}>
+                  {stat.badge}
+                </span>
+              )}
             </div>
-            <div className="mt-2 h-8 relative z-10">
-              <svg viewBox="0 0 120 40" className="w-full h-full" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id={`gradient-tiktok-${index}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor={stat.trend === 'up' ? '#FF0050' : '#EF4444'} stopOpacity="0.3" />
-                    <stop offset="100%" stopColor={stat.trend === 'up' ? '#FF0050' : '#EF4444'} stopOpacity="0.05" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d={stat.trend === 'up'
-                    ? "M0,30 C10,28 20,25 30,22 C40,19 50,18 60,16 C70,14 80,12 90,10 C100,8 110,6 120,5"
-                    : "M0,10 C10,12 20,15 30,18 C40,21 50,22 60,24 C70,26 80,28 90,30 C100,32 110,34 120,35"}
-                  fill="none"
-                  stroke={stat.trend === 'up' ? '#FF0050' : '#EF4444'}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-                <path
-                  d={stat.trend === 'up'
-                    ? "M0,30 C10,28 20,25 30,22 C40,19 50,18 60,16 C70,14 80,12 90,10 C100,8 110,6 120,5 L120,40 L0,40 Z"
-                    : "M0,10 C10,12 20,15 30,18 C40,21 50,22 60,24 C70,26 80,28 90,30 C100,32 110,34 120,35 L120,40 L0,40 Z"}
-                  fill={`url(#gradient-tiktok-${index})`}
-                />
-              </svg>
+            {/* Bottom row: Number on left, Chart on right */}
+            <div className="flex items-end justify-between">
+              <p className="text-2xl font-bold text-gray-900 tabular-nums">
+                <AnimatedCounter value={stat.numericValue} duration={600} />
+              </p>
+              <div className="w-24 h-12 relative">
+                <svg viewBox="0 0 100 50" className="w-full h-full" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id={`stat-gradient-tiktok-${index}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor={stat.color} stopOpacity="0.4" />
+                      <stop offset="100%" stopColor={stat.color} stopOpacity="0.05" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    d={`${stat.chartPath.replace(/120/g, '100').replace(/40/g, '50').replace(/38/g, '48')} L100,50 L0,50 Z`}
+                    fill={`url(#stat-gradient-tiktok-${index})`}
+                    className="transition-all duration-700 ease-in-out"
+                  />
+                  <path
+                    d={stat.chartPath.replace(/120/g, '100').replace(/40/g, '50').replace(/38/g, '48')}
+                    fill="none"
+                    stroke={stat.color}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="transition-all duration-700 ease-in-out"
+                  />
+                </svg>
+              </div>
             </div>
           </Card>
         ))}
@@ -733,6 +858,20 @@ export default function TikTokPage() {
           <div className="overflow-y-auto flex-1 min-h-0 bg-gradient-to-b from-white to-gray-50/30">
               {/* Apply Ads Account Form */}
               {activeSubPage === 'apply-ads-account' && (
+                <>
+                  {/* Show message if platform stopped - user can see but can't apply */}
+                  {platformStopped ? (
+                    <div className="p-16 text-center">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#F59E0B]/10 to-[#EF4444]/10 flex items-center justify-center">
+                        <span className="text-3xl">⏸️</span>
+                      </div>
+                      <p className="text-lg font-semibold text-gray-700">New Applications Paused</p>
+                      <p className="text-sm text-gray-500 mt-2">New ad account applications are temporarily paused</p>
+                      {hasExistingAccounts && (
+                        <p className="text-xs text-gray-400 mt-3">You can still manage your existing accounts through the menu</p>
+                      )}
+                    </div>
+                  ) : (
                 <div className="px-8 py-6 space-y-5">
 
                   {/* License */}
@@ -1028,6 +1167,8 @@ export default function TikTokPage() {
                     </p>
                   )}
                 </div>
+                  )}
+                </>
               )}
 
               {/* Account List Table */}
@@ -1332,8 +1473,8 @@ export default function TikTokPage() {
               {/* Placeholder */}
               {(activeSubPage === 'transfer-balance' || activeSubPage === 'refund' || activeSubPage === 'refund-report') && (
                 <div className="p-16 text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#FF0050]/10 to-[#00F2EA]/10 flex items-center justify-center">
-                    <span className="text-3xl">🚧</span>
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#FF0050]/10 to-[#00F2EA]/10 flex items-center justify-center text-[#FF0050]">
+                    <ComingSoonIcon />
                   </div>
                   <p className="text-lg font-semibold text-gray-700">Coming Soon</p>
                   <p className="text-sm text-gray-500 mt-2">This section is under development</p>

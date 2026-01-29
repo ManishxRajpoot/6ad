@@ -139,6 +139,11 @@ export const settingsApi = {
     update: (id: string, data: any) => api.put<{ paylink: any }>(`/settings/paylinks/${id}`, data),
     delete: (id: string) => api.delete<{ message: string }>(`/settings/paylinks/${id}`),
   },
+  platforms: {
+    get: () => api.get<{ platforms: { facebook: string; google: string; tiktok: string; snapchat: string; bing: string } }>('/settings/platforms'),
+    update: (data: { facebook?: string; google?: string; tiktok?: string; snapchat?: string; bing?: string }) =>
+      api.patch<{ message: string; platforms: any }>('/settings/platforms', data),
+  },
 }
 
 // Payment Methods API

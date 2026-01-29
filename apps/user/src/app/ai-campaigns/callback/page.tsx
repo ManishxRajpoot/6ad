@@ -23,13 +23,12 @@ function CallbackContent() {
         return
       }
 
-      // If we have a code, redirect back to localhost with the code
-      // The localhost app will handle the token exchange since it can reach the API
+      // If we have a code, redirect back to the main page with the code
       if (code) {
         setStatus('success')
         setTimeout(() => {
-          // Pass the code to localhost for token exchange
-          window.location.href = `http://localhost:3003/ai-campaigns?fb_code=${encodeURIComponent(code)}`
+          // Pass the code to the main page for token exchange (works in dev and production)
+          window.location.href = `${window.location.origin}/ai-campaigns?fb_code=${encodeURIComponent(code)}`
         }, 1500)
         return
       }

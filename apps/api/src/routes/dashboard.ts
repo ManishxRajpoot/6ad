@@ -217,11 +217,19 @@ dashboard.get('/user', async (c) => {
     const [
       pendingDeposits,
       pendingWithdrawals,
-      pendingAccounts
+      pendingAccounts,
+      pendingApplications,
+      pendingShares,
+      pendingRefunds,
+      pendingAccountDeposits
     ] = await Promise.all([
       prisma.deposit.count({ where: { userId, status: 'PENDING' } }),
       prisma.withdrawal.count({ where: { userId, status: 'PENDING' } }),
       prisma.adAccount.count({ where: { userId, status: 'PENDING' } }),
+      prisma.adAccountApplication.count({ where: { userId, status: 'PENDING' } }),
+      prisma.bmShareRequest.count({ where: { userId, status: 'PENDING' } }),
+      prisma.accountRefund.count({ where: { adAccount: { userId }, status: 'PENDING' } }),
+      prisma.accountDeposit.count({ where: { adAccount: { userId }, status: 'PENDING' } }),
     ])
 
     // Recent wallet activity
@@ -246,6 +254,10 @@ dashboard.get('/user', async (c) => {
         withdrawals: pendingWithdrawals,
         accounts: pendingAccounts,
       },
+      pendingApplications,
+      pendingDeposits: pendingAccountDeposits,
+      pendingShares,
+      pendingRefunds,
       recentActivity,
       recentAccounts,
     })

@@ -9,6 +9,8 @@ type User = {
   status: string
   walletBalance?: number | string
   agentId?: string
+  twoFactorEnabled?: boolean
+  emailVerified?: boolean
   agent?: {
     id: string
     username: string
