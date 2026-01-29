@@ -173,7 +173,7 @@ export function TutorialOverlay() {
         const spaceLeft = rect.left
 
         // Determine best position based on available space
-        let preferredPosition = currentStep.position
+        let preferredPosition = currentStep?.position || 'bottom'
 
         // If preferred position doesn't have enough space, find a better one
         if (preferredPosition === 'bottom' && spaceBelow < tooltipHeight + padding * 2) {
