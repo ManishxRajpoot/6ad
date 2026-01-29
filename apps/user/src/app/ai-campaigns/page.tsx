@@ -156,6 +156,7 @@ interface Ad {
   createdTime: string
   updatedTime: string
   previewLink?: string
+  thumbnailUrl?: string | null
   // Metrics
   reach: number
   impressions: number
@@ -1408,8 +1409,48 @@ export default function AICampaignsPage() {
                                     </button>
                                   </td>
                                   <td className="px-4 py-2 pl-12">
-                                    <div className="flex items-center gap-2">
-                                      <Image className="w-4 h-4 text-pink-500 flex-shrink-0" />
+                                    <div className="flex items-center gap-2 group relative">
+                                      {/* Ad Thumbnail with hover preview */}
+                                      <div className="relative">
+                                        {ad.thumbnailUrl ? (
+                                          <img
+                                            src={ad.thumbnailUrl}
+                                            alt={ad.name}
+                                            className="w-8 h-8 rounded object-cover border border-gray-200 cursor-pointer"
+                                          />
+                                        ) : (
+                                          <div className="w-8 h-8 rounded bg-pink-50 flex items-center justify-center border border-pink-100">
+                                            <Image className="w-4 h-4 text-pink-500" />
+                                          </div>
+                                        )}
+                                        {/* Hover Preview Popup */}
+                                        {ad.thumbnailUrl && (
+                                          <div className="absolute left-0 top-full mt-2 z-50 hidden group-hover:block">
+                                            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-3 w-72">
+                                              <img
+                                                src={ad.thumbnailUrl}
+                                                alt={ad.name}
+                                                className="w-full h-auto rounded-lg"
+                                              />
+                                              <div className="mt-2 pt-2 border-t border-gray-100">
+                                                <p className="font-medium text-sm text-[#1E293B] truncate">{ad.name}</p>
+                                                <p className="text-xs text-gray-400 mt-1">ID: {ad.id}</p>
+                                                {ad.previewLink && (
+                                                  <a
+                                                    href={ad.previewLink}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="mt-2 inline-flex items-center gap-1 text-xs text-[#1877F2] hover:underline"
+                                                  >
+                                                    <Eye className="w-3 h-3" />
+                                                    View Full Preview
+                                                  </a>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
                                       <div>
                                         <p className="font-medium text-[#1E293B] text-sm">{ad.name}</p>
                                         <p className="text-xs text-gray-400">ID: {ad.id}</p>

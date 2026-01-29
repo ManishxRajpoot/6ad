@@ -457,7 +457,7 @@ facebook.get('/ads/:adSetId', verifyToken, async (c) => {
     // Fetch ads for the ad set with insights
     const adsUrl = new URL(`https://graph.facebook.com/v18.0/${adSetId}/ads`)
     adsUrl.searchParams.append('access_token', accessToken)
-    adsUrl.searchParams.append('fields', `id,name,status,effective_status,creative,created_time,updated_time,preview_shareable_link,insights.date_preset(${datePreset}){reach,impressions,clicks,ctr,cpc,cpm,spend,actions,cost_per_action_type,frequency}`)
+    adsUrl.searchParams.append('fields', `id,name,status,effective_status,creative{id,thumbnail_url,object_story_spec,effective_object_story_id},created_time,updated_time,preview_shareable_link,insights.date_preset(${datePreset}){reach,impressions,clicks,ctr,cpc,cpm,spend,actions,cost_per_action_type,frequency}`)
     adsUrl.searchParams.append('limit', '100')
 
     const adsResponse = await fetch(adsUrl.toString())
@@ -509,6 +509,7 @@ facebook.get('/ads/:adSetId', verifyToken, async (c) => {
         status: ad.status,
         effectiveStatus: ad.effective_status,
         creative: ad.creative,
+        thumbnailUrl: ad.creative?.thumbnail_url || null,
         createdTime: ad.created_time,
         updatedTime: ad.updated_time,
         previewLink: ad.preview_shareable_link,
