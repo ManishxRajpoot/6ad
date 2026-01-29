@@ -457,7 +457,7 @@ facebook.get('/ads/:adSetId', verifyToken, async (c) => {
     // Fetch ads for the ad set with insights
     const adsUrl = new URL(`https://graph.facebook.com/v18.0/${adSetId}/ads`)
     adsUrl.searchParams.append('access_token', accessToken)
-    adsUrl.searchParams.append('fields', `id,name,status,effective_status,creative{id,thumbnail_url,object_story_spec,effective_object_story_id},created_time,updated_time,preview_shareable_link,insights.date_preset(${datePreset}){reach,impressions,clicks,ctr,cpc,cpm,spend,actions,cost_per_action_type,frequency}`)
+    adsUrl.searchParams.append('fields', `id,name,status,effective_status,creative{id,thumbnail_url,image_url,object_story_spec,effective_object_story_id},adcreatives{thumbnail_url,image_url,object_story_spec},created_time,updated_time,preview_shareable_link,insights.date_preset(${datePreset}){reach,impressions,clicks,ctr,cpc,cpm,spend,actions,cost_per_action_type,frequency}`)
     adsUrl.searchParams.append('limit', '100')
 
     const adsResponse = await fetch(adsUrl.toString())
@@ -503,13 +503,30 @@ facebook.get('/ads/:adSetId', verifyToken, async (c) => {
       const results = getResults()
       const costPerResult = results ? costPerAction.find((c: any) => c.action_type === results.type) : null
 
+      // Get the best quality image available
+      const getImageUrl = () => {
+        // Try to get image_url first (higher quality)
+        if (ad.creative?.image_url) return ad.creative.image_url
+        // Try adcreatives
+        if (ad.adcreatives?.data?.[0]?.image_url) return ad.adcreatives.data[0].image_url
+        // Try object_story_spec for image
+        const storySpec = ad.creative?.object_story_spec || ad.adcreatives?.data?.[0]?.object_story_spec
+        if (storySpec?.link_data?.image_url) return storySpec.link_data.image_url
+        if (storySpec?.link_data?.picture) return storySpec.link_data.picture
+        if (storySpec?.photo_data?.url) return storySpec.photo_data.url
+        if (storySpec?.video_data?.image_url) return storySpec.video_data.image_url
+        // Fallback to thumbnail
+        if (ad.adcreatives?.data?.[0]?.thumbnail_url) return ad.adcreatives.data[0].thumbnail_url
+        return ad.creative?.thumbnail_url || null
+      }
+
       return {
         id: ad.id,
         name: ad.name,
         status: ad.status,
         effectiveStatus: ad.effective_status,
         creative: ad.creative,
-        thumbnailUrl: ad.creative?.thumbnail_url || null,
+        thumbnailUrl: getImageUrl(),
         createdTime: ad.created_time,
         updatedTime: ad.updated_time,
         previewLink: ad.preview_shareable_link,
