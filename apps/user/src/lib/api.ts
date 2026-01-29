@@ -27,8 +27,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const response = await fetch(`${API_URL}${endpoint}`, config)
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }))
-    throw new Error(error.message || 'Request failed')
+    const errorData = await response.json().catch(() => ({ message: 'Request failed' }))
+    throw new Error(errorData.error || errorData.message || 'Request failed')
   }
 
   return response.json()
