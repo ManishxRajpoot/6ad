@@ -371,9 +371,17 @@ export default function WhitelabelPage() {
                       </>
                     )}
                   </Button>
-                  <p className="text-xs text-gray-500 mt-2 text-center">
-                    Max 2MB. Updating logo requires admin re-approval.
-                  </p>
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <p className="text-xs font-medium text-blue-800 mb-1">Logo Requirements:</p>
+                    <ul className="text-xs text-blue-700 space-y-0.5">
+                      <li>• <strong>Recommended:</strong> 280×56px (5:1 ratio)</li>
+                      <li>• <strong>Format:</strong> PNG with transparent background</li>
+                      <li>• <strong>Max size:</strong> 2MB</li>
+                    </ul>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Updating logo requires admin re-approval.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -456,6 +464,16 @@ export default function WhitelabelPage() {
               onChange={(e) => handleLogoUpload(e)}
               className="hidden"
             />
+            {/* Logo size recommendations */}
+            <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p className="text-xs font-medium text-gray-700 mb-1">Recommended Logo Specifications:</p>
+              <ul className="text-xs text-gray-500 space-y-0.5">
+                <li>• <strong>Size:</strong> 280×56 pixels (or similar aspect ratio)</li>
+                <li>• <strong>Format:</strong> PNG with transparent background</li>
+                <li>• <strong>Max file size:</strong> 2MB</li>
+                <li>• <strong>Best for:</strong> Horizontal/wide logos work best</li>
+              </ul>
+            </div>
           </div>
 
           {error && (
