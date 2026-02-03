@@ -342,7 +342,7 @@ export default function DashboardPage() {
       {/* Top Row - Welcome Banner and Circular Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Welcome Banner - Enhanced with animations */}
-        <div className="relative rounded-2xl p-8 text-white overflow-hidden min-h-[280px] bg-gradient-to-br from-[#52B788] via-[#40916C] to-[#2D6A4F] animate-gradient">
+        <div className="relative rounded-2xl p-4 lg:p-8 text-white overflow-hidden min-h-[200px] lg:min-h-[280px] bg-gradient-to-br from-[#52B788] via-[#40916C] to-[#2D6A4F] animate-gradient">
           {/* Animated background elements */}
           <div className="absolute inset-0 overflow-hidden">
             {/* Large decorative circles */}
@@ -356,31 +356,31 @@ export default function DashboardPage() {
           </div>
 
           {/* Content */}
-          <div className="relative z-10 max-w-[280px]">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/15 backdrop-blur-sm rounded-full text-xs font-medium mb-4">
+          <div className="relative z-10 max-w-full lg:max-w-[280px]">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/15 backdrop-blur-sm rounded-full text-xs font-medium mb-3 lg:mb-4">
               <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse" />
               Ad Accounts Ready
             </div>
-            <h2 className="text-3xl font-bold mb-3 tracking-tight">Welcome Back!</h2>
-            <p className="text-white/85 text-sm leading-relaxed mb-6">
-              Ready to scale? Get access to top-tier ad accounts built for serious marketers and agencies like yours.
+            <h2 className="text-2xl lg:text-3xl font-bold mb-2 lg:mb-3 tracking-tight">Welcome Back!</h2>
+            <p className="text-white/85 text-xs lg:text-sm leading-relaxed mb-4 lg:mb-6">
+              Ready to scale? Get access to top-tier ad accounts built for serious marketers.
             </p>
-            <button className="group flex items-center gap-3 px-5 py-2.5 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all duration-300 hover:scale-105">
-              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">
-                <Play className="w-3.5 h-3.5 text-white fill-white ml-0.5" />
+            <button className="group flex items-center gap-2 lg:gap-3 px-4 lg:px-5 py-2 lg:py-2.5 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all duration-300 hover:scale-105">
+              <div className="w-7 h-7 lg:w-8 lg:h-8 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">
+                <Play className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-white fill-white ml-0.5" />
               </div>
-              <span className="text-sm font-medium">Watch Tutorial</span>
+              <span className="text-xs lg:text-sm font-medium">Watch Tutorial</span>
             </button>
           </div>
 
-          {/* Floating Platform Logos */}
-          <div className="absolute right-8 top-0 bottom-0 w-[220px] flex items-center justify-center">
+          {/* Floating Platform Logos - Hidden on mobile */}
+          <div className="absolute right-4 lg:right-8 top-0 bottom-0 w-[140px] lg:w-[220px] hidden sm:flex items-center justify-center">
             {/* Center glowing orb */}
             <div className="relative">
-              <div className="w-28 h-28 bg-white/15 rounded-full flex items-center justify-center backdrop-blur-sm animate-pulse-glow">
-                <div className="w-20 h-20 bg-white rounded-full shadow-xl shadow-white/20 flex items-center justify-center">
-                  <div className="w-14 h-14 bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] rounded-full flex items-center justify-center shadow-lg shadow-purple-500/40">
-                    <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <div className="w-20 lg:w-28 h-20 lg:h-28 bg-white/15 rounded-full flex items-center justify-center backdrop-blur-sm animate-pulse-glow">
+                <div className="w-14 lg:w-20 h-14 lg:h-20 bg-white rounded-full shadow-xl shadow-white/20 flex items-center justify-center">
+                  <div className="w-10 lg:w-14 h-10 lg:h-14 bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] rounded-full flex items-center justify-center shadow-lg shadow-purple-500/40">
+                    <svg className="w-5 lg:w-7 h-5 lg:h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
                     </svg>
                   </div>
@@ -388,34 +388,34 @@ export default function DashboardPage() {
               </div>
 
               {/* Orbiting ring */}
-              <div className="absolute inset-0 w-28 h-28 border-2 border-white/25 rounded-full animate-spin-slow" />
-              <div className="absolute -inset-4 w-36 h-36 border border-dashed border-white/15 rounded-full animate-spin-slow" style={{ animationDirection: 'reverse', animationDuration: '40s' }} />
+              <div className="absolute inset-0 w-20 lg:w-28 h-20 lg:h-28 border-2 border-white/25 rounded-full animate-spin-slow" />
+              <div className="absolute -inset-2 lg:-inset-4 w-24 lg:w-36 h-24 lg:h-36 border border-dashed border-white/15 rounded-full animate-spin-slow" style={{ animationDirection: 'reverse', animationDuration: '40s' }} />
             </div>
 
             {/* TikTok - Top Left */}
-            <div className="absolute top-4 left-4 animate-float">
-              <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center shadow-xl shadow-black/30 hover:scale-110 transition-transform cursor-pointer">
+            <div className="absolute top-2 lg:top-4 left-2 lg:left-4 animate-float">
+              <div className="w-9 lg:w-12 h-9 lg:h-12 bg-black rounded-lg lg:rounded-xl flex items-center justify-center shadow-xl shadow-black/30 hover:scale-110 transition-transform cursor-pointer">
                 <TikTokLogo />
               </div>
             </div>
 
             {/* Google - Top Right */}
-            <div className="absolute top-8 right-0 animate-float-delay-1">
-              <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-xl shadow-black/10 hover:scale-110 transition-transform cursor-pointer">
+            <div className="absolute top-4 lg:top-8 right-0 animate-float-delay-1">
+              <div className="w-8 lg:w-11 h-8 lg:h-11 bg-white rounded-lg lg:rounded-xl flex items-center justify-center shadow-xl shadow-black/10 hover:scale-110 transition-transform cursor-pointer">
                 <GoogleLogo />
               </div>
             </div>
 
             {/* Facebook - Bottom Right */}
-            <div className="absolute bottom-8 right-2 animate-float-delay-2">
-              <div className="w-12 h-12 bg-[#1877F2] rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/30 hover:scale-110 transition-transform cursor-pointer">
+            <div className="absolute bottom-4 lg:bottom-8 right-1 lg:right-2 animate-float-delay-2">
+              <div className="w-9 lg:w-12 h-9 lg:h-12 bg-[#1877F2] rounded-lg lg:rounded-xl flex items-center justify-center shadow-xl shadow-blue-500/30 hover:scale-110 transition-transform cursor-pointer">
                 <FacebookLogo />
               </div>
             </div>
 
             {/* Snapchat - Bottom Left */}
-            <div className="absolute bottom-4 left-8 animate-float-delay-3">
-              <div className="w-10 h-10 bg-[#FFFC00] rounded-xl flex items-center justify-center shadow-xl shadow-yellow-500/30 hover:scale-110 transition-transform cursor-pointer">
+            <div className="absolute bottom-2 lg:bottom-4 left-4 lg:left-8 animate-float-delay-3">
+              <div className="w-8 lg:w-10 h-8 lg:h-10 bg-[#FFFC00] rounded-lg lg:rounded-xl flex items-center justify-center shadow-xl shadow-yellow-500/30 hover:scale-110 transition-transform cursor-pointer">
                 <span className="text-black"><SnapchatLogo /></span>
               </div>
             </div>
@@ -435,7 +435,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Circular Stats Card - Redesigned with Animations */}
-        <Card data-tutorial="stats-section" className="p-6 rounded-2xl overflow-hidden relative bg-gradient-to-br from-white to-gray-50/50">
+        <Card data-tutorial="stats-section" className="p-4 lg:p-6 rounded-2xl overflow-hidden relative bg-gradient-to-br from-white to-gray-50/50">
           {/* Animated background elements */}
           <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-[#52B788]/8 via-emerald-400/5 to-transparent rounded-full -translate-y-1/2 translate-x-1/3 animate-pulse" style={{ animationDuration: '4s' }} />
           <div className="absolute bottom-0 left-0 w-36 h-36 bg-gradient-to-tr from-blue-500/8 via-indigo-400/5 to-transparent rounded-full translate-y-1/2 -translate-x-1/3 animate-pulse" style={{ animationDuration: '5s', animationDelay: '1s' }} />
@@ -472,8 +472,8 @@ export default function DashboardPage() {
             {/* Main Content - Fixed height container */}
             <div className="flex-1 flex items-center justify-center">
               {loading ? (
-                <div className="flex items-center gap-8 w-full">
-                  <div className="w-[150px] h-[150px] rounded-full bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center flex-shrink-0 relative">
+                <div className="flex flex-col sm:flex-row items-center gap-4 lg:gap-8 w-full">
+                  <div className="w-[120px] h-[120px] lg:w-[150px] lg:h-[150px] rounded-full bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center flex-shrink-0 relative">
                     <div className="absolute inset-0 rounded-full border-4 border-gray-100 animate-spin" style={{ animationDuration: '3s', borderTopColor: '#52B788' }} />
                     <Loader2 className="w-8 h-8 text-[#52B788] animate-spin" />
                   </div>
@@ -484,14 +484,14 @@ export default function DashboardPage() {
                 </div>
               ) : selectedYear !== new Date().getFullYear() || totalSpent === 0 ? (
                 /* No data state - consistent layout */
-                <div className="flex items-center gap-8 w-full">
+                <div className="flex flex-col sm:flex-row items-center gap-4 lg:gap-8 w-full">
                   {/* Empty donut placeholder with animation */}
-                  <div className="w-[150px] h-[150px] rounded-full flex items-center justify-center flex-shrink-0 relative">
+                  <div className="w-[120px] h-[120px] lg:w-[150px] lg:h-[150px] rounded-full flex items-center justify-center flex-shrink-0 relative">
                     {/* Animated dashed border */}
-                    <svg className="absolute inset-0 w-full h-full animate-spin" style={{ animationDuration: '20s' }}>
+                    <svg className="absolute inset-0 w-full h-full animate-spin" style={{ animationDuration: '20s' }} viewBox="0 0 150 150">
                       <circle cx="75" cy="75" r="70" fill="none" stroke="#E5E7EB" strokeWidth="6" strokeDasharray="15 10" />
                     </svg>
-                    <div className="w-[120px] h-[120px] bg-gradient-to-br from-gray-50 to-white rounded-full flex flex-col items-center justify-center shadow-inner">
+                    <div className="w-[90px] h-[90px] lg:w-[120px] lg:h-[120px] bg-gradient-to-br from-gray-50 to-white rounded-full flex flex-col items-center justify-center shadow-inner">
                       {selectedYear !== new Date().getFullYear() ? (
                         <>
                           <svg className="w-10 h-10 text-gray-300 mb-1 animate-bounce" style={{ animationDuration: '2s' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -545,7 +545,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 /* Has data - show donut chart with animations */
-                <div className="flex items-center gap-8 w-full">
+                <div className="flex flex-col sm:flex-row items-center gap-4 lg:gap-8 w-full">
                   {/* Animated Donut Chart */}
                   <div className="relative flex-shrink-0 group">
                     {/* Outer glow ring */}
@@ -553,16 +553,16 @@ export default function DashboardPage() {
 
                     {/* Main donut */}
                     <div
-                      className="w-[150px] h-[150px] rounded-full relative transition-transform duration-500 group-hover:scale-105"
+                      className="w-[120px] h-[120px] lg:w-[150px] lg:h-[150px] rounded-full relative transition-transform duration-500 group-hover:scale-105"
                       style={{
                         background: generateConicGradient(),
                         boxShadow: '0 10px 40px rgba(82, 183, 136, 0.2), inset 0 2px 4px rgba(255,255,255,0.5)'
                       }}
                     >
                       {/* Inner white circle */}
-                      <div className="absolute inset-[16px] bg-gradient-to-br from-white to-gray-50 rounded-full flex flex-col items-center justify-center shadow-inner">
-                        <span className="text-xl font-bold text-[#1E293B] transition-all duration-300 group-hover:scale-110">{formatAmount(totalSpent)}</span>
-                        <span className="text-[10px] text-gray-400 uppercase tracking-widest font-medium">Total Spent</span>
+                      <div className="absolute inset-[12px] lg:inset-[16px] bg-gradient-to-br from-white to-gray-50 rounded-full flex flex-col items-center justify-center shadow-inner">
+                        <span className="text-base lg:text-xl font-bold text-[#1E293B] transition-all duration-300 group-hover:scale-110">{formatAmount(totalSpent)}</span>
+                        <span className="text-[8px] lg:text-[10px] text-gray-400 uppercase tracking-widest font-medium">Total Spent</span>
                       </div>
 
                       {/* Animated ring */}
