@@ -19,10 +19,12 @@
     "db:generate": "cd packages/database && npx prisma generate",
     "db:push": "cd packages/database && npx prisma db push",
     "db:studio": "cd packages/database && npx prisma studio",
-    "db:seed": "npx tsx packages/database/prisma/seed.ts",
+    "db:seed": "dotenv -e .env.test -- npx tsx packages/database/prisma/seed.ts",
+    "dev:test": "dotenv -e .env.test -- turbo run dev",
     "postinstall": "npm run db:generate"
   },
   "devDependencies": {
+    "dotenv-cli": "^11.0.0",
     "turbo": "^2.0.0"
   },
   "dependencies": {
