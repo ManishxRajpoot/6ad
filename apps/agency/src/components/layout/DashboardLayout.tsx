@@ -20,6 +20,8 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
   const pathname = usePathname()
   const { isAuthenticated, isHydrated, setAuth, logout, user } = useAuthStore()
   const [isPageLoaded, setIsPageLoaded] = useState(false)
+  // Move useState before any conditional returns to follow Rules of Hooks
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Reset animation on route change
   useEffect(() => {
@@ -74,8 +76,6 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
 
   // Check if user needs to complete 2FA setup
   const needs2FASetup = user && (!user.emailVerified || !user.twoFactorEnabled)
-
-  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
     <div className="h-screen overflow-hidden bg-[#F8F9FA]">
