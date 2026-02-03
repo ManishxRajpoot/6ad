@@ -237,21 +237,21 @@ export default function DashboardPage() {
 
   // Compact Stat Card - fills container
   const StatCard = ({ icon: Icon, value, label, iconBg, iconColor, labelColor, sparklineData, sparklineColor, sparklineFill }: any) => (
-    <div className="bg-white rounded-xl p-2.5 shadow-sm h-full flex flex-col">
+    <div className="bg-white rounded-xl p-2 lg:p-2.5 shadow-sm h-full flex flex-col min-h-[90px] lg:min-h-0">
       <div className="flex items-start justify-between flex-shrink-0">
-        <div className={`w-9 h-9 ${iconBg} rounded-lg flex items-center justify-center`}>
-          <Icon className={`w-4 h-4 ${iconColor}`} />
+        <div className={`w-7 h-7 lg:w-9 lg:h-9 ${iconBg} rounded-lg flex items-center justify-center`}>
+          <Icon className={`w-3 h-3 lg:w-4 lg:h-4 ${iconColor}`} />
         </div>
-        <div className="flex items-center gap-0.5 text-[9px] text-emerald-500 font-medium">
+        <div className="flex items-center gap-0.5 text-[8px] lg:text-[9px] text-emerald-500 font-medium">
           2.78%
-          <TrendingUp className="w-3 h-3" />
+          <TrendingUp className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
         </div>
       </div>
       <div className="mt-1 flex-shrink-0">
-        <p className="text-xl font-bold text-slate-800 leading-tight">{value}</p>
-        <p className={`text-[9px] font-semibold uppercase tracking-wide ${labelColor}`}>{label}</p>
+        <p className="text-base lg:text-xl font-bold text-slate-800 leading-tight">{value}</p>
+        <p className={`text-[8px] lg:text-[9px] font-semibold uppercase tracking-wide ${labelColor}`}>{label}</p>
       </div>
-      <div className="flex-1 min-h-0 mt-1">
+      <div className="flex-1 min-h-0 mt-1 hidden lg:block">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={sparklineData}>
             <defs>
@@ -269,11 +269,11 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout title="Dashboard" subtitle="">
-      <div className="h-full flex flex-col gap-2 overflow-hidden">
-        {/* Row 1: Stats Cards + Balance Chart - Takes ~40% height */}
-        <div className="grid grid-cols-12 gap-2.5" style={{ height: '42%' }}>
+      <div className="h-full flex flex-col gap-2 overflow-hidden overflow-y-auto">
+        {/* Row 1: Stats Cards + Balance Chart - Takes ~40% height on desktop */}
+        <div className="grid grid-cols-6 lg:grid-cols-12 gap-2 lg:gap-2.5 min-h-fit lg:h-[42%]">
           {/* Left: 6 Stat Cards */}
-          <div className="col-span-5 grid grid-cols-2 grid-rows-3 gap-2">
+          <div className="col-span-6 lg:col-span-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 lg:grid-rows-3 gap-2">
             <StatCard icon={Users} value={activeUsers} label="Active Users" iconBg="bg-emerald-100" iconColor="text-emerald-600" labelColor="text-emerald-600" sparklineData={sparklines.green} sparklineColor="#52B788" sparklineFill="#52B788" />
             <StatCard icon={UserX} value={blockedUsers} label="Blocked Users" iconBg="bg-red-100" iconColor="text-red-500" labelColor="text-red-500" sparklineData={sparklines.red} sparklineColor="#EF4444" sparklineFill="#EF4444" />
             <StatCard icon={CheckCircle} value={'$' + formatAmount(totalDeposits)} label="Total Deposits" iconBg="bg-purple-100" iconColor="text-purple-500" labelColor="text-emerald-600" sparklineData={sparklines.purple} sparklineColor="#8B5CF6" sparklineFill="#8B5CF6" />
@@ -283,15 +283,15 @@ export default function DashboardPage() {
           </div>
 
           {/* Right: Balance Chart - Modern Design */}
-          <div className="col-span-7 bg-white rounded-xl p-4 shadow-sm flex flex-col">
-            <div className="flex items-start justify-between mb-3 flex-shrink-0">
-              <div className="flex items-center gap-3">
+          <div className="col-span-6 lg:col-span-7 bg-white rounded-xl p-3 lg:p-4 shadow-sm flex flex-col min-h-[280px] lg:min-h-0">
+            <div className="flex flex-col sm:flex-row items-start justify-between mb-3 flex-shrink-0 gap-2">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-800">Financial Overview</h3>
-                  <p className="text-[10px] text-slate-400">Wallet Deposits vs Ad Account Recharges</p>
+                  <h3 className="text-xs sm:text-sm font-semibold text-slate-800">Financial Overview</h3>
+                  <p className="text-[9px] sm:text-[10px] text-slate-400">Wallet Deposits vs Ad Account Recharges</p>
                 </div>
                 {/* Time Period Filter */}
-                <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+                <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-100 rounded-lg p-0.5">
                   {[
                     { key: 'today', label: 'Today' },
                     { key: '7d', label: '7D' },
@@ -302,7 +302,7 @@ export default function DashboardPage() {
                     <button
                       key={period.key}
                       onClick={() => setChartPeriod(period.key as any)}
-                      className={`px-2 py-1 text-[10px] font-medium rounded-md transition-all ${
+                      className={`px-1.5 sm:px-2 py-1 text-[9px] sm:text-[10px] font-medium rounded-md transition-all ${
                         chartPeriod === period.key
                           ? 'bg-white text-slate-800 shadow-sm'
                           : 'text-slate-500 hover:text-slate-700'
@@ -314,8 +314,8 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold text-emerald-500">${Number(totalBalance).toLocaleString()}</p>
-                <p className="text-[10px] text-slate-400">Total Users Balance</p>
+                <p className="text-xl sm:text-2xl font-bold text-emerald-500">${Number(totalBalance).toLocaleString()}</p>
+                <p className="text-[9px] sm:text-[10px] text-slate-400">Total Users Balance</p>
               </div>
             </div>
             <div className="flex-1 min-h-0">
@@ -365,17 +365,17 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Row 2: Line Chart + Pie Chart - Takes ~35% height */}
-        <div className="grid grid-cols-12 gap-2.5" style={{ height: '35%' }}>
+        {/* Row 2: Line Chart + Pie Chart - Takes ~35% height on desktop */}
+        <div className="grid grid-cols-6 lg:grid-cols-12 gap-2 lg:gap-2.5 min-h-fit lg:h-[35%]">
           {/* Platform Analytics - Matching UI Theme */}
-          <div className="col-span-7 bg-white rounded-xl p-4 shadow-sm flex flex-col">
-            <div className="flex items-start justify-between mb-3 flex-shrink-0">
+          <div className="col-span-6 lg:col-span-7 bg-white rounded-xl p-3 lg:p-4 shadow-sm flex flex-col min-h-[250px] lg:min-h-0">
+            <div className="flex flex-col sm:flex-row items-start justify-between mb-3 flex-shrink-0 gap-2">
               <div>
-                <h3 className="text-sm font-semibold text-slate-800">Platform Analytics</h3>
-                <p className="text-[10px] text-slate-400">Ad accounts created over time</p>
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-800">Platform Analytics</h3>
+                <p className="text-[9px] sm:text-[10px] text-slate-400">Ad accounts created over time</p>
               </div>
               {/* Time Period Filter */}
-              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+              <div className="flex items-center gap-0.5 sm:gap-1 bg-slate-100 rounded-lg p-0.5 flex-wrap">
                 {[
                   { key: 'today', label: 'Today' },
                   { key: 'yesterday', label: 'Yest' },
@@ -387,7 +387,7 @@ export default function DashboardPage() {
                   <button
                     key={period.key}
                     onClick={() => setPlatformChartPeriod(period.key as any)}
-                    className={`px-2 py-1 text-[10px] font-medium rounded-md transition-all ${
+                    className={`px-1.5 sm:px-2 py-1 text-[9px] sm:text-[10px] font-medium rounded-md transition-all ${
                       platformChartPeriod === period.key
                         ? 'bg-white text-slate-800 shadow-sm'
                         : 'text-slate-500 hover:text-slate-700'
@@ -453,15 +453,15 @@ export default function DashboardPage() {
           </div>
 
           {/* Account Distribution - Donut Chart */}
-          <div className="col-span-5 bg-white rounded-xl p-4 shadow-sm flex flex-col">
+          <div className="col-span-6 lg:col-span-5 bg-white rounded-xl p-3 lg:p-4 shadow-sm flex flex-col min-h-[250px] lg:min-h-0">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h3 className="text-sm font-semibold text-slate-800">Account Distribution</h3>
-                <p className="text-[10px] text-slate-400">By platform</p>
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-800">Account Distribution</h3>
+                <p className="text-[9px] sm:text-[10px] text-slate-400">By platform</p>
               </div>
             </div>
             <div className="flex-1 flex items-center justify-center min-h-0">
-              <div className="relative w-full h-full max-w-[180px] max-h-[180px]">
+              <div className="relative w-full h-full max-w-[140px] max-h-[140px] lg:max-w-[180px] lg:max-h-[180px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -522,10 +522,10 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Row 3: Platform Deposits + Recent Activity Feed - Takes ~23% height */}
-        <div className="flex-1 grid grid-cols-12 gap-2.5">
+        {/* Row 3: Platform Deposits + Recent Activity Feed - Takes ~23% height on desktop */}
+        <div className="flex-1 grid grid-cols-6 lg:grid-cols-12 gap-2 lg:gap-2.5 min-h-fit">
           {/* Top Spenders */}
-          <div className="col-span-4 bg-white rounded-xl p-3 shadow-sm flex flex-col">
+          <div className="col-span-6 lg:col-span-4 bg-white rounded-xl p-3 shadow-sm flex flex-col min-h-[200px] lg:min-h-0">
             <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <div>
                 <h3 className="text-sm font-semibold text-slate-800">Top Spenders</h3>
@@ -599,7 +599,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Recent Activity Feed */}
-          <div className="col-span-8 bg-white rounded-xl p-3 shadow-sm flex flex-col">
+          <div className="col-span-6 lg:col-span-8 bg-white rounded-xl p-3 shadow-sm flex flex-col min-h-[200px] lg:min-h-0">
             <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">

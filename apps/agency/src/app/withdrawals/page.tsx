@@ -140,21 +140,21 @@ export default function WithdrawalsPage() {
   return (
     <DashboardLayout title="Agent Withdrawal Profile Applications" subtitle="Manage your withdrawal requests">
       {/* Stats Cards - Exact replica */}
-      <div className="bg-white rounded-2xl p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-0 divide-x divide-gray-100">
+      <div className="bg-white rounded-2xl p-4 lg:p-6 mb-4 lg:mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-0 lg:divide-x divide-gray-100">
           {/* Available to Withdraw */}
-          <div className="px-6 first:pl-0 last:pr-0">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-sm text-gray-500">Available to withdraw</span>
-              <span className="text-xs text-emerald-500 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" />
+          <div className="px-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
+            <div className="flex items-center gap-2 lg:gap-3 mb-1.5 lg:mb-2">
+              <span className="text-xs lg:text-sm text-gray-500">Available to withdraw</span>
+              <span className="text-[10px] lg:text-xs text-emerald-500 flex items-center gap-0.5">
+                <TrendingUp className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
                 <span>10.0%</span>
               </span>
             </div>
-            <div className="text-[28px] font-bold text-[#7C3AED] mb-1">
+            <div className="text-xl lg:text-[28px] font-bold text-[#7C3AED] mb-0.5 lg:mb-1">
               {loading ? '...' : formatCurrency(stats?.availableToWithdraw || 0)}
             </div>
-            <div className="text-xs text-gray-400">
+            <div className="text-[10px] lg:text-xs text-gray-400">
               {stats && !stats.canWithdraw ? (
                 <span className="text-orange-500">Min $200 required</span>
               ) : (
@@ -164,47 +164,47 @@ export default function WithdrawalsPage() {
           </div>
 
           {/* Today Revenue */}
-          <div className="px-6 first:pl-0 last:pr-0">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-sm text-gray-500">Today Revenue</span>
-              <span className={`text-xs flex items-center gap-0.5 ${
+          <div className="px-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
+            <div className="flex items-center gap-2 lg:gap-3 mb-1.5 lg:mb-2">
+              <span className="text-xs lg:text-sm text-gray-500">Today Revenue</span>
+              <span className={`text-[10px] lg:text-xs flex items-center gap-0.5 ${
                 (stats?.todayRevenue || 0) > 0 ? 'text-red-500' : 'text-red-500'
               }`}>
-                <TrendingDown className="w-3 h-3" />
+                <TrendingDown className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
                 <span>3.0%</span>
               </span>
             </div>
-            <div className="text-[28px] font-bold text-[#7C3AED] mb-1">
+            <div className="text-xl lg:text-[28px] font-bold text-[#7C3AED] mb-0.5 lg:mb-1">
               {loading ? '...' : formatCurrency(stats?.todayRevenue || 0)}
             </div>
-            <div className="text-xs text-gray-400">
+            <div className="text-[10px] lg:text-xs text-gray-400">
               143 Account & <span className="text-orange-500">44 Pending</span>
             </div>
           </div>
 
           {/* Total Ads Account */}
-          <div className="px-6 first:pl-0 last:pr-0">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-sm text-gray-500">Total Ads Account</span>
-              <span className="text-xs text-emerald-500 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" />
+          <div className="px-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
+            <div className="flex items-center gap-2 lg:gap-3 mb-1.5 lg:mb-2">
+              <span className="text-xs lg:text-sm text-gray-500">Total Ads Account</span>
+              <span className="text-[10px] lg:text-xs text-emerald-500 flex items-center gap-0.5">
+                <TrendingUp className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
                 <span>3.2%</span>
               </span>
             </div>
-            <div className="text-[28px] font-bold text-[#7C3AED] mb-1">
+            <div className="text-xl lg:text-[28px] font-bold text-[#7C3AED] mb-0.5 lg:mb-1">
               {loading ? '...' : (stats?.totalAdAccounts || 0).toLocaleString('en-US')}
             </div>
-            <div className="text-xs text-gray-400">
+            <div className="text-[10px] lg:text-xs text-gray-400">
               Active ads Account
             </div>
           </div>
 
           {/* All Earned Amount */}
-          <div className="px-6 first:pl-0 last:pr-0">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-sm text-gray-500">All Earned Amount</span>
-              <span className="text-xs text-emerald-500 flex items-center gap-0.5">
-                <TrendingUp className="w-3 h-3" />
+          <div className="px-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
+            <div className="flex items-center gap-2 lg:gap-3 mb-1.5 lg:mb-2">
+              <span className="text-xs lg:text-sm text-gray-500">All Earned Amount</span>
+              <span className="text-[10px] lg:text-xs text-emerald-500 flex items-center gap-0.5">
+                <TrendingUp className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
                 <span>8.3%</span>
               </span>
             </div>

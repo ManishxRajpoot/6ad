@@ -645,22 +645,22 @@ export default function DepositsPage() {
 
       <Card className="p-0 rounded-2xl overflow-hidden shadow-sm border border-gray-100 animate-scaleIn">
         {/* Header with Search and Actions */}
-        <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-white to-gray-50/50">
-          <div className="flex items-center justify-between gap-4">
+        <div className="p-3 lg:p-5 border-b border-gray-100 bg-gradient-to-r from-white to-gray-50/50">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 lg:gap-4">
             {/* Search */}
-            <div className="relative flex-1 max-w-xs group">
+            <div className="relative flex-1 max-w-full lg:max-w-xs group">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#8B5CF6]" />
               <input
                 type="text"
                 placeholder="Search transactions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] hover:border-gray-300"
+                className="w-full pl-10 pr-4 py-2 lg:py-2.5 bg-white border border-gray-200 rounded-xl text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] hover:border-gray-300"
               />
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 lg:gap-3 flex-wrap">
               <Select
                 options={[
                   { value: 'all', label: 'Action' },
@@ -671,7 +671,7 @@ export default function DepositsPage() {
                 value={actionFilter}
                 onChange={setActionFilter}
                 placeholder="Action"
-                className="w-36"
+                className="w-28 lg:w-36"
               />
 
               {/* Date Range Picker */}
@@ -685,7 +685,7 @@ export default function DepositsPage() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 lg:gap-3">
               <Button
                 variant="outline"
                 className="border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-200"

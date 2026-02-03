@@ -22,12 +22,6 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkCustomDomain = async () => {
-      // Skip if already checked in this session
-      if (isChecked) {
-        setIsInitializing(false)
-        return
-      }
-
       const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
 
       // Check if it's a default domain
@@ -36,6 +30,13 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
       if (isDefaultDomain) {
         setDomainInfo(false, null, null)
         setChecked(true)
+        setIsInitializing(false)
+        return
+      }
+
+      // Skip API call if already checked in this session for same domain
+      // But always re-check if the domain changed
+      if (isChecked && useDomainStore.getState().domain === hostname) {
         setIsInitializing(false)
         return
       }
@@ -72,7 +73,7 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
     }
 
     checkCustomDomain()
-  }, [isChecked, setDomainInfo, setLoading, setChecked])
+  }, [setDomainInfo, setLoading, setChecked])
 
   // Show loading screen while checking domain branding (prevents logo flash)
   if (isInitializing && !isChecked) {

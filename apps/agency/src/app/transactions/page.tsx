@@ -572,19 +572,19 @@ export default function TransactionsPage() {
     <DashboardLayout title="Transactions" subtitle="">
       <div className="flex flex-col h-[calc(100vh-120px)]">
         {/* Fixed Top Section */}
-        <div className="flex-shrink-0 bg-[#F6F6F6] pb-4">
+        <div className="flex-shrink-0 bg-[#F6F6F6] pb-3 lg:pb-4">
           {/* Top Actions Bar */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 lg:gap-0 mb-4 lg:mb-6">
+            <div className="flex items-center gap-2 lg:gap-3 flex-wrap">
               {/* Search */}
-              <div className="relative">
+              <div className="relative flex-1 min-w-[160px] lg:flex-none">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search users, ID, amount..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm w-[250px] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent bg-white"
+                  className="pl-10 pr-4 py-2 lg:py-2.5 border border-gray-200 rounded-lg text-sm w-full lg:w-[250px] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent bg-white"
                 />
               </div>
 
@@ -592,7 +592,7 @@ export default function TransactionsPage() {
               <div className="relative dropdown-container">
                 <button
                   onClick={() => { setShowDateDropdown(!showDateDropdown); setShowStatusDropdown(false); setShowPlatformDropdown(false) }}
-                  className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-gray-300 transition-colors min-w-[150px] justify-between bg-white"
+                  className="flex items-center gap-2 px-3 lg:px-4 py-2 lg:py-2.5 border border-gray-200 rounded-lg text-xs lg:text-sm text-gray-600 hover:border-gray-300 transition-colors min-w-[100px] lg:min-w-[150px] justify-between bg-white"
                 >
                   <span>{dateFilter === 'all' ? 'All Time' : dateFilter === 'today' ? 'Today' : dateFilter === 'week' ? 'This Week' : 'This Month'}</span>
                   <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showDateDropdown ? 'rotate-180' : ''}`} />
@@ -694,7 +694,7 @@ export default function TransactionsPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4 mb-4 lg:mb-6">
             {/* Total - Purple */}
             <Card className="p-4 relative overflow-hidden">
               <div className="flex items-start justify-between relative z-10">

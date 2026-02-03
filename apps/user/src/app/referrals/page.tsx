@@ -157,66 +157,66 @@ export default function ReferralsPage() {
         </Card>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Users className="w-5 h-5 text-blue-600" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4">
+          <Card className="p-3 lg:p-5">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="w-8 h-8 lg:w-10 lg:h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Users className="w-4 h-4 lg:w-5 lg:h-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalReferrals}</p>
-                <p className="text-sm text-gray-500">Total Referrals</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-900">{stats.totalReferrals}</p>
+                <p className="text-xs lg:text-sm text-gray-500">Total Referrals</p>
               </div>
             </div>
           </Card>
 
-          <Card className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <Check className="w-5 h-5 text-green-600" />
+          <Card className="p-3 lg:p-5">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="w-8 h-8 lg:w-10 lg:h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <Check className="w-4 h-4 lg:w-5 lg:h-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{stats.qualifiedReferrals}</p>
-                <p className="text-sm text-gray-500">Qualified</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-900">{stats.qualifiedReferrals}</p>
+                <p className="text-xs lg:text-sm text-gray-500">Qualified</p>
               </div>
             </div>
           </Card>
 
-          <Card className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <Clock className="w-5 h-5 text-yellow-600" />
+          <Card className="p-3 lg:p-5">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="w-8 h-8 lg:w-10 lg:h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <Clock className="w-4 h-4 lg:w-5 lg:h-5 text-yellow-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">${stats.pendingRewards}</p>
-                <p className="text-sm text-gray-500">Pending Rewards</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-900">${stats.pendingRewards}</p>
+                <p className="text-xs lg:text-sm text-gray-500">Pending Rewards</p>
               </div>
             </div>
           </Card>
 
-          <Card className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-purple-600" />
+          <Card className="p-3 lg:p-5">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="w-8 h-8 lg:w-10 lg:h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                <DollarSign className="w-4 h-4 lg:w-5 lg:h-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">${stats.totalEarned}</p>
-                <p className="text-sm text-gray-500">Total Earned</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-900">${stats.totalEarned}</p>
+                <p className="text-xs lg:text-sm text-gray-500">Total Earned</p>
               </div>
             </div>
           </Card>
         </div>
 
         {/* How it Works */}
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-[#8B5CF6]" />
+        <Card className="p-4 lg:p-6">
+          <h3 className="text-base lg:text-lg font-semibold text-gray-900 mb-3 lg:mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5 text-[#8B5CF6]" />
             How It Works
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 bg-[#8B5CF6]/10 rounded-full flex items-center justify-center flex-shrink-0">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
+            <div className="flex items-start gap-3 lg:gap-4">
+              <div className="w-8 h-8 lg:w-10 lg:h-10 bg-[#8B5CF6]/10 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-[#8B5CF6] font-bold">1</span>
               </div>
               <div>

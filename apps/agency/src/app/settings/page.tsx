@@ -364,9 +364,9 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout title="Settings" subtitle="Manage your account preferences">
-      <div className="flex gap-6 h-[calc(100vh-140px)]">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 h-auto lg:h-[calc(100vh-140px)]">
         {/* Left Sidebar Navigation */}
-        <div className="w-72 flex-shrink-0">
+        <div className="w-full lg:w-72 lg:flex-shrink-0">
           <Card className="p-4 h-full">
             {/* User Profile Card */}
             <div className="flex items-center gap-3 p-3 mb-4 bg-gradient-to-r from-[#7C3AED]/10 to-[#9333EA]/5 rounded-xl">

@@ -42,11 +42,13 @@ export const useDomainStore = create<DomainState>()(
     }),
     {
       name: 'domain-storage',
+      // Don't persist isChecked - always re-check domain on page load
+      // This prevents stale state when API has issues
       partialize: (state) => ({
         isCustomDomain: state.isCustomDomain,
         domain: state.domain,
         branding: state.branding,
-        isChecked: state.isChecked,
+        // isChecked is intentionally NOT persisted
       }),
     }
   )

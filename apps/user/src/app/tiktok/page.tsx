@@ -902,14 +902,14 @@ export default function TikTokPage() {
       </div>
 
       {/* Row 2: Stats Cards - Real-time Updates */}
-      <div className="grid grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4 mb-3 lg:mb-4">
         {statsData.map((stat, index) => (
-          <Card key={index} className="stat-card p-4 border border-gray-100 bg-white rounded-xl relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02]">
+          <Card key={index} className="stat-card p-2.5 lg:p-4 border border-gray-100 bg-white rounded-xl relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02]">
             {/* Top row: Title and Badge */}
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
+            <div className="flex items-center justify-between mb-1.5 lg:mb-2">
+              <p className="text-[11px] lg:text-sm text-gray-500 font-medium">{stat.label}</p>
               {stat.badge !== 'None' && (
-                <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold whitespace-nowrap transition-all duration-500 ${
+                <span className={`text-[8px] lg:text-[10px] px-1.5 lg:px-2.5 py-0.5 lg:py-1 rounded-full font-semibold whitespace-nowrap transition-all duration-500 ${
                   stat.trend === 'up'
                     ? 'bg-[#22C55E] text-white animate-pulse'
                     : stat.trend === 'down'
@@ -922,10 +922,10 @@ export default function TikTokPage() {
             </div>
             {/* Bottom row: Number on left, Chart on right */}
             <div className="flex items-end justify-between">
-              <p className="text-2xl font-bold text-gray-900 tabular-nums">
+              <p className="text-lg lg:text-2xl font-bold text-gray-900 tabular-nums">
                 <AnimatedCounter value={stat.numericValue} duration={600} />
               </p>
-              <div className="w-24 h-12 relative">
+              <div className="w-16 h-8 lg:w-24 lg:h-12 relative hidden sm:block">
                 <svg viewBox="0 0 100 50" className="w-full h-full" preserveAspectRatio="none">
                   <defs>
                     <linearGradient id={`stat-gradient-tiktok-${index}`} x1="0%" y1="0%" x2="0%" y2="100%">
@@ -955,9 +955,9 @@ export default function TikTokPage() {
       </div>
 
       {/* Row 3: Main Content */}
-      <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
+      <div className="flex gap-2 lg:gap-4 flex-1 min-h-0 overflow-hidden">
         {/* Left Sidebar */}
-        <div className="w-60 flex-shrink-0">
+        <div className="w-44 lg:w-60 flex-shrink-0 hidden md:block">
           <Card className="p-4 h-full border border-gray-100/50 bg-gradient-to-b from-white to-gray-50/50 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-[#FF0050]/5 via-transparent to-[#00F2EA]/5" />
 
