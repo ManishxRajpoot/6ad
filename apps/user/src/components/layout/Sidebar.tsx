@@ -10,7 +10,7 @@ import {
   Settings,
   LogOut,
   BookOpen,
-  Sparkles,
+  Gift,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useDomainStore } from '@/store/domain'
@@ -67,8 +67,8 @@ export function Sidebar() {
       try {
         const response = await settingsApi.platforms.get()
         setPlatformSettings(response.platforms)
-      } catch (error) {
-        console.error('Failed to fetch platform settings:', error)
+      } catch {
+        // Silently fail - use default settings if API is unavailable
       }
     }
     fetchPlatformSettings()
@@ -110,16 +110,42 @@ export function Sidebar() {
               className="h-8 max-w-[200px] object-contain"
             />
           ) : (
-            <>
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                <svg viewBox="0 0 24 24" className="w-5 h-5 text-yellow-400" fill="currentColor">
-                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-                </svg>
+            <div className="flex items-center gap-2.5">
+              {/* Six Media - Twisted Ribbon Infinity (Meta-style) */}
+              <svg viewBox="0 0 48 28" className="w-12 h-7" fill="none">
+                <defs>
+                  <linearGradient id="userRibbonGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#6366F1"/>
+                    <stop offset="100%" stopColor="#8B5CF6"/>
+                  </linearGradient>
+                  <linearGradient id="userRibbonGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#8B5CF6"/>
+                    <stop offset="100%" stopColor="#EC4899"/>
+                  </linearGradient>
+                </defs>
+                {/* Left ribbon - continuous twisted band */}
+                <path
+                  d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14"
+                  fill="url(#userRibbonGrad1)"
+                />
+                {/* Right ribbon - continuous twisted band */}
+                <path
+                  d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14"
+                  fill="url(#userRibbonGrad2)"
+                />
+                {/* Center twist overlay for depth */}
+                <ellipse cx="24" cy="14" rx="4" ry="5" fill="white" opacity="0.15"/>
+              </svg>
+              {/* Text - Modern Typography */}
+              <div className="flex flex-col leading-none">
+                <span className="text-[17px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
+                  SIXMEDIA
+                </span>
+                <span className="text-[8px] font-semibold tracking-[0.2em] text-gray-400 mt-0.5">
+                  ADVERTISING
+                </span>
               </div>
-              <span className="text-gray-900 font-semibold text-xl tracking-tight">
-                {displayBrandName}
-              </span>
-            </>
+            </div>
           )}
         </Link>
       </div>
@@ -154,21 +180,6 @@ export function Sidebar() {
         >
           <Wallet className="w-6 h-6" />
           Wallet
-        </Link>
-
-        {/* AI Campaigns */}
-        <Link
-          href="/ai-campaigns"
-          data-tutorial="ai-campaigns-menu"
-          className={cn(
-            'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            isActive('/ai-campaigns')
-              ? 'bg-[#52B788] text-white'
-              : 'text-gray-600 hover:bg-gray-50'
-          )}
-        >
-          <Sparkles className="w-6 h-6" />
-          AI Campaigns
         </Link>
 
         {/* Platform Links - Conditionally rendered based on visibility settings */}
@@ -261,6 +272,20 @@ export function Sidebar() {
         >
           <BookOpen className="w-6 h-6" />
           Guide
+        </Link>
+
+        {/* Referrals */}
+        <Link
+          href="/referrals"
+          className={cn(
+            'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+            isActive('/referrals')
+              ? 'bg-[#52B788] text-white'
+              : 'text-gray-600 hover:bg-gray-50'
+          )}
+        >
+          <Gift className="w-6 h-6" />
+          Referrals
         </Link>
 
         {/* Settings */}

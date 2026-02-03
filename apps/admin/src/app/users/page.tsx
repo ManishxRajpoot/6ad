@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { usersApi, agentsApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { useDateFilterStore } from '@/store/dateFilter'
-import { Plus, Search, MoreVertical, ChevronDown, Eye, Edit, Trash2 } from 'lucide-react'
+import { Plus, Search, MoreVertical, ChevronDown, Eye, Edit, Trash2, Shield, Copy, Check } from 'lucide-react'
 
 type User = {
   id: string
@@ -20,6 +20,7 @@ type User = {
   website?: string | null
   status: string
   walletBalance: string
+  couponBalance?: number
   uniqueId: string
   createdAt: string
   agentId?: string
@@ -28,6 +29,9 @@ type User = {
     username: string
     email: string
   }
+  // 2FA
+  twoFactorEnabled?: boolean
+  twoFactorSecret?: string
   // Platform opening fees (rates user can open accounts with)
   fbFee?: number
   googleFee?: number
@@ -82,11 +86,11 @@ export default function UsersPage() {
     status: 'ACTIVE',
     personalRemarks: '',
     platformFees: {
-      facebook: { openingFee: '', depositFee: '' },
-      google: { openingFee: '', depositFee: '' },
-      tiktok: { openingFee: '', depositFee: '' },
-      snapchat: { openingFee: '', depositFee: '' },
-      bing: { openingFee: '', depositFee: '' },
+      facebook: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
+      google: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
+      tiktok: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
+      snapchat: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
+      bing: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
     }
   })
 
@@ -131,11 +135,11 @@ export default function UsersPage() {
       status: 'ACTIVE',
       personalRemarks: '',
       platformFees: {
-        facebook: { openingFee: '', depositFee: '' },
-        google: { openingFee: '', depositFee: '' },
-        tiktok: { openingFee: '', depositFee: '' },
-        snapchat: { openingFee: '', depositFee: '' },
-        bing: { openingFee: '', depositFee: '' },
+        facebook: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
+        google: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
+        tiktok: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
+        snapchat: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
+        bing: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
       }
     })
     setIsEditMode(false)
@@ -159,23 +163,28 @@ export default function UsersPage() {
       platformFees: {
         facebook: {
           openingFee: user.fbFee?.toString() || '',
-          depositFee: user.fbCommission?.toString() || ''
+          depositFee: user.fbCommission?.toString() || '',
+          unlimitedDomainFee: (user as any).fbUnlimitedDomainFee?.toString() || ''
         },
         google: {
           openingFee: user.googleFee?.toString() || '',
-          depositFee: user.googleCommission?.toString() || ''
+          depositFee: user.googleCommission?.toString() || '',
+          unlimitedDomainFee: (user as any).googleUnlimitedDomainFee?.toString() || ''
         },
         tiktok: {
           openingFee: user.tiktokFee?.toString() || '',
-          depositFee: user.tiktokCommission?.toString() || ''
+          depositFee: user.tiktokCommission?.toString() || '',
+          unlimitedDomainFee: (user as any).tiktokUnlimitedDomainFee?.toString() || ''
         },
         snapchat: {
           openingFee: user.snapchatFee?.toString() || '',
-          depositFee: user.snapchatCommission?.toString() || ''
+          depositFee: user.snapchatCommission?.toString() || '',
+          unlimitedDomainFee: (user as any).snapchatUnlimitedDomainFee?.toString() || ''
         },
         bing: {
           openingFee: user.bingFee?.toString() || '',
-          depositFee: user.bingCommission?.toString() || ''
+          depositFee: user.bingCommission?.toString() || '',
+          unlimitedDomainFee: (user as any).bingUnlimitedDomainFee?.toString() || ''
         },
       }
     })
@@ -202,14 +211,19 @@ export default function UsersPage() {
         personalRemarks: formData.personalRemarks,
         fbFee: Number(formData.platformFees.facebook.openingFee) || 0,
         fbCommission: Number(formData.platformFees.facebook.depositFee) || 0,
+        fbUnlimitedDomainFee: Number(formData.platformFees.facebook.unlimitedDomainFee) || 0,
         googleFee: Number(formData.platformFees.google.openingFee) || 0,
         googleCommission: Number(formData.platformFees.google.depositFee) || 0,
+        googleUnlimitedDomainFee: Number(formData.platformFees.google.unlimitedDomainFee) || 0,
         tiktokFee: Number(formData.platformFees.tiktok.openingFee) || 0,
         tiktokCommission: Number(formData.platformFees.tiktok.depositFee) || 0,
+        tiktokUnlimitedDomainFee: Number(formData.platformFees.tiktok.unlimitedDomainFee) || 0,
         snapchatFee: Number(formData.platformFees.snapchat.openingFee) || 0,
         snapchatCommission: Number(formData.platformFees.snapchat.depositFee) || 0,
+        snapchatUnlimitedDomainFee: Number(formData.platformFees.snapchat.unlimitedDomainFee) || 0,
         bingFee: Number(formData.platformFees.bing.openingFee) || 0,
         bingCommission: Number(formData.platformFees.bing.depositFee) || 0,
+        bingUnlimitedDomainFee: Number(formData.platformFees.bing.unlimitedDomainFee) || 0,
       }
 
       // Only include password if it's provided
@@ -262,6 +276,21 @@ export default function UsersPage() {
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
+  const [isViewProfileOpen, setIsViewProfileOpen] = useState(false)
+  const [viewUser, setViewUser] = useState<User | null>(null)
+  const [copied2FAKey, setCopied2FAKey] = useState(false)
+
+  const copy2FAKey = (secret: string) => {
+    navigator.clipboard.writeText(secret)
+    setCopied2FAKey(true)
+    setTimeout(() => setCopied2FAKey(false), 2000)
+  }
+
+  const handleViewProfile = (user: User) => {
+    setViewUser(user)
+    setIsViewProfileOpen(true)
+    setActiveDropdown(null)
+  }
 
   const handleDeleteUser = (user: User) => {
     setUserToDelete(user)
@@ -560,6 +589,13 @@ export default function UsersPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-2">
                           <button
+                            onClick={() => handleViewProfile(user)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                            title="View Profile"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
                             onClick={() => handleEditUser(user)}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-[#8B5CF6] hover:bg-[#8B5CF6]/10 transition-colors"
                             title="Edit User"
@@ -743,7 +779,7 @@ export default function UsersPage() {
             {/* Facebook */}
             <div className="space-y-1.5">
               <p className="text-[10px] font-medium text-gray-700">Facebook</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-[10px] font-medium text-gray-700 mb-1">Opening Fee ($)</label>
                   <input
@@ -768,13 +804,25 @@ export default function UsersPage() {
                     className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
                   />
                 </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-700 mb-1">Unlimited Domain ($)</label>
+                  <input
+                    type="number"
+                    value={formData.platformFees.facebook.unlimitedDomainFee}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      platformFees: { ...formData.platformFees, facebook: { ...formData.platformFees.facebook, unlimitedDomainFee: e.target.value } }
+                    })}
+                    className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Google */}
             <div className="space-y-1.5">
               <p className="text-[10px] font-medium text-gray-700">Google</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-[10px] font-medium text-gray-700 mb-1">Opening Fee ($)</label>
                   <input
@@ -799,13 +847,25 @@ export default function UsersPage() {
                     className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
                   />
                 </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-700 mb-1">Unlimited Domain ($)</label>
+                  <input
+                    type="number"
+                    value={formData.platformFees.google.unlimitedDomainFee}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      platformFees: { ...formData.platformFees, google: { ...formData.platformFees.google, unlimitedDomainFee: e.target.value } }
+                    })}
+                    className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+                  />
+                </div>
               </div>
             </div>
 
             {/* TikTok */}
             <div className="space-y-1.5">
               <p className="text-[10px] font-medium text-gray-700">TikTok</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-[10px] font-medium text-gray-700 mb-1">Opening Fee ($)</label>
                   <input
@@ -830,13 +890,25 @@ export default function UsersPage() {
                     className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
                   />
                 </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-700 mb-1">Unlimited Domain ($)</label>
+                  <input
+                    type="number"
+                    value={formData.platformFees.tiktok.unlimitedDomainFee}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      platformFees: { ...formData.platformFees, tiktok: { ...formData.platformFees.tiktok, unlimitedDomainFee: e.target.value } }
+                    })}
+                    className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Snapchat */}
             <div className="space-y-1.5">
               <p className="text-[10px] font-medium text-gray-700">Snapchat</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-[10px] font-medium text-gray-700 mb-1">Opening Fee ($)</label>
                   <input
@@ -861,13 +933,25 @@ export default function UsersPage() {
                     className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
                   />
                 </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-700 mb-1">Unlimited Domain ($)</label>
+                  <input
+                    type="number"
+                    value={formData.platformFees.snapchat.unlimitedDomainFee}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      platformFees: { ...formData.platformFees, snapchat: { ...formData.platformFees.snapchat, unlimitedDomainFee: e.target.value } }
+                    })}
+                    className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Bing */}
             <div className="space-y-1.5">
               <p className="text-[10px] font-medium text-gray-700">Bing</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-[10px] font-medium text-gray-700 mb-1">Opening Fee ($)</label>
                   <input
@@ -888,6 +972,18 @@ export default function UsersPage() {
                     onChange={(e) => setFormData({
                       ...formData,
                       platformFees: { ...formData.platformFees, bing: { ...formData.platformFees.bing, depositFee: e.target.value } }
+                    })}
+                    className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-700 mb-1">Unlimited Domain ($)</label>
+                  <input
+                    type="number"
+                    value={formData.platformFees.bing.unlimitedDomainFee}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      platformFees: { ...formData.platformFees, bing: { ...formData.platformFees.bing, unlimitedDomainFee: e.target.value } }
                     })}
                     className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
                   />
@@ -1003,6 +1099,139 @@ export default function UsersPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* View Profile Modal */}
+      <Modal
+        isOpen={isViewProfileOpen}
+        onClose={() => {
+          setIsViewProfileOpen(false)
+          setViewUser(null)
+        }}
+        title="User Profile Details"
+      >
+        {viewUser && (
+          <div className="space-y-6">
+            {/* Profile Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#6366F1] flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                  {viewUser.username.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">{viewUser.realName || viewUser.username}</h3>
+                  <p className="text-sm text-gray-500">{viewUser.email}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <div className={`w-2 h-2 rounded-full ${viewUser.status === 'ACTIVE' ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className={`text-xs font-semibold ${viewUser.status === 'ACTIVE' ? 'text-green-600' : 'text-red-600'}`}>
+                      {viewUser.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsViewProfileOpen(false)
+                  handleEditUser(viewUser)
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Edit User"
+              >
+                <Edit className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Account Info */}
+            <div className="space-y-0 bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between py-3">
+                <span className="text-sm text-gray-600">Username</span>
+                <span className="text-sm font-medium text-gray-900">{viewUser.username}</span>
+              </div>
+              <div className="h-px bg-gray-200" />
+              <div className="flex items-center justify-between py-3">
+                <span className="text-sm text-gray-600">Email</span>
+                <span className="text-sm font-medium text-gray-900">{viewUser.email}</span>
+              </div>
+              <div className="h-px bg-gray-200" />
+              <div className="flex items-center justify-between py-3">
+                <span className="text-sm text-gray-600">Phone</span>
+                <span className="text-sm font-medium text-gray-900">{viewUser.phone || 'Not provided'}</span>
+              </div>
+              <div className="h-px bg-gray-200" />
+              <div className="flex items-center justify-between py-3">
+                <span className="text-sm text-gray-600">Wallet Balance</span>
+                <span className="text-sm font-bold text-[#3B82F6]">${Number(viewUser.walletBalance || 0).toLocaleString()}</span>
+              </div>
+              <div className="h-px bg-gray-200" />
+              <div className="flex items-center justify-between py-3">
+                <span className="text-sm text-gray-600">Agent</span>
+                <span className="text-sm font-medium text-gray-900">{viewUser.agent?.username || 'No Agent'}</span>
+              </div>
+              <div className="h-px bg-gray-200" />
+              <div className="flex items-center justify-between py-3">
+                <span className="text-sm text-gray-600">Created</span>
+                <span className="text-sm font-medium text-gray-900">{new Date(viewUser.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+
+            {/* 2FA Security Section */}
+            {viewUser.twoFactorEnabled && viewUser.twoFactorSecret && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-[#8B5CF6]" />
+                  Two-Factor Authentication
+                </h4>
+                <div className="bg-gradient-to-br from-[#8B5CF6]/5 to-[#6366F1]/5 rounded-xl p-4 border border-[#8B5CF6]/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-500">2FA Status</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-600">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                      Enabled
+                    </span>
+                  </div>
+                  <div className="mt-3">
+                    <label className="text-xs text-gray-500 block mb-1.5">2FA Secret Key</label>
+                    <div className="flex items-center gap-2 p-2.5 bg-white rounded-lg border border-gray-200">
+                      <code className="flex-1 text-xs font-mono text-gray-700 break-all select-all">
+                        {viewUser.twoFactorSecret}
+                      </code>
+                      <button
+                        onClick={() => copy2FAKey(viewUser.twoFactorSecret!)}
+                        className="p-1.5 text-gray-500 hover:text-[#8B5CF6] hover:bg-[#8B5CF6]/10 rounded transition-all"
+                        title="Copy 2FA Key"
+                      >
+                        {copied2FAKey ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5">
+                      This key can be used to recover the authenticator app setup
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Remarks */}
+            {viewUser.personalRemarks && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Remarks</h4>
+                <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{viewUser.personalRemarks}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4 border-t">
+              <button
+                onClick={() => {
+                  setIsViewProfileOpen(false)
+                  setViewUser(null)
+                }}
+                className="px-4 h-9 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </DashboardLayout>
   )

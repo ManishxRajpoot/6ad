@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Select'
 import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { Input } from '@/components/ui/Input'
 import { applicationsApi, authApi, accountsApi, transactionsApi, accountDepositsApi, bmShareApi, balanceTransfersApi, accountRefundsApi, dashboardApi, settingsApi, PlatformStatus } from '@/lib/api'
+import { Confetti, useConfetti } from '@/components/ui/Confetti'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon, EmptyStateIcon } from '@/components/icons/MenuIcons'
 import { useAuthStore } from '@/store/auth'
 import {
@@ -45,6 +46,32 @@ const ADMIN_SETTINGS = {
 // Note: existingLicenses will be derived dynamically from user's approved accounts
 // See userLicenseOptions useMemo below
 
+// Date filter options
+const dateFilterOptions = [
+  { value: '', label: 'Date and Time' },
+  { value: 'today', label: 'Today' },
+  { value: 'this_week', label: 'This Week' },
+]
+
+// Action filter options
+const actionFilterOptions = [
+  { value: '', label: 'Action' },
+  { value: 'approve', label: 'Approve' },
+  { value: 'pending', label: 'Pending' },
+]
+
+// Export options
+const exportOptions = [
+  { id: 'account-list', label: 'Account List' },
+  { id: 'account-applied-records', label: 'Account Applied Records' },
+  { id: 'bm-share-log', label: 'BM Share Log' },
+  { id: 'deposit', label: 'Deposit' },
+  { id: 'deposit-report', label: 'Deposit Report' },
+  { id: 'transfer-balance', label: 'Transfer Balance' },
+  { id: 'refund', label: 'Refund' },
+  { id: 'refund-report', label: 'Refund Report' },
+]
+
 // Page count options
 const pageCountOptions = [
   { value: '1', label: '1 Page' },
@@ -52,11 +79,11 @@ const pageCountOptions = [
   { value: '3', label: '3 Pages' },
   { value: '4', label: '4 Pages' },
   { value: '5', label: '5 Pages' },
-  { value: '6', label: '6 Pages (+$5)' },
-  { value: '7', label: '7 Pages (+$10)' },
-  { value: '8', label: '8 Pages (+$15)' },
-  { value: '9', label: '9 Pages (+$20)' },
-  { value: '10', label: '10 Pages (+$25)' },
+  { value: '6', label: '6 Pages' },
+  { value: '7', label: '7 Pages' },
+  { value: '8', label: '8 Pages' },
+  { value: '9', label: '9 Pages' },
+  { value: '10', label: '10 Pages' },
 ]
 
 // Domain count options
@@ -216,12 +243,17 @@ type DepositRow = {
 export default function FacebookPage() {
   const ITEMS_PER_PAGE = 10
   const { updateUser } = useAuthStore()
+  const { showConfetti, triggerConfetti } = useConfetti()
 
   const [activeSubPage, setActiveSubPage] = useState<SubPage>('account-list')
   const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['account-manage', 'deposit-manage', 'after-sale'])
   const [searchQuery, setSearchQuery] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
+  const [actionFilter, setActionFilter] = useState('')
+  const [showExportDropdown, setShowExportDropdown] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [copiedId, setCopiedId] = useState<number | null>(null)
+  const exportDropdownRef = useRef<HTMLDivElement>(null)
 
   // Modal states
   const [showBmShareModal, setShowBmShareModal] = useState(false)
@@ -286,11 +318,14 @@ export default function FacebookPage() {
   const [balanceTransfers, setBalanceTransfers] = useState<any[]>([])
   const [bmShareHistory, setBmShareHistory] = useState<any[]>([])
   const [accountDeposits, setAccountDeposits] = useState<any[]>([])
+  const [cheetahBalances, setCheetahBalances] = useState<Record<string, any>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [reportTab, setReportTab] = useState<'transfer' | 'refund'>('transfer')
   const [dashboardStats, setDashboardStats] = useState<any>(null)
   const [previousStats, setPreviousStats] = useState<any>(null)
   const [platformStatus, setPlatformStatus] = useState<PlatformStatus>('active')
+  const [profileShareLink, setProfileShareLink] = useState<string>('https://www.facebook.com/profile/6adplatform')
+  const [seenApprovals, setSeenApprovals] = useState<Set<string>>(new Set())
 
   // Generate dynamic chart path based on count - creates wave peaks for each pending item
   const generateChartPath = (count: number, trend: 'up' | 'down') => {
@@ -436,7 +471,7 @@ export default function FacebookPage() {
   // Function to refresh all data
   const refreshAllData = async () => {
     try {
-      const [userRes, accountsRes, applicationsRes, refundsRes, transfersRes, bmShareRes, depositsRes, statsRes, platformRes] = await Promise.all([
+      const [userRes, accountsRes, applicationsRes, refundsRes, transfersRes, bmShareRes, depositsRes, statsRes, platformRes, profileLinksRes] = await Promise.all([
         authApi.me().catch(() => ({ user: null })),
         accountsApi.getAll('FACEBOOK').catch(() => ({ accounts: [] })),
         applicationsApi.getAll('FACEBOOK').catch(() => ({ applications: [] })),
@@ -445,13 +480,15 @@ export default function FacebookPage() {
         bmShareApi.getAll('FACEBOOK').catch(() => ({ bmShareRequests: [] })),
         accountDepositsApi.getAll('FACEBOOK').catch(() => ({ deposits: [] })),
         dashboardApi.getStats().catch(() => ({})),
-        settingsApi.platforms.get().catch(() => ({ platforms: { facebook: 'active', google: 'active', tiktok: 'active', snapchat: 'active', bing: 'active' } }))
+        settingsApi.platforms.get().catch(() => ({ platforms: { facebook: 'active', google: 'active', tiktok: 'active', snapchat: 'active', bing: 'active' } })),
+        settingsApi.profileShareLinks.get().catch(() => ({ profileShareLinks: { facebook: 'https://www.facebook.com/profile/6adplatform', tiktok: 'https://business.tiktok.com/share/6adplatform' } }))
       ])
       if (userRes.user) {
         setUser(userRes.user)
         updateUser(userRes.user)
       }
-      setUserAccounts(accountsRes.accounts || [])
+      const accounts = accountsRes.accounts || []
+      setUserAccounts(accounts)
       setUserApplications(applicationsRes.applications || [])
       setUserRefunds(refundsRes.refunds || [])
       setBalanceTransfers(transfersRes.transfers || [])
@@ -459,6 +496,22 @@ export default function FacebookPage() {
       setAccountDeposits(depositsRes.deposits || [])
       setDashboardStats(statsRes)
       setPlatformStatus((platformRes.platforms?.facebook || 'active') as PlatformStatus)
+      setProfileShareLink(profileLinksRes.profileShareLinks?.facebook || 'https://www.facebook.com/profile/6adplatform')
+
+      // Fetch Cheetah balances for Facebook accounts
+      if (accounts.length > 0) {
+        const fbAccountIds = accounts.map((acc: any) => acc.accountId).filter(Boolean)
+        if (fbAccountIds.length > 0) {
+          try {
+            const balancesRes = await accountsApi.getCheetahBalancesBatch(fbAccountIds)
+            if (balancesRes.balances) {
+              setCheetahBalances(balancesRes.balances)
+            }
+          } catch (err) {
+            // Silently handle - Cheetah balance is optional
+          }
+        }
+      }
     } catch (error) {
       // Silently handle errors
     }
@@ -487,6 +540,183 @@ export default function FacebookPage() {
 
     return () => clearInterval(interval)
   }, [])
+
+  // Check for new approvals and trigger confetti celebration
+  useEffect(() => {
+    if (userApplications.length > 0) {
+      // Get stored seen approvals from localStorage
+      const storedApprovals = localStorage.getItem('fb_seen_approvals')
+      const previouslySeenSet = new Set<string>(storedApprovals ? JSON.parse(storedApprovals) : [])
+
+      // Find newly approved applications
+      const approvedApps = userApplications.filter(app =>
+        app.status === 'APPROVED' || app.status === 'approved'
+      )
+
+      const newApprovals = approvedApps.filter(app => !previouslySeenSet.has(app.id))
+
+      // If there are new approvals, trigger confetti!
+      if (newApprovals.length > 0) {
+        triggerConfetti()
+
+        // Update the seen approvals set
+        const newSeenSet = new Set([...previouslySeenSet, ...newApprovals.map(app => app.id)])
+        setSeenApprovals(newSeenSet)
+        localStorage.setItem('fb_seen_approvals', JSON.stringify([...newSeenSet]))
+      }
+    }
+  }, [userApplications, triggerConfetti])
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target as Node)) {
+        setShowExportDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Export to Excel function
+  const exportToExcel = (exportType: string) => {
+    let data: any[] = []
+    let filename = ''
+    let headers: string[] = []
+
+    switch (exportType) {
+      case 'account-list':
+        filename = 'facebook_account_list'
+        headers = ['License', 'Account ID', 'Account Name', 'Status', 'Created At']
+        data = userAccounts.map(acc => ({
+          'License': acc.licenseName || '-',
+          'Account ID': acc.accountId || '-',
+          'Account Name': acc.accountName || '-',
+          'Status': acc.status || '-',
+          'Created At': acc.createdAt ? new Date(acc.createdAt).toLocaleDateString() : '-'
+        }))
+        break
+
+      case 'account-applied-records':
+        filename = 'facebook_applied_records'
+        headers = ['Apply ID', 'License', 'Request Time', 'Total Cost', 'Status']
+        data = userApplications.map(app => ({
+          'Apply ID': app.id || '-',
+          'License': app.licenseName || '-',
+          'Request Time': app.createdAt ? new Date(app.createdAt).toLocaleString() : '-',
+          'Total Cost': `$${app.totalCost || 0}`,
+          'Status': app.status || '-'
+        }))
+        break
+
+      case 'bm-share-log':
+        filename = 'facebook_bm_share_log'
+        headers = ['Account ID', 'Account Name', 'BM ID', 'Shared At', 'Status']
+        data = bmShareHistory.map(share => ({
+          'Account ID': share.accountId || '-',
+          'Account Name': share.accountName || '-',
+          'BM ID': share.bmId || '-',
+          'Shared At': share.createdAt ? new Date(share.createdAt).toLocaleString() : '-',
+          'Status': share.status || '-'
+        }))
+        break
+
+      case 'deposit':
+        filename = 'facebook_deposits'
+        headers = ['Account ID', 'Account Name', 'Amount', 'Status', 'Created At']
+        data = accountDeposits.map(dep => ({
+          'Account ID': dep.accountId || '-',
+          'Account Name': dep.accountName || '-',
+          'Amount': `$${dep.amount || 0}`,
+          'Status': dep.status || '-',
+          'Created At': dep.createdAt ? new Date(dep.createdAt).toLocaleString() : '-'
+        }))
+        break
+
+      case 'deposit-report':
+        filename = 'facebook_deposit_report'
+        headers = ['Account ID', 'Account Name', 'Amount', 'Fee', 'Total', 'Status', 'Date']
+        data = accountDeposits.map(dep => ({
+          'Account ID': dep.accountId || '-',
+          'Account Name': dep.accountName || '-',
+          'Amount': `$${dep.amount || 0}`,
+          'Fee': `$${dep.fee || 0}`,
+          'Total': `$${(dep.amount || 0) + (dep.fee || 0)}`,
+          'Status': dep.status || '-',
+          'Date': dep.createdAt ? new Date(dep.createdAt).toLocaleString() : '-'
+        }))
+        break
+
+      case 'transfer-balance':
+        filename = 'facebook_balance_transfers'
+        headers = ['From Account', 'To Account', 'Amount', 'Status', 'Transfer Date']
+        data = balanceTransfers.map(transfer => ({
+          'From Account': transfer.fromAccountId || '-',
+          'To Account': transfer.toAccountId || '-',
+          'Amount': `$${transfer.amount || 0}`,
+          'Status': transfer.status || '-',
+          'Transfer Date': transfer.createdAt ? new Date(transfer.createdAt).toLocaleString() : '-'
+        }))
+        break
+
+      case 'refund':
+        filename = 'facebook_refunds'
+        headers = ['Account ID', 'Account Name', 'Amount', 'Status', 'Request Date']
+        data = userRefunds.map(refund => ({
+          'Account ID': refund.accountId || '-',
+          'Account Name': refund.accountName || '-',
+          'Amount': `$${refund.amount || 0}`,
+          'Status': refund.status || '-',
+          'Request Date': refund.createdAt ? new Date(refund.createdAt).toLocaleString() : '-'
+        }))
+        break
+
+      case 'refund-report':
+        filename = 'facebook_refund_report'
+        headers = ['Account ID', 'Account Name', 'Amount', 'Reason', 'Status', 'Request Date', 'Processed Date']
+        data = userRefunds.map(refund => ({
+          'Account ID': refund.accountId || '-',
+          'Account Name': refund.accountName || '-',
+          'Amount': `$${refund.amount || 0}`,
+          'Reason': refund.reason || '-',
+          'Status': refund.status || '-',
+          'Request Date': refund.createdAt ? new Date(refund.createdAt).toLocaleString() : '-',
+          'Processed Date': refund.processedAt ? new Date(refund.processedAt).toLocaleString() : '-'
+        }))
+        break
+
+      default:
+        return
+    }
+
+    if (data.length === 0) {
+      alert('No data available to export')
+      return
+    }
+
+    // Create CSV content (Excel compatible)
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => {
+        const value = row[header] || ''
+        // Escape quotes and wrap in quotes if contains comma
+        const escaped = String(value).replace(/"/g, '""')
+        return escaped.includes(',') ? `"${escaped}"` : escaped
+      }).join(','))
+    ].join('\n')
+
+    // Create and download file
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   // Handle submit application
   const handleSubmitApplication = async () => {
@@ -956,8 +1186,12 @@ export default function FacebookPage() {
 
   const pageNumbers = generatePageNumbers()
 
-  // Handle Deposit click - redirect to Deposit section
-  const handleDepositClick = () => {
+  // Handle Deposit click - redirect to Deposit section with optional pre-selected account
+  const handleDepositClick = (accountId?: string) => {
+    if (accountId) {
+      // Pre-select the account in deposit form
+      setDepositRows([{ id: 1, accountId: accountId, amount: '' }])
+    }
     setActiveSubPage('deposit')
   }
 
@@ -969,14 +1203,20 @@ export default function FacebookPage() {
     const pageNum = parseInt(pageCount)
     const extraPages = Math.max(0, pageNum - 5)
     const extraPagesCost = extraPages * ADMIN_SETTINGS.extraPageFee
-    const domainCost = unlimitedDomain === 'yes' ? ADMIN_SETTINGS.unlimitedDomainFee : 0
+    // Use user's configured unlimited domain fee, fallback to admin settings if not set
+    const userUnlimitedDomainFee = user?.fbUnlimitedDomainFee !== undefined ? Number(user.fbUnlimitedDomainFee) : ADMIN_SETTINGS.unlimitedDomainFee
+    const domainCost = unlimitedDomain === 'yes' ? userUnlimitedDomainFee : 0
     const totalDeposits = adAccounts.reduce((sum, acc) => sum + parseInt(acc.deposit || '0'), 0)
     const depositMarkupAmount = totalDeposits * fbCommissionRate / 100
     const depositWithMarkup = totalDeposits + depositMarkupAmount
-    const openingFee = user?.openingFee ? parseFloat(user.openingFee) : ADMIN_SETTINGS.openingFee
+    // Opening fee is per ad account (multiply by quantity)
+    const adAccountQty = adAccounts.length
+    // Use platform-specific opening fee (fbFee for Facebook)
+    const openingFeePerAccount = user?.fbFee ? parseFloat(user.fbFee) : ADMIN_SETTINGS.openingFee
+    const openingFee = openingFeePerAccount * adAccountQty
     const totalCostRegular = openingFee + domainCost + extraPagesCost + depositWithMarkup
 
-    // If using coupon, only opening fee is waived - deposit with markup is still charged
+    // If using coupon, only opening fee is waived - deposit with markup still charged
     const totalCost = useCoupon ? depositWithMarkup : totalCostRegular
     const savings = useCoupon ? openingFee + domainCost + extraPagesCost : 0
 
@@ -1106,6 +1346,8 @@ export default function FacebookPage() {
 
   return (
     <DashboardLayout title="Facebook User Management Account" subtitle="">
+      {/* Confetti celebration for new approvals */}
+      <Confetti active={showConfetti} />
       {/* Show Coming Soon if platform disabled and no existing accounts */}
       {!platformEnabled && !hasExistingAccounts ? (
         <div className="flex items-center justify-center h-full">
@@ -1136,9 +1378,14 @@ export default function FacebookPage() {
           50% { transform: scale(1.05); }
           100% { opacity: 1; transform: scale(1); }
         }
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateX(-10px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
         .animate-fadeInUp { animation: fadeInUp 0.3s ease-out forwards; }
         .animate-checkBounce { animation: checkBounce 0.5s ease-out 0.1s forwards; }
         .animate-toastPop { animation: toastPop 0.4s ease-out forwards; }
+        .animate-slideIn { animation: slideIn 0.3s ease-out forwards; }
         .table-row-animate { animation: fadeInUp 0.3s ease-out forwards; }
         .table-row-animate:nth-child(1) { animation-delay: 0.05s; }
         .table-row-animate:nth-child(2) { animation-delay: 0.1s; }
@@ -1165,23 +1412,61 @@ export default function FacebookPage() {
           />
         </div>
 
-        <select className="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-xs text-gray-600 focus:outline-none">
-          <option>Date and Time</option>
-          <option>Today</option>
-          <option>This Week</option>
-        </select>
-        <select className="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-xs text-gray-600 focus:outline-none">
-          <option>Action</option>
-          <option>Approve</option>
-          <option>Pending</option>
-        </select>
+        <div className="w-36">
+          <Select
+            options={dateFilterOptions}
+            value={dateFilter}
+            onChange={setDateFilter}
+            placeholder="Date and Time"
+            size="sm"
+            
+          />
+        </div>
+        <div className="w-28">
+          <Select
+            options={actionFilterOptions}
+            value={actionFilter}
+            onChange={setActionFilter}
+            placeholder="Action"
+            size="sm"
+            
+          />
+        </div>
 
         <div className="flex-1" />
 
-        <Button variant="outline" className="border-gray-200 text-gray-600 rounded-md hover:bg-gray-50 whitespace-nowrap text-xs px-3 py-1.5 h-auto">
-          <Download className="w-3.5 h-3.5 mr-1.5" />
-          Export Image
-        </Button>
+        {/* Export Dropdown */}
+        <div className="relative" ref={exportDropdownRef}>
+          <Button
+            variant="outline"
+            className="border-gray-200 text-gray-600 rounded-md hover:bg-gray-50 whitespace-nowrap text-xs px-3 py-1.5 h-auto"
+            onClick={() => setShowExportDropdown(!showExportDropdown)}
+          >
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            Export
+            <ChevronDown className={`w-3.5 h-3.5 ml-1.5 transition-transform duration-200 ${showExportDropdown ? 'rotate-180' : ''}`} />
+          </Button>
+
+          {showExportDropdown && (
+            <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="py-1">
+                {exportOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    onClick={() => {
+                      exportToExcel(option.id)
+                      setShowExportDropdown(false)
+                    }}
+                    className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-[#52B788]/10 hover:text-[#52B788] transition-colors duration-150 flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         <Button
           onClick={() => setActiveSubPage('apply-ads-account')}
           className="bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-md shadow-sm whitespace-nowrap text-xs px-3 py-1.5 h-auto"
@@ -1292,7 +1577,7 @@ export default function FacebookPage() {
                   <button
                     onClick={() => toggleSection(menu.section)}
                     data-tutorial={(menu as any).tutorialId}
-                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-semibold text-gray-700 hover:bg-[#8B5CF6]/5 rounded-lg transition-all"
+                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-semibold text-gray-700 hover:bg-[#8B5CF6]/5 rounded-lg transition-all duration-200 active:scale-[0.98] hover:translate-x-0.5"
                   >
                     <div className="flex items-center gap-2">
                       <span>{menu.icon}</span>
@@ -1314,7 +1599,7 @@ export default function FacebookPage() {
                         : 'max-h-0 opacity-0 mt-0'
                     }`}
                   >
-                    {menu.items.map((item) => (
+                    {menu.items.map((item, index) => (
                       <button
                         key={item.id}
                         data-tutorial={(item as any).tutorialId}
@@ -1322,9 +1607,14 @@ export default function FacebookPage() {
                           setActiveSubPage(item.id)
                           setCurrentPage(1)
                         }}
-                        className={`w-full text-left px-2 py-1.5 text-sm rounded transition-all ${
+                        style={{
+                          animationDelay: `${index * 50}ms`,
+                        }}
+                        className={`w-full text-left px-2 py-1.5 text-sm rounded transition-all duration-200 ease-out transform hover:translate-x-1 active:scale-95 ${
+                          expandedSections.includes(menu.section) ? 'animate-slideIn' : ''
+                        } ${
                           activeSubPage === item.id
-                            ? 'bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white font-medium shadow-sm'
+                            ? 'bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white font-medium shadow-sm shadow-purple-200'
                             : 'text-gray-600 hover:bg-[#8B5CF6]/5 hover:text-[#8B5CF6]'
                         }`}
                       >
@@ -1495,10 +1785,10 @@ export default function FacebookPage() {
                     </div>
                     <div className="flex items-center justify-between p-3 bg-gradient-to-r from-[#8B5CF6]/5 to-[#52B788]/5 border border-[#8B5CF6]/20 rounded-xl">
                       <span className="text-sm text-gray-700 font-medium truncate flex-1">
-                        {ADMIN_SETTINGS.profileShareLink}
+                        {profileShareLink}
                       </span>
                       <button
-                        onClick={() => copyToClipboard(ADMIN_SETTINGS.profileShareLink, 999)}
+                        onClick={() => copyToClipboard(profileShareLink, 999)}
                         className="p-1.5 hover:bg-white/80 rounded transition-colors ml-2 flex-shrink-0"
                       >
                         {copiedId === 999 ? <Check className="w-4 h-4 text-[#52B788]" /> : <Copy className="w-4 h-4 text-[#8B5CF6]" />}
@@ -1657,7 +1947,7 @@ export default function FacebookPage() {
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
                     {/* Cost Items - Inline */}
                     <div className="px-4 py-3 bg-gray-50 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                      <span className="text-gray-500">Opening Fee: <span className={useCoupon ? 'line-through text-gray-400' : 'font-medium text-gray-700'}>${costs.openingFee}</span></span>
+                      <span className="text-gray-500">Opening Fee: <span className={useCoupon ? 'line-through text-gray-400' : 'font-medium text-gray-700'}>${costs.openingFee.toFixed(2)}</span></span>
                       <span className="text-gray-300">|</span>
                       <span className="text-gray-500">Deposit: <span className="font-medium text-gray-700">${costs.totalDeposits}</span></span>
                       <span className="text-gray-300">|</span>
@@ -1803,30 +2093,35 @@ export default function FacebookPage() {
                           </button>
                         </div>
                       </div>
-                    ) : paginatedData.map((item: any, index: number) => (
+                    ) : paginatedData.map((item: any, index: number) => {
+                      const cheetahData = cheetahBalances[item.accountId]
+                      const isCheetahAccount = cheetahData?.isCheetah
+                      const remainingBalance = cheetahData?.remainingBalance
+
+                      return (
                       <div
                         key={item.id}
                         className="table-row-animate p-4 bg-white border border-gray-100 rounded-xl hover:border-[#8B5CF6]/30 hover:shadow-lg hover:shadow-[#8B5CF6]/5 transition-all duration-300 group"
                         style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="grid grid-cols-3 items-center gap-4">
                           {/* Left Side - Account Info */}
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-4 min-w-0">
                             {/* Account Avatar */}
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#8B5CF6]/5 flex items-center justify-center group-hover:from-[#8B5CF6]/20 group-hover:to-[#8B5CF6]/10 transition-all">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#8B5CF6]/5 flex items-center justify-center group-hover:from-[#8B5CF6]/20 group-hover:to-[#8B5CF6]/10 transition-all flex-shrink-0">
                               <span className="text-lg font-bold text-[#8B5CF6]">{(item.accountName || item.adsAccountName || 'A').charAt(0).toUpperCase()}</span>
                             </div>
 
                             {/* Account Details */}
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <h4 className="text-sm font-semibold text-gray-800">{item.accountName || item.adsAccountName || 'Unknown Account'}</h4>
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
-                                  item.status === 'APPROVED' ? 'bg-[#52B788]/10 text-[#52B788]' :
-                                  item.status === 'PENDING' ? 'bg-yellow-100 text-yellow-600' :
-                                  item.status === 'REJECTED' ? 'bg-red-100 text-red-600' :
-                                  'bg-[#52B788]/10 text-[#52B788]'
-                                }`}>{item.status === 'APPROVED' ? 'Active' : item.status || 'Active'}</span>
+                                {/* Show balance for Cheetah accounts, nothing for non-Cheetah */}
+                                {isCheetahAccount && (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#52B788]/10 text-[#52B788]">
+                                    ${remainingBalance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                                  </span>
+                                )}
                               </div>
                               <div className="flex items-center gap-3 text-xs">
                                 <span className="text-gray-500">License:</span>
@@ -1836,23 +2131,15 @@ export default function FacebookPage() {
                           </div>
 
                           {/* Center - Account ID */}
-                          <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg">
-                            <span className="text-xs text-gray-500">ID:</span>
-                            <span className="text-sm text-[#8B5CF6] font-mono font-semibold">{item.accountId || item.adsAccountId}</span>
-                            <button
-                              onClick={() => copyToClipboard(item.accountId || item.adsAccountId, item.id)}
-                              className="p-1 hover:bg-white rounded transition-colors"
-                            >
-                              {copiedId === item.id ? (
-                                <Check className="w-3.5 h-3.5 text-[#52B788]" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5 text-gray-400 hover:text-[#8B5CF6]" />
-                              )}
-                            </button>
+                          <div className="flex justify-center">
+                            <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg">
+                              <span className="text-xs text-gray-500">ID:</span>
+                              <span className="text-sm text-[#8B5CF6] font-mono font-semibold">{item.accountId || item.adsAccountId}</span>
+                            </div>
                           </div>
 
                           {/* Right Side - Actions */}
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 justify-end">
                             <button
                               onClick={() => handleBmShareClick(item)}
                               data-tutorial="get-bm-access-btn"
@@ -1861,7 +2148,7 @@ export default function FacebookPage() {
                               Get Access
                             </button>
                             <button
-                              onClick={handleDepositClick}
+                              onClick={() => handleDepositClick(item.id)}
                               data-tutorial="account-deposit-btn"
                               className="px-4 py-2 bg-[#52B788]/10 text-[#52B788] rounded-lg text-sm font-medium hover:bg-[#52B788] hover:text-white transition-all duration-200"
                             >
@@ -1870,7 +2157,7 @@ export default function FacebookPage() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                   </>
                   )}
@@ -2041,7 +2328,7 @@ export default function FacebookPage() {
                           <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
                           <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ad Account</th>
                           <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">BM ID</th>
-                          <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Message</th>
+                          <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason</th>
                           <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Request Time</th>
                           <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
@@ -2059,8 +2346,10 @@ export default function FacebookPage() {
                             <td className="py-4 px-4">
                               <span className="text-sm font-mono text-[#8B5CF6]">{item.bmId}</span>
                             </td>
-                            <td className="py-4 px-4">
-                              <span className="text-sm text-gray-600">{item.message || '-'}</span>
+                            <td className="py-4 px-4 max-w-[280px]">
+                              <p className="text-sm text-gray-600 whitespace-normal leading-relaxed">
+                                {item.adminRemarks || '-'}
+                              </p>
                             </td>
                             <td className="py-4 px-4">
                               <span className="text-sm text-gray-700">
@@ -2275,16 +2564,28 @@ export default function FacebookPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="bg-gradient-to-r from-[#8B5CF6]/5 to-gray-50">
+                        <th className="text-left py-4 px-4 text-xs font-semibold text-[#8B5CF6] uppercase tracking-wider">Apply ID</th>
                         <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ads Account</th>
-                        <th className="text-left py-4 px-4 text-xs font-semibold text-[#52B788] uppercase tracking-wider">Amount</th>
-                        <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Remarks</th>
+                        <th className="text-left py-4 px-4 text-xs font-semibold text-[#52B788] uppercase tracking-wider">Deposit</th>
+                        <th className="text-left py-4 px-4 text-xs font-semibold text-[#F59E0B] uppercase tracking-wider">Fee</th>
+                        <th className="text-left py-4 px-4 text-xs font-semibold text-[#8B5CF6] uppercase tracking-wider">Total</th>
                         <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Request Time</th>
                         <th className="text-left py-4 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {paginatedData.map((item: any, index: number) => (
+                      {paginatedData.map((item: any, index: number) => {
+                        const depositAmount = parseFloat(item.amount) || 0
+                        const commissionRate = item.commissionRate || 0
+                        const commissionAmount = item.commissionAmount || 0
+                        const totalDeducted = depositAmount + commissionAmount
+                        return (
                         <tr key={item.id} className="table-row-animate hover:bg-[#8B5CF6]/5 transition-all duration-300" style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}>
+                          <td className="py-4 px-4">
+                            <code className="text-xs font-mono text-[#8B5CF6] bg-[#8B5CF6]/10 px-2 py-1 rounded font-semibold">
+                              {item.applyId || '-'}
+                            </code>
+                          </td>
                           <td className="py-4 px-4">
                             <div className="space-y-0.5">
                               <p className="text-sm text-gray-700 font-medium">{item.adAccount?.accountName || '-'}</p>
@@ -2292,10 +2593,18 @@ export default function FacebookPage() {
                             </div>
                           </td>
                           <td className="py-4 px-4">
-                            <span className="text-sm font-semibold text-[#52B788]">${parseFloat(item.amount).toLocaleString()}</span>
+                            <span className="text-sm font-semibold text-[#52B788]">${depositAmount.toLocaleString()}</span>
                           </td>
                           <td className="py-4 px-4">
-                            <span className="text-sm text-gray-600">{item.remarks || '-'}</span>
+                            <div className="space-y-0.5">
+                              <span className="text-sm font-semibold text-[#F59E0B]">${commissionAmount.toFixed(2)}</span>
+                              {commissionRate > 0 && (
+                                <p className="text-xs text-gray-400">({commissionRate}%)</p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="text-sm font-bold text-[#8B5CF6]">${totalDeducted.toFixed(2)}</span>
                           </td>
                           <td className="py-4 px-4">
                             <span className="text-sm text-gray-700">
@@ -2310,7 +2619,8 @@ export default function FacebookPage() {
                           </td>
                           <td className="py-4 px-4">{getStatusBadge(item.status)}</td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                   )}

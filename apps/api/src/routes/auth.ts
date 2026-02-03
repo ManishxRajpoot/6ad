@@ -38,7 +38,7 @@ const auth = new Hono()
 
 // Validation schemas
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().min(1), // Can be email or username
   password: z.string().min(6),
   totpCode: z.string().length(6).optional(),
 })
@@ -48,17 +48,99 @@ const registerSchema = z.object({
   password: z.string().min(6),
   username: z.string().min(2),
   phone: z.string().optional(),
+  referralCode: z.string().optional(),
+})
+
+// GET /auth/check-username - Check if username is available
+auth.get('/check-username', async (c) => {
+  try {
+    const { username } = c.req.query()
+
+    if (!username || username.length < 2) {
+      return c.json({ available: false, error: 'Username must be at least 2 characters' })
+    }
+
+    const existingUser = await prisma.user.findFirst({
+      where: { username: { equals: username, mode: 'insensitive' } }
+    })
+
+    return c.json({ available: !existingUser })
+  } catch (error) {
+    console.error('Check username error:', error)
+    return c.json({ available: false, error: 'Failed to check username' }, 500)
+  }
+})
+
+// GET /auth/referrer-info - Get referrer info by referral code (for registration page)
+auth.get('/referrer-info', async (c) => {
+  try {
+    const { code } = c.req.query()
+
+    if (!code) {
+      return c.json({ found: false })
+    }
+
+    // Find the referrer by referral code
+    const referrer = await prisma.user.findFirst({
+      where: { referralCode: code.toUpperCase() },
+      select: {
+        id: true,
+        username: true,
+        agentId: true,
+        agent: {
+          select: {
+            id: true,
+            brandName: true,
+            username: true
+          }
+        }
+      }
+    })
+
+    if (!referrer) {
+      return c.json({ found: false })
+    }
+
+    // Determine the username prefix based on agent's username (not brand name)
+    let usernamePrefix = ''
+    if (referrer.agent) {
+      // Referrer has an agent - use agent's username as prefix
+      usernamePrefix = (referrer.agent.username || '').replace(/\s+/g, '') + '_'
+    } else if (referrer.agentId) {
+      // Referrer is assigned to an agent but agent info not loaded
+      const agent = await prisma.user.findUnique({
+        where: { id: referrer.agentId },
+        select: { username: true }
+      })
+      if (agent) {
+        usernamePrefix = (agent.username || '').replace(/\s+/g, '') + '_'
+      }
+    }
+
+    return c.json({
+      found: true,
+      referrerUsername: referrer.username,
+      usernamePrefix,
+      agentId: referrer.agentId || referrer.agent?.id
+    })
+  } catch (error) {
+    console.error('Get referrer info error:', error)
+    return c.json({ found: false, error: 'Failed to get referrer info' }, 500)
+  }
 })
 
 // POST /auth/login
 auth.post('/login', async (c) => {
   try {
     const body = await c.req.json()
-    const { email, password, totpCode } = loginSchema.parse(body)
+    const { email: emailOrUsername, password, totpCode } = loginSchema.parse(body)
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
+    // Find user by email or username
+    const isEmail = emailOrUsername.includes('@')
+    const user = await prisma.user.findFirst({
+      where: isEmail
+        ? { email: emailOrUsername }
+        : { username: emailOrUsername },
       include: {
         agent: {
           select: { id: true, username: true, email: true, brandLogo: true, brandName: true }
@@ -67,20 +149,20 @@ auth.post('/login', async (c) => {
     })
 
     if (!user) {
-      return c.json({ error: 'Invalid email or password' }, 401)
+      return c.json({ error: 'Invalid email/username or password' }, 401)
     }
 
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password)
     if (!isValidPassword) {
-      return c.json({ error: 'Invalid email or password' }, 401)
+      return c.json({ error: 'Invalid email/username or password' }, 401)
     }
 
     // Check if blocked
     if (user.status === 'BLOCKED') {
       return c.json({
         error: 'Account Blocked',
-        message: 'Your account has been blocked by the administrator. Please contact the main headquarters for assistance.',
+        message: 'Your account has been blocked. Please contact support group for assistance. Thank you.',
         blocked: true
       }, 403)
     }
@@ -132,21 +214,47 @@ auth.post('/login', async (c) => {
 auth.post('/register', async (c) => {
   try {
     const body = await c.req.json()
-    const { email, password, username, phone } = registerSchema.parse(body)
+    const { email, password, username, phone, referralCode } = registerSchema.parse(body)
 
     // Check if email exists
-    const existingUser = await prisma.user.findUnique({
+    const existingEmail = await prisma.user.findUnique({
       where: { email }
     })
 
-    if (existingUser) {
+    if (existingEmail) {
       return c.json({ error: 'Email already registered' }, 409)
+    }
+
+    // Check if username exists
+    const existingUsername = await prisma.user.findFirst({
+      where: { username: { equals: username, mode: 'insensitive' } }
+    })
+
+    if (existingUsername) {
+      return c.json({ error: 'Username already taken' }, 409)
+    }
+
+    // Handle referral code if provided
+    let referrerId: string | null = null
+    let agentId: string | null = null
+
+    if (referralCode) {
+      const referrer = await prisma.user.findFirst({
+        where: { referralCode: referralCode.toUpperCase() },
+        select: { id: true, agentId: true }
+      })
+
+      if (referrer) {
+        referrerId = referrer.id
+        agentId = referrer.agentId // Inherit agent from referrer
+      }
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Create user
+    // Create user with referral info
+    // If referred, give $50 opening balance and 5% deposit fee for all platforms
     const user = await prisma.user.create({
       data: {
         email,
@@ -154,6 +262,18 @@ auth.post('/register', async (c) => {
         username,
         phone,
         role: 'USER',
+        referredBy: referrerId,
+        agentId: agentId,
+        // Referral benefits: $50 opening balance and 5% deposit fee for all platforms
+        ...(referrerId ? {
+          walletBalance: 50,
+          openingFee: 50,
+          fbFee: 5,
+          googleFee: 5,
+          tiktokFee: 5,
+          snapchatFee: 5,
+          bingFee: 5,
+        } : {}),
       },
       select: {
         id: true,
@@ -163,6 +283,18 @@ auth.post('/register', async (c) => {
         createdAt: true,
       }
     })
+
+    // Create referral record if referrer exists
+    if (referrerId && referralCode) {
+      await prisma.referral.create({
+        data: {
+          referrerId: referrerId,
+          referredUserId: user.id,
+          referralCode: referralCode.toUpperCase(),
+          status: 'pending'
+        }
+      })
+    }
 
     // Generate token
     const token = generateToken({ id: user.id, email: user.email, role: user.role })
@@ -214,6 +346,11 @@ auth.get('/me', verifyToken, async (c) => {
         snapchatCommission: true,
         bingFee: true,
         bingCommission: true,
+        fbUnlimitedDomainFee: true,
+        googleUnlimitedDomainFee: true,
+        tiktokUnlimitedDomainFee: true,
+        snapchatUnlimitedDomainFee: true,
+        bingUnlimitedDomainFee: true,
         twoFactorEnabled: true,
         emailVerified: true,
         agentId: true,

@@ -4,7 +4,17 @@ import { useState } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { Select } from '@/components/ui/Select'
 import { Search, Download, ArrowDownCircle, ArrowUpCircle, TrendingUp } from 'lucide-react'
+
+// Transaction type filter options
+const transactionTypeOptions = [
+  { value: 'all', label: 'All Types' },
+  { value: 'DEPOSIT', label: 'Deposits' },
+  { value: 'WITHDRAWAL', label: 'Withdrawals' },
+  { value: 'SPEND', label: 'Spend' },
+  { value: 'REFUND', label: 'Refunds' },
+]
 
 const transactions = [
   { id: 'TXN001', type: 'DEPOSIT', amount: 50000, status: 'COMPLETED', date: '2024-01-15 10:30', description: 'Wallet Top-up' },
@@ -76,17 +86,16 @@ export default function TransactionsPage() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
             </div>
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="all">All Types</option>
-              <option value="DEPOSIT">Deposits</option>
-              <option value="WITHDRAWAL">Withdrawals</option>
-              <option value="SPEND">Spend</option>
-              <option value="REFUND">Refunds</option>
-            </select>
+            <div className="w-36">
+              <Select
+                options={transactionTypeOptions}
+                value={filter}
+                onChange={setFilter}
+                placeholder="All Types"
+                size="sm"
+                
+              />
+            </div>
           </div>
           <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
             <Download className="w-4 h-4" />

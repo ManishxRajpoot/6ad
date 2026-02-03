@@ -9,6 +9,26 @@ type User = {
   status: string
   brandLogo?: string | null
   brandName?: string | null
+  realName?: string | null
+  phone?: string | null
+  phone2?: string | null
+  profileImage?: string | null
+  emailVerified?: boolean
+  twoFactorEnabled?: boolean
+  couponBalance?: number
+  walletBalance?: number | string
+  // Platform fees
+  fbFee?: number | string
+  fbCommission?: number | string
+  fbUnlimitedDomainFee?: number | string
+  googleFee?: number | string
+  googleCommission?: number | string
+  tiktokFee?: number | string
+  tiktokCommission?: number | string
+  snapchatFee?: number | string
+  snapchatCommission?: number | string
+  bingFee?: number | string
+  bingCommission?: number | string
 }
 
 type AuthState = {
@@ -18,6 +38,7 @@ type AuthState = {
   isHydrated: boolean
   setAuth: (user: User, token: string) => void
   setUser: (user: User) => void
+  updateUser: (user: Partial<User>) => void
   logout: () => void
   setHydrated: (state: boolean) => void
 }
@@ -35,6 +56,11 @@ export const useAuthStore = create<AuthState>()(
       },
       setUser: (user) => {
         set({ user })
+      },
+      updateUser: (userData) => {
+        set((state) => ({
+          user: state.user ? { ...state.user, ...userData } : null
+        }))
       },
       logout: () => {
         localStorage.removeItem('token')

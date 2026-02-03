@@ -83,6 +83,7 @@ type PaymentMethodType = {
   name: string
   description: string
   icon: string
+  walletAddress?: string
   isDefault?: boolean
   isEnabled: boolean
 }
@@ -141,6 +142,7 @@ export default function TransactionsPage() {
   const [newPaymentName, setNewPaymentName] = useState('')
   const [newPaymentDescription, setNewPaymentDescription] = useState('')
   const [newPaymentIcon, setNewPaymentIcon] = useState('💳')
+  const [newPaymentWalletAddress, setNewPaymentWalletAddress] = useState('')
 
   // Bulk Action Modal state
   const [bulkActionModalOpen, setBulkActionModalOpen] = useState(false)
@@ -635,6 +637,7 @@ export default function TransactionsPage() {
     setNewPaymentName(pm.name)
     setNewPaymentDescription(pm.description || '')
     setNewPaymentIcon(pm.icon)
+    setNewPaymentWalletAddress(pm.walletAddress || '')
     setAddPaymentModalOpen(true)
   }
 
@@ -644,13 +647,24 @@ export default function TransactionsPage() {
       return
     }
 
+    // Check if crypto payment method requires wallet address
+    const isCryptoMethod = newPaymentName.toLowerCase().includes('usdt') ||
+                           newPaymentName.toLowerCase().includes('trc') ||
+                           newPaymentName.toLowerCase().includes('bep')
+
+    if (isCryptoMethod && !newPaymentWalletAddress.trim()) {
+      alert('Please enter a wallet address for crypto payment method')
+      return
+    }
+
     try {
       if (editingPaymentMethod) {
         // Edit existing
         await paymentMethodsApi.update(editingPaymentMethod.id, {
           name: newPaymentName,
           description: newPaymentDescription,
-          icon: newPaymentIcon
+          icon: newPaymentIcon,
+          walletAddress: newPaymentWalletAddress || null
         })
       } else {
         // Add new
@@ -658,6 +672,7 @@ export default function TransactionsPage() {
           name: newPaymentName,
           description: newPaymentDescription,
           icon: newPaymentIcon,
+          walletAddress: newPaymentWalletAddress || null,
           isEnabled: true
         })
       }
@@ -667,6 +682,7 @@ export default function TransactionsPage() {
       setNewPaymentName('')
       setNewPaymentDescription('')
       setNewPaymentIcon('💳')
+      setNewPaymentWalletAddress('')
       setEditingPaymentMethod(null)
     } catch (error: any) {
       alert(error.message || 'Failed to save payment method')
@@ -1935,6 +1951,30 @@ export default function TransactionsPage() {
               className="w-full rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6] resize-none"
             />
           </div>
+
+          {/* Wallet Address - Show for crypto payment methods */}
+          {(newPaymentName.toLowerCase().includes('usdt') ||
+            newPaymentName.toLowerCase().includes('trc') ||
+            newPaymentName.toLowerCase().includes('bep')) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Wallet Address *
+                <span className="text-xs text-gray-500 font-normal ml-2">
+                  (Required for crypto auto-verification)
+                </span>
+              </label>
+              <input
+                type="text"
+                value={newPaymentWalletAddress}
+                onChange={(e) => setNewPaymentWalletAddress(e.target.value)}
+                placeholder={newPaymentName.toLowerCase().includes('trc') ? 'e.g., TRC20 wallet address (T...)' : 'e.g., BEP20 wallet address (0x...)'}
+                className="w-full h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-mono focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]"
+              />
+              <p className="text-xs text-blue-600 mt-1">
+                💡 Users who deposit via this method will have their transaction automatically verified on blockchain
+              </p>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">

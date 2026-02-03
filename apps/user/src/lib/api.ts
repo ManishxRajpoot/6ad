@@ -24,14 +24,22 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     config.body = JSON.stringify(body)
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, config)
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, config)
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Request failed' }))
-    throw new Error(errorData.error || errorData.message || 'Request failed')
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Request failed' }))
+      throw new Error(errorData.error || errorData.message || 'Request failed')
+    }
+
+    return response.json()
+  } catch (error) {
+    // Handle network errors (server not running, CORS, etc.)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error('Unable to connect to server. Please check if the API is running.')
+    }
+    throw error
   }
-
-  return response.json()
 }
 
 export const api = {
@@ -46,11 +54,15 @@ export const api = {
 export const authApi = {
   login: (data: { email: string; password: string; totpCode?: string }) =>
     api.post<{ token: string; user: any; requires2FA?: boolean; message?: string }>('/auth/login', data),
-  register: (data: { email: string; password: string; username: string }) =>
+  register: (data: { email: string; password: string; username: string; referralCode?: string }) =>
     api.post<{ token: string; user: any }>('/auth/register', data),
   me: () => api.get<{ user: any }>('/auth/me'),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.post<{ message: string }>('/auth/change-password', data),
+  checkUsername: (username: string) =>
+    api.get<{ available: boolean; error?: string }>(`/auth/check-username?username=${encodeURIComponent(username)}`),
+  getReferrerInfo: (code: string) =>
+    api.get<{ found: boolean; referrerUsername?: string; usernamePrefix?: string; agentId?: string }>(`/auth/referrer-info?code=${encodeURIComponent(code)}`),
   // 2FA
   twoFactor: {
     setup: () => api.post<{ secret: string; otpauthUrl: string; message: string }>('/auth/2fa/setup', {}),
@@ -62,6 +74,8 @@ export const authApi = {
   email: {
     sendCode: () => api.post<{ message: string; code?: string }>('/auth/email/send-code', {}),
     verify: (code: string) => api.post<{ message: string }>('/auth/email/verify', { code }),
+    sendChangeCode: (newEmail: string) => api.post<{ message: string }>('/auth/email/change/send-code', { newEmail }),
+    verifyChange: (newEmail: string, code: string) => api.post<{ message: string }>('/auth/email/change/verify', { newEmail, code }),
   },
 }
 
@@ -74,13 +88,49 @@ export const dashboardApi = {
 export const accountsApi = {
   getAll: (platform?: string) => api.get<{ accounts: any[] }>(`/accounts${platform ? `?platform=${platform}` : ''}`),
   getById: (id: string) => api.get<{ account: any }>(`/accounts/${id}`),
+  getCheetahBalance: (id: string) => api.get<{ cheetahAccount: any; error?: string }>(`/accounts/${id}/cheetah-balance`),
+  getCheetahBalancesBatch: (accountIds: string[]) =>
+    api.get<{ balances: Record<string, any>; error?: string }>(`/accounts/cheetah-balances/batch?accountIds=${accountIds.join(',')}`),
+  getMonthlyInsights: (accountId: string) =>
+    api.get<{
+      monthlyData: {
+        month: string
+        year: number
+        deposits: number
+        spent: number
+        impressions: number
+        clicks: number
+        results: number
+        cpc: number
+        ctr: number
+        cpr: number
+        cpm: number
+      }[]
+      totals: {
+        impressions: number
+        clicks: number
+        spent: number
+        results: number
+        cpc: number
+        ctr: number
+        cpr: number
+        cpm: number
+      } | null
+      isCheetah: boolean
+      error?: string
+    }>(`/accounts/insights/monthly/${accountId}`),
 }
 
 // Transactions API (User's own transactions)
 export const transactionsApi = {
   deposits: {
     getAll: () => api.get<{ deposits: any[]; pagination: any }>('/transactions/deposits'),
-    create: (data: any) => api.post<{ deposit: any }>('/transactions/deposits', data),
+    create: (data: any) => api.post<{
+      message: string;
+      deposit: any;
+      newBalance?: number;
+      verification?: { valid: boolean; error?: string; amount?: number; from?: string; confirmations?: number }
+    }>('/transactions/deposits', data),
   },
   withdrawals: {
     getAll: () => api.get<{ withdrawals: any[]; pagination: any }>('/transactions/withdrawals'),
@@ -208,10 +258,64 @@ export const settingsApi = {
   platforms: {
     get: () => api.get<{ platforms: PlatformSettings }>('/settings/platforms'),
   },
+  profileShareLinks: {
+    get: () => api.get<{ profileShareLinks: { facebook: string; tiktok: string } }>('/settings/profile-share-links'),
+  },
+  referralDomain: {
+    get: () => api.get<{ referralDomain: string }>('/settings/referral-domain'),
+  },
   profile: {
     update: (data: { username?: string; phone?: string; phone2?: string; realName?: string; address?: string; website?: string; profileImage?: string }) =>
       api.patch<{ message: string; user: any }>('/settings/profile', data),
     updateAvatar: (profileImage: string) =>
       api.patch<{ message: string; user: any }>('/settings/profile/avatar', { profileImage }),
   },
+}
+
+// Referrals API
+export const referralsApi = {
+  getMyCode: () => api.get<{ referralCode: string; referralEarnings: number }>('/referrals/my-code'),
+  getStats: () => api.get<{
+    referralCode: string;
+    stats: { totalReferrals: number; qualifiedReferrals: number; pendingRewards: number; totalEarned: number };
+    referrals: any[]
+  }>('/referrals/stats'),
+  validateCode: (code: string) => api.post<{ valid: boolean; referrerName?: string; error?: string }>('/referrals/validate', { code }),
+  applyCode: (code: string) => api.post<{ success: boolean; message: string }>('/referrals/apply', { code }),
+}
+
+// Notifications API
+export const notificationsApi = {
+  getAll: (params?: { limit?: number; offset?: number; unreadOnly?: boolean }) => {
+    const queryParams = new URLSearchParams()
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.offset) queryParams.append('offset', params.offset.toString())
+    if (params?.unreadOnly) queryParams.append('unreadOnly', 'true')
+    const queryString = queryParams.toString()
+    return api.get<{ notifications: any[]; total: number; unreadCount: number }>(`/notifications${queryString ? `?${queryString}` : ''}`)
+  },
+  getUnreadCount: () => api.get<{ unreadCount: number }>('/notifications/unread-count'),
+  markAsRead: (id: string) => api.patch<{ success: boolean }>(`/notifications/${id}/read`, {}),
+  markAllAsRead: () => api.patch<{ success: boolean }>('/notifications/read-all', {}),
+  delete: (id: string) => api.delete<{ success: boolean }>(`/notifications/${id}`),
+}
+
+// Announcements API
+export const announcementsApi = {
+  getAll: () => api.get<{ announcements: any[] }>('/announcements'),
+}
+
+// Chat API
+export const chatApi = {
+  getRoom: () => api.get<{ room: any }>('/chat/room'),
+  sendMessage: (data: { roomId?: string; message: string; attachmentUrl?: string; attachmentType?: string }) =>
+    api.post<{ message: any }>('/chat/send', data),
+  getMessages: (roomId: string, params?: { limit?: number; before?: string }) => {
+    const queryParams = new URLSearchParams()
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.before) queryParams.append('before', params.before)
+    const queryString = queryParams.toString()
+    return api.get<{ messages: any[] }>(`/chat/messages/${roomId}${queryString ? `?${queryString}` : ''}`)
+  },
+  getUnreadCount: () => api.get<{ unreadCount: number }>('/chat/unread'),
 }

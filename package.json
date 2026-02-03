@@ -23,5 +23,8 @@
   },
   "devDependencies": {
     "turbo": "^2.0.0"
+  },
+  "dependencies": {
+    "bs58": "^6.0.0"
   }
 }

@@ -51,10 +51,43 @@ export default function LoginPage() {
         <div className="rounded-2xl bg-white p-8 shadow-lg">
           {/* Logo */}
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-primary-500">
-              <span className="text-2xl font-bold text-white">6</span>
+            <div className="mx-auto mb-4 flex items-center justify-center gap-3">
+              {/* Six Media - Twisted Ribbon Infinity (Meta-style) */}
+              <svg viewBox="0 0 48 28" className="w-16 h-9" fill="none">
+                <defs>
+                  <linearGradient id="adminLoginRibbon1" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#6366F1"/>
+                    <stop offset="100%" stopColor="#8B5CF6"/>
+                  </linearGradient>
+                  <linearGradient id="adminLoginRibbon2" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#8B5CF6"/>
+                    <stop offset="100%" stopColor="#EC4899"/>
+                  </linearGradient>
+                </defs>
+                {/* Left ribbon - continuous twisted band */}
+                <path
+                  d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14"
+                  fill="url(#adminLoginRibbon1)"
+                />
+                {/* Right ribbon - continuous twisted band */}
+                <path
+                  d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14"
+                  fill="url(#adminLoginRibbon2)"
+                />
+                {/* Center twist overlay for depth */}
+                <ellipse cx="24" cy="14" rx="4" ry="5" fill="white" opacity="0.15"/>
+              </svg>
+              {/* Text - Modern Typography */}
+              <div className="flex flex-col leading-none text-left">
+                <span className="text-[24px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
+                  SIXMEDIA
+                </span>
+                <span className="text-[10px] font-semibold tracking-[0.25em] text-gray-400 mt-0.5">
+                  ADMIN PANEL
+                </span>
+              </div>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mt-6">Welcome Back</h1>
             <p className="mt-2 text-gray-500">Sign in to your admin account</p>
           </div>
 

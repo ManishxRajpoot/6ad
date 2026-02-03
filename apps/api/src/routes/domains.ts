@@ -11,11 +11,19 @@ const resolve4 = promisify(dns.resolve4)
 
 const prisma = new PrismaClient()
 
+// VPS IP address for custom domain DNS configuration
+const VPS_IP = process.env.VPS_IP || '72.61.172.38'
+
 const domains = new Hono()
 
 // Validation schemas
 const submitDomainSchema = z.object({
   domain: z.string().min(3).regex(/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/, 'Invalid domain format'),
+  brandLogo: z.string().optional(), // Base64 logo
+})
+
+const updateDomainBrandingSchema = z.object({
+  brandLogo: z.string().optional(), // Base64 logo
 })
 
 const updateDomainStatusSchema = z.object({
@@ -30,7 +38,12 @@ function generateVerificationToken(): string {
 
 // ==================== PUBLIC ROUTE (NO AUTH) ====================
 
-// GET /domains/check/:domain - Check if domain is valid and get agent info (Public)
+// GET /domains/dns-config - Get DNS configuration info (Public)
+domains.get('/dns-config', async (c) => {
+  return c.json({ vpsIp: VPS_IP })
+})
+
+// GET /domains/check/:domain - Check if domain is valid and get branding (Public)
 domains.get('/check/:domain', async (c) => {
   try {
     const { domain } = c.req.param()
@@ -44,8 +57,7 @@ domains.get('/check/:domain', async (c) => {
         agent: {
           select: {
             id: true,
-            brandName: true,
-            brandLogo: true,
+            username: true,
           },
         },
       },
@@ -55,12 +67,12 @@ domains.get('/check/:domain', async (c) => {
       return c.json({ valid: false, message: 'Domain not found or not approved' }, 404)
     }
 
+    // Return branding from the approved CustomDomain (only logo, no brandName)
     return c.json({
       valid: true,
       domain: customDomain.domain,
       branding: {
-        brandName: customDomain.agent.brandName,
-        brandLogo: customDomain.agent.brandLogo,
+        brandLogo: customDomain.brandLogo,
       },
       agentId: customDomain.agentId,
     })
@@ -270,7 +282,7 @@ domains.post('/', async (c) => {
     }
 
     const body = await c.req.json()
-    const { domain } = submitDomainSchema.parse(body)
+    const { domain, brandLogo } = submitDomainSchema.parse(body)
 
     // Check if domain already exists (registered by another agent)
     const existingDomain = await prisma.customDomain.findUnique({
@@ -284,13 +296,14 @@ domains.post('/', async (c) => {
     // Generate verification token
     const verificationToken = generateVerificationToken()
 
-    // Create domain request
+    // Create domain request with branding
     const customDomain = await prisma.customDomain.create({
       data: {
         domain: domain.toLowerCase(),
         agentId: userId,
         verificationToken,
         status: 'PENDING',
+        brandLogo: brandLogo || null,
       },
     })
 
@@ -300,7 +313,7 @@ domains.post('/', async (c) => {
       dnsInstructions: {
         type: 'A',
         name: domain.toLowerCase(),
-        value: '72.61.172.38', // VPS IP address
+        value: VPS_IP,
         txtRecord: {
           name: `_6ad-verify.${domain.toLowerCase()}`,
           value: verificationToken,
@@ -313,6 +326,53 @@ domains.post('/', async (c) => {
     }
     console.error('Submit domain error:', error)
     return c.json({ error: 'Failed to submit domain request' }, 500)
+  }
+})
+
+// PATCH /domains/:id - Update domain branding (Agent only, resets to PENDING for re-approval)
+domains.patch('/:id', async (c) => {
+  try {
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+    const { id } = c.req.param()
+
+    if (userRole !== 'AGENT') {
+      return c.json({ error: 'Only agents can update domains' }, 403)
+    }
+
+    const body = await c.req.json()
+    const { brandLogo } = updateDomainBrandingSchema.parse(body)
+
+    const customDomain = await prisma.customDomain.findFirst({
+      where: { id, agentId: userId },
+    })
+
+    if (!customDomain) {
+      return c.json({ error: 'Domain not found' }, 404)
+    }
+
+    // Update branding and reset status to PENDING for re-approval
+    const updatedDomain = await prisma.customDomain.update({
+      where: { id },
+      data: {
+        brandLogo: brandLogo || null,
+        status: 'PENDING', // Reset to pending when branding is updated
+        approvedAt: null,
+        rejectedAt: null,
+        adminRemarks: null,
+      },
+    })
+
+    return c.json({
+      message: 'Domain branding updated successfully. Awaiting admin approval.',
+      domain: updatedDomain,
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ error: 'Invalid input', details: error.errors }, 400)
+    }
+    console.error('Update domain branding error:', error)
+    return c.json({ error: 'Failed to update domain branding' }, 500)
   }
 })
 
@@ -338,7 +398,7 @@ domains.post('/:id/verify', async (c) => {
     // Real DNS verification
     const domain = customDomain.domain
     const expectedToken = customDomain.verificationToken
-    const expectedIP = '72.61.172.38'
+    const expectedIP = VPS_IP
 
     let aRecordValid = false
     let txtRecordValid = false

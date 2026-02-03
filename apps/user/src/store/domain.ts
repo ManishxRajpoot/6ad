@@ -2,8 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 type DomainBranding = {
-  brandName: string | null
   brandLogo: string | null
+  brandName: string | null
   agentId: string
 }
 

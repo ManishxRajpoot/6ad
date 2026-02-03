@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { PrismaClient, Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { verifyToken, requireUser, requireAdmin } from '../middleware/auth.js'
+import { processAdAccountApprovalReward } from '../services/referral-rewards.js'
 
 const prisma = new PrismaClient()
 const applications = new Hono()
@@ -92,42 +93,59 @@ applications.post('/', requireUser, async (c) => {
     // Check if using coupon and has available coupons
     const useCoupon = data.useCoupon && user.couponBalance > 0
 
-    // Get platform-specific fees
-    let platformFee = new Prisma.Decimal(0)
-    let platformCommission = new Prisma.Decimal(0)
+    // Get platform-specific commission rate AND opening fee (convert Decimal to number for calculations)
+    let platformCommission = 0
+    let platformOpeningFee = 0
+    const DEFAULT_OPENING_FEE = 30
 
     switch (data.platform) {
       case 'FACEBOOK':
-        platformFee = user.fbFee
-        platformCommission = user.fbCommission
+        platformCommission = Number(user.fbCommission) || 0
+        platformOpeningFee = Number(user.fbFee) || DEFAULT_OPENING_FEE
         break
       case 'GOOGLE':
-        platformFee = user.googleFee
-        platformCommission = user.googleCommission
+        platformCommission = Number(user.googleCommission) || 0
+        platformOpeningFee = Number(user.googleFee) || DEFAULT_OPENING_FEE
         break
       case 'TIKTOK':
-        platformFee = user.tiktokFee
-        platformCommission = user.tiktokCommission
+        platformCommission = Number(user.tiktokCommission) || 0
+        platformOpeningFee = Number(user.tiktokFee) || DEFAULT_OPENING_FEE
         break
       case 'SNAPCHAT':
-        platformFee = user.snapchatFee
-        platformCommission = user.snapchatCommission
+        platformCommission = Number(user.snapchatCommission) || 0
+        platformOpeningFee = Number(user.snapchatFee) || DEFAULT_OPENING_FEE
         break
       case 'BING':
-        platformFee = user.bingFee
-        platformCommission = user.bingCommission
+        platformCommission = Number(user.bingCommission) || 0
+        platformOpeningFee = Number(user.bingFee) || DEFAULT_OPENING_FEE
         break
     }
 
     const adAccountQty = data.accountDetails.length
     const depositAmount = Number(data.depositAmount)
-    const openingFee = Number(user.openingFee) * adAccountQty
-    const commissionAmount = depositAmount * platformCommission / 100
+    // Use platform-specific opening fee (fbFee, googleFee, etc.)
+    const openingFeePerAccount = platformOpeningFee
+    const openingFee = openingFeePerAccount * adAccountQty
+    const commissionAmount = (depositAmount * platformCommission) / 100
 
     // If using coupon, only opening fee is waived - deposit + commission still charged
     const totalCost = useCoupon
-      ? depositAmount + commissionAmount + platformFee
-      : depositAmount + openingFee + commissionAmount + platformFee
+      ? depositAmount + commissionAmount
+      : depositAmount + openingFee + commissionAmount
+
+    // Debug logging
+    console.log('=== Application Cost Calculation ===')
+    console.log('platform:', data.platform)
+    console.log('platformOpeningFee (from DB):', platformOpeningFee)
+    console.log('openingFeePerAccount:', openingFeePerAccount)
+    console.log('adAccountQty:', adAccountQty)
+    console.log('depositAmount:', depositAmount)
+    console.log('platformCommission:', platformCommission)
+    console.log('openingFee (total):', openingFee)
+    console.log('commissionAmount:', commissionAmount)
+    console.log('useCoupon:', useCoupon)
+    console.log('totalCost:', totalCost)
+    console.log('====================================')
 
     // Check if user has enough balance
     if (Number(user.walletBalance) < totalCost) {
@@ -235,7 +253,7 @@ applications.post('/', requireUser, async (c) => {
           adAccountQty,
           depositAmount,
           openingFee: useCoupon ? 0 : openingFee,
-          platformFee: commissionAmount + platformFee,
+          platformFee: commissionAmount,
           totalCost,
           userId,
           remarks: useCoupon ? `${data.remarks || ''} [Opening Fee Waived - Coupon Used]`.trim() : data.remarks,
@@ -250,7 +268,21 @@ applications.post('/', requireUser, async (c) => {
 
     return c.json({
       message: 'Application submitted successfully',
-      application
+      application,
+      // Debug info - remove after testing
+      debug: {
+        platform: data.platform,
+        platformOpeningFee,
+        openingFeePerAccount,
+        adAccountQty,
+        depositAmount,
+        platformCommission,
+        openingFee,
+        commissionAmount,
+        useCoupon,
+        totalCost,
+        walletDeducted: totalCost
+      }
     }, 201)
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -270,10 +302,14 @@ applications.get('/', requireUser, async (c) => {
 
     const where: any = {}
 
-    // Only users see their own, admins see all
+    // Role-based filtering
     if (userRole === 'USER') {
       where.userId = userId
+    } else if (userRole === 'AGENT') {
+      // Agents see applications from their users
+      where.user = { agentId: userId }
     }
+    // Admins see all
 
     if (platform) where.platform = platform.toUpperCase()
     if (status) where.status = status.toUpperCase()
@@ -285,7 +321,7 @@ applications.get('/', requireUser, async (c) => {
         where,
         include: {
           user: {
-            select: { id: true, username: true, email: true, uniqueId: true }
+            select: { id: true, username: true, email: true, uniqueId: true, realName: true }
           },
           adAccounts: true
         },
@@ -552,6 +588,9 @@ applications.post('/:id/approve', requireAdmin, async (c) => {
           approvedAt: new Date()
         }
       })
+
+      // Process referral reward for ad account approval ($15 for first approval)
+      await processAdAccountApprovalReward(application.userId, tx)
     })
 
     return c.json({ message: 'Application approved and accounts created' })
@@ -680,6 +719,9 @@ applications.post('/bulk-approve', requireAdmin, async (c) => {
               approvedAt: new Date()
             }
           })
+
+          // Process referral reward for ad account approval ($15 for first approval)
+          await processAdAccountApprovalReward(application.userId, tx)
         })
 
         results.push({ id: appId, success: true })

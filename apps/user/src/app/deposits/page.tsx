@@ -56,7 +56,7 @@ export default function DepositsPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [copiedId, setCopiedId] = useState<number | null>(null)
+  const [copiedId, setCopiedId] = useState<string | number | null>(null)
 
   // Modal states
   const [showDepositModal, setShowDepositModal] = useState(false)
@@ -111,6 +111,7 @@ export default function DepositsPage() {
 
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
 
   // Show toast notification
   const showToast = (message: string, type: 'success' | 'error') => {
@@ -206,6 +207,7 @@ export default function DepositsPage() {
       fetchWalletFlow()
     }
   }, [activeTab, isHydrated, isAuthenticated])
+
 
   // Compress image for faster upload
   const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.7): Promise<string> => {
@@ -331,7 +333,10 @@ export default function DepositsPage() {
       return
     }
 
-    // Check if image is uploaded (mandatory)
+    // Get the selected payment method name
+    const selectedPaymentMethod = paymentMethods.find(pm => pm.id === depositForm.payway)
+
+    // Check if image is uploaded (mandatory for all payments)
     if (!filePreview) {
       showToast('Please upload a screenshot of your payment', 'error')
       return
@@ -346,12 +351,9 @@ export default function DepositsPage() {
       return
     }
 
-    // Get the selected payment method name
-    const selectedPaymentMethod = paymentMethods.find(pm => pm.id === depositForm.payway)
-
     setSubmittingDeposit(true)
     try {
-      await transactionsApi.deposits.create({
+      const result = await transactionsApi.deposits.create({
         paymentMethod: selectedPaymentMethod?.name || depositForm.payway,
         transactionId: depositForm.transactionId,
         amount: parseFloat(depositForm.chargeAmount),
@@ -363,6 +365,14 @@ export default function DepositsPage() {
       const depositsData = await transactionsApi.deposits.getAll()
       setDeposits(depositsData.deposits || [])
 
+      // If crypto deposit was auto-approved, refresh user balance
+      if (result.newBalance !== undefined) {
+        const userData = await authApi.me()
+        if (userData.user) {
+          updateUser(userData.user)
+        }
+      }
+
       // Reset form and close modal
       setDepositForm({ payway: '', transactionId: '', chargeAmount: '', remarks: '' })
       setUploadedFile(null)
@@ -371,7 +381,15 @@ export default function DepositsPage() {
         fileInputRef.current.value = ''
       }
       setShowDepositModal(false)
-      showToast('Deposit submitted successfully!', 'success')
+
+      // Show appropriate message based on result
+      if (result.verification?.valid) {
+        showToast('Deposit verified and credited instantly!', 'success')
+      } else if (result.verification && !result.verification.valid) {
+        showToast('Deposit submitted. Pending admin verification.', 'success')
+      } else {
+        showToast('Deposit submitted successfully!', 'success')
+      }
     } catch (error: any) {
       console.error('Failed to submit deposit:', error)
       showToast(error.message || 'Failed to submit deposit', 'error')
@@ -497,11 +515,12 @@ export default function DepositsPage() {
     }
   }
 
-  const copyToClipboard = (text: string, id: number) => {
+  const copyToClipboard = (text: string, id: string | number) => {
     navigator.clipboard.writeText(text)
     setCopiedId(id)
     setTimeout(() => setCopiedId(null), 2000)
   }
+
 
   const tabs = [
     { id: 'add-money' as Tab, label: 'Add Money', dataTutorial: '' },
@@ -742,7 +761,7 @@ export default function DepositsPage() {
                   <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
                   <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
                   <th className="text-left py-4 px-5 text-xs font-semibold text-[#8B5CF6] uppercase tracking-wider">Charge Amount</th>
-                  <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Transaction</th>
+                  <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider max-w-[180px]">Transaction</th>
                   <th className="text-left py-4 px-5 text-xs font-semibold text-[#3B82F6] uppercase tracking-wider">Image</th>
                   <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Payway</th>
                   <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Remarks</th>
@@ -827,8 +846,27 @@ export default function DepositsPage() {
                           {item.amount < 0 ? `-$${Math.abs(item.amount).toLocaleString()}` : `$${item.amount.toLocaleString()}`}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
-                        <span className="text-xs text-gray-600 font-mono" title={item.transactionId || ''}>{item.transactionId || '---'}</span>
+                      <td className="py-3 px-4 max-w-[200px]">
+                        {item.transactionId ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-600 font-mono truncate max-w-[140px]" title={item.transactionId}>
+                              {item.transactionId}
+                            </span>
+                            <button
+                              onClick={() => copyToClipboard(item.transactionId!, `txn-${item.id}`)}
+                              className="flex-shrink-0 p-1 rounded hover:bg-gray-100 transition-colors"
+                              title="Copy Transaction ID"
+                            >
+                              {copiedId === `txn-${item.id}` ? (
+                                <Check className="w-3.5 h-3.5 text-green-500" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600" />
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">---</span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         {item.paymentProof ? (
@@ -1404,7 +1442,7 @@ export default function DepositsPage() {
             <label className="block text-sm font-medium text-gray-700">Charge Amount</label>
             <input
               type="text"
-              placeholder="Enter amount"
+              placeholder="e.g. 500 (USD)"
               value={depositForm.chargeAmount}
               onChange={(e) => setDepositForm({...depositForm, chargeAmount: e.target.value})}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788] focus:bg-white"

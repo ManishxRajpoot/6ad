@@ -24,16 +24,24 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     config.body = JSON.stringify(body)
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, config)
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, config)
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Request failed' }))
-    const error: any = new Error(errorData.message || errorData.error || 'Request failed')
-    error.response = { data: errorData, status: response.status }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Request failed' }))
+      const error: any = new Error(errorData.message || errorData.error || 'Request failed')
+      error.response = { data: errorData, status: response.status }
+      throw error
+    }
+
+    return response.json()
+  } catch (error) {
+    // Handle network errors (server not running, CORS, etc.)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error('Unable to connect to server. Please check if the API is running.')
+    }
     throw error
   }
-
-  return response.json()
 }
 
 export const api = {
@@ -65,6 +73,8 @@ export const agentsApi = {
   delete: (id: string) => api.delete<{ message: string }>(`/agents/${id}`),
   block: (id: string, reason: string) => api.post<{ message: string }>(`/agents/${id}/block`, { reason }),
   unblock: (id: string) => api.post<{ message: string }>(`/agents/${id}/unblock`, {}),
+  addCoupons: (agentId: string, amount: number) => api.post<{ message: string; agent: any }>(`/agents/${agentId}/add-coupons`, { amount }),
+  removeCoupons: (agentId: string, amount: number) => api.post<{ message: string; agent: any }>(`/agents/${agentId}/remove-coupons`, { amount }),
 }
 
 // Users API
@@ -75,6 +85,7 @@ export const usersApi = {
   update: (id: string, data: any) => api.patch<{ user: any }>(`/users/${id}`, data),
   delete: (id: string) => api.delete<{ message: string }>(`/users/${id}`),
   addCoupons: (userId: string, amount: number) => api.post<{ message: string; user: any }>(`/users/${userId}/coupons`, { amount }),
+  removeCoupons: (userId: string, amount: number) => api.post<{ message: string; user: any }>(`/users/${userId}/remove-coupons`, { amount }),
 }
 
 // Transactions API
@@ -143,6 +154,62 @@ export const settingsApi = {
     get: () => api.get<{ platforms: { facebook: string; google: string; tiktok: string; snapchat: string; bing: string } }>('/settings/platforms'),
     update: (data: { facebook?: string; google?: string; tiktok?: string; snapchat?: string; bing?: string }) =>
       api.patch<{ message: string; platforms: any }>('/settings/platforms', data),
+  },
+  profileShareLinks: {
+    get: () => api.get<{ profileShareLinks: { facebook: string; tiktok: string } }>('/settings/profile-share-links'),
+    update: (data: { facebook?: string; tiktok?: string }) =>
+      api.patch<{ message: string; profileShareLinks: { facebook: string; tiktok: string } }>('/settings/profile-share-links', data),
+  },
+  referralDomain: {
+    get: () => api.get<{ referralDomain: string }>('/settings/referral-domain'),
+    update: (domain: string) => api.put<{ message: string; referralDomain: string }>('/settings/referral-domain', { referralDomain: domain }),
+  },
+  // Email Branding Settings
+  emailBranding: {
+    get: () => api.get<{ branding: {
+      brandName: string
+      brandLogo: string
+      primaryColor: string
+      secondaryColor: string
+      senderEmail: string
+      senderName: string
+      helpCenterUrl: string
+      contactSupportUrl: string
+    } }>('/settings/email-branding'),
+    update: (data: {
+      brandName?: string
+      brandLogo?: string
+      primaryColor?: string
+      secondaryColor?: string
+      senderEmail?: string
+      senderName?: string
+      helpCenterUrl?: string
+      contactSupportUrl?: string
+    }) => api.patch<{ message: string; branding: any }>('/settings/email-branding', data),
+  },
+  // SMTP Settings
+  smtp: {
+    get: () => api.get<{ smtp: {
+      host: string
+      port: number
+      secure: boolean
+      user: string
+      isConfigured: boolean
+    } }>('/settings/smtp'),
+    update: (data: {
+      host: string
+      port: number
+      secure: boolean
+      user: string
+      password?: string
+    }) => api.patch<{ message: string }>('/settings/smtp', data),
+    test: (email: string) => api.post<{ success: boolean; message: string }>('/settings/smtp/test', { email }),
+  },
+  // Referral Settings
+  referrals: {
+    get: () => api.get<{ settings: { commissionRate: number; minWithdrawal: number; maxTiers: number } }>('/settings/referrals'),
+    update: (data: { commissionRate?: number; minWithdrawal?: number; maxTiers?: number }) =>
+      api.patch<{ message: string; settings: any }>('/settings/referrals', data),
   },
 }
 
@@ -279,4 +346,182 @@ export const domainsApi = {
     api.patch<{ message: string; domain: any }>(`/domains/admin/${id}`, { status: 'APPROVED', adminRemarks }),
   reject: (id: string, adminRemarks?: string) =>
     api.patch<{ message: string; domain: any }>(`/domains/admin/${id}`, { status: 'REJECTED', adminRemarks }),
+}
+
+// Announcements API (Admin)
+export const announcementsApi = {
+  getAllAdmin: () => api.get<{ announcements: any[] }>('/announcements/admin'),
+  create: (data: { title: string; message: string; type: string; isActive?: boolean; targetRole?: string; startDate?: string; endDate?: string }) =>
+    api.post<{ announcement: any }>('/announcements', data),
+  update: (id: string, data: Partial<{ title: string; message: string; type: string; isActive: boolean; targetRole?: string; startDate?: string; endDate?: string }>) =>
+    api.patch<{ announcement: any }>(`/announcements/${id}`, data),
+  delete: (id: string) => api.delete<{ message: string }>(`/announcements/${id}`),
+}
+
+// Chat API (Admin)
+export const chatApi = {
+  getAdminRooms: () => api.get<{ rooms: any[] }>('/chat/admin/rooms'),
+  getMessages: (roomId: string, options?: { limit?: number }) => {
+    const params = new URLSearchParams()
+    if (options?.limit) params.append('limit', options.limit.toString())
+    const queryString = params.toString()
+    return api.get<{ messages: any[] }>(`/chat/messages/${roomId}${queryString ? `?${queryString}` : ''}`)
+  },
+  sendAdminMessage: (data: { roomId: string; message: string }) =>
+    api.post<{ message: any }>('/chat/admin/send', data),
+  closeRoom: (id: string) => api.patch<{ room: any }>(`/chat/admin/rooms/${id}/close`, {}),
+  reopenRoom: (id: string) => api.patch<{ room: any }>(`/chat/admin/rooms/${id}/reopen`, {}),
+  assignAgent: (id: string, agentId: string) => api.patch<{ room: any }>(`/chat/admin/rooms/${id}/assign`, { agentId }),
+}
+
+// Notifications API (Admin)
+export const notificationsApi = {
+  getAdminLogs: () => api.get<{ notifications: any[] }>('/notifications/admin/logs'),
+  send: (data: { userId: string; type: string; title: string; message: string; link?: string }) =>
+    api.post<{ notification: any }>('/notifications/admin/send', data),
+  sendToAll: (data: { type: string; title: string; message: string; link?: string }) =>
+    api.post<{ count: number }>('/notifications/admin/send-all', data),
+}
+
+// Referrals API (Admin)
+export const referralsApi = {
+  getAll: () => api.get<{ referrals: any[] }>('/referrals/admin'),
+}
+
+// Cheetah Mobile API (猎豹移动)
+export const cheetahApi = {
+  // Configuration
+  config: {
+    getStatus: () => api.get<{ isConfigured: boolean; baseUrl: string | null; environment?: string }>('/cheetah/config/status'),
+    update: (data: { environment: 'test' | 'production' }) =>
+      api.post<{ message: string; environment: string }>('/cheetah/config', data),
+    test: () => api.post<{ success: boolean; message: string; quota?: string }>('/cheetah/config/test', {}),
+  },
+  // Account operations
+  accounts: {
+    getAll: (params?: { page?: number; page_size?: number; account_id?: string; account_status?: string }) => {
+      const query = new URLSearchParams()
+      if (params?.page) query.append('page', params.page.toString())
+      if (params?.page_size) query.append('page_size', params.page_size.toString())
+      if (params?.account_id) query.append('account_id', params.account_id)
+      if (params?.account_status) query.append('account_status', params.account_status)
+      return api.get<{ list: any[]; pager: any }>(`/cheetah/accounts?${query.toString()}`)
+    },
+    getOne: (accountId: string) => api.get<{ account: any }>(`/cheetah/accounts/${accountId}`),
+    updateName: (accountId: string, name: string) =>
+      api.patch<{ message: string }>(`/cheetah/accounts/${accountId}/name`, { name }),
+    recharge: (accountId: string, spendCap: number) =>
+      api.post<{ message: string; serial_number: string }>(`/cheetah/accounts/${accountId}/recharge`, { spend_cap: spendCap }),
+    reset: (accountId: string) =>
+      api.post<{ message: string; reset_amount: string; serial_number: string }>(`/cheetah/accounts/${accountId}/reset`, {}),
+    getOperations: (accountId: string) =>
+      api.get<{ operations: any[] }>(`/cheetah/accounts/${accountId}/operations`),
+    getUsage: (accountId: string) =>
+      api.get<{ used_count: number; remaining: number }>(`/cheetah/accounts/${accountId}/usage`),
+  },
+  // BM Share operations
+  bm: {
+    bind: (accountId: string, businessId: string, type: 0 | 1 | 2) =>
+      api.post<{ message: string }>('/cheetah/bm/bind', { account_id: accountId, business_id: businessId, type }),
+    getBindings: (accountId: string) =>
+      api.get<{ account_id: string; business_id: string[] }>(`/cheetah/bm/bindings/${accountId}`),
+  },
+  // Pixel operations
+  pixel: {
+    bind: (pixelId: string, accountId: string, type: 1 | 2) =>
+      api.post<{ message: string }>('/cheetah/pixel/bind', { pixel_id: pixelId, account_id: accountId, type }),
+    getBindings: (params: { pixel_id?: string; account_id?: string }) => {
+      const query = new URLSearchParams()
+      if (params.pixel_id) query.append('pixel_id', params.pixel_id)
+      if (params.account_id) query.append('account_id', params.account_id)
+      return api.get<any>(`/cheetah/pixel/bindings?${query.toString()}`)
+    },
+    submitBMJob: (bindings: { pixel_id: string; bm_id: string; operate: '1' | '2' }[]) =>
+      api.post<{ message: string; job_id: string }>('/cheetah/pixel/bm-job', bindings),
+  },
+  // Job operations
+  jobs: {
+    getStatus: (jobId: string) => api.get<any>(`/cheetah/jobs/${jobId}/status`),
+    getAll: (params?: { page?: number; page_size?: number; job_status?: number }) => {
+      const query = new URLSearchParams()
+      if (params?.page) query.append('page', params.page.toString())
+      if (params?.page_size) query.append('page_size', params.page_size.toString())
+      if (params?.job_status) query.append('job_status', params.job_status.toString())
+      return api.get<{ list: any[]; pager: any }>(`/cheetah/jobs?${query.toString()}`)
+    },
+    createOELink: () => api.post<{ token: string; open_account_link: string }>('/cheetah/jobs/oe-link', {}),
+  },
+  // Spending/Insights
+  spend: {
+    getDaily: (accountId: string, startDate: string, endDate: string) =>
+      api.get<{ spend: any[] }>(`/cheetah/spend/daily?account_id=${accountId}&start_date=${startDate}&end_date=${endDate}`),
+    getTotal: (date: string) =>
+      api.get<{ date: string; total_spend: string }>(`/cheetah/spend/total?date=${date}`),
+  },
+  insights: {
+    get: (accountId: string, date: string, fields?: string) =>
+      api.get<{ insights: any }>(`/cheetah/insights?account_id=${accountId}&date=${date}${fields ? `&fields=${fields}` : ''}`),
+    getRange: (accountId: string, startDate: string, endDate: string, fields?: string) =>
+      api.get<{ insights: any }>(`/cheetah/insights?account_id=${accountId}&start_date=${startDate}&end_date=${endDate}${fields ? `&fields=${fields}` : ''}`),
+  },
+  // Finance
+  finance: {
+    getQuota: () => api.get<{ available_quota: string; available_quota_usd: number }>('/cheetah/quota'),
+    getPayments: (page?: number, pageSize?: number) =>
+      api.get<{ list: any[]; pager: any }>(`/cheetah/payments?page=${page || 1}&page_size=${pageSize || 10}`),
+  },
+}
+
+// Crypto Wallet Configuration API
+export const cryptoApi = {
+  config: {
+    getAll: () => api.get<{ configs: any[] }>('/transactions/crypto/config'),
+    save: (data: { network: string; walletAddress: string; isEnabled?: boolean }) =>
+      api.post<{ message: string; config: any }>('/transactions/crypto/config', data),
+    update: (network: string, data: { walletAddress?: string; isEnabled?: boolean }) =>
+      api.patch<{ message: string; config: any }>(`/transactions/crypto/config/${network}`, data),
+  },
+}
+
+// BM Configuration API - Manage multiple Facebook Business Managers
+export const bmConfigApi = {
+  // Get all BM configurations
+  getAll: () => api.get<{ configs: BMConfig[] }>('/bm-config'),
+
+  // Get single BM config with full token
+  getOne: (id: string) => api.get<{ config: BMConfigFull }>(`/bm-config/${id}`),
+
+  // Create new BM configuration
+  create: (data: { bmId: string; bmName: string; accessToken: string; apiType?: 'facebook' | 'cheetah' }) =>
+    api.post<{ message: string; config: BMConfig }>('/bm-config', data),
+
+  // Update BM configuration
+  update: (id: string, data: { bmName?: string; accessToken?: string; isActive?: boolean }) =>
+    api.put<{ message: string; config: BMConfig }>(`/bm-config/${id}`, data),
+
+  // Delete BM configuration
+  delete: (id: string) => api.delete<{ message: string }>(`/bm-config/${id}`),
+
+  // Test BM connection
+  test: (id: string) => api.post<{ success: boolean; bmName?: string; accountCount?: number; message?: string; error?: string }>(`/bm-config/${id}/test`, {}),
+
+  // Sync accounts from BM
+  syncAccounts: (id: string) => api.post<{ success: boolean; accounts: any[]; total: number; error?: string }>(`/bm-config/${id}/sync-accounts`, {}),
+}
+
+// Types for BM Config
+export interface BMConfig {
+  id: string
+  bmId: string
+  bmName: string
+  apiType: 'facebook' | 'cheetah'
+  isActive: boolean
+  totalAccounts: number
+  lastSyncAt: string | null
+  createdAt: string
+}
+
+export interface BMConfigFull extends BMConfig {
+  accessToken: string
+  fullToken: string
 }

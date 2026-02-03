@@ -4,12 +4,12 @@ import { useEffect, useState, useRef } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { Card } from '@/components/ui/Card'
 import { applicationsApi, usersApi, bmShareApi, accountDepositsApi, accountRefundsApi, balanceTransfersApi } from '@/lib/api'
 import {
   Search,
   Plus,
   Download,
-  MoreVertical,
   Eye,
   Edit,
   ChevronLeft,
@@ -17,9 +17,8 @@ import {
   ChevronDown,
   X,
   Check,
-  TrendingUp,
-  TrendingDown,
-  Gift
+  Gift,
+  Loader2
 } from 'lucide-react'
 
 type Application = {
@@ -81,6 +80,7 @@ type BmShareRequest = {
 type AccountDeposit = {
   id: string
   amount: string
+  commissionAmount?: string
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   remarks: string | null
   adminRemarks: string | null
@@ -123,38 +123,29 @@ type AccountRefund = {
   }
 }
 
-type BalanceTransfer = {
-  id: string
-  amount: string
-  status: 'PENDING' | 'APPROVED' | 'REJECTED'
-  remarks: string | null
-  adminRemarks: string | null
-  approvedAt: string | null
-  createdAt: string
-  fromAccount: {
-    id: string
-    accountId: string
-    accountName: string
-    platform: string
-    balance: string
-  }
-  toAccount: {
-    id: string
-    accountId: string
-    accountName: string
-    platform: string
-    balance: string
-  }
-  user: {
-    id: string
-    username: string
-    email: string
-    uniqueId: string
-  }
-}
-
 type Tab = 'account-list' | 'bm-share' | 'deposit-list' | 'refund-list'
-type RefundSubTab = 'refunds' | 'transfers'
+
+// Stats Chart Component
+const StatsChart = ({ value, color }: { value: number; color: string }) => {
+  const height = Math.min(40, Math.max(10, value / 10))
+  return (
+    <div className="absolute bottom-0 right-0 w-24 h-12 opacity-30">
+      <svg viewBox="0 0 100 50" className="w-full h-full">
+        <path
+          d={`M0,50 L0,${50 - height} Q25,${50 - height - 10} 50,${50 - height + 5} T100,${50 - height - 5} L100,50 Z`}
+          fill={color}
+          opacity="0.3"
+        />
+        <path
+          d={`M0,${50 - height} Q25,${50 - height - 10} 50,${50 - height + 5} T100,${50 - height - 5}`}
+          stroke={color}
+          strokeWidth="2"
+          fill="none"
+        />
+      </svg>
+    </div>
+  )
+}
 
 export default function FacebookPage() {
   const [activeTab, setActiveTab] = useState<Tab>('account-list')
@@ -165,6 +156,9 @@ export default function FacebookPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+
+  // Dropdown states
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
 
   // BM Share state
   const [bmShareRequests, setBmShareRequests] = useState<BmShareRequest[]>([])
@@ -178,18 +172,9 @@ export default function FacebookPage() {
   const [accountRefunds, setAccountRefunds] = useState<AccountRefund[]>([])
   const [refundsLoading, setRefundsLoading] = useState(false)
 
-  // Balance Transfers state
-  const [balanceTransfers, setBalanceTransfers] = useState<BalanceTransfer[]>([])
-  const [transfersLoading, setTransfersLoading] = useState(false)
-
-  // Refund sub-tab state
-  const [refundSubTab, setRefundSubTab] = useState<RefundSubTab>('refunds')
-
   // Edit amount state
   const [editingRefundId, setEditingRefundId] = useState<string | null>(null)
   const [editingRefundAmount, setEditingRefundAmount] = useState<string>('')
-  const [editingTransferId, setEditingTransferId] = useState<string | null>(null)
-  const [editingTransferAmount, setEditingTransferAmount] = useState<string>('')
 
   // Stats
   const [stats, setStats] = useState({
@@ -206,7 +191,6 @@ export default function FacebookPage() {
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
   const [showApproveModal, setShowApproveModal] = useState(false)
   const [showCouponModal, setShowCouponModal] = useState(false)
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null)
@@ -225,7 +209,7 @@ export default function FacebookPage() {
     accounts: [{ name: '', accountId: '' }]
   })
 
-  // Approve Form - account IDs to assign
+  // Approve Form
   const [approveForm, setApproveForm] = useState<{ name: string; accountId: string }[]>([])
 
   // Bulk Approve Modal
@@ -235,13 +219,9 @@ export default function FacebookPage() {
   }>({})
   const [bulkApproveLoading, setBulkApproveLoading] = useState(false)
 
-  // Active menu for row actions
-  const [activeMenu, setActiveMenu] = useState<string | null>(null)
-  const [menuPosition, setMenuPosition] = useState<{ top: boolean }>({ top: false })
-  const menuButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({})
-
-  // Status filter dropdown
-  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false)
+  // Tab refs for dynamic indicator positioning
+  const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({})
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
 
   const tabs = [
     { id: 'account-list', label: 'Account List' },
@@ -249,6 +229,34 @@ export default function FacebookPage() {
     { id: 'deposit-list', label: 'Deposit List' },
     { id: 'refund-list', label: 'Refund List' },
   ]
+
+  // Update indicator position when tab changes
+  useEffect(() => {
+    const updateIndicator = () => {
+      const activeRef = tabRefs.current[activeTab]
+      if (activeRef) {
+        setIndicatorStyle({
+          left: activeRef.offsetLeft,
+          width: activeRef.offsetWidth,
+        })
+      }
+    }
+    updateIndicator()
+    window.addEventListener('resize', updateIndicator)
+    return () => window.removeEventListener('resize', updateIndicator)
+  }, [activeTab])
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.dropdown-container')) {
+        setShowStatusDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const fetchData = async () => {
     setLoading(true)
@@ -318,19 +326,6 @@ export default function FacebookPage() {
     }
   }
 
-  // Fetch Balance Transfers
-  const fetchBalanceTransfers = async () => {
-    setTransfersLoading(true)
-    try {
-      const data = await balanceTransfersApi.getAll('FACEBOOK', statusFilter !== 'all' ? statusFilter : undefined)
-      setBalanceTransfers(data.transfers || [])
-    } catch (error) {
-      console.error('Failed to fetch balance transfers:', error)
-    } finally {
-      setTransfersLoading(false)
-    }
-  }
-
   // Fetch data based on active tab
   useEffect(() => {
     if (activeTab === 'bm-share') {
@@ -338,13 +333,9 @@ export default function FacebookPage() {
     } else if (activeTab === 'deposit-list') {
       fetchAccountDeposits()
     } else if (activeTab === 'refund-list') {
-      if (refundSubTab === 'refunds') {
-        fetchAccountRefunds()
-      } else {
-        fetchBalanceTransfers()
-      }
+      fetchAccountRefunds()
     }
-  }, [activeTab, statusFilter, refundSubTab])
+  }, [activeTab, statusFilter])
 
   // Handle BM Share approve/reject
   const handleBmShareApprove = async (id: string) => {
@@ -406,26 +397,6 @@ export default function FacebookPage() {
     }
   }
 
-  // Handle Balance Transfer approve/reject
-  const handleTransferApprove = async (id: string) => {
-    try {
-      await balanceTransfersApi.approve(id)
-      fetchBalanceTransfers()
-    } catch (error: any) {
-      alert(error.message || 'Failed to approve')
-    }
-  }
-
-  const handleTransferReject = async (id: string) => {
-    if (!confirm('Are you sure you want to reject this transfer request?')) return
-    try {
-      await balanceTransfersApi.reject(id)
-      fetchBalanceTransfers()
-    } catch (error: any) {
-      alert(error.message || 'Failed to reject')
-    }
-  }
-
   // Handle refund amount edit
   const handleRefundAmountEdit = (refund: AccountRefund) => {
     setEditingRefundId(refund.id)
@@ -446,38 +417,6 @@ export default function FacebookPage() {
     } catch (error: any) {
       alert(error.message || 'Failed to update amount')
     }
-  }
-
-  const handleRefundAmountCancel = () => {
-    setEditingRefundId(null)
-    setEditingRefundAmount('')
-  }
-
-  // Handle transfer amount edit
-  const handleTransferAmountEdit = (transfer: BalanceTransfer) => {
-    setEditingTransferId(transfer.id)
-    setEditingTransferAmount(parseFloat(transfer.amount).toFixed(2))
-  }
-
-  const handleTransferAmountSave = async (id: string) => {
-    const amount = parseFloat(editingTransferAmount)
-    if (isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid amount')
-      return
-    }
-    try {
-      await balanceTransfersApi.updateAmount(id, amount)
-      setEditingTransferId(null)
-      setEditingTransferAmount('')
-      fetchBalanceTransfers()
-    } catch (error: any) {
-      alert(error.message || 'Failed to update amount')
-    }
-  }
-
-  const handleTransferAmountCancel = () => {
-    setEditingTransferId(null)
-    setEditingTransferAmount('')
   }
 
   // Parse account details JSON
@@ -503,7 +442,7 @@ export default function FacebookPage() {
     return (
       <div className="flex flex-col">
         {idsWithValues.slice(0, 2).map((a, i) => (
-          <span key={i} className="text-blue-600 text-xs">{a.accountId}</span>
+          <span key={i} className="text-[#52B788] text-xs font-mono">{a.accountId}</span>
         ))}
         {idsWithValues.length > 2 && <span className="text-gray-400 text-xs">+{idsWithValues.length - 2} more</span>}
       </div>
@@ -530,14 +469,6 @@ export default function FacebookPage() {
   const handleViewRequest = (app: Application) => {
     setSelectedApplication(app)
     setShowViewModal(true)
-    setActiveMenu(null)
-  }
-
-  // Handle edit request
-  const handleEditRequest = (app: Application) => {
-    setSelectedApplication(app)
-    setShowEditModal(true)
-    setActiveMenu(null)
   }
 
   // Handle approve
@@ -546,14 +477,12 @@ export default function FacebookPage() {
     const accounts = parseAccountDetails(app.accountDetails)
     setApproveForm(accounts.map(a => ({ name: a.name, accountId: a.accountId || '' })))
     setShowApproveModal(true)
-    setActiveMenu(null)
   }
 
   // Submit approve
   const handleApprove = async () => {
     if (!selectedApplication) return
 
-    // Validate that at least one account has an ID
     const validAccounts = approveForm.filter(acc => acc.accountId && acc.accountId.trim() !== '')
     if (validAccounts.length === 0) {
       alert('Please enter at least one Account ID')
@@ -628,12 +557,10 @@ export default function FacebookPage() {
     }
 
     if (action === 'approve') {
-      // Get selected applications and prepare bulk approve data
       const selectedApps = applications.filter(app => selectedItems.includes(app.id))
       const initialData: { [applicationId: string]: { name: string; accountId: string }[] } = {}
 
       selectedApps.forEach(app => {
-        // Parse accountDetails if it exists, otherwise use adAccountQty to create empty slots
         let accounts: { name: string; accountId: string }[] = []
         if (app.accountDetails) {
           try {
@@ -643,7 +570,6 @@ export default function FacebookPage() {
               accountId: ''
             }))
           } catch {
-            // If parsing fails, create based on quantity
             for (let i = 0; i < (app.adAccountQty || 1); i++) {
               accounts.push({ name: `Account ${i + 1}`, accountId: '' })
             }
@@ -673,7 +599,6 @@ export default function FacebookPage() {
 
   // Submit bulk approve
   const handleBulkApproveSubmit = async () => {
-    // Validate that each application has at least one account ID
     for (const appId of selectedItems) {
       const accounts = bulkApproveData[appId] || []
       const hasValidAccount = accounts.some(acc => acc.accountId && acc.accountId.trim() !== '')
@@ -686,7 +611,6 @@ export default function FacebookPage() {
 
     setBulkApproveLoading(true)
     try {
-      // Filter out empty account IDs
       const filteredData: { [applicationId: string]: { name: string; accountId: string }[] } = {}
       for (const appId of selectedItems) {
         filteredData[appId] = (bulkApproveData[appId] || []).filter(acc => acc.accountId && acc.accountId.trim() !== '')
@@ -729,36 +653,6 @@ export default function FacebookPage() {
     }
   }
 
-  // Handle menu toggle with position detection
-  const handleMenuToggle = (appId: string) => {
-    if (activeMenu === appId) {
-      setActiveMenu(null)
-      return
-    }
-
-    // Check if button is near bottom of viewport
-    const button = menuButtonRefs.current[appId]
-    if (button) {
-      const rect = button.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const spaceBelow = viewportHeight - rect.bottom
-      // If less than 250px space below, open menu upward
-      setMenuPosition({ top: spaceBelow < 250 })
-    }
-    setActiveMenu(appId)
-  }
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (activeMenu && !(e.target as Element).closest('.action-menu-container')) {
-        setActiveMenu(null)
-      }
-    }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [activeMenu])
-
   // Filter applications by search
   const filteredApplications = applications.filter(app => {
     if (!searchQuery) return true
@@ -773,191 +667,183 @@ export default function FacebookPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'APPROVED':
-        return (
-          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-green-500 text-white">
-            <Check className="w-3 h-3" />
-            Approved
-          </span>
-        )
+        return <span className="px-4 py-1.5 rounded-md text-xs font-semibold bg-[#52B788] text-white">Approved</span>
       case 'PENDING':
-        return (
-          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-500 text-white">
-            Pending
-          </span>
-        )
+        return <span className="px-4 py-1.5 rounded-md text-xs font-semibold bg-[#F59E0B] text-white">Pending</span>
       case 'REJECTED':
-        return (
-          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-500 text-white">
-            Rejected
-          </span>
-        )
+        return <span className="px-4 py-1.5 rounded-md text-xs font-semibold bg-[#EF4444] text-white">Rejected</span>
       default:
-        return null
+        return <span className="px-4 py-1.5 rounded-md text-xs font-semibold bg-gray-100 text-gray-600">{status}</span>
     }
   }
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    })
+  }
+
   return (
-    <DashboardLayout title="Facebook Account Management">
-      <div className="space-y-6">
-        {/* Header with Search and Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2.5 w-64 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788]"
-            />
-          </div>
-
-          {/* Filters */}
-          <div className="relative">
-            <button
-              onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-              className="h-10 px-4 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 focus:border-[#52B788] focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 flex items-center gap-2 transition-all duration-200 min-w-[130px]"
-            >
-              <span className="capitalize">
-                {statusFilter === 'all' ? 'Action' : statusFilter === 'APPROVED' ? 'Approved' : statusFilter === 'PENDING' ? 'Pending' : 'Rejected'}
-              </span>
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {isStatusDropdownOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-[60]"
-                  onClick={() => setIsStatusDropdownOpen(false)}
+    <DashboardLayout title="Facebook Account Management" subtitle="">
+      <div className="flex flex-col h-[calc(100vh-120px)]">
+        {/* Fixed Top Section */}
+        <div className="flex-shrink-0 pb-4">
+          {/* Top Actions Bar */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search users, ID, accounts..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm w-[250px] focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788] bg-white"
                 />
-                <div className="absolute left-0 top-12 z-[70] w-40 bg-white rounded-xl shadow-lg border border-gray-100 py-1 animate-in fade-in slide-in-from-top-2 duration-200">
+              </div>
+
+              {/* Status Filter - Custom Dropdown */}
+              <div className="relative dropdown-container">
+                <button
+                  onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                  className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-gray-300 transition-colors min-w-[130px] justify-between bg-white"
+                >
+                  <span>{statusFilter === 'all' ? 'All Status' : statusFilter === 'APPROVED' ? 'Approved' : statusFilter === 'PENDING' ? 'Pending' : 'Rejected'}</span>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
+                </button>
+                <div className={`absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 transition-all duration-200 ease-out origin-top ${
+                  showStatusDropdown
+                    ? 'opacity-100 scale-y-100 translate-y-0 visible'
+                    : 'opacity-0 scale-y-95 -translate-y-1 invisible'
+                }`}>
                   {[
-                    { value: 'all', label: 'Action' },
+                    { value: 'all', label: 'All Status' },
                     { value: 'APPROVED', label: 'Approved' },
                     { value: 'PENDING', label: 'Pending' },
                     { value: 'REJECTED', label: 'Rejected' },
-                  ].map((option) => (
+                  ].map((option, index) => (
                     <button
                       key={option.value}
-                      onClick={() => {
-                        setStatusFilter(option.value)
-                        setIsStatusDropdownOpen(false)
-                      }}
-                      className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-2 ${
-                        statusFilter === option.value
-                          ? 'bg-[#52B788]/10 text-[#52B788] font-medium'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                      onClick={() => { setStatusFilter(option.value); setShowStatusDropdown(false); setCurrentPage(1) }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-all duration-150 ${statusFilter === option.value ? 'text-[#52B788] bg-[#52B788]/5 font-medium' : 'text-gray-600'}`}
+                      style={{ transitionDelay: showStatusDropdown ? `${index * 30}ms` : '0ms' }}
                     >
-                      {statusFilter === option.value && <Check className="w-4 h-4" />}
                       {option.label}
                     </button>
                   ))}
                 </div>
-              </>
-            )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 border border-[#52B788] text-[#52B788] rounded-lg text-sm font-medium hover:bg-[#52B788]/5 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Create Account
+              </button>
+              <button
+                onClick={() => setShowCouponModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 border border-[#8B5CF6] text-[#8B5CF6] rounded-lg text-sm font-medium hover:bg-[#8B5CF6]/5 transition-colors"
+              >
+                <Gift className="w-4 h-4" />
+                Add Coupon
+              </button>
+              <button className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+                <Download className="w-4 h-4" />
+                Export Image
+              </button>
+            </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              className="border-[#52B788] text-[#52B788] hover:bg-[#52B788]/10"
-              onClick={() => setShowCreateModal(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Account
-            </Button>
-            <Button
-              variant="outline"
-              className="border-[#8B5CF6] text-[#8B5CF6] hover:bg-[#8B5CF6]/10"
-              onClick={() => setShowCouponModal(true)}
-            >
-              <Gift className="w-4 h-4 mr-2" />
-              Add Coupon
-            </Button>
-            <Button variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Export Image
-            </Button>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {/* Total Balance - Blue */}
+            <Card className="p-4 relative overflow-hidden">
+              <div className="flex items-start justify-between relative z-10">
+                <div>
+                  <span className="text-sm text-gray-500">Total Balance</span>
+                  <p className="text-2xl font-bold text-gray-800 mt-1">${stats.totalBalance.toLocaleString()}</p>
+                </div>
+                <span className="px-2 py-0.5 bg-blue-500 text-white text-xs font-medium rounded">Total</span>
+              </div>
+              <StatsChart value={stats.totalBalance} color="#3B82F6" />
+            </Card>
+
+            {/* Total Approved - Green */}
+            <Card className="p-4 relative overflow-hidden">
+              <div className="flex items-start justify-between relative z-10">
+                <div>
+                  <span className="text-sm text-gray-500">Total Approved Requests</span>
+                  <p className="text-2xl font-bold text-gray-800 mt-1">{stats.totalApproved.toLocaleString()}</p>
+                </div>
+                <span className="px-2 py-0.5 bg-[#52B788] text-white text-xs font-medium rounded">Approved</span>
+              </div>
+              <StatsChart value={stats.totalApproved} color="#52B788" />
+            </Card>
+
+            {/* Total Pending - Orange */}
+            <Card className="p-4 relative overflow-hidden">
+              <div className="flex items-start justify-between relative z-10">
+                <div>
+                  <span className="text-sm text-gray-500">Total Pending Requests</span>
+                  <p className="text-2xl font-bold text-gray-800 mt-1">{stats.totalPending.toLocaleString()}</p>
+                </div>
+                <span className="px-2 py-0.5 bg-[#F59E0B] text-white text-xs font-medium rounded">Pending</span>
+              </div>
+              <StatsChart value={stats.totalPending} color="#F59E0B" />
+            </Card>
+
+            {/* Total Rejected - Red */}
+            <Card className="p-4 relative overflow-hidden">
+              <div className="flex items-start justify-between relative z-10">
+                <div>
+                  <span className="text-sm text-gray-500">Total Rejected Requests</span>
+                  <p className="text-2xl font-bold text-gray-800 mt-1">{stats.totalRejected.toLocaleString()}</p>
+                </div>
+                <span className="px-2 py-0.5 bg-[#EF4444] text-white text-xs font-medium rounded">Rejected</span>
+              </div>
+              <StatsChart value={stats.totalRejected} color="#EF4444" />
+            </Card>
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="flex items-center gap-2 text-gray-600 text-sm mb-1">
-              <span className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs">f</span>
-              </span>
-              Total Balance
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold">${stats.totalBalance.toLocaleString()}</span>
-              <span className="flex items-center text-xs text-green-500 bg-green-50 px-2 py-0.5 rounded-full">
-                <TrendingUp className="w-3 h-3 mr-0.5" />
-                Growth 10%
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="text-gray-600 text-sm mb-1">Total Approved Requests</div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold">{stats.totalApproved}</span>
-              <span className="flex items-center text-xs text-green-500 bg-green-50 px-2 py-0.5 rounded-full">
-                <TrendingUp className="w-3 h-3 mr-0.5" />
-                Growth 10%
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="text-gray-600 text-sm mb-1">Total Pending Requests</div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold">{stats.totalPending}</span>
-              <span className="flex items-center text-xs text-green-500 bg-green-50 px-2 py-0.5 rounded-full">
-                <TrendingUp className="w-3 h-3 mr-0.5" />
-                Growth 10%
-              </span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-            <div className="text-gray-600 text-sm mb-1">Total Rejected Requests</div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold">{stats.totalRejected}</span>
-              <span className="flex items-center text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
-                <TrendingDown className="w-3 h-3 mr-0.5" />
-                Decrease 10%
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs and Table */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm" style={{ overflow: 'visible' }}>
-          {/* Tabs Header */}
-          <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-gray-100">
-            <div className="flex gap-2">
+        {/* Tabs & Table - Flex grow to fill remaining space */}
+        <Card className="p-0 overflow-hidden flex flex-col flex-1 min-h-0">
+          {/* Tabs with smooth sliding indicator */}
+          <div className="border-b border-gray-100">
+            <div className="flex relative px-2">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as Tab)}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  ref={(el) => { tabRefs.current[tab.id] = el }}
+                  onClick={() => { setActiveTab(tab.id as Tab); setCurrentPage(1) }}
+                  className={`px-6 py-4 text-sm font-medium transition-all duration-300 ease-out relative z-10 ${
                     activeTab === tab.id
-                      ? 'bg-[#52B788] text-white'
-                      : 'text-gray-500 hover:bg-gray-100'
+                      ? 'text-[#52B788]'
+                      : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
                   {tab.label}
                 </button>
               ))}
+              {/* Sliding indicator */}
+              <div
+                className="absolute bottom-0 h-0.5 bg-[#52B788] transition-all duration-300 ease-out"
+                style={{
+                  left: indicatorStyle.left,
+                  width: indicatorStyle.width,
+                }}
+              />
             </div>
 
             {/* Select Multiple & Action */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-end gap-3 px-4 pb-3">
               {selectMultiple && selectedItems.length > 0 && (
                 <select
                   onChange={(e) => {
@@ -986,14 +872,14 @@ export default function FacebookPage() {
             </div>
           </div>
 
-          {/* Table */}
-          {activeTab === 'account-list' && (
-            <div className="overflow-x-auto overflow-y-visible">
-              <table className="w-full" style={{ position: 'relative' }}>
-                <thead>
-                  <tr className="bg-gray-50 text-left">
+          {/* Table - Scrollable area */}
+          <div className="overflow-auto flex-1 min-h-0" key={activeTab}>
+            <table className="w-full">
+              <thead>
+                {activeTab === 'account-list' && (
+                  <tr className="bg-gray-50/50">
                     {selectMultiple && (
-                      <th className="py-3 px-4">
+                      <th className="py-3 px-4 text-left">
                         <input
                           type="checkbox"
                           checked={selectedItems.length === applications.length && applications.length > 0}
@@ -1002,38 +888,83 @@ export default function FacebookPage() {
                         />
                       </th>
                     )}
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">User Name</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Apply ID</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">License Name</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Ads ID</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Ad Qty</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-[#52B788] uppercase">Total Cost</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Create Date</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Edit</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">USER NAME</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">APPLY ID</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">LICENSE NAME</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ADS ID</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">AD QTY</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#52B788] whitespace-nowrap">TOTAL COST</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">CREATE DATE</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">STATUS</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">EDIT</th>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {loading ? (
+                )}
+                {activeTab === 'bm-share' && (
+                  <tr className="bg-gray-50/50">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">APPLY ID</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">USER NAME</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACCOUNT NAME</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACCOUNT ID</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">BM ID</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">MESSAGE</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">DATE</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">STATUS</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACTION</th>
+                  </tr>
+                )}
+                {activeTab === 'deposit-list' && (
+                  <tr className="bg-gray-50/50">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">USER NAME</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACCOUNT NAME</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACCOUNT ID</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#52B788] whitespace-nowrap">AMOUNT</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-orange-500 whitespace-nowrap">TOTAL COST</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">REMARKS</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">DATE</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">STATUS</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACTION</th>
+                  </tr>
+                )}
+                {activeTab === 'refund-list' && (
+                  <tr className="bg-gray-50/50">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">USER NAME</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACCOUNT NAME</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACCOUNT ID</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-[#EF4444] whitespace-nowrap">REFUND AMOUNT</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACCOUNT BALANCE</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">REASON</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">DATE</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">STATUS</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACTION</th>
+                  </tr>
+                )}
+              </thead>
+              <tbody>
+                {/* Account List Tab */}
+                {activeTab === 'account-list' && (
+                  loading ? (
                     <tr>
-                      <td colSpan={selectMultiple ? 10 : 9} className="py-16 text-center">
+                      <td colSpan={selectMultiple ? 10 : 9} className="py-12 text-center">
                         <div className="flex flex-col items-center">
-                          <div className="w-8 h-8 border-2 border-[#52B788] border-t-transparent rounded-full animate-spin mb-2"></div>
+                          <Loader2 className="w-8 h-8 text-[#52B788] animate-spin mb-2" />
                           <span className="text-gray-500">Loading...</span>
                         </div>
                       </td>
                     </tr>
                   ) : filteredApplications.length === 0 ? (
                     <tr>
-                      <td colSpan={selectMultiple ? 10 : 9} className="py-16 text-center text-gray-500">
+                      <td colSpan={selectMultiple ? 10 : 9} className="py-12 text-center text-gray-500">
                         No applications found
                       </td>
                     </tr>
                   ) : (
-                    filteredApplications.map((app) => (
-                      <tr key={app.id} className="hover:bg-gray-50 transition-colors">
+                    filteredApplications.map((app, index) => (
+                      <tr
+                        key={app.id}
+                        className="border-b border-gray-50 hover:bg-gray-50/50 align-middle"
+                      >
                         {selectMultiple && (
-                          <td className="py-3 px-4">
+                          <td className="py-4 px-4">
                             <input
                               type="checkbox"
                               checked={selectedItems.includes(app.id)}
@@ -1042,9 +973,9 @@ export default function FacebookPage() {
                             />
                           </td>
                         )}
-                        <td className="py-3 px-4 text-sm font-medium text-gray-800">{app.user.username}</td>
-                        <td className="py-3 px-4 text-sm font-mono text-gray-600">{app.applyId}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-4 px-4 text-sm text-gray-700 whitespace-nowrap">{app.user.username}</td>
+                        <td className="py-4 px-4 text-sm text-gray-600 font-mono">{app.applyId}</td>
+                        <td className="py-4 px-4">
                           <div className="flex flex-col">
                             <span className={`text-xs px-2 py-0.5 rounded inline-block w-fit ${
                               app.licenseType === 'NEW' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
@@ -1054,16 +985,13 @@ export default function FacebookPage() {
                             <span className="text-sm text-gray-600 mt-0.5">{app.licenseNo || '---'}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-4">{getAdsIdDisplay(app)}</td>
-                        <td className="py-3 px-4 text-sm text-gray-600">{String(app.adAccountQty).padStart(2, '0')}</td>
-                        <td className="py-3 px-4 text-sm font-bold text-[#52B788]">${parseFloat(app.totalCost).toFixed(2)}</td>
-                        <td className="py-3 px-4 text-sm text-gray-500">
-                          {new Date(app.createdAt).toLocaleDateString('en-GB')}
-                        </td>
-                        <td className="py-3 px-4">{getStatusBadge(app.status)}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-4 px-4">{getAdsIdDisplay(app)}</td>
+                        <td className="py-4 px-4 text-sm text-gray-600">{String(app.adAccountQty).padStart(2, '0')}</td>
+                        <td className="py-4 px-4 text-sm font-semibold text-[#52B788] whitespace-nowrap">${parseFloat(app.totalCost).toFixed(2)}</td>
+                        <td className="py-4 px-4 text-sm text-gray-500 whitespace-nowrap">{formatDate(app.createdAt)}</td>
+                        <td className="py-4 px-4">{getStatusBadge(app.status)}</td>
+                        <td className="py-4 px-4">
                           <div className="flex items-center gap-1">
-                            {/* View Icon */}
                             <button
                               onClick={() => handleViewRequest(app)}
                               className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-500 transition-all duration-200"
@@ -1071,85 +999,60 @@ export default function FacebookPage() {
                             >
                               <Eye className="w-4 h-4" />
                             </button>
-
-                            {/* Approve Icon - only for pending */}
                             {app.status === 'PENDING' && (
-                              <button
-                                onClick={() => handleOpenApprove(app)}
-                                className="p-2 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-500 transition-all duration-200"
-                                title="Approve"
-                              >
-                                <Check className="w-4 h-4" />
-                              </button>
-                            )}
-
-                            {/* Reject Icon - only for pending */}
-                            {app.status === 'PENDING' && (
-                              <button
-                                onClick={() => handleReject(app, true)}
-                                className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all duration-200"
-                                title="Reject"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleOpenApprove(app)}
+                                  className="p-2 rounded-lg hover:bg-green-50 text-gray-400 hover:text-green-500 transition-all duration-200"
+                                  title="Approve"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleReject(app, true)}
+                                  className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all duration-200"
+                                  title="Reject"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>
                       </tr>
                     ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  )
+                )}
 
-          {/* BM Share Tab */}
-          {activeTab === 'bm-share' && (
-            <div className="overflow-x-auto overflow-y-visible">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 text-left">
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Apply ID</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">User Name</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Account Name</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Account ID</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">BM ID</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Message</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Date</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {bmShareLoading ? (
+                {/* BM Share Tab */}
+                {activeTab === 'bm-share' && (
+                  bmShareLoading ? (
                     <tr>
-                      <td colSpan={9} className="py-16 text-center">
+                      <td colSpan={9} className="py-12 text-center">
                         <div className="flex flex-col items-center">
-                          <div className="w-8 h-8 border-2 border-[#52B788] border-t-transparent rounded-full animate-spin mb-2"></div>
+                          <Loader2 className="w-8 h-8 text-[#52B788] animate-spin mb-2" />
                           <span className="text-gray-500">Loading...</span>
                         </div>
                       </td>
                     </tr>
                   ) : bmShareRequests.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-16 text-center text-gray-500">
+                      <td colSpan={9} className="py-12 text-center text-gray-500">
                         No BM Share requests found
                       </td>
                     </tr>
                   ) : (
                     bmShareRequests.map((req) => (
-                      <tr key={req.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="py-3 px-4 text-sm font-mono text-gray-600">{req.applyId}</td>
-                        <td className="py-3 px-4 text-sm font-medium text-gray-800">{req.user.username}</td>
-                        <td className="py-3 px-4 text-sm text-gray-600">{req.adAccountName}</td>
-                        <td className="py-3 px-4 text-sm text-blue-600">{req.adAccountId}</td>
-                        <td className="py-3 px-4 text-sm text-gray-600">{req.bmId}</td>
-                        <td className="py-3 px-4 text-sm text-gray-500 max-w-[150px] truncate">{req.message || '---'}</td>
-                        <td className="py-3 px-4 text-sm text-gray-500">
-                          {new Date(req.createdAt).toLocaleDateString('en-GB')}
-                        </td>
-                        <td className="py-3 px-4">{getStatusBadge(req.status)}</td>
-                        <td className="py-3 px-4">
+                      <tr key={req.id} className="border-b border-gray-50 hover:bg-gray-50/50 align-middle">
+                        <td className="py-4 px-4 text-sm text-gray-600 font-mono">{req.applyId}</td>
+                        <td className="py-4 px-4 text-sm text-gray-700 whitespace-nowrap">{req.user.username}</td>
+                        <td className="py-4 px-4 text-sm text-gray-600">{req.adAccountName}</td>
+                        <td className="py-4 px-4 text-sm text-[#52B788] font-mono">{req.adAccountId}</td>
+                        <td className="py-4 px-4 text-sm text-[#8B5CF6] font-mono">{req.bmId}</td>
+                        <td className="py-4 px-4 text-sm text-gray-500 max-w-[150px] truncate">{req.message || '---'}</td>
+                        <td className="py-4 px-4 text-sm text-gray-500 whitespace-nowrap">{formatDate(req.createdAt)}</td>
+                        <td className="py-4 px-4">{getStatusBadge(req.status)}</td>
+                        <td className="py-4 px-4">
                           {req.status === 'PENDING' && (
                             <div className="flex items-center gap-2">
                               <button
@@ -1171,68 +1074,155 @@ export default function FacebookPage() {
                         </td>
                       </tr>
                     ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  )
+                )}
 
-          {/* Deposit List Tab */}
-          {activeTab === 'deposit-list' && (
-            <div className="overflow-x-auto overflow-y-visible">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 text-left">
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">User Name</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Account Name</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Account ID</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-[#52B788] uppercase">Amount</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Remarks</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Date</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                    <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {depositsLoading ? (
+                {/* Deposit List Tab */}
+                {activeTab === 'deposit-list' && (
+                  depositsLoading ? (
                     <tr>
-                      <td colSpan={8} className="py-16 text-center">
+                      <td colSpan={9} className="py-12 text-center">
                         <div className="flex flex-col items-center">
-                          <div className="w-8 h-8 border-2 border-[#52B788] border-t-transparent rounded-full animate-spin mb-2"></div>
+                          <Loader2 className="w-8 h-8 text-[#52B788] animate-spin mb-2" />
                           <span className="text-gray-500">Loading...</span>
                         </div>
                       </td>
                     </tr>
                   ) : accountDeposits.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-16 text-center text-gray-500">
+                      <td colSpan={9} className="py-12 text-center text-gray-500">
                         No deposit requests found
                       </td>
                     </tr>
                   ) : (
-                    accountDeposits.map((dep) => (
-                      <tr key={dep.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="py-3 px-4 text-sm font-medium text-gray-800">{dep.adAccount.user.username}</td>
-                        <td className="py-3 px-4 text-sm text-gray-600">{dep.adAccount.accountName}</td>
-                        <td className="py-3 px-4 text-sm text-blue-600">{dep.adAccount.accountId}</td>
-                        <td className="py-3 px-4 text-sm font-bold text-[#52B788]">${parseFloat(dep.amount).toFixed(2)}</td>
-                        <td className="py-3 px-4 text-sm text-gray-500 max-w-[150px] truncate">{dep.remarks || '---'}</td>
-                        <td className="py-3 px-4 text-sm text-gray-500">
-                          {new Date(dep.createdAt).toLocaleDateString('en-GB')}
+                    accountDeposits.map((dep) => {
+                      const depositAmount = parseFloat(dep.amount) || 0
+                      const commissionAmount = parseFloat(dep.commissionAmount || '0') || 0
+                      const totalCost = depositAmount + commissionAmount
+                      return (
+                        <tr key={dep.id} className="border-b border-gray-50 hover:bg-gray-50/50 align-middle">
+                          <td className="py-4 px-4 text-sm text-gray-700 whitespace-nowrap">{dep.adAccount.user.username}</td>
+                          <td className="py-4 px-4 text-sm text-gray-600">{dep.adAccount.accountName}</td>
+                          <td className="py-4 px-4 text-sm text-[#52B788] font-mono">{dep.adAccount.accountId}</td>
+                          <td className="py-4 px-4 text-sm font-semibold text-[#52B788]">${depositAmount.toFixed(2)}</td>
+                          <td className="py-4 px-4 text-sm font-semibold text-orange-600">
+                            ${totalCost.toFixed(2)}
+                            {commissionAmount > 0 && (
+                              <span className="text-xs font-normal text-gray-400 ml-1">
+                                (+${commissionAmount.toFixed(2)})
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-4 text-sm text-gray-500 max-w-[150px] truncate">{dep.remarks || '---'}</td>
+                          <td className="py-4 px-4 text-sm text-gray-500 whitespace-nowrap">{formatDate(dep.createdAt)}</td>
+                          <td className="py-4 px-4">{getStatusBadge(dep.status)}</td>
+                          <td className="py-4 px-4">
+                            {dep.status === 'PENDING' && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleDepositApprove(dep.id)}
+                                  className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                  title="Approve"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDepositReject(dep.id)}
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                  title="Reject"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )
+                )}
+
+                {/* Refund List Tab */}
+                {activeTab === 'refund-list' && (
+                  refundsLoading ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center">
+                        <div className="flex flex-col items-center">
+                          <Loader2 className="w-8 h-8 text-[#52B788] animate-spin mb-2" />
+                          <span className="text-gray-500">Loading...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : accountRefunds.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-12 text-center text-gray-500">
+                        No refund requests found
+                      </td>
+                    </tr>
+                  ) : (
+                    accountRefunds.map((ref) => (
+                      <tr key={ref.id} className="border-b border-gray-50 hover:bg-gray-50/50 align-middle">
+                        <td className="py-4 px-4 text-sm text-gray-700 whitespace-nowrap">{ref.adAccount.user.username}</td>
+                        <td className="py-4 px-4 text-sm text-gray-600">{ref.adAccount.accountName}</td>
+                        <td className="py-4 px-4 text-sm text-[#52B788] font-mono">{ref.adAccount.accountId}</td>
+                        <td className="py-4 px-4">
+                          {editingRefundId === ref.id ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[#EF4444] font-bold">$</span>
+                              <input
+                                type="number"
+                                value={editingRefundAmount}
+                                onChange={(e) => setEditingRefundAmount(e.target.value)}
+                                className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#52B788]"
+                                min="0"
+                                step="0.01"
+                              />
+                              <button
+                                onClick={() => handleRefundAmountSave(ref.id)}
+                                className="p-1 text-green-600 hover:bg-green-50 rounded"
+                                title="Save"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => { setEditingRefundId(null); setEditingRefundAmount('') }}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                title="Cancel"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm font-semibold text-[#EF4444]">${parseFloat(ref.amount).toFixed(2)}</span>
+                              {ref.status === 'PENDING' && (
+                                <button
+                                  onClick={() => handleRefundAmountEdit(ref)}
+                                  className="p-1 text-gray-400 hover:text-[#52B788] hover:bg-gray-100 rounded transition-colors"
+                                  title="Edit amount"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
-                        <td className="py-3 px-4">{getStatusBadge(dep.status)}</td>
-                        <td className="py-3 px-4">
-                          {dep.status === 'PENDING' && (
+                        <td className="py-4 px-4 text-sm text-gray-600">${parseFloat(ref.adAccount.balance).toFixed(2)}</td>
+                        <td className="py-4 px-4 text-sm text-gray-500 max-w-[150px] truncate">{ref.reason || '---'}</td>
+                        <td className="py-4 px-4 text-sm text-gray-500 whitespace-nowrap">{formatDate(ref.createdAt)}</td>
+                        <td className="py-4 px-4">{getStatusBadge(ref.status)}</td>
+                        <td className="py-4 px-4">
+                          {ref.status === 'PENDING' && (
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={() => handleDepositApprove(dep.id)}
+                                onClick={() => handleRefundApprove(ref.id)}
                                 className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
                                 title="Approve"
                               >
                                 <Check className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleDepositReject(dep.id)}
+                                onClick={() => handleRefundReject(ref.id)}
                                 className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                                 title="Reject"
                               >
@@ -1243,337 +1233,81 @@ export default function FacebookPage() {
                         </td>
                       </tr>
                     ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
 
-          {/* Refund List Tab */}
-          {activeTab === 'refund-list' && (
-            <div>
-              {/* Sub-tabs for Refunds and Transfers */}
-              <div className="px-4 pt-3 pb-0 border-b border-gray-100">
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setRefundSubTab('refunds')}
-                    className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                      refundSubTab === 'refunds'
-                        ? 'border-[#52B788] text-[#52B788]'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Refund Requests
-                  </button>
-                  <button
-                    onClick={() => setRefundSubTab('transfers')}
-                    className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                      refundSubTab === 'transfers'
-                        ? 'border-[#52B788] text-[#52B788]'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Balance Transfers
-                  </button>
-                </div>
-              </div>
-
-              {/* Refunds Table */}
-              {refundSubTab === 'refunds' && (
-                <div className="overflow-x-auto overflow-y-visible">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-gray-50 text-left">
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">User Name</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Account Name</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Account ID</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-[#EF4444] uppercase">Refund Amount</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Account Balance</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Reason</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Date</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {refundsLoading ? (
-                        <tr>
-                          <td colSpan={9} className="py-16 text-center">
-                            <div className="flex flex-col items-center">
-                              <div className="w-8 h-8 border-2 border-[#52B788] border-t-transparent rounded-full animate-spin mb-2"></div>
-                              <span className="text-gray-500">Loading...</span>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : accountRefunds.length === 0 ? (
-                        <tr>
-                          <td colSpan={9} className="py-16 text-center text-gray-500">
-                            No refund requests found
-                          </td>
-                        </tr>
-                      ) : (
-                        accountRefunds.map((ref) => (
-                          <tr key={ref.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="py-3 px-4 text-sm font-medium text-gray-800">{ref.adAccount.user.username}</td>
-                            <td className="py-3 px-4 text-sm text-gray-600">{ref.adAccount.accountName}</td>
-                            <td className="py-3 px-4 text-sm text-blue-600">{ref.adAccount.accountId}</td>
-                            <td className="py-3 px-4">
-                              {editingRefundId === ref.id ? (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[#EF4444] font-bold">$</span>
-                                  <input
-                                    type="number"
-                                    value={editingRefundAmount}
-                                    onChange={(e) => setEditingRefundAmount(e.target.value)}
-                                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#52B788]"
-                                    min="0"
-                                    step="0.01"
-                                  />
-                                  <button
-                                    onClick={() => handleRefundAmountSave(ref.id)}
-                                    className="p-1 text-green-600 hover:bg-green-50 rounded"
-                                    title="Save"
-                                  >
-                                    <Check className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={handleRefundAmountCancel}
-                                    className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                    title="Cancel"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-sm font-bold text-[#EF4444]">${parseFloat(ref.amount).toFixed(2)}</span>
-                                  {ref.status === 'PENDING' && (
-                                    <button
-                                      onClick={() => handleRefundAmountEdit(ref)}
-                                      className="p-1 text-gray-400 hover:text-[#52B788] hover:bg-gray-100 rounded transition-colors"
-                                      title="Edit amount"
-                                    >
-                                      <Edit className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-600">${parseFloat(ref.adAccount.balance).toFixed(2)}</td>
-                            <td className="py-3 px-4 text-sm text-gray-500 max-w-[150px] truncate">{ref.reason || '---'}</td>
-                            <td className="py-3 px-4 text-sm text-gray-500">
-                              {new Date(ref.createdAt).toLocaleDateString('en-GB')}
-                            </td>
-                            <td className="py-3 px-4">{getStatusBadge(ref.status)}</td>
-                            <td className="py-3 px-4">
-                              {ref.status === 'PENDING' && (
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => handleRefundApprove(ref.id)}
-                                    className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                                    title="Approve"
-                                  >
-                                    <Check className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleRefundReject(ref.id)}
-                                    className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                                    title="Reject"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Balance Transfers Table */}
-              {refundSubTab === 'transfers' && (
-                <div className="overflow-x-auto overflow-y-visible">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-gray-50 text-left">
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">User Name</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">From Account</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">To Account</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-[#8B5CF6] uppercase">Amount</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Remarks</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Date</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                        <th className="py-3 px-4 text-xs font-semibold text-gray-500 uppercase">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {transfersLoading ? (
-                        <tr>
-                          <td colSpan={8} className="py-16 text-center">
-                            <div className="flex flex-col items-center">
-                              <div className="w-8 h-8 border-2 border-[#52B788] border-t-transparent rounded-full animate-spin mb-2"></div>
-                              <span className="text-gray-500">Loading...</span>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : balanceTransfers.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="py-16 text-center text-gray-500">
-                            No transfer requests found
-                          </td>
-                        </tr>
-                      ) : (
-                        balanceTransfers.map((tr) => (
-                          <tr key={tr.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="py-3 px-4 text-sm font-medium text-gray-800">{tr.user.username}</td>
-                            <td className="py-3 px-4">
-                              <div className="text-sm text-gray-600">{tr.fromAccount.accountName}</div>
-                              <div className="text-xs text-blue-600">{tr.fromAccount.accountId}</div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="text-sm text-gray-600">{tr.toAccount.accountName}</div>
-                              <div className="text-xs text-blue-600">{tr.toAccount.accountId}</div>
-                            </td>
-                            <td className="py-3 px-4">
-                              {editingTransferId === tr.id ? (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-[#8B5CF6] font-bold">$</span>
-                                  <input
-                                    type="number"
-                                    value={editingTransferAmount}
-                                    onChange={(e) => setEditingTransferAmount(e.target.value)}
-                                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[#52B788]"
-                                    min="0"
-                                    step="0.01"
-                                  />
-                                  <button
-                                    onClick={() => handleTransferAmountSave(tr.id)}
-                                    className="p-1 text-green-600 hover:bg-green-50 rounded"
-                                    title="Save"
-                                  >
-                                    <Check className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={handleTransferAmountCancel}
-                                    className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                    title="Cancel"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-sm font-bold text-[#8B5CF6]">${parseFloat(tr.amount).toFixed(2)}</span>
-                                  {tr.status === 'PENDING' && (
-                                    <button
-                                      onClick={() => handleTransferAmountEdit(tr)}
-                                      className="p-1 text-gray-400 hover:text-[#52B788] hover:bg-gray-100 rounded transition-colors"
-                                      title="Edit amount"
-                                    >
-                                      <Edit className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-sm text-gray-500 max-w-[150px] truncate">{tr.remarks || '---'}</td>
-                            <td className="py-3 px-4 text-sm text-gray-500">
-                              {new Date(tr.createdAt).toLocaleDateString('en-GB')}
-                            </td>
-                            <td className="py-3 px-4">{getStatusBadge(tr.status)}</td>
-                            <td className="py-3 px-4">
-                              {tr.status === 'PENDING' && (
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => handleTransferApprove(tr.id)}
-                                    className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                                    title="Approve"
-                                  >
-                                    <Check className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleTransferReject(tr.id)}
-                                    className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                                    title="Reject"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Pagination */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+          {/* Pagination - Fixed at bottom */}
+          <div className="flex-shrink-0 flex items-center justify-between px-4 py-4 border-t border-gray-100 bg-white">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-4 h-4" />
               Previous
             </button>
 
             <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum
-                if (totalPages <= 5) {
-                  pageNum = i + 1
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i
-                } else {
-                  pageNum = currentPage - 2 + i
-                }
-                return (
+              {totalPages <= 7 ? (
+                Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                   <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
                     className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                      currentPage === pageNum
+                      currentPage === page
                         ? 'bg-[#52B788] text-white'
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    {pageNum}
+                    {page}
                   </button>
-                )
-              })}
-              {totalPages > 5 && currentPage < totalPages - 2 && (
+                ))
+              ) : (
                 <>
-                  <span className="px-2 text-gray-400">...</span>
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    className="w-8 h-8 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100"
-                  >
-                    {totalPages}
-                  </button>
+                  {[1, 2, 3].map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === page
+                          ? 'bg-[#52B788] text-white'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <span className="w-8 h-8 flex items-center justify-center text-gray-400">...</span>
+                  {[totalPages - 2, totalPages - 1, totalPages].map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                        currentPage === page
+                          ? 'bg-[#52B788] text-white'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
                 </>
               )}
             </div>
 
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Create Account Modal */}
@@ -1649,7 +1383,7 @@ export default function FacebookPage() {
             <Button variant="outline" onClick={() => setShowCreateModal(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateAccount}>
+            <Button onClick={handleCreateAccount} className="bg-[#52B788] hover:bg-[#40916C]">
               Submit
             </Button>
           </div>
@@ -1660,80 +1394,98 @@ export default function FacebookPage() {
       <Modal
         isOpen={showViewModal}
         onClose={() => setShowViewModal(false)}
-        title="Add Application Details"
+        title="Application Details"
       >
         {selectedApplication && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500">Apply ID:</span>
-                <span className="ml-2 font-medium">{selectedApplication.applyId}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">License No.:</span>
-                <span className="ml-2 font-medium">{selectedApplication.licenseNo || '---'}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Page URL's:</span>
-                <span className="ml-2 font-medium">{selectedApplication.pageUrls || '---'}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Is App:</span>
-                <span className="ml-2 font-medium">{selectedApplication.isApp || '---'}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Shopify Shop:</span>
-                <span className="ml-2 font-medium">{selectedApplication.shopifyShop ? 'Yes' : 'No'}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Total Deposit:</span>
-                <span className="ml-2 font-medium">${parseFloat(selectedApplication.depositAmount).toFixed(2)}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Total Cost:</span>
-                <span className="ml-2 font-medium">${parseFloat(selectedApplication.totalCost).toFixed(2)}</span>
-              </div>
-              <div>
-                <span className="text-gray-500">Apply Time:</span>
-                <span className="ml-2 font-medium">{new Date(selectedApplication.createdAt).toLocaleString()}</span>
+          <div className="space-y-4">
+            {/* Status Banner */}
+            <div className={`p-4 rounded-lg ${
+              selectedApplication.status === 'APPROVED' ? 'bg-green-50 border border-green-200' :
+              selectedApplication.status === 'PENDING' ? 'bg-orange-50 border border-orange-200' :
+              'bg-red-50 border border-red-200'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium text-gray-600">Status</span>
+                  <div className="mt-1">{getStatusBadge(selectedApplication.status)}</div>
+                </div>
               </div>
             </div>
 
-            <div>
-              <span className="text-gray-500 text-sm">Ads Account:</span>
-              <div className="mt-1 space-y-1">
-                {parseAccountDetails(selectedApplication.accountDetails).map((acc, i) => (
-                  <div key={i} className="text-sm">
-                    <span className="font-medium">{acc.name}</span>
-                    {acc.accountId && <span className="text-blue-600 ml-2">ID: {acc.accountId}</span>}
-                  </div>
-                ))}
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">User</span>
+                <p className="text-sm font-semibold text-gray-800 mt-1">{selectedApplication.user?.username || 'Unknown'}</p>
+                <p className="text-xs text-gray-500">{selectedApplication.user?.email}</p>
               </div>
-            </div>
 
-            <div>
-              <span className="text-gray-500 text-sm">Remarks:</span>
-              <p className="text-sm mt-1">{selectedApplication.remarks || 'No remarks'}</p>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">Apply ID</span>
+                <p className="text-sm font-mono font-semibold text-gray-800 mt-1">{selectedApplication.applyId}</p>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">License No.</span>
+                <p className="text-sm font-semibold text-gray-800 mt-1">{selectedApplication.licenseNo || '---'}</p>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">Total Deposit</span>
+                <p className="text-sm font-bold text-[#52B788] mt-1">${parseFloat(selectedApplication.depositAmount).toFixed(2)}</p>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">Total Cost</span>
+                <p className="text-sm font-bold text-orange-500 mt-1">${parseFloat(selectedApplication.totalCost).toFixed(2)}</p>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">Apply Time</span>
+                <p className="text-sm font-semibold text-gray-800 mt-1">{new Date(selectedApplication.createdAt).toLocaleString()}</p>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-lg col-span-2">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">Ad Accounts ({selectedApplication.adAccountQty} requested)</span>
+                <div className="mt-3 space-y-2">
+                  {parseAccountDetails(selectedApplication.accountDetails).length > 0 ? (
+                    parseAccountDetails(selectedApplication.accountDetails).map((acc, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-100">
+                        <span className="w-6 h-6 flex items-center justify-center bg-gray-200 text-gray-600 text-xs font-bold rounded-full">
+                          {idx + 1}
+                        </span>
+                        <div className="flex items-center gap-2 flex-1">
+                          <span className="px-2 py-0.5 bg-[#52B788]/10 text-[#52B788] text-sm font-medium rounded">
+                            {acc.name}
+                          </span>
+                          <span className="text-gray-300 text-lg">→</span>
+                          {acc.accountId ? (
+                            <span className="px-2 py-0.5 bg-[#8B5CF6]/10 text-[#8B5CF6] text-sm font-mono font-medium rounded">
+                              {acc.accountId}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-orange-500 italic">Not assigned</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <span className="text-sm text-gray-400">---</span>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
               <Button variant="outline" onClick={() => setShowViewModal(false)}>
                 Close
               </Button>
-              {selectedApplication.status === 'PENDING' && (
-                <Button onClick={() => {
-                  setShowViewModal(false)
-                  handleEditRequest(selectedApplication)
-                }}>
-                  Edit Information
-                </Button>
-              )}
             </div>
           </div>
         )}
       </Modal>
 
-      {/* Approve Modal - Add Account ID */}
+      {/* Approve Modal */}
       <Modal
         isOpen={showApproveModal}
         onClose={() => setShowApproveModal(false)}
@@ -1784,7 +1536,7 @@ export default function FacebookPage() {
               <Button variant="outline" onClick={() => setShowApproveModal(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleApprove}>
+              <Button onClick={handleApprove} className="bg-[#52B788] hover:bg-[#40916C]">
                 Submit
               </Button>
             </div>

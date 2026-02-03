@@ -7,6 +7,9 @@ import { Header } from './Header'
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/lib/api'
 import { Mandatory2FASetup } from '@/components/Mandatory2FASetup'
+import { AnnouncementBanner } from '@/components/ui/AnnouncementBanner'
+import { LiveChat } from '@/components/ui/LiveChat'
+import { ProfileSetupPrompt } from '@/components/ui/ProfileSetupPrompt'
 
 type DashboardLayoutProps = {
   children: React.ReactNode
@@ -67,13 +70,25 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
 
   return (
     <div className="h-screen overflow-hidden bg-[#F8F9FA]">
+      {/* Announcement Banner at top */}
+      <div className="fixed top-0 left-0 right-0 z-40">
+        <AnnouncementBanner />
+      </div>
+
       <Sidebar />
       <div className="ml-[240px] h-full flex flex-col">
         <Header title={title} subtitle={subtitle} />
         <main className="flex-1 p-6 overflow-hidden flex flex-col">{children}</main>
       </div>
+
+      {/* Live Chat Widget */}
+      <LiveChat />
+
       {/* Mandatory 2FA Setup Modal - Non-cancellable */}
       {needs2FASetup && <Mandatory2FASetup />}
+
+      {/* Profile Picture Setup Prompt - Shows after 2FA setup is complete */}
+      {!needs2FASetup && <ProfileSetupPrompt />}
     </div>
   )
 }

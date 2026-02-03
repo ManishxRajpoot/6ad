@@ -77,6 +77,11 @@ export const requireAdmin = requireRole('ADMIN')
 export const requireAgent = requireRole('ADMIN', 'AGENT')
 export const requireUser = requireRole('ADMIN', 'AGENT', 'USER')
 
+// Aliases for convenience
+export const verifyAdmin = requireAdmin
+export const verifyAgent = requireAgent
+export const verifyUser = requireUser
+
 // Generate JWT token
 export const generateToken = (user: { id: string; email: string; role: UserRole }): string => {
   return jwt.sign(

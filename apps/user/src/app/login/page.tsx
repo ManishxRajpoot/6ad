@@ -1,28 +1,66 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { authApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { useDomainStore } from '@/store/domain'
-import { Shield, ArrowLeft, Loader2 } from 'lucide-react'
+import { Shield, ArrowRight, Loader2, Mail, Lock, Eye, EyeOff, Award, TrendingUp, Users, Zap, CheckCircle2, Check, Copy, Smartphone, KeyRound, Ban } from 'lucide-react'
+
+type SecurityStep = 'login' | 'email' | '2fa-setup' | '2fa-verify' | '2fa-login' | 'blocked'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { setAuth } = useAuthStore()
+  const { setAuth, updateUser } = useAuthStore()
   const { isCustomDomain, branding } = useDomainStore()
-  const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [username, setUsername] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Security setup wizard state
+  const [securityStep, setSecurityStep] = useState<SecurityStep>('login')
+  const [tempUser, setTempUser] = useState<any>(null)
+  const [tempToken, setTempToken] = useState<string>('')
+
+  // Email verification state
+  const [emailCode, setEmailCode] = useState('')
+  const [emailCodeSent, setEmailCodeSent] = useState(false)
+  const [sendingCode, setSendingCode] = useState(false)
+
   // 2FA state
-  const [requires2FA, setRequires2FA] = useState(false)
   const [totpCode, setTotpCode] = useState('')
+  const [qrCodeUrl, setQrCodeUrl] = useState('')
+  const [secretKey, setSecretKey] = useState('')
+  const [copiedSecret, setCopiedSecret] = useState(false)
+
+  // Animation state
+  const [animationClass, setAnimationClass] = useState('')
+  const [displayStep, setDisplayStep] = useState<SecurityStep>('login')
+  const prevStepRef = useRef<SecurityStep>('login')
+
+  // Handle step change animations
+  useEffect(() => {
+    if (prevStepRef.current !== securityStep) {
+      // Start exit animation
+      setAnimationClass('animate-flip-out')
+
+      const timer = setTimeout(() => {
+        setDisplayStep(securityStep)
+        prevStepRef.current = securityStep
+        // Start enter animation
+        setAnimationClass('animate-flip-in')
+
+        // Clear animation class after it completes
+        setTimeout(() => {
+          setAnimationClass('')
+        }, 500)
+      }, 300)
+
+      return () => clearTimeout(timer)
+    }
+  }, [securityStep])
 
   const handleSubmit = async (e?: React.FormEvent, codeOverride?: string) => {
     e?.preventDefault()
@@ -32,39 +70,50 @@ export default function LoginPage() {
     const code = codeOverride || totpCode
 
     try {
-      if (isLogin) {
-        const response = await authApi.login({
-          email,
-          password,
-          ...(requires2FA && code ? { totpCode: code } : {})
-        })
+      const response = await authApi.login({
+        email,
+        password,
+        ...(securityStep === '2fa-login' && code ? { totpCode: code } : {})
+      })
 
-        // Check if 2FA is required
-        if (response.requires2FA) {
-          setRequires2FA(true)
-          setLoading(false)
-          return
-        }
-
-        const { token, user } = response
-        if (user.role !== 'USER') {
-          setError('Access denied. User account required.')
-          setLoading(false)
-          return
-        }
-        setAuth(user, token)
-        router.push('/dashboard')
-      } else {
-        const { token, user } = await authApi.register({ email, password, username })
-        setAuth(user, token)
-        router.push('/dashboard')
+      // If 2FA is required for existing user login
+      if (response.requires2FA) {
+        setSecurityStep('2fa-login')
+        setLoading(false)
+        return
       }
+
+      const { token, user } = response
+      if (user.role !== 'USER') {
+        setError('Access denied. User account required.')
+        setLoading(false)
+        return
+      }
+
+      // Check if user needs security setup
+      if (!user.emailVerified || !user.twoFactorEnabled) {
+        // Store temp credentials and start security wizard
+        setTempUser(user)
+        setTempToken(token)
+        setAuth(user, token) // Set auth for API calls
+
+        if (!user.emailVerified) {
+          setSecurityStep('email')
+        } else if (!user.twoFactorEnabled) {
+          setSecurityStep('2fa-setup')
+        }
+        setLoading(false)
+        return
+      }
+
+      // All security setup complete, proceed to dashboard
+      setAuth(user, token)
+      router.push('/dashboard')
     } catch (err: any) {
-      // Check if this is a blocked account error
       if (err.response?.data?.blocked) {
-        setError(err.response.data.message || 'Your account has been blocked by the administrator. Please contact the main headquarters for assistance.')
+        setSecurityStep('blocked')
       } else {
-        setError(err.message || (isLogin ? 'Login failed' : 'Registration failed'))
+        setError(err.message || 'Login failed')
       }
     } finally {
       setLoading(false)
@@ -72,74 +121,443 @@ export default function LoginPage() {
   }
 
   const handleBack = () => {
-    setRequires2FA(false)
-    setTotpCode('')
-    setError('')
+    if (securityStep === '2fa-login') {
+      setSecurityStep('login')
+      setTotpCode('')
+      setError('')
+    }
   }
 
-  // Use custom domain branding if available
-  const displayBrandName = isCustomDomain && branding?.brandName
-    ? branding.brandName
-    : 'COINEST'
-  const displayBrandLogo = isCustomDomain && branding?.brandLogo
-    ? branding.brandLogo
-    : null
+  // Email verification handlers
+  const handleSendEmailCode = async () => {
+    setSendingCode(true)
+    setError('')
+    try {
+      await authApi.email.sendCode()
+      setEmailCodeSent(true)
+    } catch (err: any) {
+      setError(err.message || 'Failed to send verification code')
+    } finally {
+      setSendingCode(false)
+    }
+  }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-card p-8">
-          {/* Logo - Show custom domain branding if available */}
-          <div className="flex items-center justify-center gap-2 mb-8">
-            {displayBrandLogo ? (
-              <img
-                src={displayBrandLogo}
-                alt={displayBrandName}
-                className="h-10 max-w-[200px] object-contain"
-              />
-            ) : (
-              <>
-                <div className="w-10 h-10 rounded-lg bg-primary-500 flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">6</span>
+  const handleVerifyEmail = async (code?: string) => {
+    const verifyCode = code || emailCode
+    if (verifyCode.length !== 6) {
+      setError('Please enter a valid 6-digit code')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    try {
+      await authApi.email.verify(verifyCode)
+      const { user: updatedUser } = await authApi.me()
+      setTempUser(updatedUser)
+      updateUser(updatedUser)
+
+      // Move to 2FA setup if not enabled
+      if (!updatedUser.twoFactorEnabled) {
+        setSecurityStep('2fa-setup')
+      } else {
+        // All done, go to dashboard
+        router.push('/dashboard')
+      }
+      setEmailCode('')
+    } catch (err: any) {
+      setError(err.message || 'Invalid verification code')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 2FA setup handlers
+  const handleSetup2FA = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await authApi.twoFactor.setup()
+      setSecretKey(response.secret)
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(response.otpauthUrl)}`
+      setQrCodeUrl(qrUrl)
+      setSecurityStep('2fa-verify')
+    } catch (err: any) {
+      setError(err.message || 'Failed to setup 2FA')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerify2FASetup = async (code?: string) => {
+    const verifyCode = code || totpCode
+    if (verifyCode.length !== 6) {
+      setError('Please enter a valid 6-digit code')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    try {
+      await authApi.twoFactor.verify(verifyCode)
+      const { user: updatedUser } = await authApi.me()
+      updateUser(updatedUser)
+      // All setup complete, go to dashboard
+      router.push('/dashboard')
+    } catch (err: any) {
+      setError(err.message || 'Invalid verification code')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const copySecretKey = () => {
+    navigator.clipboard.writeText(secretKey)
+    setCopiedSecret(true)
+    setTimeout(() => setCopiedSecret(false), 2000)
+  }
+
+  // Show agency logo if custom domain is configured, otherwise show default Six Media logo
+  const isUsingCustomBranding = isCustomDomain && branding?.brandLogo
+
+  // Six Media Logo Component
+  const SixMediaLogo = ({ size = 'normal' }: { size?: 'normal' | 'small' | 'large' }) => {
+    const iconW = size === 'small' ? 'w-11' : size === 'large' ? 'w-20' : 'w-14'
+    const iconH = size === 'small' ? 'h-6' : size === 'large' ? 'h-12' : 'h-8'
+    const textSize = size === 'small' ? 'text-[17px]' : size === 'large' ? 'text-[32px]' : 'text-[22px]'
+    const tagSize = size === 'small' ? 'text-[8px]' : size === 'large' ? 'text-[12px]' : 'text-[9px]'
+    const id1 = size === 'small' ? 'userLoginRibbonSm1' : size === 'large' ? 'userLoginRibbonLg2x1' : 'userLoginRibbonLg1'
+    const id2 = size === 'small' ? 'userLoginRibbonSm2' : size === 'large' ? 'userLoginRibbonLg2x2' : 'userLoginRibbonLg2'
+
+    return (
+      <div className={`flex items-center ${size === 'small' ? 'gap-2' : 'gap-3'}`}>
+        {/* Six Media - Twisted Ribbon Infinity (Meta-style) */}
+        <svg viewBox="0 0 48 28" className={`${iconW} ${iconH}`} fill="none">
+          <defs>
+            <linearGradient id={id1} x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#6366F1"/>
+              <stop offset="100%" stopColor="#8B5CF6"/>
+            </linearGradient>
+            <linearGradient id={id2} x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#8B5CF6"/>
+              <stop offset="100%" stopColor="#EC4899"/>
+            </linearGradient>
+          </defs>
+          {/* Left ribbon - continuous twisted band */}
+          <path
+            d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14"
+            fill={`url(#${id1})`}
+          />
+          {/* Right ribbon - continuous twisted band */}
+          <path
+            d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14"
+            fill={`url(#${id2})`}
+          />
+          {/* Center twist overlay for depth */}
+          <ellipse cx="24" cy="14" rx="4" ry="5" fill="white" opacity="0.15"/>
+        </svg>
+        {/* Text - Modern Typography */}
+        <div className="flex flex-col leading-none">
+          <span className={`${textSize} font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight`}>
+            SIXMEDIA
+          </span>
+          <span className={`${tagSize} font-semibold tracking-[0.2em] text-gray-400 mt-0.5`}>
+            ADVERTISING
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  const platforms = [
+    {
+      name: 'Facebook',
+      icon: (
+        <svg className="w-5 h-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+        </svg>
+      )
+    },
+    {
+      name: 'Google',
+      icon: (
+        <svg className="w-5 h-5" viewBox="0 0 24 24">
+          <path fill="#EA4335" d="M5.26 9.76A7.05 7.05 0 0 1 12 5.06c1.68 0 3.19.58 4.39 1.54l3.28-3.28A11.96 11.96 0 0 0 12 .06c-4.74 0-8.8 2.76-10.74 6.76l4 3.1z"/>
+          <path fill="#34A853" d="M1.26 9.76A11.91 11.91 0 0 0 0 12.06c0 1.92.45 3.73 1.26 5.34l4-3.1a7.15 7.15 0 0 1 0-4.44l-4-3.1z"/>
+          <path fill="#4285F4" d="M12 18.06c-2.67 0-5-1.47-6.26-3.66l-4 3.1C4.2 21.36 7.8 24.06 12 24.06c3.02 0 5.74-1.14 7.84-2.98l-3.9-3.02c-1.1.72-2.47 1.14-3.94 1.14z"/>
+          <path fill="#FBBC05" d="M23.94 12.06c0-.9-.08-1.76-.22-2.6H12v5.12h6.72c-.32 1.6-1.18 2.96-2.46 3.88l3.9 3.02c2.28-2.1 3.78-5.2 3.78-9.42z"/>
+        </svg>
+      )
+    },
+    {
+      name: 'TikTok',
+      icon: (
+        <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+        </svg>
+      )
+    },
+    {
+      name: 'Snapchat',
+      icon: (
+        <svg className="w-5 h-5 text-[#FFFC00]" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301a.603.603 0 0 1 .272-.063c.12 0 .24.03.345.09.264.135.39.345.39.585 0 .196-.076.375-.21.515-.15.135-.39.27-.795.39-.06.016-.12.03-.18.045-.165.045-.345.09-.51.135-.075.016-.15.045-.225.075-.15.06-.255.135-.3.225-.045.105-.045.225 0 .36.09.195.18.39.285.585.12.24.375.705.66 1.125.36.54.78.99 1.245 1.35.27.195.54.36.81.495.15.075.27.15.375.225.27.165.42.39.435.6.03.21-.075.435-.285.615a1.665 1.665 0 0 1-.765.345 4.2 4.2 0 0 1-.84.12c-.225.015-.45.045-.675.105-.15.045-.285.12-.405.21-.21.165-.315.33-.315.465-.015.135.015.27.075.405.06.135.135.27.225.405.18.27.285.585.255.885-.045.405-.345.72-.735.84-.21.06-.435.09-.66.09-.21 0-.405-.03-.585-.075a4.065 4.065 0 0 0-.675-.12c-.15-.015-.3-.015-.45 0-.195.015-.39.045-.585.09-.255.06-.51.135-.765.225l-.09.03c-.255.09-.54.18-.84.255a4.62 4.62 0 0 1-1.095.135c-.375 0-.75-.045-1.11-.135a7.316 7.316 0 0 1-.84-.255l-.075-.03a8.06 8.06 0 0 0-.765-.225 3.975 3.975 0 0 0-.585-.09c-.15-.015-.3-.015-.45 0-.225.015-.45.06-.675.12-.195.045-.39.075-.585.075-.225 0-.45-.03-.66-.09-.39-.12-.69-.435-.735-.84-.03-.3.075-.615.255-.885.09-.135.165-.27.225-.405.06-.135.09-.27.075-.405 0-.135-.105-.3-.315-.465a1.11 1.11 0 0 0-.405-.21 4.62 4.62 0 0 0-.675-.105 4.2 4.2 0 0 1-.84-.12 1.665 1.665 0 0 1-.765-.345c-.21-.18-.315-.405-.285-.615.015-.21.165-.435.435-.6.105-.075.225-.15.375-.225.27-.135.54-.3.81-.495.465-.36.885-.81 1.245-1.35.285-.42.54-.885.66-1.125.105-.195.195-.39.285-.585.045-.135.045-.255 0-.36-.045-.09-.15-.165-.3-.225a1.665 1.665 0 0 0-.225-.075 6.6 6.6 0 0 1-.51-.135c-.06-.015-.12-.03-.18-.045-.405-.12-.645-.255-.795-.39a.585.585 0 0 1-.21-.515c0-.24.126-.45.39-.585a.69.69 0 0 1 .345-.09c.09 0 .18.015.27.063.375.18.735.285 1.035.3.198 0 .326-.044.4-.089a4.95 4.95 0 0 1-.032-.51l-.004-.06c-.103-1.628-.229-3.654.3-4.847C7.86 1.069 11.215.793 12.206.793z"/>
+        </svg>
+      )
+    },
+    {
+      name: 'Bing',
+      icon: (
+        <svg className="w-5 h-5" viewBox="0 0 24 24">
+          <path fill="#008373" d="M5 3v16.5l4.5 2.5 8-4.5v-4L9.5 10V5.5L5 3z"/>
+          <path fill="#00A99D" d="M9.5 5.5V10l8 3.5v4l-8 4.5L5 19.5V3l4.5 2.5z"/>
+          <path fill="#00C8B4" d="M9.5 10l8 3.5v4l-8 4.5v-12z"/>
+        </svg>
+      )
+    }
+  ]
+
+  // Render the right side content based on display step (for smooth animation)
+  const renderRightContent = () => {
+    // Security Setup Wizard Steps
+    if (displayStep === 'email' || displayStep === '2fa-setup' || displayStep === '2fa-verify') {
+      return (
+        <div className="w-full max-w-[480px]">
+          {/* Wizard Card */}
+          <div className="bg-white border border-gray-200 rounded-3xl shadow-xl shadow-gray-200/50 overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-purple-600 to-purple-500 px-6 py-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{displayBrandName}</span>
-              </>
-            )}
-          </div>
-
-          {/* 2FA Verification View */}
-          {requires2FA ? (
-            <>
-              <button
-                onClick={handleBack}
-                className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to login
-              </button>
-
-              <div className="flex justify-center mb-4">
-                <div className="w-16 h-16 rounded-full bg-[#52B788]/10 flex items-center justify-center">
-                  <Shield className="w-8 h-8 text-[#52B788]" />
+                <div>
+                  <h1 className="text-lg font-bold text-white">Security Setup Required</h1>
+                  <p className="text-white/80 text-sm">Complete these steps to secure your account</p>
                 </div>
               </div>
+            </div>
 
-              <h1 className="text-xl font-semibold text-center mb-2">
-                Two-Factor Authentication
-              </h1>
-              <p className="text-gray-500 text-center mb-6">
-                Enter the 6-digit code from your authenticator app
-              </p>
-
-              <div className="space-y-4">
-                {error && (
-                  <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
-                    {error}
+            {/* Progress Steps */}
+            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+              <div className="flex items-center justify-center gap-4">
+                {/* Step 1 */}
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                    tempUser?.emailVerified
+                      ? 'bg-emerald-500 text-white'
+                      : securityStep === 'email'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-200 text-gray-500'
+                  }`}>
+                    {tempUser?.emailVerified ? <Check className="w-4 h-4" /> : '1'}
                   </div>
-                )}
+                  <span className={`text-sm font-medium ${securityStep === 'email' || tempUser?.emailVerified ? 'text-gray-900' : 'text-gray-400'}`}>
+                    Email Verification
+                  </span>
+                </div>
 
-                <div>
-                  <div className="flex gap-2 justify-center">
+                <div className={`w-12 h-0.5 ${tempUser?.emailVerified ? 'bg-emerald-500' : 'bg-gray-200'}`} />
+
+                {/* Step 2 */}
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                    tempUser?.twoFactorEnabled
+                      ? 'bg-emerald-500 text-white'
+                      : securityStep === '2fa-setup' || securityStep === '2fa-verify'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-200 text-gray-500'
+                  }`}>
+                    {tempUser?.twoFactorEnabled ? <Check className="w-4 h-4" /> : '2'}
+                  </div>
+                  <span className={`text-sm font-medium ${securityStep === '2fa-setup' || securityStep === '2fa-verify' || tempUser?.twoFactorEnabled ? 'text-gray-900' : 'text-gray-400'}`}>
+                    Two-Factor Auth
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              {error && (
+                <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">
+                  {error}
+                </div>
+              )}
+
+              {/* Email Verification Step */}
+              {securityStep === 'email' && (
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
+                    <Mail className="w-8 h-8 text-purple-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Verify Your Email</h2>
+                  <p className="text-gray-500 text-sm mb-6">
+                    We'll send a verification code to <span className="font-medium text-gray-700">{tempUser?.email}</span>
+                  </p>
+
+                  {!emailCodeSent ? (
+                    <button
+                      onClick={handleSendEmailCode}
+                      disabled={sendingCode}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white py-3.5 rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-purple-500/25"
+                    >
+                      {sendingCode ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="w-5 h-5" />
+                          Send Verification Code
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="space-y-5">
+                      <div className="flex gap-2 justify-center">
+                        {[0, 1, 2, 3, 4, 5].map((index) => (
+                          <input
+                            key={index}
+                            type="text"
+                            maxLength={1}
+                            value={emailCode[index] || ''}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '')
+                              if (val) {
+                                const newCode = emailCode.split('')
+                                newCode[index] = val
+                                const finalCode = newCode.join('').slice(0, 6)
+                                setEmailCode(finalCode)
+                                if (index < 5) {
+                                  const next = e.target.nextElementSibling as HTMLInputElement
+                                  next?.focus()
+                                }
+                                if (finalCode.length === 6) {
+                                  setTimeout(() => handleVerifyEmail(finalCode), 100)
+                                }
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Backspace' || e.key === 'Delete') {
+                                e.preventDefault()
+                                const newCode = emailCode.split('')
+                                if (emailCode[index]) {
+                                  newCode[index] = ''
+                                  setEmailCode(newCode.join(''))
+                                } else if (index > 0) {
+                                  newCode[index - 1] = ''
+                                  setEmailCode(newCode.join(''))
+                                  const prev = (e.target as HTMLInputElement).previousElementSibling as HTMLInputElement
+                                  prev?.focus()
+                                }
+                              }
+                            }}
+                            onPaste={(e) => {
+                              e.preventDefault()
+                              const paste = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+                              setEmailCode(paste)
+                              if (paste.length === 6) {
+                                setTimeout(() => handleVerifyEmail(paste), 100)
+                              }
+                            }}
+                            className="w-12 h-14 text-center text-xl font-semibold bg-gray-50 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                            autoFocus={index === 0}
+                          />
+                        ))}
+                      </div>
+
+                      {loading && (
+                        <div className="flex items-center justify-center gap-2 text-purple-600">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span className="text-sm font-medium">Verifying...</span>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleSendEmailCode}
+                        disabled={sendingCode}
+                        className="text-sm text-gray-500 hover:text-purple-600 transition-colors"
+                      >
+                        {sendingCode ? 'Sending...' : "Didn't receive code? Resend"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 2FA Setup Step */}
+              {securityStep === '2fa-setup' && (
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
+                    <Smartphone className="w-8 h-8 text-purple-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Setup Two-Factor Authentication</h2>
+                  <p className="text-gray-500 text-sm mb-6">
+                    Add an extra layer of security using an authenticator app
+                  </p>
+
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl mb-5 text-left">
+                    <p className="text-amber-800 text-sm">
+                      <strong>Required:</strong> Download Google Authenticator, Authy, or Microsoft Authenticator on your phone
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleSetup2FA}
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white py-3.5 rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-purple-500/25"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="w-5 h-5" />
+                        Generate QR Code
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* 2FA Verify Step */}
+              {securityStep === '2fa-verify' && (
+                <div className="text-center">
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">Scan QR Code</h2>
+                  <p className="text-gray-500 text-sm mb-4">
+                    Scan with your authenticator app and enter the code
+                  </p>
+
+                  {qrCodeUrl && (
+                    <div className="flex justify-center mb-4">
+                      <div className="p-3 bg-white border border-gray-200 rounded-xl">
+                        <img src={qrCodeUrl} alt="2FA QR Code" className="w-36 h-36" />
+                      </div>
+                    </div>
+                  )}
+
+                  {secretKey && (
+                    <div className="mb-5">
+                      <p className="text-xs text-gray-500 mb-1">Can't scan? Enter manually:</p>
+                      <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                        <code className="flex-1 text-xs font-mono text-gray-600 break-all">
+                          {secretKey}
+                        </code>
+                        <button
+                          onClick={copySecretKey}
+                          className="p-1.5 text-gray-500 hover:text-purple-600 rounded transition-all"
+                        >
+                          {copiedSecret ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 justify-center mb-4">
                     {[0, 1, 2, 3, 4, 5].map((index) => (
                       <input
                         key={index}
@@ -153,20 +571,28 @@ export default function LoginPage() {
                             newCode[index] = val
                             const finalCode = newCode.join('').slice(0, 6)
                             setTotpCode(finalCode)
-                            if (index < 5 && val) {
+                            if (index < 5) {
                               const next = e.target.nextElementSibling as HTMLInputElement
                               next?.focus()
                             }
-                            // Auto-submit when 6 digits entered
                             if (finalCode.length === 6) {
-                              setTimeout(() => handleSubmit(undefined, finalCode), 100)
+                              setTimeout(() => handleVerify2FASetup(finalCode), 100)
                             }
                           }
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Backspace' && !totpCode[index] && index > 0) {
-                            const prev = (e.target as HTMLInputElement).previousElementSibling as HTMLInputElement
-                            prev?.focus()
+                          if (e.key === 'Backspace' || e.key === 'Delete') {
+                            e.preventDefault()
+                            const newCode = totpCode.split('')
+                            if (totpCode[index]) {
+                              newCode[index] = ''
+                              setTotpCode(newCode.join(''))
+                            } else if (index > 0) {
+                              newCode[index - 1] = ''
+                              setTotpCode(newCode.join(''))
+                              const prev = (e.target as HTMLInputElement).previousElementSibling as HTMLInputElement
+                              prev?.focus()
+                            }
                           }
                         }}
                         onPaste={(e) => {
@@ -174,92 +600,493 @@ export default function LoginPage() {
                           const paste = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
                           setTotpCode(paste)
                           if (paste.length === 6) {
-                            setTimeout(() => handleSubmit(undefined, paste), 100)
+                            setTimeout(() => handleVerify2FASetup(paste), 100)
                           }
                         }}
-                        className="w-12 h-14 text-center text-xl font-semibold bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-[#52B788] focus:bg-white transition-all"
+                        className="w-12 h-14 text-center text-xl font-semibold bg-gray-50 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                         autoFocus={index === 0}
                       />
                     ))}
                   </div>
-                </div>
 
-                {loading && (
-                  <div className="flex items-center justify-center gap-2 text-[#52B788]">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm font-medium">Verifying...</span>
-                  </div>
-                )}
+                  {loading && (
+                    <div className="flex items-center justify-center gap-2 text-purple-600">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-sm font-medium">Completing setup...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-100">
+              <p className="text-xs text-gray-400 text-center">
+                This security setup is mandatory and cannot be skipped
+              </p>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // Blocked Account Screen
+    if (displayStep === 'blocked') {
+      return (
+        <div className="w-full max-w-[440px]">
+          <div className="bg-white border border-gray-200 rounded-3xl shadow-xl shadow-gray-200/50 overflow-hidden">
+            <div className="p-8 text-center">
+              {/* Blocked Icon */}
+              <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-6">
+                <Ban className="w-10 h-10 text-red-500" />
               </div>
 
-              <p className="mt-6 text-center text-xs text-gray-400">
-                Open your authenticator app to get the code
-              </p>
-            </>
-          ) : (
-            <>
-              {/* Regular Login/Register View */}
-              <h1 className="text-xl font-semibold text-center mb-2">
-                {isLogin ? 'Welcome Back' : 'Create Account'}
-              </h1>
-              <p className="text-gray-500 text-center mb-6">
-                {isLogin ? 'Sign in to your account' : 'Get started with your ad accounts'}
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Account Blocked</h2>
+              <p className="text-gray-500 mb-6 leading-relaxed">
+                Your account has been blocked. Please contact your account provider for assistance.
               </p>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Info Box */}
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-left">
+                <p className="text-red-700 text-sm">
+                  <strong>Why was my account blocked?</strong>
+                </p>
+                <ul className="text-red-600 text-sm mt-2 space-y-1 list-disc list-inside">
+                  <li>Violation of terms of service</li>
+                  <li>Suspicious activity detected</li>
+                  <li>Payment issues</li>
+                </ul>
+              </div>
+
+              {/* Back to Login Button */}
+              <button
+                onClick={() => {
+                  setSecurityStep('login')
+                  setEmail('')
+                  setPassword('')
+                  setError('')
+                }}
+                className="w-full py-3.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                <ArrowRight className="w-4 h-4 rotate-180" />
+                Back to Login
+              </button>
+            </div>
+          </div>
+
+          <p className="text-center text-xs text-gray-400 mt-6">
+            Need help? Contact your account provider for support.
+          </p>
+        </div>
+      )
+    }
+
+    // 2FA Login (for existing users with 2FA enabled)
+    if (displayStep === '2fa-login') {
+      return (
+        <div className="w-full max-w-[440px]">
+          <div className="bg-white border border-gray-200 rounded-3xl shadow-xl shadow-gray-200/50 overflow-hidden">
+            {/* Back button */}
+            <div className="px-6 pt-5">
+              <button
+                onClick={handleBack}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <ArrowRight className="w-4 h-4 rotate-180" />
+                Back to login
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 pt-4">
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
+                  <Shield className="w-8 h-8 text-purple-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Two-Factor Authentication</h2>
+                <p className="text-gray-500 text-sm mb-6">
+                  Enter the 6-digit code from your authenticator app
+                </p>
+
                 {error && (
-                  <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
+                  <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">
                     {error}
                   </div>
                 )}
 
-                {!isLogin && (
-                  <Input
-                    label="Username"
-                    placeholder="Enter your username"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required={!isLogin}
-                  />
+                <div className="flex gap-2 justify-center mb-4">
+                  {[0, 1, 2, 3, 4, 5].map((index) => (
+                    <input
+                      key={index}
+                      type="text"
+                      maxLength={1}
+                      value={totpCode[index] || ''}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '')
+                        if (val) {
+                          const newCode = totpCode.split('')
+                          newCode[index] = val
+                          const finalCode = newCode.join('').slice(0, 6)
+                          setTotpCode(finalCode)
+                          if (index < 5) {
+                            const next = e.target.nextElementSibling as HTMLInputElement
+                            next?.focus()
+                          }
+                          if (finalCode.length === 6) {
+                            setTimeout(() => handleSubmit(undefined, finalCode), 100)
+                          }
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Backspace' || e.key === 'Delete') {
+                          e.preventDefault()
+                          const newCode = totpCode.split('')
+                          if (totpCode[index]) {
+                            newCode[index] = ''
+                            setTotpCode(newCode.join(''))
+                          } else if (index > 0) {
+                            newCode[index - 1] = ''
+                            setTotpCode(newCode.join(''))
+                            const prev = (e.target as HTMLInputElement).previousElementSibling as HTMLInputElement
+                            prev?.focus()
+                          }
+                        }
+                        if (e.key === 'ArrowLeft' && index > 0) {
+                          const prev = (e.target as HTMLInputElement).previousElementSibling as HTMLInputElement
+                          prev?.focus()
+                        }
+                        if (e.key === 'ArrowRight' && index < 5) {
+                          const next = (e.target as HTMLInputElement).nextElementSibling as HTMLInputElement
+                          next?.focus()
+                        }
+                      }}
+                      onPaste={(e) => {
+                        e.preventDefault()
+                        const paste = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+                        setTotpCode(paste)
+                        if (paste.length === 6) {
+                          setTimeout(() => handleSubmit(undefined, paste), 100)
+                        }
+                      }}
+                      className="w-12 h-14 text-center text-xl font-semibold bg-gray-50 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                      autoFocus={index === 0}
+                    />
+                  ))}
+                </div>
+
+                {loading && (
+                  <div className="flex items-center justify-center gap-2 text-purple-600 mb-4">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm font-medium">Verifying...</span>
+                  </div>
                 )}
 
-                <Input
-                  type="email"
-                  label="Email"
-                  placeholder="you@example.com"
+                <p className="text-sm text-gray-400">
+                  Open your authenticator app to get the code
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-center text-xs text-gray-400 mt-6">
+            By signing in, you agree to our Terms of Service and Privacy Policy
+          </p>
+        </div>
+      )
+    }
+
+    // Default Login Form
+    return (
+      <div className="w-full max-w-[440px]">
+        <div className="bg-white border border-gray-200 rounded-3xl p-8 lg:p-10 shadow-xl shadow-gray-200/50">
+          {/* Mobile Logo */}
+          <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
+            {isUsingCustomBranding && branding.brandLogo ? (
+              <img src={branding.brandLogo} alt="Logo" className="h-12 max-w-[220px] object-contain" />
+            ) : (
+              <SixMediaLogo />
+            )}
+          </div>
+
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
+            Welcome back
+          </h1>
+          <p className="text-gray-500 mb-8">
+            Sign in to manage your ad accounts
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm border border-red-200">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email or Username
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter your email or username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                 />
+              </div>
+            </div>
 
-                <Input
-                  type="password"
-                  label="Password"
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  className="w-full pl-12 pr-12 py-3.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                 />
-
-                <Button type="submit" className="w-full" isLoading={loading}>
-                  {isLogin ? 'Sign In' : 'Create Account'}
-                </Button>
-              </form>
-
-              <p className="mt-6 text-center text-sm text-gray-500">
-                {isLogin ? "Don't have an account? " : "Already have an account? "}
                 <button
                   type="button"
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="text-primary-500 hover:text-primary-600 font-medium"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  {isLogin ? 'Sign Up' : 'Sign In'}
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-4 px-4 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 group"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  Sign In
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="relative my-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-400">Secure login</span>
+            </div>
+          </div>
+
+          {/* Security badges */}
+          <div className="flex items-center justify-center gap-6">
+            <div className="flex items-center gap-2 text-gray-500">
+              <Shield className="w-4 h-4 text-emerald-500" />
+              <span className="text-xs">SSL Encrypted</span>
+            </div>
+            <div className="flex items-center gap-2 text-gray-500">
+              <Zap className="w-4 h-4 text-purple-500" />
+              <span className="text-xs">2FA Protected</span>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-center text-xs text-gray-400 mt-6">
+          By signing in, you agree to our Terms of Service and Privacy Policy
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-white to-purple-50 relative overflow-hidden">
+      {/* Subtle Background Elements */}
+      <div className="absolute inset-0">
+        {/* Soft gradient orbs */}
+        <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-purple-200/30 rounded-full blur-[150px]" />
+        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-emerald-200/20 rounded-full blur-[130px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-violet-100/40 rounded-full blur-[100px]" />
+
+        {/* Grid pattern */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: `linear-gradient(#8b5cf6 1px, transparent 1px), linear-gradient(90deg, #8b5cf6 1px, transparent 1px)`,
+          backgroundSize: '60px 60px'
+        }} />
+      </div>
+
+      {/* Content Container */}
+      <div className="relative z-10 min-h-screen flex flex-col lg:flex-row">
+        {/* Left Section - Branding & Features */}
+        <div className="w-full lg:w-[55%] p-8 lg:p-16 flex flex-col justify-between">
+          {/* Logo Section */}
+          <div className="flex items-center gap-3">
+            {isUsingCustomBranding && branding.brandLogo ? (
+              <img src={branding.brandLogo} alt="Logo" className="h-14 max-w-[280px] object-contain" />
+            ) : (
+              <SixMediaLogo size="large" />
+            )}
+          </div>
+
+          {/* Main Content */}
+          <div className="flex-1 flex flex-col justify-center py-12 lg:py-0">
+            <div className="max-w-xl">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 bg-purple-100 border border-purple-200 rounded-full px-4 py-2 mb-6">
+                <Award className="w-4 h-4 text-purple-600" />
+                <span className="text-purple-700 text-sm font-medium">Premium Ad Account Platform</span>
+              </div>
+
+              {/* Headline */}
+              <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+                Scale Your
+                <br />
+                <span className="bg-gradient-to-r from-purple-600 via-violet-600 to-emerald-500 bg-clip-text text-transparent">
+                  Advertising
+                </span>
+                <br />
+                Without Limits
+              </h1>
+
+              <p className="text-gray-600 text-lg mb-10 leading-relaxed max-w-lg">
+                Access premium ad accounts for Facebook, Google, TikTok & more. Trusted by thousands of media buyers worldwide.
               </p>
-            </>
-          )}
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-5 hover:shadow-lg hover:border-purple-200 transition-all group">
+                  <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <TrendingUp className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">$2.5M+</p>
+                  <p className="text-gray-500 text-sm">Ad Spend Managed</p>
+                </div>
+
+                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-5 hover:shadow-lg hover:border-emerald-200 transition-all group">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <Users className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">10K+</p>
+                  <p className="text-gray-500 text-sm">Active Advertisers</p>
+                </div>
+
+                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-5 hover:shadow-lg hover:border-blue-200 transition-all group col-span-2 lg:col-span-1">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <svg className="w-5 h-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">500+</p>
+                  <p className="text-gray-500 text-sm">Facebook Accounts</p>
+                </div>
+              </div>
+
+              {/* Features */}
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-2 text-gray-600">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  <span className="text-sm">Instant Access</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-600">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  <span className="text-sm">Secure Platform</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-600">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  <span className="text-sm">24/7 Support</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Platform logos with loop animation */}
+          <div className="hidden lg:flex items-center gap-6">
+            <span className="text-gray-400 text-sm">Supported platforms:</span>
+            <div className="flex items-center gap-4 platform-container overflow-hidden">
+              <div className="flex items-center gap-4 animate-slide">
+                {[...platforms, ...platforms].map((platform, index) => (
+                  <div
+                    key={index}
+                    className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow flex-shrink-0"
+                    title={platform.name}
+                  >
+                    {platform.icon}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Section - Dynamic Content */}
+        <div className="w-full lg:w-[45%] flex items-center justify-center p-6 lg:p-12 overflow-hidden perspective-1000">
+          <div className={`w-full flex items-center justify-center transform-style-3d ${animationClass}`}>
+            {renderRightContent()}
+          </div>
         </div>
       </div>
+
+      {/* CSS for animations */}
+      <style jsx>{`
+        @keyframes slide {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
+        }
+        .animate-slide {
+          animation: slide 15s linear infinite;
+        }
+        .animate-slide:hover {
+          animation-play-state: paused;
+        }
+        .perspective-1000 {
+          perspective: 1200px;
+        }
+        .transform-style-3d {
+          transform-style: preserve-3d;
+        }
+        @keyframes flipOut {
+          0% {
+            opacity: 1;
+            transform: rotateY(0deg) scale(1);
+          }
+          100% {
+            opacity: 0;
+            transform: rotateY(-90deg) scale(0.9);
+          }
+        }
+        @keyframes flipIn {
+          0% {
+            opacity: 0;
+            transform: rotateY(90deg) scale(0.9);
+          }
+          100% {
+            opacity: 1;
+            transform: rotateY(0deg) scale(1);
+          }
+        }
+        .animate-flip-out {
+          animation: flipOut 0.3s cubic-bezier(0.55, 0.055, 0.675, 0.19) forwards;
+        }
+        .animate-flip-in {
+          animation: flipIn 0.5s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+        }
+      `}</style>
     </div>
   )
 }

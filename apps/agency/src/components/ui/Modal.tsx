@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 interface ModalProps {
   isOpen: boolean
@@ -13,26 +13,61 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children, className }: ModalProps) {
+  const [isVisible, setIsVisible] = useState(false)
+  const [isAnimating, setIsAnimating] = useState(false)
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
+      setIsVisible(true)
+      // Small delay to trigger animation
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsAnimating(true)
+        })
+      })
     } else {
-      document.body.style.overflow = 'unset'
+      setIsAnimating(false)
+      // Wait for animation to complete before hiding
+      const timer = setTimeout(() => {
+        setIsVisible(false)
+        document.body.style.overflow = 'unset'
+      }, 200)
+      return () => clearTimeout(timer)
     }
     return () => {
       document.body.style.overflow = 'unset'
     }
   }, [isOpen])
 
-  if (!isOpen) return null
+  if (!isVisible) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className={cn('relative bg-white rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-auto', className)}>
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+      {/* Backdrop with fade animation */}
+      <div
+        className={cn(
+          "absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-200",
+          isAnimating ? "opacity-100" : "opacity-0"
+        )}
+        onClick={onClose}
+      />
+      {/* Modal with scale and fade animation */}
+      <div
+        className={cn(
+          'relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-auto transition-all duration-200 ease-out',
+          isAnimating
+            ? "opacity-100 scale-100 translate-y-0"
+            : "opacity-0 scale-95 translate-y-4",
+          className
+        )}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+          <button
+            onClick={onClose}
+            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+          >
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>

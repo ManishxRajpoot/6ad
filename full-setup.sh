@@ -1,7 +1,7 @@
 #!/bin/bash
 # 6AD Platform - Complete VPS Setup Script
 # Domains: ads.6ad.in (user), partner.6ad.in (agency), super.6ad.in (admin)
-# VPS: 72.61.172.38
+# VPS: 72.61.249.140
 
 set -e
 

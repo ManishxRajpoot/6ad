@@ -50,7 +50,7 @@ app.get('/:id', async (c) => {
 app.post('/', verifyToken, requireAdmin, async (c) => {
   try {
     const body = await c.req.json()
-    const { name, description, icon, isEnabled, isDefault, sortOrder } = body
+    const { name, description, icon, walletAddress, isEnabled, isDefault, sortOrder } = body
 
     if (!name || !name.trim()) {
       return c.json({ error: 'Payment method name is required' }, 400)
@@ -69,6 +69,7 @@ app.post('/', verifyToken, requireAdmin, async (c) => {
         name: name.trim(),
         description: description?.trim() || null,
         icon: icon || '💳',
+        walletAddress: walletAddress?.trim() || null,
         isEnabled: isEnabled !== false,
         isDefault: isDefault || false,
         sortOrder: sortOrder || 0
@@ -87,7 +88,7 @@ app.patch('/:id', verifyToken, requireAdmin, async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
-    const { name, description, icon, isEnabled, isDefault, sortOrder } = body
+    const { name, description, icon, walletAddress, isEnabled, isDefault, sortOrder } = body
 
     const existing = await prisma.paymentMethod.findUnique({
       where: { id }
@@ -109,6 +110,7 @@ app.patch('/:id', verifyToken, requireAdmin, async (c) => {
     if (name !== undefined) updateData.name = name.trim()
     if (description !== undefined) updateData.description = description?.trim() || null
     if (icon !== undefined) updateData.icon = icon
+    if (walletAddress !== undefined) updateData.walletAddress = walletAddress?.trim() || null
     if (isEnabled !== undefined) updateData.isEnabled = isEnabled
     if (isDefault !== undefined) updateData.isDefault = isDefault
     if (sortOrder !== undefined) updateData.sortOrder = sortOrder

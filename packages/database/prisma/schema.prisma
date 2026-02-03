@@ -85,6 +85,11 @@ enum LicenseType {
   OLD
 }
 
+enum CryptoNetwork {
+  TRON_TRC20
+  BSC_BEP20
+}
+
 // ============= MODELS =============
 
 model User {
@@ -114,14 +119,19 @@ model User {
   // Platform fees (for agents)
   fbFee             Float       @default(0)
   fbCommission      Float       @default(0)
+  fbUnlimitedDomainFee Float    @default(0)  // Extra fee when user selects "Unlimited Domain"
   googleFee         Float       @default(0)
   googleCommission  Float       @default(0)
+  googleUnlimitedDomainFee Float @default(0)
   tiktokFee         Float       @default(0)
   tiktokCommission  Float       @default(0)
+  tiktokUnlimitedDomainFee Float @default(0)
   snapchatFee       Float       @default(0)
   snapchatCommission Float      @default(0)
+  snapchatUnlimitedDomainFee Float @default(0)
   bingFee           Float       @default(0)
   bingCommission    Float       @default(0)
+  bingUnlimitedDomainFee Float  @default(0)
 
   // 2FA
   twoFactorEnabled  Boolean     @default(false)
@@ -164,6 +174,18 @@ model User {
   blockedByHistory  BlockHistory[]  @relation("BlockedBy")
   customDomains     CustomDomain[]  @relation("AgentDomains")
 
+  // Referral system
+  referralCode      String?     @unique  // User's own referral code
+  referredBy        String?     @db.ObjectId  // Who referred this user
+  referralEarnings  Float       @default(0)  // Total earned from referrals
+  referrals         Referral[]  @relation("Referrals")
+
+  // Notifications
+  notifications     Notification[]
+
+  // Agent Withdrawals (for agents to withdraw their earnings)
+  agentWithdrawals  AgentWithdrawal[]
+
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 }
@@ -176,7 +198,8 @@ model AdAccount {
   accountId         String        // The actual ad account ID assigned by admin
   accountName       String
   licenseName       String?       // License name from the application
-  bmId              String?       // Business Manager ID
+  bmId              String?       // User's Business Manager ID (for sharing)
+  sourceBmId        String?       // Source BM where this account is from (e.g., "cheetah" or actual BM ID)
   timezone          String?
   currency          String        @default("USD")
 
@@ -269,6 +292,13 @@ model Deposit {
   paymentProof      String?           // Base64 image data
   transactionId     String?
 
+  // Crypto deposit fields (optional - only for crypto deposits)
+  cryptoNetwork     CryptoNetwork?    // TRON_TRC20 or BSC_BEP20
+  txHash            String?           // Blockchain transaction hash (unique to prevent double-credit)
+  fromAddress       String?           // Sender's wallet address
+  blockNumber       String?           // Block number of the transaction
+  verifiedAt        DateTime?         // When the transaction was verified on blockchain
+
   // User
   userId            String            @db.ObjectId
   user              User              @relation(fields: [userId], references: [id])
@@ -282,6 +312,8 @@ model Deposit {
 
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+
+  @@index([txHash])
 }
 
 model Withdrawal {
@@ -339,8 +371,13 @@ model Refund {
 model AccountDeposit {
   id                String            @id @default(auto()) @map("_id") @db.ObjectId
 
+  applyId           String?
   amount            Float
   status            TransactionStatus @default(PENDING)
+
+  // Commission charged at time of deposit (stored for historical accuracy)
+  commissionRate    Float             @default(0)  // % rate at time of deposit
+  commissionAmount  Float             @default(0)  // calculated amount at time of deposit
 
   // Account
   adAccountId       String            @db.ObjectId
@@ -538,6 +575,9 @@ model CustomDomain {
   dnsVerified       Boolean       @default(false)
   verificationToken String?       // Token for DNS TXT record verification
 
+  // Branding (logo submitted with domain, requires admin approval)
+  brandLogo         String?       // Base64 logo submitted by agent
+
   // Agent who owns this domain
   agentId           String        @db.ObjectId
   agent             User          @relation("AgentDomains", fields: [agentId], references: [id])
@@ -549,6 +589,50 @@ model CustomDomain {
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+}
+
+// Crypto Wallet Configuration for automated USDT deposits
+model CryptoWalletConfig {
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+
+  network           CryptoNetwork @unique  // TRON_TRC20 or BSC_BEP20
+  walletAddress     String                 // Hot wallet address to receive deposits
+  contractAddress   String                 // USDT contract address on the network
+  isEnabled         Boolean       @default(true)
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+// Generic key-value settings for API configs, feature flags, etc.
+model Setting {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  key               String    @unique
+  value             String    // JSON string for complex values
+  description       String?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// Business Manager Configuration for auto BM sharing
+model BMConfig {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  bmId              String    @unique  // Facebook Business Manager ID
+  bmName            String              // Display name (e.g., "Client ABC BM")
+  accessToken       String              // System User Access Token
+  apiType           String    @default("facebook")  // "facebook" or "cheetah"
+
+  isActive          Boolean   @default(true)
+
+  // Stats
+  totalAccounts     Int       @default(0)  // How many accounts in this BM
+  lastSyncAt        DateTime?             // Last time we synced accounts
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
 
 model SiteSettings {
@@ -595,6 +679,9 @@ model PaymentMethod {
   description       String?
   icon              String    @default("💳")
 
+  // Crypto wallet address (for USDT TRC20 / BEP20)
+  walletAddress     String?
+
   isEnabled         Boolean   @default(true)
   isDefault         Boolean   @default(false)
 
@@ -617,6 +704,17 @@ model GlobalSettings {
   tiktokStatus      String    @default("active")
   snapchatStatus    String    @default("active")
   bingStatus        String    @default("active")
+
+  // System Facebook Token (for fetching ad account balances without user OAuth)
+  // This should be a System User access token from the platform's Business Manager
+  facebookSystemToken    String?
+
+  // Profile Share Links (displayed to users for page sharing)
+  facebookProfileShareLink String?   @default("https://www.facebook.com/profile/6adplatform")
+  tiktokProfileShareLink   String?   @default("https://business.tiktok.com/share/6adplatform")
+
+  // Referral Domain (used for generating referral links)
+  referralDomain    String?   @default("https://ads.sixad.io")
 
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -644,6 +742,515 @@ model FacebookProfile {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  // Relations
+  aiCampaigns       AICampaign[]
+
   @@unique([userId, facebookUserId]) // One user can't connect same FB profile twice
   @@index([userId])
+}
+
+// ============= AI CAMPAIGN SYSTEM =============
+
+enum AICampaignStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ACTIVE
+  PAUSED
+  COMPLETED
+  FAILED
+}
+
+enum AICampaignObjective {
+  ECOMMERCE_SALES
+  LEAD_GENERATION
+  WEBSITE_TRAFFIC
+  BRAND_AWARENESS
+  APP_INSTALLS
+  VIDEO_VIEWS
+  ENGAGEMENT
+}
+
+enum OptimizationRuleType {
+  BUDGET_INCREASE
+  BUDGET_DECREASE
+  PAUSE_CAMPAIGN
+  ACTIVATE_CAMPAIGN
+  PAUSE_ADSET
+  ACTIVATE_ADSET
+  PAUSE_AD
+  ADJUST_BID
+  SCALE_WINNING
+  KILL_LOSING
+}
+
+enum OptimizationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXECUTED
+  FAILED
+}
+
+enum ScheduleFrequency {
+  HOURLY
+  EVERY_4_HOURS
+  EVERY_6_HOURS
+  EVERY_12_HOURS
+  DAILY
+  WEEKLY
+}
+
+// AI Campaign - Main campaign configuration created by AI wizard
+model AICampaign {
+  id                  String              @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Basic Info
+  name                String
+  description         String?
+  objective           AICampaignObjective
+  status              AICampaignStatus    @default(DRAFT)
+
+  // Budget Settings
+  dailyBudget         Float
+  totalBudget         Float?
+  spentAmount         Float               @default(0)
+  currency            String              @default("USD")
+
+  // Schedule
+  startDate           DateTime
+  endDate             DateTime?
+  timezone            String              @default("UTC")
+
+  // Targeting (JSON)
+  targeting           String?             // JSON: {locations, ages, genders, interests, behaviors, customAudiences}
+
+  // Creatives (JSON)
+  creatives           String?             // JSON: [{type, headline, description, imageUrl, videoUrl, ctaType}]
+
+  // Facebook Integration
+  fbCampaignId        String?             // Created Facebook campaign ID
+  fbAdAccountId       String              // Facebook ad account ID
+  profileId           String              @db.ObjectId
+  profile             FacebookProfile     @relation(fields: [profileId], references: [id])
+
+  // AI Configuration
+  aiOptimizationEnabled Boolean           @default(true)
+  targetCPA           Float?              // Target Cost Per Acquisition
+  targetROAS          Float?              // Target Return On Ad Spend
+
+  // Owner
+  userId              String              @db.ObjectId
+
+  // Relations
+  optimizationRules   OptimizationRule[]
+  optimizationLogs    OptimizationLog[]
+  performanceSnapshots PerformanceSnapshot[]
+  schedules           CampaignSchedule[]
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([status])
+}
+
+// Campaign Template - Pre-built templates for quick campaign creation
+model CampaignTemplate {
+  id                  String              @id @default(auto()) @map("_id") @db.ObjectId
+
+  name                String
+  description         String?
+  objective           AICampaignObjective
+  category            String              // e-commerce, lead-gen, traffic, etc.
+
+  // Default Settings (JSON)
+  defaultBudget       Float?
+  defaultTargeting    String?             // JSON template
+  defaultCreatives    String?             // JSON template
+  optimizationRules   String?             // JSON: default rules to apply
+
+  // Meta
+  isActive            Boolean             @default(true)
+  isSystem            Boolean             @default(false)  // System templates vs user-created
+  usageCount          Int                 @default(0)
+
+  // For user-created templates
+  userId              String?             @db.ObjectId
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+}
+
+// Optimization Rule - Rules that AI uses to optimize campaigns
+model OptimizationRule {
+  id                  String              @id @default(auto()) @map("_id") @db.ObjectId
+
+  name                String
+  description         String?
+  ruleType            OptimizationRuleType
+  isActive            Boolean             @default(true)
+
+  // Conditions (JSON) - When to trigger
+  // Example: {"metric": "cpc", "operator": ">", "value": 2.5, "timeframe": "last_7d"}
+  conditions          String
+
+  // Actions (JSON) - What to do
+  // Example: {"action": "decrease_budget", "value": 20, "unit": "percent"}
+  actions             String
+
+  // Execution Settings
+  priority            Int                 @default(0)       // Higher = runs first
+  cooldownHours       Int                 @default(24)      // Wait time between executions
+  maxExecutionsPerDay Int                 @default(3)
+
+  // Campaign relation
+  campaignId          String              @db.ObjectId
+  campaign            AICampaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Logs
+  lastExecutedAt      DateTime?
+  executionCount      Int                 @default(0)
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([campaignId])
+}
+
+// Optimization Log - History of all AI suggestions and actions
+model OptimizationLog {
+  id                  String              @id @default(auto()) @map("_id") @db.ObjectId
+
+  // What was suggested
+  ruleType            OptimizationRuleType
+  title               String
+  description         String
+
+  // Current vs Suggested values
+  currentValue        String?             // JSON: {"budget": 100, "cpc": 2.5}
+  suggestedValue      String?             // JSON: {"budget": 80}
+
+  // Impact prediction
+  predictedImpact     String?             // JSON: {"metric": "cpc", "change": -15, "confidence": 0.85}
+
+  // Status
+  status              OptimizationStatus  @default(PENDING)
+
+  // Execution details
+  executedAt          DateTime?
+  executedBy          String?             // "AI" or userId
+  rejectionReason     String?
+
+  // Results after execution
+  actualImpact        String?             // JSON: measured results after execution
+
+  // Relations
+  campaignId          String              @db.ObjectId
+  campaign            AICampaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Target entity (what's being optimized)
+  targetType          String              // "campaign", "adset", "ad"
+  targetId            String              // Facebook ID of the entity
+  targetName          String?
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Performance Snapshot - Historical performance data for ML analysis
+model PerformanceSnapshot {
+  id                  String              @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Metrics
+  spend               Float               @default(0)
+  impressions         Int                 @default(0)
+  reach               Int                 @default(0)
+  clicks              Int                 @default(0)
+  conversions         Int                 @default(0)
+  revenue             Float               @default(0)
+
+  // Calculated Metrics
+  ctr                 Float               @default(0)
+  cpc                 Float               @default(0)
+  cpm                 Float               @default(0)
+  cpa                 Float               @default(0)
+  roas                Float               @default(0)
+  frequency           Float               @default(0)
+
+  // Snapshot time
+  snapshotDate        DateTime
+  snapshotHour        Int?                // 0-23 for hourly snapshots
+
+  // Campaign relation
+  campaignId          String              @db.ObjectId
+  campaign            AICampaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Optional: track specific entity
+  entityType          String?             // "campaign", "adset", "ad"
+  entityId            String?             // Facebook ID
+
+  createdAt           DateTime            @default(now())
+
+  @@index([campaignId])
+  @@index([snapshotDate])
+  @@index([campaignId, snapshotDate])
+}
+
+// Campaign Schedule - Scheduled actions for campaigns
+model CampaignSchedule {
+  id                  String              @id @default(auto()) @map("_id") @db.ObjectId
+
+  name                String
+  description         String?
+  isActive            Boolean             @default(true)
+
+  // Schedule Type
+  frequency           ScheduleFrequency
+
+  // Time settings (for daily/weekly)
+  runAtHour           Int?                // 0-23
+  runAtMinute         Int?                // 0-59
+  runOnDays           String?             // JSON: [1,2,3,4,5] for Mon-Fri
+
+  // Action to perform (JSON)
+  // Example: {"type": "adjust_budget", "value": {"morning": 120, "afternoon": 100, "evening": 80}}
+  action              String
+
+  // Campaign relation
+  campaignId          String              @db.ObjectId
+  campaign            AICampaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  // Execution tracking
+  lastRunAt           DateTime?
+  nextRunAt           DateTime?
+  runCount            Int                 @default(0)
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([campaignId])
+  @@index([nextRunAt])
+}
+
+// AI Analysis Result - Stores ML model predictions and recommendations
+model AIAnalysisResult {
+  id                  String              @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Analysis Type
+  analysisType        String              // "performance_prediction", "audience_recommendation", "budget_optimization", "creative_analysis"
+
+  // Input data (JSON)
+  inputData           String
+
+  // Output/Recommendations (JSON)
+  recommendations     String              // JSON array of recommendations
+  confidence          Float               // 0-1 confidence score
+
+  // Model info
+  modelVersion        String?
+
+  // Relations
+  campaignId          String?             @db.ObjectId
+  userId              String              @db.ObjectId
+
+  createdAt           DateTime            @default(now())
+
+  @@index([userId])
+  @@index([campaignId])
+  @@index([analysisType])
+}
+
+// ============= REFERRAL SYSTEM =============
+
+model Referral {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Referrer (user who invited)
+  referrerId        String    @db.ObjectId
+  referrer          User      @relation("Referrals", fields: [referrerId], references: [id])
+
+  // Referred user (new user who signed up)
+  referredUserId    String    @db.ObjectId
+
+  // Referral code used
+  referralCode      String
+
+  // Reward tracking
+  rewardAmount      Float     @default(0)  // Amount earned from this referral
+  rewardPaid        Boolean   @default(false)
+  rewardPaidAt      DateTime?
+
+  // Status
+  status            String    @default("pending")  // pending, qualified, rewarded
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([referrerId])
+  @@index([referredUserId])
+  @@index([referralCode])
+}
+
+// ============= NOTIFICATION SYSTEM =============
+
+enum NotificationType {
+  ACCOUNT_APPROVED
+  ACCOUNT_REJECTED
+  DEPOSIT_APPROVED
+  DEPOSIT_REJECTED
+  LOW_BALANCE
+  REFUND_PROCESSED
+  REFERRAL_REWARD
+  SYSTEM
+  ANNOUNCEMENT
+}
+
+model Notification {
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Target user
+  userId            String            @db.ObjectId
+  user              User              @relation(fields: [userId], references: [id])
+
+  // Notification content
+  type              NotificationType
+  title             String
+  message           String
+  link              String?           // Optional link to navigate to
+
+  // Read status
+  isRead            Boolean           @default(false)
+  readAt            DateTime?
+
+  // Metadata (JSON for extra data)
+  metadata          String?
+
+  createdAt         DateTime          @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ============= ANNOUNCEMENT SYSTEM =============
+
+model Announcement {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Content
+  title             String
+  message           String
+  type              String    @default("info")  // info, warning, success, error
+
+  // Display settings
+  isActive          Boolean   @default(true)
+  isPinned          Boolean   @default(false)
+  showOnce          Boolean   @default(false)  // If true, show only once per user
+  startDate         DateTime  @default(now())
+  endDate           DateTime?
+
+  // Target audience
+  targetRole        String?   // USER, AGENT, ALL (null = all users)
+
+  // Created by
+  createdById       String    @db.ObjectId
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+// ============= LIVE CHAT SYSTEM =============
+
+model ChatRoom {
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Participants
+  userId            String        @db.ObjectId
+  adminId           String?       @db.ObjectId  // Assigned admin (null = unassigned)
+
+  // Room status
+  status            String        @default("open")  // open, assigned, closed
+
+  // Last activity
+  lastMessageAt     DateTime      @default(now())
+
+  // Messages
+  messages          ChatMessage[]
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([adminId])
+  @@index([status])
+  @@index([lastMessageAt])
+}
+
+model ChatMessage {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Room
+  roomId            String    @db.ObjectId
+  room              ChatRoom  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  // Sender
+  senderId          String    @db.ObjectId
+  senderRole        String    // USER, ADMIN
+
+  // Message content
+  message           String
+  attachmentUrl     String?
+  attachmentType    String?   // image, file
+
+  // Read status
+  isRead            Boolean   @default(false)
+  readAt            DateTime?
+
+  createdAt         DateTime  @default(now())
+
+  @@index([roomId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+// ============= AGENT WITHDRAWAL SYSTEM =============
+
+model AgentWithdrawal {
+  id                String            @id @default(auto()) @map("_id") @db.ObjectId
+
+  amount            Float
+  status            TransactionStatus @default(PENDING)
+
+  // Payment address/details
+  paymentAddress    String?           // Crypto address, bank details, etc.
+  paymentMethod     String?           // USDT_TRC20, BANK_TRANSFER, etc.
+
+  // Agent (only agents can create withdrawals)
+  agentId           String            @db.ObjectId
+  agent             User              @relation(fields: [agentId], references: [id])
+
+  // Description/Remarks
+  description       String?
+  adminRemarks      String?
+
+  // Timestamps
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  clearedAt         DateTime?         // When funds were actually transferred
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([agentId])
+  @@index([status])
+  @@index([createdAt])
 }

@@ -9,17 +9,33 @@ import { Modal } from '@/components/ui/Modal'
 import { agentsApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { useToast } from '@/contexts/ToastContext'
-import { Plus, Search, MoreVertical, Filter, Download, Grid, List, Eye, Edit, Ban, Trash2, DollarSign, Users as UsersIcon, ChevronDown } from 'lucide-react'
+import { Plus, Search, MoreVertical, Filter, Download, Grid, List, Eye, Edit, Ban, Trash2, DollarSign, Users as UsersIcon, ChevronDown, Shield, Copy, Check } from 'lucide-react'
 
 type Agent = {
   id: string
   username: string
   email: string
+  plaintextPassword?: string | null
   phone: string | null
+  phone2?: string | null
   status: string
   walletBalance: string
   uniqueId: string
   createdAt: string
+  // 2FA
+  twoFactorEnabled?: boolean
+  twoFactorSecret?: string
+  // Platform fees
+  fbFee?: number | string
+  fbCommission?: number | string
+  googleFee?: number | string
+  googleCommission?: number | string
+  tiktokFee?: number | string
+  tiktokCommission?: number | string
+  snapchatFee?: number | string
+  snapchatCommission?: number | string
+  bingFee?: number | string
+  bingCommission?: number | string
 }
 
 type PlatformFees = {
@@ -61,13 +77,21 @@ export default function AgentsPage() {
     }
   })
   const [formLoading, setFormLoading] = useState(false)
+  const [copied2FAKey, setCopied2FAKey] = useState(false)
+  const [showPasswordId, setShowPasswordId] = useState<string | null>(null)
+
+  const copy2FAKey = (secret: string) => {
+    navigator.clipboard.writeText(secret)
+    setCopied2FAKey(true)
+    setTimeout(() => setCopied2FAKey(false), 2000)
+  }
 
   const fetchAgents = async () => {
     try {
       const { agents } = await agentsApi.getAll()
       setAgents(agents || [])
-    } catch (error) {
-      console.error('Failed to fetch agents:', error)
+    } catch {
+      // Silently fail - show empty state if API is unavailable
     } finally {
       setLoading(false)
     }
@@ -92,11 +116,11 @@ export default function AgentsPage() {
       phone: agent.phone || '',
       status: agent.status,
       platformFees: {
-        facebook: { openingFee: '30', depositFee: '3' },
-        google: { openingFee: '50', depositFee: '5' },
-        tiktok: { openingFee: '40', depositFee: '4' },
-        snapchat: { openingFee: '35', depositFee: '3.5' },
-        bing: { openingFee: '45', depositFee: '4.5' },
+        facebook: { openingFee: String(Number(agent.fbFee) || 0), depositFee: String(Number(agent.fbCommission) || 0) },
+        google: { openingFee: String(Number(agent.googleFee) || 0), depositFee: String(Number(agent.googleCommission) || 0) },
+        tiktok: { openingFee: String(Number(agent.tiktokFee) || 0), depositFee: String(Number(agent.tiktokCommission) || 0) },
+        snapchat: { openingFee: String(Number(agent.snapchatFee) || 0), depositFee: String(Number(agent.snapchatCommission) || 0) },
+        bing: { openingFee: String(Number(agent.bingFee) || 0), depositFee: String(Number(agent.bingCommission) || 0) },
       }
     })
     setIsEditMode(true)
@@ -129,11 +153,35 @@ export default function AgentsPage() {
     setFormLoading(true)
 
     try {
+      // Convert platformFees to flat fields expected by API
+      const payload: any = {
+        username: formData.username,
+        email: formData.email,
+        phone: formData.phone,
+        status: formData.status,
+        fbFee: Number(formData.platformFees.facebook.openingFee) || 0,
+        fbCommission: Number(formData.platformFees.facebook.depositFee) || 0,
+        googleFee: Number(formData.platformFees.google.openingFee) || 0,
+        googleCommission: Number(formData.platformFees.google.depositFee) || 0,
+        tiktokFee: Number(formData.platformFees.tiktok.openingFee) || 0,
+        tiktokCommission: Number(formData.platformFees.tiktok.depositFee) || 0,
+        snapchatFee: Number(formData.platformFees.snapchat.openingFee) || 0,
+        snapchatCommission: Number(formData.platformFees.snapchat.depositFee) || 0,
+        bingFee: Number(formData.platformFees.bing.openingFee) || 0,
+        bingCommission: Number(formData.platformFees.bing.depositFee) || 0,
+      }
+
+      // Only include password if provided
+      if (formData.password && formData.password.trim()) {
+        payload.password = formData.password
+      }
+
       if (selectedAgent) {
-        await agentsApi.update(selectedAgent.id, formData)
+        await agentsApi.update(selectedAgent.id, payload)
         toast.success('Agent Updated', `${formData.username} has been updated successfully`)
       } else {
-        await agentsApi.create(formData)
+        payload.password = formData.password // Required for new agents
+        await agentsApi.create(payload)
         toast.success('Agent Created', `${formData.username} has been added successfully`)
       }
 
@@ -229,31 +277,24 @@ export default function AgentsPage() {
     return matchesSearch && matchesStatus
   })
 
-  // Sample agents for display
-  const displayAgents = filteredAgents.length > 0 ? filteredAgents : [
-    { id: '1', username: 'Vicky Sampath', email: 'vicky@agent.com', phone: '+1234567890', status: 'ACTIVE', walletBalance: '22444610', uniqueId: 'AGT001', createdAt: new Date().toISOString() },
-    { id: '2', username: 'Vicky Sampath', email: 'vicky2@agent.com', phone: '+1234567891', status: 'ACTIVE', walletBalance: '18530250', uniqueId: 'AGT002', createdAt: new Date().toISOString() },
-    { id: '3', username: 'Vicky Sampath', email: 'vicky3@agent.com', phone: '+1234567892', status: 'BLOCKED', walletBalance: '15820340', uniqueId: 'AGT003', createdAt: new Date().toISOString() },
-    { id: '4', username: 'Vicky Sampath', email: 'vicky4@agent.com', phone: '+1234567893', status: 'ACTIVE', walletBalance: '20115780', uniqueId: 'AGT004', createdAt: new Date().toISOString() },
-    { id: '5', username: 'Vicky Sampath', email: 'vicky5@agent.com', phone: '+1234567894', status: 'ACTIVE', walletBalance: '19234560', uniqueId: 'AGT005', createdAt: new Date().toISOString() },
-    { id: '6', username: 'Vicky Sampath', email: 'vicky6@agent.com', phone: '+1234567895', status: 'ACTIVE', walletBalance: '17845920', uniqueId: 'AGT006', createdAt: new Date().toISOString() },
-  ]
+  // Use filtered agents directly (no mock data)
+  const displayAgents = filteredAgents
 
   return (
     <DashboardLayout title="Agents Management">
       {/* Header Actions */}
-      <div className="bg-white rounded-xl p-4 shadow-sm mb-6 border border-gray-100">
+      <div className="bg-white rounded-2xl p-5 shadow-sm mb-6 border border-gray-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search"
+                placeholder="Search agents..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9 w-[200px] rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm placeholder:text-gray-400 focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 transition-all duration-200 focus:w-[240px]"
+                className="h-10 w-[240px] rounded-xl border border-gray-200 bg-gray-50 pl-10 pr-4 text-sm placeholder:text-gray-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:bg-white transition-all duration-200"
               />
             </div>
 
@@ -261,10 +302,11 @@ export default function AgentsPage() {
             <div className="relative">
               <button
                 onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                className="h-9 px-3 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 flex items-center gap-2 transition-all duration-200"
+                className="h-10 px-4 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-600 hover:bg-white hover:border-gray-300 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 flex items-center gap-2 transition-all duration-200"
               >
+                <Filter className="h-4 w-4 text-gray-400" />
                 <span className="capitalize">
-                  {statusFilter === 'all' ? 'Status' : statusFilter}
+                  {statusFilter === 'all' ? 'All Status' : statusFilter}
                 </span>
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -275,7 +317,7 @@ export default function AgentsPage() {
                     className="fixed inset-0 z-[60]"
                     onClick={() => setIsStatusDropdownOpen(false)}
                   />
-                  <div className="absolute left-0 top-11 z-[70] w-36 bg-white rounded-lg shadow-lg border border-gray-100 py-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="absolute left-0 top-12 z-[70] w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200">
                     {[
                       { value: 'all', label: 'All Status' },
                       { value: 'active', label: 'Active' },
@@ -288,9 +330,9 @@ export default function AgentsPage() {
                           setStatusFilter(option.value)
                           setIsStatusDropdownOpen(false)
                         }}
-                        className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                           statusFilter === option.value
-                            ? 'bg-[#8B5CF6]/10 text-[#8B5CF6] font-medium'
+                            ? 'bg-teal-50 text-teal-600 font-medium'
                             : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       >
@@ -305,21 +347,15 @@ export default function AgentsPage() {
 
           <div className="flex items-center gap-3">
             {/* Export */}
-            <button className="flex items-center gap-2 h-9 px-3 rounded-lg bg-[#52B788] text-white text-sm hover:bg-[#2D5F5D] hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm hover:shadow-md">
+            <button className="flex items-center gap-2 h-10 px-4 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 hover:border-gray-300 transition-all duration-200">
               <Download className="h-4 w-4" />
-              Export Image
-            </button>
-
-            {/* Add Coupon - keeping from design */}
-            <button className="flex items-center gap-2 h-9 px-3 rounded-lg bg-[#8B5CF6] text-white text-sm hover:bg-[#7C3AED] hover:scale-105 active:scale-95 transition-all duration-200 shadow-sm hover:shadow-md">
-              <Plus className="h-4 w-4" />
-              Add Coupon
+              Export
             </button>
 
             {/* Add Agent */}
             <button
               onClick={handleAddAgent}
-              className="flex items-center gap-2 h-9 px-4 rounded-lg bg-[#8B5CF6] text-white text-sm hover:bg-[#7C3AED] hover:scale-105 active:scale-95 transition-all duration-200 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50"
+              className="flex items-center gap-2 h-10 px-5 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 text-white text-sm font-medium hover:from-teal-700 hover:to-cyan-700 transition-all duration-200 shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40"
             >
               <Plus className="h-4 w-4" />
               Add Agent
@@ -328,161 +364,202 @@ export default function AgentsPage() {
         </div>
       </div>
 
-      {/* Agents Grid */}
+      {/* Agents List */}
       {loading ? (
         <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#8B5CF6] border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" />
+        </div>
+      ) : displayAgents.length === 0 ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-100 to-cyan-100 flex items-center justify-center mb-4">
+              <UsersIcon className="h-10 w-10 text-teal-500" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Agents Yet</h3>
+            <p className="text-gray-500 text-sm text-center mb-6 max-w-sm">
+              Get started by creating your first agent. Agents can manage users and handle transactions.
+            </p>
+            <button
+              onClick={handleAddAgent}
+              className="flex items-center gap-2 h-10 px-5 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 text-white text-sm font-medium hover:from-teal-700 hover:to-cyan-700 transition-all duration-200 shadow-lg shadow-teal-500/25"
+            >
+              <Plus className="h-4 w-4" />
+              Add First Agent
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-5">
-          {displayAgents.map((agent, index) => (
-            <div
-              key={agent.id}
-              className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-lg hover:scale-[1.02] hover:border-[#8B5CF6]/20 transition-all duration-300 ease-out animate-in fade-in slide-in-from-bottom-4"
-              style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
-            >
-              {/* Card Header */}
-              <div className="flex items-start justify-between mb-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Table Header */}
+          <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_100px] gap-4 px-6 py-4 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <div>Agent</div>
+            <div>Email</div>
+            <div>Password</div>
+            <div>Agent Balance</div>
+            <div>Users Balance</div>
+            <div>Status</div>
+            <div className="text-center">Actions</div>
+          </div>
+
+          {/* Table Body */}
+          <div className="divide-y divide-gray-100">
+            {displayAgents.map((agent) => (
+              <div
+                key={agent.id}
+                className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_100px] gap-4 px-6 py-4 items-center hover:bg-gray-50 transition-colors"
+              >
+                {/* Agent Info */}
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#6366F1] flex items-center justify-center text-white text-lg font-semibold shadow-md">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white text-sm font-semibold shadow-sm">
                       {agent.username.charAt(0)}
                     </div>
-                    <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white ${
-                      agent.status === 'ACTIVE' ? 'bg-[#52B788]' : 'bg-gray-400'
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                      agent.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-gray-400'
                     }`} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 text-base">{agent.username}</h3>
-                    <p className="text-xs text-gray-500">Agent #{agent.uniqueId?.slice(-5) || '00001'}</p>
+                    <p className="font-medium text-gray-900 text-sm">{agent.username}</p>
+                    <p className="text-xs text-gray-500">#{agent.uniqueId?.slice(-5) || '00001'}</p>
                   </div>
                 </div>
 
-                {/* Dropdown Menu */}
-                <div className="relative">
+                {/* Email */}
+                <div className="text-sm text-gray-600 truncate">{agent.email}</div>
+
+                {/* Password */}
+                <div>
                   <button
-                    onClick={() => setActiveDropdown(activeDropdown === agent.id ? null : agent.id)}
-                    className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                    onClick={() => setShowPasswordId(showPasswordId === agent.id ? null : agent.id)}
+                    onMouseEnter={() => setShowPasswordId(agent.id)}
+                    onMouseLeave={() => setShowPasswordId(null)}
+                    className={`text-sm cursor-pointer font-mono transition-colors ${
+                      showPasswordId === agent.id && !agent.plaintextPassword
+                        ? 'text-red-500'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                    title={agent.plaintextPassword ? "Click to show password" : "Password not stored - edit agent to set new password"}
                   >
-                    <MoreVertical className="h-5 w-5" />
+                    {showPasswordId === agent.id
+                      ? (agent.plaintextPassword || 'Reset needed')
+                      : '••••••••'}
                   </button>
+                </div>
 
-                  {activeDropdown === agent.id && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-[60]"
-                        onClick={() => setActiveDropdown(null)}
-                      />
-                      <div className="absolute right-0 top-8 z-[70] w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <button
-                          onClick={() => handleViewProfile(agent)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          <Eye className="h-4 w-4 text-gray-500" />
-                          View Profile
-                        </button>
-                        <button
-                          onClick={() => {
-                            handleEditAgent(agent)
-                            setActiveDropdown(null)
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          <Edit className="h-4 w-4 text-gray-500" />
-                          Edit Info
-                        </button>
-                        <button
-                          onClick={() => handleViewBalance(agent)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
-                          <DollarSign className="h-4 w-4 text-gray-500" />
-                          Balance Report
-                        </button>
-                        <div className="h-px bg-gray-100 my-1" />
-                        <button
-                          onClick={() => handleOpenBlockModal(agent)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-yellow-600 hover:bg-yellow-50 transition-colors"
-                        >
-                          <Ban className="h-4 w-4" />
-                          {agent.status === 'ACTIVE' ? 'Block Agent' : 'Unblock Agent'}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAgent(agent)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete Agent
-                        </button>
-                      </div>
-                    </>
-                  )}
+                {/* Agent Balance */}
+                <div className="text-sm font-semibold text-teal-600">
+                  ${Number(agent.walletBalance || 0).toLocaleString()}
+                </div>
+
+                {/* Users Balance */}
+                <div className="text-sm font-semibold text-emerald-600">
+                  ${(Number(agent.walletBalance || 0) * 2.5).toLocaleString()}
+                </div>
+
+                {/* Status */}
+                <div>
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
+                    agent.status === 'ACTIVE'
+                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                      : agent.status === 'BLOCKED'
+                      ? 'bg-red-50 text-red-600 border border-red-200'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      agent.status === 'ACTIVE' ? 'bg-emerald-500' : agent.status === 'BLOCKED' ? 'bg-red-500' : 'bg-gray-500'
+                    }`} />
+                    {agent.status}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-center gap-1">
+                  <button
+                    onClick={() => handleViewProfile(agent)}
+                    className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                    title="View Profile"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleEditAgent(agent)}
+                    className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setActiveDropdown(activeDropdown === agent.id ? null : agent.id)}
+                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="More actions"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </button>
+
+                    {activeDropdown === agent.id && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-[60]"
+                          onClick={() => setActiveDropdown(null)}
+                        />
+                        <div className="absolute right-0 top-10 z-[70] w-44 bg-white rounded-xl shadow-xl border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <button
+                            onClick={() => handleViewBalance(agent)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            <DollarSign className="h-4 w-4 text-gray-400" />
+                            Balance Report
+                          </button>
+                          <div className="h-px bg-gray-100 my-1" />
+                          <button
+                            onClick={() => handleOpenBlockModal(agent)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 hover:bg-amber-50 transition-colors"
+                          >
+                            <Ban className="h-4 w-4" />
+                            {agent.status === 'ACTIVE' ? 'Block Agent' : 'Unblock Agent'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAgent(agent)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete Agent
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-
-              {/* Agent Details */}
-              <div className="space-y-2.5 mb-4">
-                <div className="flex items-center justify-between py-2 px-3 bg-gradient-to-r from-[#8B5CF6]/10 to-[#6366F1]/10 rounded-lg border border-[#8B5CF6]/20 hover:from-[#8B5CF6]/15 hover:to-[#6366F1]/15 hover:scale-[1.02] transition-all duration-200 cursor-pointer">
-                  <span className="text-xs font-medium text-gray-700">Agent Balance</span>
-                  <span className="text-sm font-bold text-[#8B5CF6]">${Number(agent.walletBalance || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between py-2 px-3 bg-gradient-to-r from-[#52B788]/10 to-[#2D5F5D]/10 rounded-lg border border-[#52B788]/20 hover:from-[#52B788]/15 hover:to-[#2D5F5D]/15 hover:scale-[1.02] transition-all duration-200 cursor-pointer">
-                  <span className="text-xs font-medium text-gray-700">Users Balance</span>
-                  <span className="text-sm font-bold text-[#52B788]">${(Number(agent.walletBalance || 0) * 2.5).toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-xs text-gray-500">Email</span>
-                  <span className="text-xs text-gray-700 truncate max-w-[180px]">{agent.email}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">Phone</span>
-                  <span className="text-xs text-gray-700">{agent.phone || 'Not provided'}</span>
-                </div>
-              </div>
-
-              {/* Status Badge */}
-              <div className="pt-3 border-t border-gray-100">
-                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all duration-200 ${
-                  agent.status === 'ACTIVE'
-                    ? 'bg-green-50 text-green-600 hover:bg-green-100'
-                    : agent.status === 'BLOCKED'
-                    ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${
-                    agent.status === 'ACTIVE' ? 'bg-green-500 animate-pulse' : agent.status === 'BLOCKED' ? 'bg-red-500' : 'bg-gray-500'
-                  }`} />
-                  {agent.status}
-                </span>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
       {/* Pagination */}
-      <div className="flex items-center justify-center mt-8 gap-1">
-        <button className="w-9 h-9 rounded-lg bg-[#8B5CF6] text-white text-sm font-medium shadow-lg shadow-purple-500/30 hover:bg-[#7C3AED] hover:scale-105 active:scale-95 transition-all duration-200">1</button>
-        <button className="w-9 h-9 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6] hover:scale-105 active:scale-95 transition-all duration-200">2</button>
-        <button className="w-9 h-9 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6] hover:scale-105 active:scale-95 transition-all duration-200">3</button>
-        <button className="w-9 h-9 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6] hover:scale-105 active:scale-95 transition-all duration-200">8</button>
-        <button className="w-9 h-9 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6] hover:scale-105 active:scale-95 transition-all duration-200">9</button>
-        <button className="w-9 h-9 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6] hover:scale-105 active:scale-95 transition-all duration-200">10</button>
-        <button className="px-4 h-9 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-[#8B5CF6]/30 hover:text-[#8B5CF6] hover:scale-105 active:scale-95 transition-all duration-200 font-medium">Next →</button>
+      <div className="flex items-center justify-center mt-8 gap-2">
+        <button className="w-10 h-10 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 text-white text-sm font-medium shadow-lg shadow-teal-500/25">1</button>
+        <button className="w-10 h-10 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-600 transition-all duration-200">2</button>
+        <button className="w-10 h-10 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-600 transition-all duration-200">3</button>
+        <span className="px-2 text-gray-400">...</span>
+        <button className="w-10 h-10 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-600 transition-all duration-200">10</button>
+        <button className="px-5 h-10 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-teal-50 hover:border-teal-200 hover:text-teal-600 transition-all duration-200 font-medium ml-2">Next →</button>
       </div>
 
       {/* Add/Edit Agent Modal with Platform Fees */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={selectedAgent ? 'Edit Agent Information' : 'Add Agent Information'}
+        title={selectedAgent ? 'Edit Agent Information' : 'Add New Agent'}
       >
-        <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto px-1">
+        <form onSubmit={handleSubmit} className="space-y-5 max-h-[75vh] overflow-y-auto px-1">
           {/* Profile Picture */}
           <div className="flex flex-col items-center">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#6366F1] flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-1.5">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-teal-500/25 mb-2">
               {formData.username.charAt(0) || 'A'}
             </div>
-            <button type="button" className="text-xs text-[#8B5CF6] hover:text-[#7C3AED] font-medium">
+            <button type="button" className="text-xs text-teal-600 hover:text-teal-700 font-medium">
               Change Profile Picture
             </button>
           </div>
@@ -511,17 +588,15 @@ export default function AgentsPage() {
               />
             </div>
 
-            {!selectedAgent && (
-              <Input
-                id="password"
-                type="password"
-                label="Password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="••••••••"
-                required
-              />
-            )}
+            <Input
+              id="password"
+              type="password"
+              label={selectedAgent ? "New Password (leave empty to keep current)" : "Password"}
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              placeholder={selectedAgent ? "Enter new password to change" : "••••••••"}
+              required={!selectedAgent}
+            />
           </div>
 
           {/* Platform Fees - Compact Layout */}
@@ -544,7 +619,7 @@ export default function AgentsPage() {
                     }
                   })}
                   placeholder="30"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
               <div>
@@ -560,7 +635,7 @@ export default function AgentsPage() {
                     }
                   })}
                   placeholder="3"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
             </div>
@@ -580,7 +655,7 @@ export default function AgentsPage() {
                     }
                   })}
                   placeholder="50"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
               <div>
@@ -596,7 +671,7 @@ export default function AgentsPage() {
                     }
                   })}
                   placeholder="5"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
             </div>
@@ -616,7 +691,7 @@ export default function AgentsPage() {
                     }
                   })}
                   placeholder="40"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
               <div>
@@ -632,7 +707,7 @@ export default function AgentsPage() {
                     }
                   })}
                   placeholder="4"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
             </div>
@@ -652,7 +727,7 @@ export default function AgentsPage() {
                     }
                   })}
                   placeholder="35"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
               <div>
@@ -668,7 +743,7 @@ export default function AgentsPage() {
                     }
                   })}
                   placeholder="3.5"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
             </div>
@@ -688,7 +763,7 @@ export default function AgentsPage() {
                     }
                   })}
                   placeholder="45"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
               <div>
@@ -704,7 +779,7 @@ export default function AgentsPage() {
                     }
                   })}
                   placeholder="4.5"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
             </div>
@@ -719,7 +794,7 @@ export default function AgentsPage() {
                 <input
                   type="text"
                   placeholder="Enter contact"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
               <div>
@@ -727,18 +802,18 @@ export default function AgentsPage() {
                 <input
                   type="text"
                   placeholder="Enter contact"
-                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20"
+                  className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t sticky bottom-0 bg-white">
+          <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white">
             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" loading={formLoading} className="bg-[#8B5CF6] hover:bg-[#7C3AED]">
-              Submit
+            <Button type="submit" loading={formLoading} className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700">
+              {selectedAgent ? 'Update Agent' : 'Create Agent'}
             </Button>
           </div>
         </form>
@@ -753,8 +828,8 @@ export default function AgentsPage() {
         {selectedAgent && (
           <div className="space-y-6">
             {/* Agent Info */}
-            <div className="flex items-center gap-4 pb-4 border-b">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#6366F1] flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+            <div className="flex items-center gap-4 pb-4 border-b border-gray-100">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-teal-500/25">
                 {selectedAgent.username.charAt(0)}
               </div>
               <div>
@@ -766,47 +841,47 @@ export default function AgentsPage() {
 
             {/* Balance Cards */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gradient-to-br from-[#8B5CF6] to-[#7C3AED] rounded-xl p-6 text-white">
+              <div className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl p-5 text-white">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                     <DollarSign className="h-5 w-5" />
                   </div>
-                  <span className="text-sm font-medium opacity-90">Agent Wallet Balance</span>
+                  <span className="text-sm font-medium opacity-90">Agent Balance</span>
                 </div>
                 <p className="text-3xl font-bold">${Number(selectedAgent.walletBalance || 0).toLocaleString()}</p>
-                <p className="text-xs opacity-75 mt-2">Available balance in agent's wallet</p>
+                <p className="text-xs opacity-75 mt-2">Available in wallet</p>
               </div>
 
-              <div className="bg-gradient-to-br from-[#52B788] to-[#2D5F5D] rounded-xl p-6 text-white">
+              <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl p-5 text-white">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                     <UsersIcon className="h-5 w-5" />
                   </div>
-                  <span className="text-sm font-medium opacity-90">Overall Users Balance</span>
+                  <span className="text-sm font-medium opacity-90">Users Balance</span>
                 </div>
                 <p className="text-3xl font-bold">${(Number(selectedAgent.walletBalance || 0) * 2.5).toLocaleString()}</p>
-                <p className="text-xs opacity-75 mt-2">Combined balance of all users</p>
+                <p className="text-xs opacity-75 mt-2">Combined balance</p>
               </div>
             </div>
 
             {/* Summary Stats */}
-            <div className="grid grid-cols-3 gap-4 pt-4">
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <p className="text-2xl font-bold text-gray-900">156</p>
                 <p className="text-xs text-gray-500 mt-1">Total Users</p>
               </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
+              <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <p className="text-2xl font-bold text-gray-900">87%</p>
                 <p className="text-xs text-gray-500 mt-1">Active Rate</p>
               </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
+              <div className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <p className="text-2xl font-bold text-gray-900">$1.2M</p>
                 <p className="text-xs text-gray-500 mt-1">Lifetime Value</p>
               </div>
             </div>
 
-            <div className="flex justify-end pt-4 border-t">
-              <Button onClick={() => setIsBalanceModalOpen(false)} className="bg-[#8B5CF6] hover:bg-[#7C3AED]">
+            <div className="flex justify-end pt-4 border-t border-gray-100">
+              <Button onClick={() => setIsBalanceModalOpen(false)} className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700">
                 Close
               </Button>
             </div>
@@ -818,22 +893,22 @@ export default function AgentsPage() {
       <Modal
         isOpen={isViewProfileOpen}
         onClose={() => setIsViewProfileOpen(false)}
-        title="Agents profile Details"
+        title="Agent Profile"
       >
         {selectedAgent && (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {/* Profile Header with Edit Button */}
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#6366F1] flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-teal-500/25">
                   {selectedAgent.username.charAt(0)}
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gray-900">{selectedAgent.username}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Street no 14 sanksy chicago</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{selectedAgent.email}</p>
                   <div className="flex items-center gap-1.5 mt-1.5">
-                    <div className={`w-2 h-2 rounded-full ${selectedAgent.status === 'ACTIVE' ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <span className={`text-xs font-semibold ${selectedAgent.status === 'ACTIVE' ? 'text-green-600' : 'text-red-600'}`}>
+                    <div className={`w-2 h-2 rounded-full ${selectedAgent.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                    <span className={`text-xs font-medium ${selectedAgent.status === 'ACTIVE' ? 'text-emerald-600' : 'text-red-600'}`}>
                       {selectedAgent.status === 'ACTIVE' ? 'Active' : 'Blocked'}
                     </span>
                   </div>
@@ -841,64 +916,91 @@ export default function AgentsPage() {
               </div>
               <button
                 onClick={() => handleEditAgent(selectedAgent)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-teal-50 rounded-xl transition-colors"
                 title="Edit Agent"
               >
-                <Edit className="h-5 w-5 text-gray-500" />
+                <Edit className="h-5 w-5 text-teal-600" />
               </button>
             </div>
 
             {/* Account Info - Clean List */}
-            <div className="space-y-0 bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center justify-between py-3">
-                <span className="text-sm text-gray-600">Status</span>
-                <span className={`text-sm font-semibold ${selectedAgent.status === 'ACTIVE' ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="space-y-0 bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-gray-500">Status</span>
+                <span className={`text-sm font-medium ${selectedAgent.status === 'ACTIVE' ? 'text-emerald-600' : 'text-red-600'}`}>
                   {selectedAgent.status}
                 </span>
               </div>
               <div className="h-px bg-gray-200" />
-              <div className="flex items-center justify-between py-3">
-                <span className="text-sm text-gray-600">Agency ID</span>
-                <span className="text-sm font-medium text-gray-900">A-12345</span>
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-gray-500">Agency ID</span>
+                <span className="text-sm font-medium text-gray-900">#{selectedAgent.uniqueId?.slice(-5) || '00001'}</span>
               </div>
               <div className="h-px bg-gray-200" />
-              <div className="flex items-center justify-between py-3">
-                <span className="text-sm text-gray-600">Email</span>
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-gray-500">Email</span>
                 <span className="text-sm font-medium text-gray-900">{selectedAgent.email}</span>
               </div>
               <div className="h-px bg-gray-200" />
-              <div className="flex items-center justify-between py-3">
-                <span className="text-sm text-gray-600">Website</span>
-                <span className="text-sm font-medium text-blue-600">http://example.com</span>
-              </div>
-              <div className="h-px bg-gray-200" />
-              <div className="flex items-center justify-between py-3">
-                <span className="text-sm text-gray-600">Contact #1</span>
-                <span className="text-sm font-medium text-gray-900">088-031-083</span>
-              </div>
-              <div className="h-px bg-gray-200" />
-              <div className="flex items-center justify-between py-3">
-                <span className="text-sm text-gray-600">Contact #2</span>
-                <span className="text-sm font-medium text-gray-900">088-031-083</span>
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-gray-500">Phone</span>
+                <span className="text-sm font-medium text-gray-900">{selectedAgent.phone || 'Not provided'}</span>
               </div>
             </div>
+
+            {/* 2FA Security Section */}
+            {selectedAgent.twoFactorEnabled && selectedAgent.twoFactorSecret && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-teal-600" />
+                  Two-Factor Authentication
+                </h4>
+                <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl p-4 border border-teal-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-500">2FA Status</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full bg-emerald-100 text-emerald-600">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Enabled
+                    </span>
+                  </div>
+                  <div className="mt-3">
+                    <label className="text-xs text-gray-500 block mb-1.5">2FA Secret Key</label>
+                    <div className="flex items-center gap-2 p-2.5 bg-white rounded-lg border border-gray-200">
+                      <code className="flex-1 text-xs font-mono text-gray-700 break-all select-all">
+                        {selectedAgent.twoFactorSecret}
+                      </code>
+                      <button
+                        onClick={() => copy2FAKey(selectedAgent.twoFactorSecret!)}
+                        className="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                        title="Copy 2FA Key"
+                      >
+                        {copied2FAKey ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5">
+                      This key can be used to recover the authenticator app setup
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Balance Report Section */}
             <div>
               <h4 className="text-sm font-semibold text-gray-900 mb-3">Balance Report</h4>
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gradient-to-br from-[#8B5CF6]/5 to-[#6366F1]/5 rounded-xl p-5 border border-[#8B5CF6]/10">
-                  <p className="text-xs text-gray-500 mb-2">Agent Balance</p>
-                  <p className="text-3xl font-bold text-[#8B5CF6]">${Number(selectedAgent.walletBalance || 0).toLocaleString()}</p>
+                <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl p-4 border border-teal-100">
+                  <p className="text-xs text-gray-500 mb-1">Agent Balance</p>
+                  <p className="text-2xl font-bold text-teal-600">${Number(selectedAgent.walletBalance || 0).toLocaleString()}</p>
                 </div>
-                <div className="bg-gradient-to-br from-[#52B788]/5 to-[#2D5F5D]/5 rounded-xl p-5 border border-[#52B788]/10">
-                  <p className="text-xs text-gray-500 mb-2">Users Balance</p>
-                  <p className="text-3xl font-bold text-[#52B788]">${(Number(selectedAgent.walletBalance || 0) * 2.5).toLocaleString()}</p>
+                <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-xl p-4 border border-emerald-100">
+                  <p className="text-xs text-gray-500 mb-1">Users Balance</p>
+                  <p className="text-2xl font-bold text-emerald-600">${(Number(selectedAgent.walletBalance || 0) * 2.5).toLocaleString()}</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end pt-4 border-t border-gray-100">
               <Button variant="outline" onClick={() => setIsViewProfileOpen(false)} className="px-6">
                 Close
               </Button>
@@ -918,8 +1020,8 @@ export default function AgentsPage() {
       >
         {selectedAgent && (
           <div className="space-y-5">
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#6366F1] flex items-center justify-center text-white text-lg font-semibold">
+            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white text-lg font-semibold shadow-md">
                 {selectedAgent.username.charAt(0)}
               </div>
               <div>
@@ -937,15 +1039,15 @@ export default function AgentsPage() {
                 onChange={(e) => setBlockReason(e.target.value)}
                 placeholder="Enter the reason..."
                 rows={4}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20 resize-none"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1.5">
                 This reason will be saved in the agent's history with timestamp
               </p>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t">
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -957,7 +1059,7 @@ export default function AgentsPage() {
               </Button>
               <Button
                 onClick={handleBlockAgent}
-                className={selectedAgent.status === 'ACTIVE' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-[#52B788] hover:bg-[#2D5F5D]'}
+                className={selectedAgent.status === 'ACTIVE' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600'}
               >
                 {selectedAgent.status === 'ACTIVE' ? 'Block Agent' : 'Unblock Agent'}
               </Button>

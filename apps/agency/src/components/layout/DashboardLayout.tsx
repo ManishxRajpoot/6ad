@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/lib/api'
+import { Mandatory2FASetup } from '@/components/Mandatory2FASetup'
+import { ProfileSetupPrompt } from '@/components/ui/ProfileSetupPrompt'
 
 type DashboardLayoutProps = {
   children: React.ReactNode
@@ -15,7 +17,16 @@ type DashboardLayoutProps = {
 
 export function DashboardLayout({ children, title, subtitle }: DashboardLayoutProps) {
   const router = useRouter()
-  const { isAuthenticated, isHydrated, setAuth, logout } = useAuthStore()
+  const pathname = usePathname()
+  const { isAuthenticated, isHydrated, setAuth, logout, user } = useAuthStore()
+  const [isPageLoaded, setIsPageLoaded] = useState(false)
+
+  // Reset animation on route change
+  useEffect(() => {
+    setIsPageLoaded(false)
+    const timer = setTimeout(() => setIsPageLoaded(true), 50)
+    return () => clearTimeout(timer)
+  }, [pathname])
 
   useEffect(() => {
     // Wait for zustand to hydrate from localStorage
@@ -51,8 +62,8 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
   // Show loading only during initial hydration
   if (!isHydrated) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
+      <div className="flex h-screen items-center justify-center bg-[#F8F9FA]">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#52B788] border-t-transparent" />
       </div>
     )
   }
@@ -61,13 +72,24 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
     return null
   }
 
+  // Check if user needs to complete 2FA setup
+  const needs2FASetup = user && (!user.emailVerified || !user.twoFactorEnabled)
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen overflow-hidden bg-[#F8F9FA]">
       <Sidebar />
-      <div className="ml-[220px]">
+      <div className="ml-[260px] h-full flex flex-col">
         <Header title={title} subtitle={subtitle} />
-        <main className="p-6">{children}</main>
+        <main className={`flex-1 p-4 overflow-y-auto transition-all duration-300 ease-out ${isPageLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
+          {children}
+        </main>
       </div>
+
+      {/* Mandatory 2FA Setup Modal - Non-cancellable */}
+      {needs2FASetup && <Mandatory2FASetup />}
+
+      {/* Profile Picture Setup Prompt - Shows after 2FA setup is complete */}
+      {!needs2FASetup && <ProfileSetupPrompt />}
     </div>
   )
 }

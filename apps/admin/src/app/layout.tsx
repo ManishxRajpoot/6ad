@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: '6AD Admin - Dashboard',
   description: '6AD Admin Panel for managing agents, users, and ad accounts',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

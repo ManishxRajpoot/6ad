@@ -411,6 +411,85 @@ settings.patch('/platforms', requireAdmin, async (c) => {
   }
 })
 
+// ============= PROFILE SHARE LINKS =============
+
+// GET /settings/profile-share-links - Get profile share links for platforms
+settings.get('/profile-share-links', async (c) => {
+  try {
+    let globalSettings = await prisma.globalSettings.findFirst()
+
+    // Create default settings if not exists
+    if (!globalSettings) {
+      globalSettings = await prisma.globalSettings.create({
+        data: {
+          payLinkEnabled: true,
+          facebookStatus: 'active',
+          googleStatus: 'active',
+          tiktokStatus: 'active',
+          snapchatStatus: 'active',
+          bingStatus: 'active',
+          facebookProfileShareLink: 'https://www.facebook.com/profile/6adplatform',
+          tiktokProfileShareLink: 'https://business.tiktok.com/share/6adplatform',
+        }
+      })
+    }
+
+    return c.json({
+      profileShareLinks: {
+        facebook: globalSettings.facebookProfileShareLink || 'https://www.facebook.com/profile/6adplatform',
+        tiktok: globalSettings.tiktokProfileShareLink || 'https://business.tiktok.com/share/6adplatform',
+      }
+    })
+  } catch (error) {
+    console.error('Get profile share links error:', error)
+    return c.json({ error: 'Failed to get profile share links' }, 500)
+  }
+})
+
+// PATCH /settings/profile-share-links - Update profile share links (Admin only)
+settings.patch('/profile-share-links', requireAdmin, async (c) => {
+  try {
+    const { facebook, tiktok } = await c.req.json()
+
+    let globalSettings = await prisma.globalSettings.findFirst()
+
+    const updateData: any = {}
+    if (facebook !== undefined) updateData.facebookProfileShareLink = facebook
+    if (tiktok !== undefined) updateData.tiktokProfileShareLink = tiktok
+
+    if (globalSettings) {
+      globalSettings = await prisma.globalSettings.update({
+        where: { id: globalSettings.id },
+        data: updateData
+      })
+    } else {
+      globalSettings = await prisma.globalSettings.create({
+        data: {
+          payLinkEnabled: true,
+          facebookStatus: 'active',
+          googleStatus: 'active',
+          tiktokStatus: 'active',
+          snapchatStatus: 'active',
+          bingStatus: 'active',
+          facebookProfileShareLink: facebook || 'https://www.facebook.com/profile/6adplatform',
+          tiktokProfileShareLink: tiktok || 'https://business.tiktok.com/share/6adplatform',
+        }
+      })
+    }
+
+    return c.json({
+      message: 'Profile share links updated',
+      profileShareLinks: {
+        facebook: globalSettings.facebookProfileShareLink,
+        tiktok: globalSettings.tiktokProfileShareLink,
+      }
+    })
+  } catch (error) {
+    console.error('Update profile share links error:', error)
+    return c.json({ error: 'Failed to update profile share links' }, 500)
+  }
+})
+
 // ============= PROFILE =============
 
 // PATCH /settings/profile - Update own profile
@@ -481,6 +560,63 @@ settings.patch('/profile/avatar', requireUser, async (c) => {
   } catch (error) {
     console.error('Update avatar error:', error)
     return c.json({ error: 'Failed to update avatar' }, 500)
+  }
+})
+
+// ============= REFERRAL DOMAIN =============
+
+// GET /settings/referral-domain - Get referral domain (public for users)
+settings.get('/referral-domain', requireUser, async (c) => {
+  try {
+    let globalSettings = await prisma.globalSettings.findFirst()
+
+    // Create default if not exists
+    if (!globalSettings) {
+      globalSettings = await prisma.globalSettings.create({
+        data: {
+          referralDomain: 'https://ads.sixad.io'
+        }
+      })
+    }
+
+    return c.json({
+      referralDomain: globalSettings.referralDomain || 'https://ads.sixad.io'
+    })
+  } catch (error) {
+    console.error('Get referral domain error:', error)
+    return c.json({ error: 'Failed to get referral domain' }, 500)
+  }
+})
+
+// PUT /settings/referral-domain - Update referral domain (admin only)
+settings.put('/referral-domain', requireAdmin, async (c) => {
+  try {
+    const { referralDomain } = await c.req.json()
+
+    if (!referralDomain) {
+      return c.json({ error: 'Referral domain is required' }, 400)
+    }
+
+    let globalSettings = await prisma.globalSettings.findFirst()
+
+    if (globalSettings) {
+      globalSettings = await prisma.globalSettings.update({
+        where: { id: globalSettings.id },
+        data: { referralDomain }
+      })
+    } else {
+      globalSettings = await prisma.globalSettings.create({
+        data: { referralDomain }
+      })
+    }
+
+    return c.json({
+      message: 'Referral domain updated',
+      referralDomain: globalSettings.referralDomain
+    })
+  } catch (error) {
+    console.error('Update referral domain error:', error)
+    return c.json({ error: 'Failed to update referral domain' }, 500)
   }
 })
 

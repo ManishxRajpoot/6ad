@@ -1,0 +1,39 @@
+<svg width="420" height="80" viewBox="0 0 420 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="infinityGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="50%" stop-color="#8B5CF6" />
+      <stop offset="100%" stop-color="#EC4899" />
+    </linearGradient>
+    <linearGradient id="pillGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="50%" stop-color="#8B5CF6" />
+      <stop offset="100%" stop-color="#EC4899" />
+    </linearGradient>
+  </defs>
+
+  <!-- Premium Infinity Icon with 3D weave effect -->
+  <g transform="translate(10, 16)">
+    <!-- Left loop - back part (faded) -->
+    <path d="M8 24 C8 12, 18 6, 32 15 L42 24" stroke="url(#infinityGrad)" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.35"/>
+    <path d="M8 24 C8 36, 18 42, 32 33 L38 28" stroke="url(#infinityGrad)" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.35"/>
+    <!-- Right loop - back part (faded) -->
+    <path d="M80 24 C80 12, 70 6, 56 15 L46 24" stroke="url(#infinityGrad)" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.35"/>
+    <path d="M80 24 C80 36, 70 42, 56 33 L50 28" stroke="url(#infinityGrad)" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.35"/>
+    <!-- Center cross - front (solid) -->
+    <path d="M36 21 L52 33" stroke="url(#infinityGrad)" stroke-width="8" stroke-linecap="round" fill="none"/>
+    <!-- Left loop - front part (solid) -->
+    <path d="M8 24 C8 12, 18 6, 32 15 L38 20" stroke="url(#infinityGrad)" stroke-width="8" stroke-linecap="round" fill="none"/>
+    <!-- Right loop - front part (solid) -->
+    <path d="M80 24 C80 36, 70 42, 56 33 L52 30" stroke="url(#infinityGrad)" stroke-width="8" stroke-linecap="round" fill="none"/>
+  </g>
+
+  <!-- "SIX" Pill Background -->
+  <rect x="115" y="22" width="75" height="36" rx="8" fill="url(#pillGrad)"/>
+
+  <!-- "SIX" Text -->
+  <text x="125" y="50" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="26" font-weight="900" fill="white" letter-spacing="-0.5">SIX</text>
+
+  <!-- "media" Text -->
+  <text x="198" y="52" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="300" fill="#374151" letter-spacing="-0.5">media</text>
+</svg>

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Plus, ChevronLeft, ChevronRight, Play, Loader2 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
-import { dashboardApi } from '@/lib/api'
+import { dashboardApi, accountsApi } from '@/lib/api'
 
 // Platform color and icon mapping
 const platformConfig: Record<string, { color: string; textColor?: string; icon: string; chartColor: string }> = {
@@ -62,20 +62,145 @@ export default function DashboardPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [loading, setLoading] = useState(true)
   const [dashboardData, setDashboardData] = useState<any>(null)
+  const [adAccounts, setAdAccounts] = useState<any[]>([])
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('all')
+  const [accountInsights, setAccountInsights] = useState<any[]>([])
+  const [insightsTotals, setInsightsTotals] = useState<{
+    impressions: number
+    clicks: number
+    spent: number
+    results: number
+    cpc: number
+    ctr: number
+    cpr: number
+    cpm: number
+  } | null>(null)
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [cheetahBalances, setCheetahBalances] = useState<Record<string, any>>({})
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const data = await dashboardApi.getStats()
+        const [data, accountsRes] = await Promise.all([
+          dashboardApi.getStats(),
+          accountsApi.getAll('FACEBOOK')
+        ])
         setDashboardData(data)
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error)
+        const accounts = accountsRes.accounts || []
+        setAdAccounts(accounts)
+
+        // Fetch Cheetah balances for all accounts
+        if (accounts.length > 0) {
+          const fbAccountIds = accounts.map((acc: any) => acc.accountId).filter(Boolean)
+          if (fbAccountIds.length > 0) {
+            try {
+              const balancesRes = await accountsApi.getCheetahBalancesBatch(fbAccountIds)
+              if (balancesRes.balances) {
+                setCheetahBalances(balancesRes.balances)
+                // Find first Cheetah account and select it
+                const firstCheetahAccount = accounts.find((acc: any) => balancesRes.balances[acc.accountId]?.isCheetah)
+                if (firstCheetahAccount) {
+                  setSelectedAccountId(firstCheetahAccount.accountId)
+                }
+              }
+            } catch {
+              // Silently fail
+            }
+          }
+        }
+      } catch {
+        // Silently fail - show empty state if API is unavailable
       } finally {
         setLoading(false)
       }
     }
     fetchDashboardData()
   }, [])
+
+  // Get Cheetah accounts list
+  const cheetahAccounts = adAccounts.filter(acc => cheetahBalances[acc.accountId]?.isCheetah)
+
+  // Fetch insights when selected account changes
+  useEffect(() => {
+    const fetchInsights = async () => {
+      if (!selectedAccountId || selectedAccountId === 'all') {
+        // For "all", aggregate data from all Cheetah accounts
+        if (cheetahAccounts.length === 0) {
+          setAccountInsights([])
+          setInsightsTotals(null)
+          return
+        }
+
+        setInsightsLoading(true)
+        try {
+          // Fetch insights for all accounts and aggregate
+          const allResults = await Promise.all(
+            cheetahAccounts.map(acc => accountsApi.getMonthlyInsights(acc.accountId).catch(() => null))
+          )
+
+          // Aggregate totals
+          let totalSpent = 0, totalImpressions = 0, totalClicks = 0, totalResults = 0
+          const monthlyAggregated: Record<string, any> = {}
+
+          allResults.forEach(result => {
+            if (result?.totals) {
+              totalSpent += result.totals.spent || 0
+              totalImpressions += result.totals.impressions || 0
+              totalClicks += result.totals.clicks || 0
+              totalResults += result.totals.results || 0
+            }
+            if (result?.monthlyData) {
+              result.monthlyData.forEach((m: any) => {
+                const key = `${m.month}-${m.year}`
+                if (!monthlyAggregated[key]) {
+                  monthlyAggregated[key] = { month: m.month, year: m.year, deposits: 0, spent: 0 }
+                }
+                monthlyAggregated[key].deposits += m.deposits || 0
+                monthlyAggregated[key].spent += m.spent || 0
+              })
+            }
+          })
+
+          const aggregatedTotals = {
+            spent: totalSpent,
+            impressions: totalImpressions,
+            clicks: totalClicks,
+            results: totalResults,
+            cpc: totalClicks > 0 ? parseFloat((totalSpent / totalClicks).toFixed(2)) : 0,
+            ctr: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
+            cpr: totalResults > 0 ? parseFloat((totalSpent / totalResults).toFixed(2)) : 0,
+            cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0
+          }
+
+          setInsightsTotals(aggregatedTotals)
+          setAccountInsights(Object.values(monthlyAggregated))
+        } catch {
+          setAccountInsights([])
+          setInsightsTotals(null)
+        } finally {
+          setInsightsLoading(false)
+        }
+        return
+      }
+
+      setInsightsLoading(true)
+      try {
+        const result = await accountsApi.getMonthlyInsights(selectedAccountId)
+        if (result.monthlyData) {
+          setAccountInsights(result.monthlyData)
+        }
+        if (result.totals) {
+          setInsightsTotals(result.totals)
+        }
+      } catch {
+        setAccountInsights([])
+        setInsightsTotals(null)
+      } finally {
+        setInsightsLoading(false)
+      }
+    }
+    fetchInsights()
+  }, [selectedAccountId, cheetahAccounts.length])
 
   // Calculate total spent from all platforms (totalDeposit represents money spent on ad accounts)
   const totalSpent = dashboardData?.accountsByPlatform?.reduce((sum: number, platform: any) => {
@@ -529,85 +654,185 @@ export default function DashboardPage() {
 
       {/* Bottom Row - Reports Chart and Active Accounts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Reports Chart */}
-        <Card className="p-6 rounded-xl">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-[#1E293B]">Reports</h3>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#52B788]" />
-                <span className="text-sm text-gray-500">Deposits</span>
+        {/* Reports & Analytics - Redesigned with Mini Account List */}
+        <Card className="p-4 rounded-xl">
+          {/* Header with Mini Account Selector */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-semibold text-[#1E293B]">Reports & Analytics</h3>
+              {/* Mini Account Pills */}
+              <div className="flex items-center gap-1 flex-wrap">
+                <button
+                  onClick={() => setSelectedAccountId('all')}
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-all ${
+                    selectedAccountId === 'all'
+                      ? 'bg-[#8B5CF6] text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  All
+                </button>
+                {cheetahAccounts.map((acc) => (
+                  <button
+                    key={acc.accountId}
+                    onClick={() => setSelectedAccountId(acc.accountId)}
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-all whitespace-nowrap ${
+                      selectedAccountId === acc.accountId
+                        ? 'bg-[#8B5CF6] text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {acc.accountName || acc.accountId}
+                  </button>
+                ))}
               </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#3B82F6]" />
-                <span className="text-sm text-gray-500">Spent</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-[#52B788]" />
+                <span className="text-[10px] text-gray-500">Deposits</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-[#3B82F6]" />
+                <span className="text-[10px] text-gray-500">Spent</span>
               </div>
             </div>
           </div>
-          {loading ? (
-            <div className="h-[200px] flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+
+          {/* Analytics Cards - Compact Grid */}
+          {insightsTotals && !insightsLoading && (
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-lg p-2 border border-blue-100">
+                <p className="text-[10px] text-blue-600 font-medium">Spent</p>
+                <p className="text-sm font-bold text-blue-700">${insightsTotals.spent.toLocaleString()}</p>
+              </div>
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-lg p-2 border border-purple-100">
+                <p className="text-[10px] text-purple-600 font-medium">CPC</p>
+                <p className="text-sm font-bold text-purple-700">${insightsTotals.cpc.toFixed(2)}</p>
+              </div>
+              <div className="bg-gradient-to-br from-green-50 to-green-100/50 rounded-lg p-2 border border-green-100">
+                <p className="text-[10px] text-green-600 font-medium">CTR</p>
+                <p className="text-sm font-bold text-green-700">{insightsTotals.ctr.toFixed(2)}%</p>
+              </div>
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-lg p-2 border border-orange-100">
+                <p className="text-[10px] text-orange-600 font-medium">CPR</p>
+                <p className="text-sm font-bold text-orange-700">${insightsTotals.cpr.toFixed(2)}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Secondary Metrics - Inline */}
+          {insightsTotals && !insightsLoading && (
+            <div className="flex items-center gap-4 mb-3 px-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-gray-500">Impressions:</span>
+                <span className="text-[11px] font-semibold text-gray-700">{insightsTotals.impressions.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-gray-500">Clicks:</span>
+                <span className="text-[11px] font-semibold text-gray-700">{insightsTotals.clicks.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-gray-500">Results:</span>
+                <span className="text-[11px] font-semibold text-gray-700">{insightsTotals.results.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-gray-500">CPM:</span>
+                <span className="text-[11px] font-semibold text-gray-700">${insightsTotals.cpm.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Chart */}
+          {loading || insightsLoading ? (
+            <div className="h-[100px] flex items-center justify-center">
+              <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+            </div>
+          ) : cheetahAccounts.length === 0 ? (
+            <div className="h-[100px] flex items-center justify-center">
+              <p className="text-xs text-gray-400">No ad accounts available</p>
+            </div>
+          ) : accountInsights.length === 0 ? (
+            <div className="h-[100px] flex items-center justify-center">
+              <p className="text-xs text-gray-400">No data available</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={reportsData}>
+            <ResponsiveContainer width="100%" height={100}>
+              <AreaChart data={accountInsights}>
                 <defs>
-                  <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#52B788" stopOpacity={0.2} />
+                  <linearGradient id="colorDeposits" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#52B788" stopOpacity={0.3} />
                     <stop offset="95%" stopColor="#52B788" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorSpent" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
                 <XAxis
-                  dataKey="name"
+                  dataKey="month"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                  tick={{ fill: '#9CA3AF', fontSize: 10 }}
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: '#9CA3AF', fontSize: 12 }}
-                  tickFormatter={(value) => value >= 1000 ? `${value / 1000}k` : `${value}`}
+                  tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                  tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`}
+                  width={30}
                 />
                 <Tooltip
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, 'Amount']}
+                  formatter={(value: number, name: string) => [
+                    `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    name === 'deposits' ? 'Deposits' : 'Spent'
+                  ]}
                   contentStyle={{
                     backgroundColor: '#1F2937',
                     border: 'none',
                     borderRadius: '8px',
                     color: '#fff',
-                    padding: '8px 12px'
+                    padding: '6px 10px',
+                    fontSize: '11px'
                   }}
-                  labelStyle={{ color: '#9CA3AF', marginBottom: '4px' }}
+                  labelStyle={{ color: '#9CA3AF', marginBottom: '2px', fontSize: '10px' }}
                 />
                 <Area
                   type="monotone"
-                  dataKey="balance"
+                  dataKey="deposits"
                   stroke="#52B788"
                   strokeWidth={2}
                   fillOpacity={1}
-                  fill="url(#colorBalance)"
+                  fill="url(#colorDeposits)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="spent"
+                  stroke="#3B82F6"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorSpent)"
                 />
               </AreaChart>
             </ResponsiveContainer>
           )}
         </Card>
 
-        {/* Active Accounts Status */}
-        <Card data-tutorial="recent-activity" className="p-6 rounded-xl">
-          <h3 className="text-base font-semibold text-[#1E293B] mb-4">Active Accounts Status</h3>
-          <div className="space-y-3">
+        {/* Active Accounts Status - Compact */}
+        <Card data-tutorial="recent-activity" className="p-4 rounded-xl">
+          <h3 className="text-sm font-semibold text-[#1E293B] mb-3">Active Accounts Status</h3>
+          <div className="space-y-2">
             {loading ? (
-              // Loading skeleton
+              // Loading skeleton - Compact
               <>
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-gray-200 animate-pulse" />
+                  <div key={i} className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-lg bg-gray-200 animate-pulse" />
                       <div>
-                        <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mb-1" />
-                        <div className="h-3 w-16 bg-gray-100 rounded animate-pulse" />
+                        <div className="h-3 w-16 bg-gray-200 rounded animate-pulse mb-1" />
+                        <div className="h-2.5 w-12 bg-gray-100 rounded animate-pulse" />
                       </div>
                     </div>
                   </div>
@@ -620,11 +845,11 @@ export default function DashboardPage() {
                   <Link
                     key={platform.name}
                     href={`/${platform.name.toLowerCase()}`}
-                    className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl hover:from-gray-100 hover:to-gray-50 transition-all duration-300 group border border-gray-100 hover:border-gray-200 hover:shadow-sm"
+                    className="flex items-center justify-between p-2.5 bg-gradient-to-r from-gray-50 to-white rounded-lg hover:from-gray-100 hover:to-gray-50 transition-all duration-300 group border border-gray-100 hover:border-gray-200 hover:shadow-sm"
                   >
-                    <div className="flex items-center gap-4">
-                      {/* Platform Logo Container */}
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-105 ${
+                    <div className="flex items-center gap-3">
+                      {/* Platform Logo Container - Smaller */}
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shadow-md transition-transform duration-300 group-hover:scale-105 ${
                         platformKey === 'FACEBOOK' ? 'bg-[#1877F2] shadow-blue-500/30' :
                         platformKey === 'GOOGLE' ? 'bg-white border border-gray-200 shadow-gray-200/50' :
                         platformKey === 'TIKTOK' ? 'bg-black shadow-black/30' :
@@ -633,12 +858,12 @@ export default function DashboardPage() {
                         'bg-gray-200'
                       }`}>
                         {platformKey === 'FACEBOOK' && (
-                          <svg viewBox="0 0 24 24" className="w-6 h-6" fill="white">
+                          <svg viewBox="0 0 24 24" className="w-5 h-5" fill="white">
                             <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                           </svg>
                         )}
                         {platformKey === 'GOOGLE' && (
-                          <svg viewBox="0 0 24 24" className="w-6 h-6">
+                          <svg viewBox="0 0 24 24" className="w-5 h-5">
                             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -646,17 +871,17 @@ export default function DashboardPage() {
                           </svg>
                         )}
                         {platformKey === 'TIKTOK' && (
-                          <svg viewBox="0 0 24 24" className="w-6 h-6" fill="white">
+                          <svg viewBox="0 0 24 24" className="w-5 h-5" fill="white">
                             <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
                           </svg>
                         )}
                         {platformKey === 'SNAPCHAT' && (
-                          <svg viewBox="0 0 500 500" className="w-6 h-6" fill="black">
+                          <svg viewBox="0 0 500 500" className="w-5 h-5" fill="black">
                             <path d="M417.93,340.71c-60.61-29.34-70.27-74.64-70.7-78-.52-4.07-1.11-7.27,3.38-11.41,4.33-4,23.54-15.89,28.87-19.61,8.81-6.16,12.69-12.31,9.83-19.87-2-5.23-6.87-7.2-12-7.2a22.3,22.3,0,0,0-4.81.54c-9.68,2.1-19.08,6.95-24.52,8.26a8.56,8.56,0,0,1-2,.27c-2.9,0-4-1.29-3.72-4.78.68-10.58,2.12-31.23.45-50.52-2.29-26.54-10.85-39.69-21-51.32C316.8,101.43,294,77.2,250,77.2S183.23,101.43,178.35,107c-10.18,11.63-18.73,24.78-21,51.32-1.67,19.29-.17,39.93.45,50.52.2,3.32-.82,4.78-3.72,4.78a8.64,8.64,0,0,1-2-.27c-5.43-1.31-14.83-6.16-24.51-8.26a22.3,22.3,0,0,0-4.81-.54c-5.15,0-10,2-12,7.2-2.86,7.56,1,13.71,9.84,19.87,5.33,3.72,24.54,15.6,28.87,19.61,4.48,4.14,3.9,7.34,3.38,11.41-.43,3.41-10.1,48.71-70.7,78-3.55,1.72-9.59,5.36,1.06,11.24,16.72,9.24,27.85,8.25,36.5,13.82,7.34,4.73,3,14.93,8.34,18.61,6.56,4.53,25.95-.32,51,7.95,21,6.92,33.76,26.47,71,26.47s50.37-19.64,71-26.47c25-8.27,44.43-3.42,51-7.95,5.33-3.68,1-13.88,8.34-18.61,8.65-5.57,19.77-4.58,36.5-13.82C427.52,346.07,421.48,342.43,417.93,340.71Z"/>
                           </svg>
                         )}
                         {platformKey === 'BING' && (
-                          <svg viewBox="0 0 24 24" className="w-6 h-6">
+                          <svg viewBox="0 0 24 24" className="w-5 h-5">
                             <defs>
                               <linearGradient id="bingGradient2" x1="0%" y1="0%" x2="0%" y2="100%">
                                 <stop offset="0%" stopColor="#26B8F4"/>
@@ -668,29 +893,29 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div>
-                        <h4 className="font-semibold text-[#1E293B] group-hover:text-[#52B788] transition-colors">{platform.name}</h4>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-[#52B788]">{platform.accounts}</span>
-                          <span className="text-sm text-gray-500">Account{platform.accounts !== 1 ? 's' : ''}</span>
+                        <h4 className="text-sm font-semibold text-[#1E293B] group-hover:text-[#52B788] transition-colors">{platform.name}</h4>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-[#52B788]">{platform.accounts}</span>
+                          <span className="text-xs text-gray-500">Account{platform.accounts !== 1 ? 's' : ''}</span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">View</span>
-                      <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-[#52B788] group-hover:translate-x-1 transition-all" />
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">View</span>
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#52B788] group-hover:translate-x-1 transition-all" />
                     </div>
                   </Link>
                 )
               })
             ) : (
-              <div className="text-center py-10 text-gray-400">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="text-center py-6 text-gray-400">
+                <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
                 </div>
-                <p className="font-medium text-gray-500">No accounts yet</p>
-                <p className="text-sm mt-1">Apply for your first ad account to get started</p>
+                <p className="text-sm font-medium text-gray-500">No accounts yet</p>
+                <p className="text-xs mt-1">Apply for your first ad account</p>
               </div>
             )}
           </div>

@@ -1,11 +1,104 @@
 import { Hono } from 'hono'
 import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
+import { cheetahApi } from '../services/cheetah-api.js'
+import {
+  sendEmail,
+  getAdAccountSubmittedTemplate,
+  getAdAccountApprovedTemplate,
+  getAdAccountRejectedTemplate,
+  getAccountRechargeSubmittedTemplate,
+  getAccountRechargeApprovedTemplate,
+  getAccountRechargeRejectedTemplate,
+  getAdminNotificationTemplate
+} from '../utils/email.js'
 
 const prisma = new PrismaClient()
 
 type Platform = 'FACEBOOK' | 'GOOGLE' | 'TIKTOK' | 'SNAPCHAT' | 'BING'
 import { verifyToken, requireAgent, requireAdmin, requireUser } from '../middleware/auth.js'
+
+// Helper to get admin emails for notifications
+async function getAdminEmails(): Promise<string[]> {
+  const admins = await prisma.user.findMany({
+    where: { role: 'ADMIN', status: 'ACTIVE' },
+    select: { email: true }
+  })
+  return admins.map(a => a.email)
+}
+
+// Helper to get agent email for a user
+async function getAgentEmail(userId: string): Promise<string | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { agent: { select: { email: true } } }
+  })
+  return user?.agent?.email || null
+}
+
+// Generate Apply ID for Ad Account Deposit with platform-specific prefix
+// FB = Facebook, GG = Google, BD = Bing, SD = Snapchat, TD = TikTok
+const generateAccountDepositApplyId = (platform: string) => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const random = Math.floor(1000000 + Math.random() * 9000000)
+
+  // Get platform prefix
+  let prefix = 'AD' // default
+  switch (platform?.toUpperCase()) {
+    case 'FACEBOOK':
+      prefix = 'FB'
+      break
+    case 'GOOGLE':
+      prefix = 'GG'
+      break
+    case 'BING':
+      prefix = 'BD'
+      break
+    case 'SNAPCHAT':
+      prefix = 'SD'
+      break
+    case 'TIKTOK':
+      prefix = 'TD'
+      break
+  }
+
+  return `${prefix}${year}${month}${day}${random}`
+}
+
+// Hardcoded Cheetah API credentials
+const CHEETAH_CREDENTIALS = {
+  production: {
+    appid: 'wvLY386',
+    secret: '7fd454af-84f1-4e62-9130-4989181063ed',
+    baseUrl: 'https://open-api.cmcm.com',
+  },
+}
+
+// Load Cheetah API config
+async function loadCheetahConfig() {
+  try {
+    let env: 'production' = 'production'
+    try {
+      const setting = await prisma.setting.findUnique({
+        where: { key: 'cheetah_api_config' }
+      })
+      if (setting && setting.value) {
+        const config = JSON.parse(setting.value as string)
+        if (config.environment === 'production') env = 'production'
+      }
+    } catch (e) {
+      // Use default
+    }
+    cheetahApi.setConfig(CHEETAH_CREDENTIALS[env])
+    return true
+  } catch (error) {
+    console.error('Failed to load Cheetah API config:', error)
+    return false
+  }
+}
 
 const accounts = new Hono()
 
@@ -557,6 +650,12 @@ accounts.post('/', requireUser, async (c) => {
       return c.json({ error: 'Account ID already exists' }, 409)
     }
 
+    // Get user details for email
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { agent: { select: { email: true, brandLogo: true } } }
+    })
+
     const account = await prisma.adAccount.create({
       data: {
         platform: data.platform,
@@ -569,6 +668,36 @@ accounts.post('/', requireUser, async (c) => {
         userId,
       }
     })
+
+    // Send email to user
+    if (user) {
+      const userEmail = getAdAccountSubmittedTemplate({
+        username: user.username,
+        applyId: account.id.slice(-8).toUpperCase(),
+        platform: data.platform,
+        agentLogo: user.agent?.brandLogo
+      })
+      sendEmail({ to: user.email, ...userEmail }).catch(console.error)
+
+      // Send notification to admin and agent
+      const adminNotification = getAdminNotificationTemplate({
+        type: 'ad_account',
+        applyId: account.id.slice(-8).toUpperCase(),
+        username: user.username,
+        userEmail: user.email,
+        platform: data.platform
+      })
+
+      // Notify admins
+      getAdminEmails().then(emails => {
+        emails.forEach(email => sendEmail({ to: email, ...adminNotification }).catch(console.error))
+      })
+
+      // Notify agent if user has one
+      if (user.agent?.email) {
+        sendEmail({ to: user.agent.email, ...adminNotification }).catch(console.error)
+      }
+    }
 
     return c.json({ message: 'Account application submitted', account }, 201)
   } catch (error) {
@@ -586,7 +715,10 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
     const { id } = c.req.param()
     const { adminRemarks } = await c.req.json()
 
-    const account = await prisma.adAccount.findUnique({ where: { id } })
+    const account = await prisma.adAccount.findUnique({
+      where: { id },
+      include: { user: { include: { agent: { select: { brandLogo: true } } } } }
+    })
 
     if (!account) {
       return c.json({ error: 'Account not found' }, 404)
@@ -604,6 +736,18 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
       }
     })
 
+    // Send approval email to user
+    const userEmail = getAdAccountApprovedTemplate({
+      username: account.user.username,
+      applyId: id.slice(-8).toUpperCase(),
+      platform: account.platform,
+      accountId: account.accountId,
+      accountName: account.accountName || undefined,
+      adminRemarks,
+      agentLogo: account.user.agent?.brandLogo
+    })
+    sendEmail({ to: account.user.email, ...userEmail }).catch(console.error)
+
     return c.json({ message: 'Account approved successfully' })
   } catch (error) {
     console.error('Approve account error:', error)
@@ -617,6 +761,15 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
     const { id } = c.req.param()
     const { adminRemarks } = await c.req.json()
 
+    const account = await prisma.adAccount.findUnique({
+      where: { id },
+      include: { user: { include: { agent: { select: { brandLogo: true } } } } }
+    })
+
+    if (!account) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
     await prisma.adAccount.update({
       where: { id },
       data: {
@@ -624,6 +777,16 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
         adminRemarks
       }
     })
+
+    // Send rejection email to user
+    const userEmail = getAdAccountRejectedTemplate({
+      username: account.user.username,
+      applyId: id.slice(-8).toUpperCase(),
+      platform: account.platform,
+      adminRemarks,
+      agentLogo: account.user.agent?.brandLogo
+    })
+    sendEmail({ to: account.user.email, ...userEmail }).catch(console.error)
 
     return c.json({ message: 'Account rejected' })
   } catch (error) {
@@ -647,7 +810,7 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: true }
+      include: { user: { include: { agent: { select: { brandLogo: true, email: true } } } } }
     })
 
     if (!account) {
@@ -662,47 +825,109 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
       return c.json({ message: `Account is not approved. Current status: ${account.status}` }, 400)
     }
 
-    // Check wallet balance
-    if (Number(account.user.walletBalance) < amount) {
-      return c.json({ message: `Insufficient wallet balance. Available: $${account.user.walletBalance}, Required: $${amount}` }, 400)
+    // Get user's commission rate for this platform at time of deposit
+    let commissionRate = 0
+    switch (account.platform) {
+      case 'FACEBOOK':
+        commissionRate = Number(account.user.fbCommission) || 0
+        break
+      case 'GOOGLE':
+        commissionRate = Number(account.user.googleCommission) || 0
+        break
+      case 'TIKTOK':
+        commissionRate = Number(account.user.tiktokCommission) || 0
+        break
+      case 'SNAPCHAT':
+        commissionRate = Number(account.user.snapchatCommission) || 0
+        break
+      case 'BING':
+        commissionRate = Number(account.user.bingCommission) || 0
+        break
     }
+    const commissionAmount = (amount * commissionRate) / 100
+    const totalAmount = amount + commissionAmount  // Total to deduct from wallet
+
+    // Check wallet balance for total amount (deposit + commission)
+    if (Number(account.user.walletBalance) < totalAmount) {
+      return c.json({ message: `Insufficient wallet balance. Available: $${account.user.walletBalance}, Required: $${totalAmount.toFixed(2)} (Deposit: $${amount} + Fee: $${commissionAmount.toFixed(2)})` }, 400)
+    }
+
+    // Generate apply ID for tracking with platform-specific prefix
+    const applyId = generateAccountDepositApplyId(account.platform)
 
     // Create account deposit and deduct money immediately using transaction
     const accountDeposit = await prisma.$transaction(async (tx) => {
-      // Create the deposit record
+      // Create the deposit record with commission stored at creation time
       const deposit = await tx.accountDeposit.create({
         data: {
+          applyId,
           amount,
+          commissionRate,
+          commissionAmount,
           adAccountId: id,
           remarks,
         }
       })
 
-      // Deduct from user wallet immediately
+      // Deduct total amount (deposit + commission) from user wallet immediately
       const balanceBefore = Number(account.user.walletBalance)
-      const balanceAfter = balanceBefore - amount
+      const balanceAfter = balanceBefore - totalAmount
 
       await tx.user.update({
         where: { id: userId },
         data: { walletBalance: balanceAfter }
       })
 
-      // Create wallet flow record
+      // Create wallet flow record for total amount (deposit + commission)
       await tx.walletFlow.create({
         data: {
           type: 'TRANSFER',
-          amount,
+          amount: totalAmount,
           balanceBefore,
           balanceAfter,
           referenceId: deposit.id,
           referenceType: 'account_deposit',
           userId,
-          description: `Deposit to ${account.platform} account ${account.accountId} (Pending approval)`
+          description: `Deposit $${amount} + Fee $${commissionAmount.toFixed(2)} (${commissionRate}%) to ${account.platform} account ${account.accountId}`
         }
       })
 
       return deposit
     })
+
+    // Send email to user
+    const userEmailTemplate = getAccountRechargeSubmittedTemplate({
+      username: account.user.username,
+      applyId,
+      amount,
+      commission: commissionAmount,
+      totalCost: totalAmount,
+      platform: account.platform,
+      accountId: account.accountId,
+      accountName: account.accountName || undefined,
+      agentLogo: account.user.agent?.brandLogo
+    })
+    sendEmail({ to: account.user.email, ...userEmailTemplate }).catch(console.error)
+
+    // Notify admins and agent
+    const adminNotification = getAdminNotificationTemplate({
+      type: 'account_recharge',
+      applyId,
+      username: account.user.username,
+      userEmail: account.user.email,
+      platform: account.platform,
+      amount,
+      details: `Account: ${account.accountId}`
+    })
+
+    getAdminEmails().then(emails => {
+      emails.forEach(email => sendEmail({ to: email, ...adminNotification }).catch(console.error))
+    })
+
+    const agentEmail = await getAgentEmail(userId)
+    if (agentEmail) {
+      sendEmail({ to: agentEmail, ...adminNotification }).catch(console.error)
+    }
 
     return c.json({ message: 'Deposit request created', deposit: accountDeposit }, 201)
   } catch (error: any) {
@@ -714,6 +939,7 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
 // POST /accounts/deposits/:id/approve - Approve account deposit
 // Note: Money is already deducted from wallet when user submits the deposit request
 // This just approves and credits the ad account balance
+// Also updates the spending limit on Cheetah API for Facebook accounts
 accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
@@ -722,7 +948,7 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       where: { id },
       include: {
         adAccount: {
-          include: { user: true }
+          include: { user: { include: { agent: { select: { brandLogo: true } } } } }
         }
       }
     })
@@ -735,13 +961,17 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       return c.json({ error: 'Deposit already processed' }, 400)
     }
 
+    // Cheetah API auto-recharge disabled
+    // let cheetahRechargeResult: any = null
+    // let cheetahError: string | null = null
+
     await prisma.$transaction(async (tx) => {
       // Update deposit status
       await tx.accountDeposit.update({
         where: { id },
         data: {
           status: 'APPROVED',
-          approvedAt: new Date()
+          approvedAt: new Date(),
         }
       })
 
@@ -755,7 +985,32 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       })
     })
 
-    return c.json({ message: 'Account deposit approved' })
+    // Get updated account balance
+    const updatedAccount = await prisma.adAccount.findUnique({
+      where: { id: deposit.adAccountId },
+      select: { balance: true }
+    })
+
+    // Send approval email to user
+    const userEmailTemplate = getAccountRechargeApprovedTemplate({
+      username: deposit.adAccount.user.username,
+      applyId: deposit.applyId,
+      amount: Number(deposit.amount),
+      commission: Number(deposit.commissionAmount) || 0,
+      totalCost: Number(deposit.amount) + (Number(deposit.commissionAmount) || 0),
+      platform: deposit.adAccount.platform,
+      accountId: deposit.adAccount.accountId,
+      accountName: deposit.adAccount.accountName || undefined,
+      newBalance: Number(updatedAccount?.balance) || 0,
+      agentLogo: deposit.adAccount.user.agent?.brandLogo
+    })
+    sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate }).catch(console.error)
+
+    return c.json({
+      message: 'Account deposit approved',
+      cheetahRecharge: cheetahRechargeResult?.code === 0 ? 'success' : (cheetahError ? 'failed' : 'skipped'),
+      cheetahError: cheetahError
+    })
   } catch (error) {
     console.error('Approve account deposit error:', error)
     return c.json({ error: 'Failed to approve deposit' }, 500)
@@ -773,7 +1028,7 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       where: { id },
       include: {
         adAccount: {
-          include: { user: true }
+          include: { user: { include: { agent: { select: { brandLogo: true } } } } }
         }
       }
     })
@@ -786,6 +1041,10 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       return c.json({ error: 'Deposit already processed' }, 400)
     }
 
+    const depositAmount = Number(deposit.amount) || 0
+    const commissionAmount = Number(deposit.commissionAmount) || 0
+    const totalRefund = depositAmount + commissionAmount
+
     await prisma.$transaction(async (tx) => {
       // Update deposit status
       await tx.accountDeposit.update({
@@ -796,9 +1055,9 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
         }
       })
 
-      // Refund money back to user's wallet
+      // Refund total cost (deposit + commission) back to user's wallet
       const balanceBefore = Number(deposit.adAccount.user.walletBalance)
-      const balanceAfter = balanceBefore + Number(deposit.amount)
+      const balanceAfter = balanceBefore + totalRefund
 
       await tx.user.update({
         where: { id: deposit.adAccount.userId },
@@ -809,16 +1068,31 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       await tx.walletFlow.create({
         data: {
           type: 'REFUND',
-          amount: deposit.amount,
+          amount: totalRefund,
           balanceBefore,
           balanceAfter,
           referenceId: id,
           referenceType: 'account_deposit_rejected',
           userId: deposit.adAccount.userId,
-          description: `Refund for rejected deposit to ${deposit.adAccount.platform} account ${deposit.adAccount.accountId}`
+          description: `Refund for rejected deposit: $${depositAmount.toFixed(2)} + Fee $${commissionAmount.toFixed(2)} = $${totalRefund.toFixed(2)} to ${deposit.adAccount.platform} account ${deposit.adAccount.accountId}`
         }
       })
     })
+
+    // Send rejection email to user with refund info
+    const userEmailTemplate = getAccountRechargeRejectedTemplate({
+      username: deposit.adAccount.user.username,
+      applyId: deposit.applyId,
+      amount: depositAmount,
+      commission: commissionAmount,
+      totalCost: totalRefund,
+      platform: deposit.adAccount.platform,
+      accountId: deposit.adAccount.accountId,
+      accountName: deposit.adAccount.accountName || undefined,
+      adminRemarks,
+      agentLogo: deposit.adAccount.user.agent?.brandLogo
+    })
+    sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate }).catch(console.error)
 
     return c.json({ message: 'Account deposit rejected and refunded' })
   } catch (error) {
@@ -1236,6 +1510,374 @@ accounts.post('/transfers/:id/reject', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Reject balance transfer error:', error)
     return c.json({ error: 'Failed to reject transfer' }, 500)
+  }
+})
+
+// GET /accounts/:id/cheetah-balance - Get account balance from Cheetah API
+accounts.get('/:id/cheetah-balance', requireUser, async (c) => {
+  try {
+    const { id } = c.req.param()
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+
+    // Find account
+    const account = await prisma.adAccount.findUnique({
+      where: { id }
+    })
+
+    if (!account) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
+    // Check ownership for non-admin users
+    if (userRole === 'USER' && account.userId !== userId) {
+      return c.json({ error: 'Unauthorized' }, 403)
+    }
+
+    // Only Facebook accounts supported
+    if (account.platform !== 'FACEBOOK') {
+      return c.json({ error: 'Only Facebook accounts supported', cheetahAccount: null })
+    }
+
+    // Load Cheetah config and fetch account
+    const configLoaded = await loadCheetahConfig()
+    if (!configLoaded) {
+      return c.json({ error: 'Cheetah API not configured', cheetahAccount: null })
+    }
+
+    const result = await cheetahApi.getAccount(account.accountId)
+
+    if (result.code === 0 && result.data && result.data.length > 0) {
+      const cheetahAccount = result.data[0]
+      return c.json({
+        cheetahAccount: {
+          accountId: cheetahAccount.account_id,
+          accountName: cheetahAccount.account_name,
+          spendCap: parseFloat(cheetahAccount.spend_cap) || 0,
+          amountSpent: parseFloat(cheetahAccount.amount_spent) || 0,
+          balance: parseFloat(cheetahAccount.balance) || 0,
+          remainingBalance: (parseFloat(cheetahAccount.spend_cap) || 0) - (parseFloat(cheetahAccount.amount_spent) || 0),
+          currency: cheetahAccount.currency,
+          status: cheetahAccount.account_status,
+          statusText: cheetahAccount.account_status_text,
+        }
+      })
+    } else if (result.code === 999 || result.code === 110) {
+      // Account not from Cheetah
+      return c.json({ error: 'Account not from Cheetah', cheetahAccount: null })
+    } else {
+      return c.json({ error: result.msg || 'Failed to fetch from Cheetah', cheetahAccount: null })
+    }
+  } catch (error) {
+    console.error('Get Cheetah balance error:', error)
+    return c.json({ error: 'Failed to get Cheetah balance' }, 500)
+  }
+})
+
+// GET /accounts/cheetah-balances - Get balances for multiple accounts from Cheetah API
+accounts.get('/cheetah-balances/batch', requireUser, async (c) => {
+  try {
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+    const { accountIds } = c.req.query()
+
+    if (!accountIds) {
+      return c.json({ error: 'accountIds required' }, 400)
+    }
+
+    const ids = accountIds.split(',')
+
+    // Find accounts
+    const where: any = {
+      accountId: { in: ids },
+      platform: 'FACEBOOK'
+    }
+
+    if (userRole === 'USER') {
+      where.userId = userId
+    }
+
+    const accounts = await prisma.adAccount.findMany({ where })
+
+    if (accounts.length === 0) {
+      return c.json({ balances: {} })
+    }
+
+    // Load Cheetah config
+    const configLoaded = await loadCheetahConfig()
+    if (!configLoaded) {
+      return c.json({ error: 'Cheetah API not configured', balances: {} })
+    }
+
+    // Fetch each account from Cheetah
+    const balances: Record<string, any> = {}
+
+    for (const account of accounts) {
+      try {
+        const result = await cheetahApi.getAccount(account.accountId)
+
+        if (result.code === 0 && result.data && result.data.length > 0) {
+          const cheetahAccount = result.data[0]
+          const spendCap = parseFloat(cheetahAccount.spend_cap) || 0
+          const amountSpent = parseFloat(cheetahAccount.amount_spent) || 0
+
+          balances[account.accountId] = {
+            spendCap,
+            amountSpent,
+            balance: parseFloat(cheetahAccount.balance) || 0,
+            remainingBalance: spendCap - amountSpent,
+            currency: cheetahAccount.currency,
+            status: cheetahAccount.account_status,
+            statusText: cheetahAccount.account_status_text,
+            isCheetah: true
+          }
+        } else {
+          balances[account.accountId] = { isCheetah: false }
+        }
+      } catch (err) {
+        balances[account.accountId] = { isCheetah: false, error: true }
+      }
+    }
+
+    return c.json({ balances })
+  } catch (error) {
+    console.error('Get Cheetah balances batch error:', error)
+    return c.json({ error: 'Failed to get Cheetah balances' }, 500)
+  }
+})
+
+// GET /accounts/:id/insights - Get account insights from Cheetah API
+accounts.get('/:id/insights', requireUser, async (c) => {
+  try {
+    const { id } = c.req.param()
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+    const { startDate, endDate } = c.req.query()
+
+    // Find account
+    const account = await prisma.adAccount.findUnique({
+      where: { id }
+    })
+
+    if (!account) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
+    // Check ownership for non-admin users
+    if (userRole === 'USER' && account.userId !== userId) {
+      return c.json({ error: 'Unauthorized' }, 403)
+    }
+
+    // Only Facebook accounts supported
+    if (account.platform !== 'FACEBOOK') {
+      return c.json({ error: 'Only Facebook accounts supported', insights: null })
+    }
+
+    // Load Cheetah config
+    const configLoaded = await loadCheetahConfig()
+    if (!configLoaded) {
+      return c.json({ error: 'Cheetah API not configured', insights: null })
+    }
+
+    // Get insights for date range (last 6 months if not specified)
+    const end = endDate || new Date().toISOString().split('T')[0]
+    const start = startDate || new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+    const result = await cheetahApi.getAccountInsightsDateRange(
+      account.accountId,
+      start,
+      end,
+      'impressions,clicks,spend,actions'
+    )
+
+    if (result.code === 0) {
+      return c.json({ insights: result.data, startDate: start, endDate: end })
+    } else if (result.code === 999 || result.code === 110) {
+      return c.json({ error: 'Account not from Cheetah', insights: null })
+    } else {
+      return c.json({ error: result.msg || 'Failed to fetch insights', insights: null })
+    }
+  } catch (error) {
+    console.error('Get account insights error:', error)
+    return c.json({ error: 'Failed to get account insights' }, 500)
+  }
+})
+
+// GET /accounts/insights/monthly - Get monthly aggregated insights for an account
+accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
+  try {
+    const { accountId } = c.req.param()
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+
+    // Find account by accountId (Facebook account ID)
+    const account = await prisma.adAccount.findFirst({
+      where: { accountId }
+    })
+
+    if (!account) {
+      return c.json({ error: 'Account not found' }, 404)
+    }
+
+    // Check ownership for non-admin users
+    if (userRole === 'USER' && account.userId !== userId) {
+      return c.json({ error: 'Unauthorized' }, 403)
+    }
+
+    // Only Facebook accounts supported
+    if (account.platform !== 'FACEBOOK') {
+      return c.json({ error: 'Only Facebook accounts supported', monthlyData: [] })
+    }
+
+    // Load Cheetah config
+    const configLoaded = await loadCheetahConfig()
+    if (!configLoaded) {
+      return c.json({ error: 'Cheetah API not configured', monthlyData: [] })
+    }
+
+    // Get last 6 months of data
+    const months = []
+    const now = new Date()
+
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const year = date.getFullYear()
+      const month = date.getMonth()
+
+      const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`
+      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0]
+
+      months.push({
+        month: date.toLocaleString('en-US', { month: 'short' }),
+        year,
+        startDate,
+        endDate
+      })
+    }
+
+    // Fetch insights for each month with full analytics
+    const monthlyData = []
+    let totalImpressions = 0
+    let totalClicks = 0
+    let totalSpent = 0
+    let totalResults = 0
+
+    for (const monthInfo of months) {
+      try {
+        const result = await cheetahApi.getAccountInsightsDateRange(
+          accountId,
+          monthInfo.startDate,
+          monthInfo.endDate,
+          'impressions,clicks,spend,actions'
+        )
+
+        let deposits = 0
+        let spent = 0
+        let impressions = 0
+        let clicks = 0
+        let results = 0
+
+        if (result.code === 0 && result.data) {
+          // Sum up metrics for the month
+          if (Array.isArray(result.data)) {
+            result.data.forEach((day: any) => {
+              spent += parseFloat(day.spend) || 0
+              impressions += parseInt(day.impressions) || 0
+              clicks += parseInt(day.clicks) || 0
+              // Actions can be an array of different action types
+              if (day.actions && Array.isArray(day.actions)) {
+                results += day.actions.reduce((sum: number, action: any) => sum + (parseInt(action.value) || 0), 0)
+              } else if (day.actions) {
+                results += parseInt(day.actions) || 0
+              }
+            })
+          } else {
+            spent = parseFloat(result.data.spend) || 0
+            impressions = parseInt(result.data.impressions) || 0
+            clicks = parseInt(result.data.clicks) || 0
+            if (result.data.actions && Array.isArray(result.data.actions)) {
+              results = result.data.actions.reduce((sum: number, action: any) => sum + (parseInt(action.value) || 0), 0)
+            } else if (result.data.actions) {
+              results = parseInt(result.data.actions) || 0
+            }
+          }
+        }
+
+        // Calculate analytics metrics
+        const cpc = clicks > 0 ? spent / clicks : 0 // Cost Per Click
+        const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0 // Click Through Rate (%)
+        const cpr = results > 0 ? spent / results : 0 // Cost Per Result
+        const cpm = impressions > 0 ? (spent / impressions) * 1000 : 0 // Cost Per Mille (1000 impressions)
+
+        // Aggregate totals
+        totalImpressions += impressions
+        totalClicks += clicks
+        totalSpent += spent
+        totalResults += results
+
+        // Get deposit amount from our database for this month
+        const depositsInMonth = await prisma.accountDeposit.aggregate({
+          where: {
+            adAccountId: account.id,
+            status: 'APPROVED',
+            createdAt: {
+              gte: new Date(monthInfo.startDate),
+              lte: new Date(monthInfo.endDate + 'T23:59:59.999Z')
+            }
+          },
+          _sum: {
+            amount: true
+          }
+        })
+
+        deposits = depositsInMonth._sum.amount || 0
+
+        monthlyData.push({
+          month: monthInfo.month,
+          year: monthInfo.year,
+          deposits,
+          spent,
+          impressions,
+          clicks,
+          results,
+          cpc: parseFloat(cpc.toFixed(2)),
+          ctr: parseFloat(ctr.toFixed(2)),
+          cpr: parseFloat(cpr.toFixed(2)),
+          cpm: parseFloat(cpm.toFixed(2))
+        })
+      } catch (err) {
+        monthlyData.push({
+          month: monthInfo.month,
+          year: monthInfo.year,
+          deposits: 0,
+          spent: 0,
+          impressions: 0,
+          clicks: 0,
+          results: 0,
+          cpc: 0,
+          ctr: 0,
+          cpr: 0,
+          cpm: 0
+        })
+      }
+    }
+
+    // Calculate overall totals
+    const totals = {
+      impressions: totalImpressions,
+      clicks: totalClicks,
+      spent: parseFloat(totalSpent.toFixed(2)),
+      results: totalResults,
+      cpc: totalClicks > 0 ? parseFloat((totalSpent / totalClicks).toFixed(2)) : 0,
+      ctr: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
+      cpr: totalResults > 0 ? parseFloat((totalSpent / totalResults).toFixed(2)) : 0,
+      cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0
+    }
+
+    return c.json({ monthlyData, totals, isCheetah: true })
+  } catch (error) {
+    console.error('Get monthly insights error:', error)
+    return c.json({ error: 'Failed to get monthly insights', monthlyData: [], totals: null }, 500)
   }
 })
 

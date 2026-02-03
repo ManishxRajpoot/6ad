@@ -17,6 +17,7 @@ interface SelectProps {
   label?: string
   className?: string
   disabled?: boolean
+  size?: 'default' | 'sm'
 }
 
 export function Select({
@@ -26,7 +27,8 @@ export function Select({
   placeholder = 'Select an option',
   label,
   className,
-  disabled = false
+  disabled = false,
+  size = 'default'
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const selectRef = useRef<HTMLDivElement>(null)
@@ -57,6 +59,8 @@ export function Select({
     return () => document.removeEventListener('keydown', handleEscape)
   }, [])
 
+  const isSmall = size === 'sm'
+
   return (
     <div className={cn('relative', className)} ref={selectRef}>
       {label && (
@@ -70,12 +74,15 @@ export function Select({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          'w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-left',
+          'w-full bg-gray-50 border border-gray-200 text-left',
           'flex items-center justify-between gap-2',
           'transition-all duration-200',
-          'focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788] focus:bg-white',
           'hover:border-gray-300',
           disabled && 'opacity-50 cursor-not-allowed',
+          // Size variants
+          isSmall ? 'px-2 py-1.5 rounded-md text-xs' : 'px-4 py-3 rounded-xl text-sm',
+          // Focus/open states
+          'focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788] focus:bg-white',
           isOpen && 'border-[#52B788] ring-2 ring-[#52B788]/20 bg-white'
         )}
         disabled={disabled}
@@ -87,7 +94,8 @@ export function Select({
         </span>
         <ChevronDown
           className={cn(
-            'w-4 h-4 text-gray-400 transition-transform duration-200',
+            'text-gray-400 transition-transform duration-200',
+            isSmall ? 'w-3.5 h-3.5' : 'w-4 h-4',
             isOpen && 'transform rotate-180'
           )}
         />
@@ -96,7 +104,9 @@ export function Select({
       {/* Dropdown Menu */}
       {isOpen && (
         <div
-          className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+          className={cn(
+            'absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200'
+          )}
           style={{
             animation: 'dropdownIn 0.2s ease-out'
           }}
@@ -114,7 +124,7 @@ export function Select({
             }
           `}</style>
 
-          <div className="py-1 max-h-60 overflow-auto">
+          <div className={cn('max-h-60 overflow-auto', isSmall ? 'py-1' : 'py-1')}>
             {options.map((option, index) => (
               <button
                 key={option.value}
@@ -124,8 +134,9 @@ export function Select({
                   setIsOpen(false)
                 }}
                 className={cn(
-                  'w-full px-4 py-3 text-sm text-left flex items-center justify-between gap-2',
+                  'w-full text-left flex items-center justify-between gap-2',
                   'transition-all duration-150',
+                  isSmall ? 'px-3 py-2 text-xs' : 'px-4 py-3 text-sm',
                   'hover:bg-[#52B788]/10',
                   value === option.value
                     ? 'bg-[#52B788]/10 text-[#52B788] font-medium'
@@ -137,7 +148,7 @@ export function Select({
               >
                 <span>{option.label}</span>
                 {value === option.value && (
-                  <Check className="w-4 h-4 text-[#52B788]" />
+                  <Check className={cn(isSmall ? 'w-3.5 h-3.5' : 'w-4 h-4', 'text-[#52B788]')} />
                 )}
               </button>
             ))}

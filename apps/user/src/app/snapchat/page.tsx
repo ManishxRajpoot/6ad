@@ -54,6 +54,32 @@ function AnimatedCounter({ value, duration = 500 }: { value: number; duration?: 
 
 // Stats data will be computed from dashboard API response
 
+// Date filter options
+const dateFilterOptions = [
+  { value: '', label: 'Date and Time' },
+  { value: 'today', label: 'Today' },
+  { value: 'this_week', label: 'This Week' },
+]
+
+// Action filter options
+const actionFilterOptions = [
+  { value: '', label: 'Action' },
+  { value: 'approve', label: 'Approve' },
+  { value: 'pending', label: 'Pending' },
+]
+
+// Export options
+const exportOptions = [
+  { id: 'account-list', label: 'Account List' },
+  { id: 'account-applied-records', label: 'Account Applied Records' },
+  { id: 'bm-share-log', label: 'BM Share Log' },
+  { id: 'deposit', label: 'Deposit' },
+  { id: 'deposit-report', label: 'Deposit Report' },
+  { id: 'transfer-balance', label: 'Transfer Balance' },
+  { id: 'refund', label: 'Refund' },
+  { id: 'refund-report', label: 'Refund Report' },
+]
+
 // Account List data
 const accountListData = [
   { id: 1, license: 'ADM Marketing', adsAccountId: '7675646567785', adsAccountName: 'gyan creative' },
@@ -113,8 +139,12 @@ export default function SnapchatPage() {
   const [activeSubPage, setActiveSubPage] = useState<SubPage>('apply-ads-account')
   const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['account-manage', 'deposit-manage', 'after-sale'])
   const [searchQuery, setSearchQuery] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
+  const [actionFilter, setActionFilter] = useState('')
+  const [showExportDropdown, setShowExportDropdown] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [copiedId, setCopiedId] = useState<number | null>(null)
+  const exportDropdownRef = useRef<HTMLDivElement>(null)
 
   // User state from API
   const [user, setUser] = useState<any>(null)
@@ -234,6 +264,92 @@ export default function SnapchatPage() {
     return () => clearInterval(interval)
   }, [])
 
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target as Node)) {
+        setShowExportDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Export to Excel function
+  const exportToExcel = (exportType: string) => {
+    let data: any[] = []
+    let filename = ''
+    let headers: string[] = []
+
+    switch (exportType) {
+      case 'account-list':
+        filename = 'snapchat_account_list'
+        headers = ['License', 'Account ID', 'Account Name', 'Status', 'Created At']
+        data = userAccounts.map(acc => ({
+          'License': acc.licenseName || '-',
+          'Account ID': acc.accountId || '-',
+          'Account Name': acc.accountName || '-',
+          'Status': acc.status || '-',
+          'Created At': acc.createdAt ? new Date(acc.createdAt).toLocaleDateString() : '-'
+        }))
+        break
+
+      case 'account-applied-records':
+        filename = 'snapchat_applied_records'
+        headers = ['Apply ID', 'License', 'Request Time', 'Total Cost', 'Status']
+        data = userAccounts.map(acc => ({
+          'Apply ID': acc.id || '-',
+          'License': acc.licenseName || '-',
+          'Request Time': acc.createdAt ? new Date(acc.createdAt).toLocaleString() : '-',
+          'Total Cost': `$${acc.totalCost || 0}`,
+          'Status': acc.status || '-'
+        }))
+        break
+
+      case 'refund':
+      case 'refund-report':
+        filename = exportType === 'refund' ? 'snapchat_refunds' : 'snapchat_refund_report'
+        headers = ['Account ID', 'Account Name', 'Amount', 'Status', 'Request Date']
+        data = userRefunds.map(refund => ({
+          'Account ID': refund.accountId || '-',
+          'Account Name': refund.accountName || '-',
+          'Amount': `$${refund.amount || 0}`,
+          'Status': refund.status || '-',
+          'Request Date': refund.createdAt ? new Date(refund.createdAt).toLocaleString() : '-'
+        }))
+        break
+
+      default:
+        alert('Export not available for this option')
+        return
+    }
+
+    if (data.length === 0) {
+      alert('No data available to export')
+      return
+    }
+
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => {
+        const value = row[header] || ''
+        const escaped = String(value).replace(/"/g, '""')
+        return escaped.includes(',') ? `"${escaped}"` : escaped
+      }).join(','))
+    ].join('\n')
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
   // Get user's Snapchat commission rate from API (fallback to 5% if not set)
   const snapchatCommissionRate = user?.snapchatCommission ? parseFloat(user.snapchatCommission) : 5
 
@@ -348,7 +464,12 @@ export default function SnapchatPage() {
           0%, 100% { box-shadow: 0 0 0 0 rgba(255, 252, 0, 0.4); }
           50% { box-shadow: 0 0 20px 5px rgba(255, 252, 0, 0.2); }
         }
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateX(-10px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
         .animate-fadeInUp { animation: fadeInUp 0.3s ease-out forwards; }
+        .animate-slideIn { animation: slideIn 0.3s ease-out forwards; }
         .table-row-animate { animation: fadeInUp 0.3s ease-out forwards; }
         .table-row-animate:nth-child(1) { animation-delay: 0.05s; }
         .table-row-animate:nth-child(2) { animation-delay: 0.1s; }
@@ -378,25 +499,62 @@ export default function SnapchatPage() {
         </div>
 
         {/* Filters */}
-        <select className="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-xs text-gray-600 focus:outline-none">
-          <option>Date and Time</option>
-          <option>Today</option>
-          <option>This Week</option>
-        </select>
-        <select className="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-xs text-gray-600 focus:outline-none">
-          <option>Action</option>
-          <option>Approve</option>
-          <option>Pending</option>
-        </select>
+        <div className="w-36">
+          <Select
+            options={dateFilterOptions}
+            value={dateFilter}
+            onChange={setDateFilter}
+            placeholder="Date and Time"
+            size="sm"
+            
+          />
+        </div>
+        <div className="w-28">
+          <Select
+            options={actionFilterOptions}
+            value={actionFilter}
+            onChange={setActionFilter}
+            placeholder="Action"
+            size="sm"
+            
+          />
+        </div>
 
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Action Buttons */}
-        <Button variant="outline" className="border-gray-200 text-gray-600 rounded-md hover:bg-gray-50 whitespace-nowrap text-xs px-3 py-1.5 h-auto">
-          <Download className="w-3.5 h-3.5 mr-1.5" />
-          Export Image
-        </Button>
+        {/* Export Dropdown */}
+        <div className="relative" ref={exportDropdownRef}>
+          <Button
+            variant="outline"
+            className="border-gray-200 text-gray-600 rounded-md hover:bg-gray-50 whitespace-nowrap text-xs px-3 py-1.5 h-auto"
+            onClick={() => setShowExportDropdown(!showExportDropdown)}
+          >
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            Export
+            <ChevronDown className={`w-3.5 h-3.5 ml-1.5 transition-transform duration-200 ${showExportDropdown ? 'rotate-180' : ''}`} />
+          </Button>
+
+          {showExportDropdown && (
+            <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="py-1">
+                {exportOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    onClick={() => {
+                      exportToExcel(option.id)
+                      setShowExportDropdown(false)
+                    }}
+                    className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-[#FFFC00]/20 hover:text-gray-900 transition-colors duration-150 flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         <Button
           onClick={() => setActiveSubPage('apply-ads-account')}
           className="bg-gradient-to-r from-[#FFFC00] to-[#E6E300] hover:from-[#E6E300] hover:to-[#CCCA00] text-black rounded-md shadow-sm whitespace-nowrap text-xs px-3 py-1.5 h-auto font-semibold"
@@ -492,7 +650,7 @@ export default function SnapchatPage() {
                 <div key={menu.section}>
                   <button
                     onClick={() => toggleSection(menu.section)}
-                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-semibold text-gray-700 hover:bg-[#FFFC00]/10 rounded-lg transition-all"
+                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-semibold text-gray-700 hover:bg-[#FFFC00]/10 rounded-lg transition-all duration-200 ease-out transform hover:translate-x-0.5 active:scale-[0.98]"
                   >
                     <div className="flex items-center gap-2">
                       <span>{menu.icon}</span>
@@ -505,23 +663,26 @@ export default function SnapchatPage() {
                     )}
                   </button>
 
-                  {expandedSections.includes(menu.section) && (
-                    <div className="ml-5 mt-1 space-y-0.5 border-l-2 border-[#FFFC00]/30 pl-3">
-                      {menu.items.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => setActiveSubPage(item.id)}
-                          className={`w-full text-left px-2 py-1.5 text-sm rounded transition-all ${
-                            activeSubPage === item.id
-                              ? 'bg-gradient-to-r from-[#FFFC00] to-[#E6E300] text-black font-semibold shadow-sm'
-                              : 'text-gray-600 hover:bg-[#FFFC00]/10 hover:text-gray-800'
-                          }`}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className={`ml-5 space-y-0.5 border-l-2 border-[#FFFC00]/30 pl-3 overflow-hidden transition-all duration-300 ease-in-out ${
+                    expandedSections.includes(menu.section) ? 'max-h-96 opacity-100 mt-1' : 'max-h-0 opacity-0 mt-0'
+                  }`}>
+                    {menu.items.map((item, index) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setActiveSubPage(item.id)}
+                        style={{ animationDelay: `${index * 50}ms` }}
+                        className={`w-full text-left px-2 py-1.5 text-sm rounded transition-all duration-200 ease-out transform hover:translate-x-1 active:scale-95 ${
+                          expandedSections.includes(menu.section) ? 'animate-slideIn' : ''
+                        } ${
+                          activeSubPage === item.id
+                            ? 'bg-gradient-to-r from-[#FFFC00] to-[#E6E300] text-black font-semibold shadow-sm'
+                            : 'text-gray-600 hover:bg-[#FFFC00]/10 hover:text-gray-800'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

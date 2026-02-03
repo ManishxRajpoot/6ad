@@ -14,8 +14,17 @@ import dashboardRoutes from './routes/dashboard.js'
 import settingsRoutes from './routes/settings.js'
 import paymentMethodRoutes from './routes/payment-methods.js'
 import bmShareRoutes from './routes/bm-share.js'
+import bmConfigRoutes, { initializeBMConfigs } from './routes/bm-config.js'
 import domainRoutes from './routes/domains.js'
 import facebookRoutes from './routes/facebook.js'
+import referralRoutes from './routes/referrals.js'
+import notificationRoutes from './routes/notifications.js'
+import announcementRoutes from './routes/announcements.js'
+import chatRoutes from './routes/chat.js'
+import cheetahRoutes from './routes/cheetah.js'
+import agentWithdrawalRoutes from './routes/agent-withdrawals.js'
+import bmAdRequestRoutes from './routes/bm-ad-request.js'
+import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 
 const app = new Hono()
 
@@ -67,8 +76,22 @@ app.route('/dashboard', dashboardRoutes)
 app.route('/settings', settingsRoutes)
 app.route('/payment-methods', paymentMethodRoutes)
 app.route('/bm-share', bmShareRoutes)
+app.route('/bm-config', bmConfigRoutes)
 app.route('/domains', domainRoutes)
 app.route('/facebook', facebookRoutes)
+app.route('/referrals', referralRoutes)
+app.route('/notifications', notificationRoutes)
+app.route('/announcements', announcementRoutes)
+app.route('/chat', chatRoutes)
+app.route('/cheetah', cheetahRoutes)
+app.route('/agent-withdrawals', agentWithdrawalRoutes)
+app.route('/bm-ad-request', bmAdRequestRoutes)
+
+// Initialize BM configurations from database
+initializeBMConfigs().catch(console.error)
+
+// Start background crypto verification service
+startBackgroundVerifier().catch(console.error)
 
 // Start server
 const port = Number(process.env.PORT) || 5001

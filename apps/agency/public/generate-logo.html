@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Six Media Logo Generator</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 40px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    h1 { color: #1f2937; margin-bottom: 30px; }
+    .logo-preview {
+      background: white;
+      padding: 40px;
+      border: 2px dashed #e5e7eb;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .dark-preview {
+      background: #1f2937;
+      padding: 40px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    canvas { max-width: 100%; }
+    button {
+      background: linear-gradient(135deg, #6366F1, #EC4899);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover { opacity: 0.9; }
+    .buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+    .info {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f9fafb;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #6b7280;
+    }
+    h3 { margin-top: 30px; color: #374151; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Six Media Logo Generator</h1>
+
+    <h3>Light Background</h3>
+    <div class="logo-preview">
+      <canvas id="logoCanvas" width="500" height="120"></canvas>
+    </div>
+
+    <h3>Dark Background</h3>
+    <div class="dark-preview">
+      <canvas id="logoDarkCanvas" width="500" height="120"></canvas>
+    </div>
+
+    <h3>Icon Only</h3>
+    <div class="logo-preview">
+      <canvas id="iconCanvas" width="200" height="120"></canvas>
+    </div>
+
+    <div class="buttons">
+      <button onclick="downloadPNG()">Download PNG</button>
+      <button onclick="downloadPNGLarge()">Download PNG (2x)</button>
+      <button onclick="downloadIcon()">Download Icon (512x512)</button>
+      <button onclick="downloadDark()">Download Dark Version</button>
+    </div>
+
+    <div class="info">
+      <strong>Downloads:</strong><br>
+      - sixmedia-logo.png (500x120)<br>
+      - sixmedia-logo-2x.png (1000x240)<br>
+      - sixmedia-icon.png (512x512)<br>
+      - sixmedia-logo-dark.png (for dark backgrounds)
+    </div>
+  </div>
+
+  <script>
+    function drawInfinityIcon(ctx, x, y, scale, grad) {
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 5 * scale;
+
+      // Left loop - back part (faded)
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(x + 8 * scale, y + 16 * scale);
+      ctx.bezierCurveTo(
+        x + 8 * scale, y + 8 * scale,
+        x + 14 * scale, y + 4 * scale,
+        x + 22 * scale, y + 10 * scale
+      );
+      ctx.lineTo(x + 28 * scale, y + 16 * scale);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x + 8 * scale, y + 16 * scale);
+      ctx.bezierCurveTo(
+        x + 8 * scale, y + 24 * scale,
+        x + 14 * scale, y + 28 * scale,
+        x + 22 * scale, y + 22 * scale
+      );
+      ctx.lineTo(x + 26 * scale, y + 18 * scale);
+      ctx.stroke();
+
+      // Right loop - back part (faded)
+      ctx.beginPath();
+      ctx.moveTo(x + 48 * scale, y + 16 * scale);
+      ctx.bezierCurveTo(
+        x + 48 * scale, y + 8 * scale,
+        x + 42 * scale, y + 4 * scale,
+        x + 34 * scale, y + 10 * scale
+      );
+      ctx.lineTo(x + 28 * scale, y + 16 * scale);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x + 48 * scale, y + 16 * scale);
+      ctx.bezierCurveTo(
+        x + 48 * scale, y + 24 * scale,
+        x + 42 * scale, y + 28 * scale,
+        x + 34 * scale, y + 22 * scale
+      );
+      ctx.lineTo(x + 30 * scale, y + 18 * scale);
+      ctx.stroke();
+
+      // Center cross - front (solid)
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 24 * scale, y + 14 * scale);
+      ctx.lineTo(x + 32 * scale, y + 22 * scale);
+      ctx.stroke();
+
+      // Left loop - front part (solid)
+      ctx.beginPath();
+      ctx.moveTo(x + 8 * scale, y + 16 * scale);
+      ctx.bezierCurveTo(
+        x + 8 * scale, y + 8 * scale,
+        x + 14 * scale, y + 4 * scale,
+        x + 22 * scale, y + 10 * scale
+      );
+      ctx.lineTo(x + 26 * scale, y + 14 * scale);
+      ctx.stroke();
+
+      // Right loop - front part (solid)
+      ctx.beginPath();
+      ctx.moveTo(x + 48 * scale, y + 16 * scale);
+      ctx.bezierCurveTo(
+        x + 48 * scale, y + 24 * scale,
+        x + 42 * scale, y + 28 * scale,
+        x + 34 * scale, y + 22 * scale
+      );
+      ctx.lineTo(x + 32 * scale, y + 20 * scale);
+      ctx.stroke();
+    }
+
+    function drawLogo(ctx, scale = 1, iconOnly = false, darkMode = false) {
+      const w = ctx.canvas.width;
+      const h = ctx.canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (darkMode) {
+        ctx.fillStyle = '#1f2937';
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // Gradient for infinity
+      const grad = ctx.createLinearGradient(0, 0, 200 * scale, 0);
+      grad.addColorStop(0, '#6366F1');
+      grad.addColorStop(0.5, '#8B5CF6');
+      grad.addColorStop(1, '#EC4899');
+
+      const offsetX = iconOnly ? (w - 56 * scale) / 2 : 20 * scale;
+      const offsetY = iconOnly ? (h - 32 * scale) / 2 : (h - 32 * scale) / 2;
+
+      // Draw infinity icon
+      drawInfinityIcon(ctx, offsetX, offsetY, scale, grad);
+
+      if (!iconOnly) {
+        const textX = offsetX + 70 * scale;
+        const textY = offsetY + 26 * scale;
+
+        // "SIX" pill background
+        const pillGrad = ctx.createLinearGradient(textX, 0, textX + 70 * scale, 0);
+        pillGrad.addColorStop(0, '#6366F1');
+        pillGrad.addColorStop(0.5, '#8B5CF6');
+        pillGrad.addColorStop(1, '#EC4899');
+
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = pillGrad;
+        roundRect(ctx, textX, textY - 22 * scale, 60 * scale, 32 * scale, 6 * scale);
+        ctx.fill();
+
+        // "SIX" text
+        ctx.font = `900 ${22 * scale}px system-ui, -apple-system, sans-serif`;
+        ctx.fillStyle = 'white';
+        ctx.fillText('SIX', textX + 10 * scale, textY + 2 * scale);
+
+        // "media" text
+        ctx.font = `300 ${28 * scale}px system-ui, -apple-system, sans-serif`;
+        ctx.fillStyle = darkMode ? '#e5e7eb' : '#374151';
+        ctx.fillText('media', textX + 68 * scale, textY + 4 * scale);
+      }
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    // Draw logos
+    const canvas = document.getElementById('logoCanvas');
+    const ctx = canvas.getContext('2d');
+    drawLogo(ctx, 1);
+
+    const darkCanvas = document.getElementById('logoDarkCanvas');
+    const darkCtx = darkCanvas.getContext('2d');
+    drawLogo(darkCtx, 1, false, true);
+
+    const iconCanvas = document.getElementById('iconCanvas');
+    const iconCtx = iconCanvas.getContext('2d');
+    drawLogo(iconCtx, 2, true);
+
+    function downloadPNG() {
+      const link = document.createElement('a');
+      link.download = 'sixmedia-logo.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    function downloadPNGLarge() {
+      const c = document.createElement('canvas');
+      c.width = 1000; c.height = 240;
+      drawLogo(c.getContext('2d'), 2);
+      const link = document.createElement('a');
+      link.download = 'sixmedia-logo-2x.png';
+      link.href = c.toDataURL('image/png');
+      link.click();
+    }
+
+    function downloadIcon() {
+      const c = document.createElement('canvas');
+      c.width = 512; c.height = 512;
+      const iconCtx = c.getContext('2d');
+
+      // White background for icon
+      iconCtx.fillStyle = 'white';
+      iconCtx.fillRect(0, 0, 512, 512);
+
+      // Draw large infinity icon centered
+      const grad = iconCtx.createLinearGradient(0, 0, 512, 0);
+      grad.addColorStop(0, '#6366F1');
+      grad.addColorStop(0.5, '#8B5CF6');
+      grad.addColorStop(1, '#EC4899');
+
+      drawInfinityIcon(iconCtx, (512 - 56 * 6) / 2, (512 - 32 * 6) / 2, 6, grad);
+
+      const link = document.createElement('a');
+      link.download = 'sixmedia-icon.png';
+      link.href = c.toDataURL('image/png');
+      link.click();
+    }
+
+    function downloadDark() {
+      const link = document.createElement('a');
+      link.download = 'sixmedia-logo-dark.png';
+      link.href = darkCanvas.toDataURL('image/png');
+      link.click();
+    }
+  </script>
+</body>
+</html>
