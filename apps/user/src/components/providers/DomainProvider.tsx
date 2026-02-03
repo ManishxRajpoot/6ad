@@ -15,14 +15,18 @@ const DEFAULT_DOMAINS = [
 ]
 
 export function DomainProvider({ children }: { children: React.ReactNode }) {
-  const { setDomainInfo, setLoading, setChecked, isChecked } = useDomainStore()
+  const { setDomainInfo, setLoading, setChecked, isChecked, isLoading } = useDomainStore()
   const [isInvalidDomain, setIsInvalidDomain] = useState(false)
   const [invalidHostname, setInvalidHostname] = useState('')
+  const [isInitializing, setIsInitializing] = useState(true)
 
   useEffect(() => {
     const checkCustomDomain = async () => {
       // Skip if already checked in this session
-      if (isChecked) return
+      if (isChecked) {
+        setIsInitializing(false)
+        return
+      }
 
       const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
 
@@ -32,6 +36,7 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
       if (isDefaultDomain) {
         setDomainInfo(false, null, null)
         setChecked(true)
+        setIsInitializing(false)
         return
       }
 
@@ -62,11 +67,48 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
       } finally {
         setLoading(false)
         setChecked(true)
+        setIsInitializing(false)
       }
     }
 
     checkCustomDomain()
   }, [isChecked, setDomainInfo, setLoading, setChecked])
+
+  // Show loading screen while checking domain branding (prevents logo flash)
+  if (isInitializing && !isChecked) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#ffffff',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '16px',
+        }}>
+          {/* Loading spinner */}
+          <div style={{
+            width: '40px',
+            height: '40px',
+            border: '3px solid #f3f4f6',
+            borderTopColor: '#8b5cf6',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }} />
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      </div>
+    )
+  }
 
   // Show 404 page for unapproved custom domains (using inline styles to avoid CSS dependency)
   if (isInvalidDomain) {
