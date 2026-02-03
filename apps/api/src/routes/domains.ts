@@ -12,7 +12,7 @@ const resolve4 = promisify(dns.resolve4)
 const prisma = new PrismaClient()
 
 // VPS IP address for custom domain DNS configuration
-const VPS_IP = process.env.VPS_IP || '72.61.172.38'
+const VPS_IP = process.env.VPS_IP || '72.61.249.140'
 
 const domains = new Hono()
 

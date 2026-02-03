@@ -36,7 +36,7 @@ export default function WhitelabelPage() {
   const [successMessage, setSuccessMessage] = useState('')
   const [dnsInstructions, setDnsInstructions] = useState<any>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
-  const [vpsIp, setVpsIp] = useState('72.61.172.38')
+  const [vpsIp, setVpsIp] = useState('72.61.249.140')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const updateFileInputRef = useRef<HTMLInputElement>(null)
 
@@ -45,7 +45,7 @@ export default function WhitelabelPage() {
       setLoading(true)
       const [domainsRes, dnsConfigRes] = await Promise.all([
         domainsApi.getAll(),
-        domainsApi.getDnsConfig().catch(() => ({ vpsIp: '72.61.172.38' }))
+        domainsApi.getDnsConfig().catch(() => ({ vpsIp: '72.61.249.140' }))
       ])
       setDomains(domainsRes.domains || [])
       setVpsIp(dnsConfigRes.vpsIp)
