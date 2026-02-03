@@ -135,6 +135,8 @@ auth.post('/login', async (c) => {
     const body = await c.req.json()
     const { email: emailOrUsername, password, totpCode } = loginSchema.parse(body)
 
+    console.log('[LOGIN] Attempt:', { emailOrUsername, passwordLength: password?.length })
+
     // Find user by email or username (case-insensitive)
     const isEmail = emailOrUsername.includes('@')
     const user = await prisma.user.findFirst({
@@ -148,13 +150,21 @@ auth.post('/login', async (c) => {
       }
     })
 
+    console.log('[LOGIN] User found:', user ? { id: user.id, email: user.email, hasPassword: !!user.password } : null)
+
     if (!user) {
+      console.log('[LOGIN] FAILED: User not found')
       return c.json({ error: 'Invalid email/username or password' }, 401)
     }
 
     // Check password
+    console.log('[LOGIN] Comparing passwords...')
+    console.log('[LOGIN] Input password:', password)
+    console.log('[LOGIN] Stored hash:', user.password)
     const isValidPassword = await bcrypt.compare(password, user.password)
+    console.log('[LOGIN] Password valid:', isValidPassword)
     if (!isValidPassword) {
+      console.log('[LOGIN] FAILED: Invalid password')
       return c.json({ error: 'Invalid email/username or password' }, 401)
     }
 
