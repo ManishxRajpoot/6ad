@@ -19,6 +19,7 @@
     "db:generate": "cd packages/database && npx prisma generate",
     "db:push": "cd packages/database && npx prisma db push",
     "db:studio": "cd packages/database && npx prisma studio",
+    "db:seed": "npx tsx packages/database/prisma/seed.ts",
     "postinstall": "npm run db:generate"
   },
   "devDependencies": {
