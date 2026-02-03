@@ -135,12 +135,12 @@ auth.post('/login', async (c) => {
     const body = await c.req.json()
     const { email: emailOrUsername, password, totpCode } = loginSchema.parse(body)
 
-    // Find user by email or username
+    // Find user by email or username (case-insensitive)
     const isEmail = emailOrUsername.includes('@')
     const user = await prisma.user.findFirst({
       where: isEmail
-        ? { email: emailOrUsername }
-        : { username: emailOrUsername },
+        ? { email: { equals: emailOrUsername, mode: 'insensitive' } }
+        : { username: { equals: emailOrUsername, mode: 'insensitive' } },
       include: {
         agent: {
           select: { id: true, username: true, email: true, brandLogo: true, brandName: true }
