@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Shield, Mail, Check, Loader2, Copy, Smartphone, KeyRound } from 'lucide-react'
 import { authApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
@@ -24,6 +24,20 @@ export function Mandatory2FASetup() {
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [copiedSecret, setCopiedSecret] = useState(false)
 
+  // Refs for auto-submit buttons and timer cleanup
+  const emailVerifyBtnRef = useRef<HTMLButtonElement>(null)
+  const twoFAVerifyBtnRef = useRef<HTMLButtonElement>(null)
+  const autoSubmitTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSubmitTimerRef.current) {
+        clearTimeout(autoSubmitTimerRef.current)
+      }
+    }
+  }, [])
+
   // Determine if modal should be shown
   const shouldShow = user && (!user.emailVerified || !user.twoFactorEnabled)
 
@@ -37,6 +51,16 @@ export function Mandatory2FASetup() {
       }
     }
   }, [user])
+
+  // Safe auto-submit function with timer cleanup
+  const triggerAutoSubmit = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
+    if (autoSubmitTimerRef.current) {
+      clearTimeout(autoSubmitTimerRef.current)
+    }
+    autoSubmitTimerRef.current = setTimeout(() => {
+      buttonRef.current?.click()
+    }, 100)
+  }, [])
 
   if (!shouldShow) {
     return null
@@ -242,10 +266,7 @@ export function Mandatory2FASetup() {
                               }
                               // Auto-submit when 6 digits entered
                               if (finalCode.length === 6) {
-                                setTimeout(() => {
-                                  const submitBtn = document.getElementById('email-verify-btn')
-                                  submitBtn?.click()
-                                }, 100)
+                                triggerAutoSubmit(emailVerifyBtnRef)
                               }
                             }
                           }}
@@ -261,10 +282,7 @@ export function Mandatory2FASetup() {
                             setEmailCode(paste)
                             // Auto-submit when pasting full code
                             if (paste.length === 6) {
-                              setTimeout(() => {
-                                const submitBtn = document.getElementById('email-verify-btn')
-                                submitBtn?.click()
-                              }, 100)
+                              triggerAutoSubmit(emailVerifyBtnRef)
                             }
                           }}
                           className="w-12 h-12 text-center text-lg font-semibold bg-gray-50 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-primary-500 focus:bg-white transition-all"
@@ -281,7 +299,7 @@ export function Mandatory2FASetup() {
                   )}
 
                   <button
-                    id="email-verify-btn"
+                    ref={emailVerifyBtnRef}
                     onClick={handleVerifyEmail}
                     disabled={loading || emailCode.length !== 6}
                     className="hidden"
@@ -402,10 +420,7 @@ export function Mandatory2FASetup() {
                           }
                           // Auto-submit when 6 digits entered
                           if (finalCode.length === 6) {
-                            setTimeout(() => {
-                              const submitBtn = document.getElementById('2fa-verify-btn')
-                              submitBtn?.click()
-                            }, 100)
+                            triggerAutoSubmit(twoFAVerifyBtnRef)
                           }
                         }
                       }}
@@ -421,10 +436,7 @@ export function Mandatory2FASetup() {
                         setTwoFactorCode(paste)
                         // Auto-submit when pasting full code
                         if (paste.length === 6) {
-                          setTimeout(() => {
-                            const submitBtn = document.getElementById('2fa-verify-btn')
-                            submitBtn?.click()
-                          }, 100)
+                          triggerAutoSubmit(twoFAVerifyBtnRef)
                         }
                       }}
                       className="w-12 h-12 text-center text-lg font-semibold bg-gray-50 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-primary-500 focus:bg-white transition-all"
@@ -441,7 +453,7 @@ export function Mandatory2FASetup() {
               )}
 
               <button
-                id="2fa-verify-btn"
+                ref={twoFAVerifyBtnRef}
                 onClick={handleVerify2FA}
                 disabled={loading || twoFactorCode.length !== 6}
                 className="hidden"

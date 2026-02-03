@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Check, X, AlertTriangle, Info } from 'lucide-react'
 
 type PopupType = 'success' | 'error' | 'warning' | 'info'
@@ -25,35 +25,54 @@ export function SuccessPopup({
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
 
+  // Use refs to track timers and prevent memory leaks
+  const timersRef = useRef<NodeJS.Timeout[]>([])
+  const onCloseRef = useRef(onClose)
+
+  // Keep onClose ref updated without triggering effect re-runs
   useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  // Cleanup function to clear all timers
+  const clearAllTimers = useCallback(() => {
+    timersRef.current.forEach(timer => clearTimeout(timer))
+    timersRef.current = []
+  }, [])
+
+  useEffect(() => {
+    // Clear any existing timers first
+    clearAllTimers()
+
     if (isOpen) {
       setIsVisible(true)
       // Trigger animation after mount
       const animTimer = setTimeout(() => {
         setIsAnimating(true)
       }, 10)
+      timersRef.current.push(animTimer)
 
       // Auto close after duration
       const closeTimer = setTimeout(() => {
         setIsAnimating(false)
-        setTimeout(() => {
+        const fadeTimer = setTimeout(() => {
           setIsVisible(false)
-          onClose()
+          onCloseRef.current()
         }, 300)
+        timersRef.current.push(fadeTimer)
       }, duration)
+      timersRef.current.push(closeTimer)
 
-      return () => {
-        clearTimeout(animTimer)
-        clearTimeout(closeTimer)
-      }
+      return clearAllTimers
     } else {
       setIsAnimating(false)
       const timer = setTimeout(() => {
         setIsVisible(false)
       }, 300)
-      return () => clearTimeout(timer)
+      timersRef.current.push(timer)
+      return clearAllTimers
     }
-  }, [isOpen, duration, onClose])
+  }, [isOpen, duration, clearAllTimers])
 
   if (!isVisible) return null
 

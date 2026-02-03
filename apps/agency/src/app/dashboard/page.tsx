@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Users, UserX, CheckCircle, Clock, Briefcase, Ticket, TrendingUp, FileText, CreditCard, Wallet, Activity } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
@@ -8,7 +8,7 @@ import { dashboardApi, settingsApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 
 export default function DashboardPage() {
-  const { updateUser } = useAuthStore()
+  const updateUser = useAuthStore((state) => state.updateUser)
   const [loading, setLoading] = useState(true)
   const [dashboardData, setDashboardData] = useState<any>(null)
   const [chartPeriod, setChartPeriod] = useState<'today' | '7d' | '1m' | '6m' | '1y'>('today')
@@ -21,14 +21,22 @@ export default function DashboardPage() {
   const [topSpendersLoading, setTopSpendersLoading] = useState(false)
   const [recentActivity, setRecentActivity] = useState<any[]>([])
 
+  // Use ref to store updateUser to prevent infinite re-renders
+  const updateUserRef = useRef(updateUser)
   useEffect(() => {
+    updateUserRef.current = updateUser
+  }, [updateUser])
+
+  useEffect(() => {
+    let isMounted = true
     const fetchDashboardData = async () => {
       try {
         const data = await dashboardApi.getStats(chartPeriod)
+        if (!isMounted) return
         setDashboardData(data)
         // Sync coupon balance to auth store so other pages can use it
         if (data?.stats?.availableCoupons !== undefined) {
-          updateUser({ couponBalance: data.stats.availableCoupons })
+          updateUserRef.current({ couponBalance: data.stats.availableCoupons })
         }
         // Set initial top spenders data
         if (data?.topSpenders) {
@@ -40,11 +48,12 @@ export default function DashboardPage() {
         }
       } catch {
       } finally {
-        setLoading(false)
+        if (isMounted) setLoading(false)
       }
     }
     fetchDashboardData()
-  }, [chartPeriod, updateUser])
+    return () => { isMounted = false }
+  }, [chartPeriod])
 
   // Fetch platform visibility settings (only show platforms that admin hasn't hidden)
   useEffect(() => {
@@ -117,7 +126,6 @@ export default function DashboardPage() {
 
   // Live chart data from API
   const chartData = dashboardData?.chartData || []
-  console.log('Dashboard chartData:', chartData, 'totalBalance:', totalBalance)
 
   // Top users from API
   const apiTopUsers = dashboardData?.topUsers || []

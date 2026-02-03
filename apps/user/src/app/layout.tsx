@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { DomainProvider } from '@/components/providers/DomainProvider'
 import { TitleProvider } from '@/components/providers/TitleProvider'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -22,11 +23,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className} suppressHydrationWarning>
-        <DomainProvider>
-          <TitleProvider>
-            {children}
-          </TitleProvider>
-        </DomainProvider>
+        <ErrorBoundary>
+          <DomainProvider>
+            <TitleProvider>
+              {children}
+            </TitleProvider>
+          </DomainProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { StatsChart } from '@/components/ui/StatsChart'
@@ -141,9 +141,26 @@ export default function TransactionsPage() {
     totalRejected: 0
   })
 
+  // Memoize the indicator update function to prevent recreating it
+  const updateIndicator = useCallback(() => {
+    const activeRef = activeTab === 'wallet' ? walletTabRef : activeTab === 'adAccount' ? adAccountTabRef : adOpeningTabRef
+    if (activeRef.current) {
+      setIndicatorStyle({
+        left: activeRef.current.offsetLeft,
+        width: activeRef.current.offsetWidth,
+      })
+    }
+  }, [activeTab])
+
   // Update indicator position when tab changes
   useEffect(() => {
-    const updateIndicator = () => {
+    updateIndicator()
+  }, [updateIndicator])
+
+  // Separate effect for resize listener - only attaches once
+  useEffect(() => {
+    const handleResize = () => {
+      // Re-run indicator update on resize
       const activeRef = activeTab === 'wallet' ? walletTabRef : activeTab === 'adAccount' ? adAccountTabRef : adOpeningTabRef
       if (activeRef.current) {
         setIndicatorStyle({
@@ -152,9 +169,8 @@ export default function TransactionsPage() {
         })
       }
     }
-    updateIndicator()
-    window.addEventListener('resize', updateIndicator)
-    return () => window.removeEventListener('resize', updateIndicator)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [activeTab])
 
   // Close dropdowns when clicking outside
