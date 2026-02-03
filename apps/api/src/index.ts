@@ -56,7 +56,10 @@ app.use('*', cors({
     if (origin && origin.includes('6ad.in')) {
       return origin
     }
-    return null
+    // Allow all custom domains (for whitelabel agent domains)
+    // Custom domains are validated in the domain check endpoint
+    // This allows agents to use their own custom domains
+    return origin
   },
   credentials: true,
 }))

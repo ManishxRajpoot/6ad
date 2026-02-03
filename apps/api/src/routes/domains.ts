@@ -4,10 +4,13 @@ import { z } from 'zod'
 import crypto from 'crypto'
 import dns from 'dns'
 import { promisify } from 'util'
+import { exec } from 'child_process'
+import path from 'path'
 import { verifyToken } from '../middleware/auth.js'
 
 const resolveTxt = promisify(dns.resolveTxt)
 const resolve4 = promisify(dns.resolve4)
+const execPromise = promisify(exec)
 
 const prisma = new PrismaClient()
 
@@ -34,6 +37,60 @@ const updateDomainStatusSchema = z.object({
 // Helper to generate verification token
 function generateVerificationToken(): string {
   return `sixmedia-verify-${crypto.randomBytes(16).toString('hex')}`
+}
+
+// Helper to setup Nginx and SSL for custom domain
+async function setupCustomDomain(domain: string): Promise<{ success: boolean; message: string }> {
+  try {
+    // Path to the setup script (relative to project root on VPS)
+    const scriptPath = '/home/6ad/setup-custom-domain.sh'
+
+    console.log(`[Domain Setup] Running setup script for: ${domain}`)
+
+    // Execute the setup script
+    const { stdout, stderr } = await execPromise(`bash ${scriptPath} ${domain}`, {
+      timeout: 120000, // 2 minute timeout for SSL setup
+    })
+
+    console.log(`[Domain Setup] stdout: ${stdout}`)
+    if (stderr) {
+      console.log(`[Domain Setup] stderr: ${stderr}`)
+    }
+
+    return { success: true, message: 'Domain configured successfully with SSL' }
+  } catch (error: any) {
+    console.error(`[Domain Setup] Error setting up domain ${domain}:`, error)
+    return {
+      success: false,
+      message: error.message || 'Failed to configure domain on server'
+    }
+  }
+}
+
+// Helper to remove Nginx and SSL for custom domain
+async function removeCustomDomain(domain: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const scriptPath = '/home/6ad/remove-custom-domain.sh'
+
+    console.log(`[Domain Remove] Running removal script for: ${domain}`)
+
+    const { stdout, stderr } = await execPromise(`bash ${scriptPath} ${domain}`, {
+      timeout: 30000, // 30 second timeout
+    })
+
+    console.log(`[Domain Remove] stdout: ${stdout}`)
+    if (stderr) {
+      console.log(`[Domain Remove] stderr: ${stderr}`)
+    }
+
+    return { success: true, message: 'Domain removed successfully' }
+  } catch (error: any) {
+    console.error(`[Domain Remove] Error removing domain ${domain}:`, error)
+    return {
+      success: false,
+      message: error.message || 'Failed to remove domain from server'
+    }
+  }
 }
 
 // ==================== PUBLIC ROUTE (NO AUTH) ====================
@@ -178,9 +235,22 @@ domains.patch('/admin/:id', async (c) => {
       },
     })
 
+    // If approved, setup Nginx and SSL for the domain
+    let serverSetupResult = null
+    if (status === 'APPROVED') {
+      console.log(`[Admin] Domain approved, setting up Nginx and SSL for: ${customDomain.domain}`)
+      serverSetupResult = await setupCustomDomain(customDomain.domain)
+
+      if (!serverSetupResult.success) {
+        console.error(`[Admin] Server setup failed for ${customDomain.domain}:`, serverSetupResult.message)
+        // Still return success for approval, but include setup warning
+      }
+    }
+
     return c.json({
       message: `Domain ${status.toLowerCase()} successfully`,
       domain: updatedDomain,
+      serverSetup: serverSetupResult,
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
