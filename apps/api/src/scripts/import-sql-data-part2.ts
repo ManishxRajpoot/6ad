@@ -20,8 +20,9 @@ dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const prisma = new PrismaClient();
 
-// Path to SQL file
-const SQL_FILE_PATH = '/Users/manishrajpoot/Coinest_Share/supe_db-2.sql';
+// Path to SQL file - check multiple locations
+const SQL_FILE_PATH = process.env.SQL_FILE_PATH ||
+  (fs.existsSync('/home/6ad/supe_db-2.sql') ? '/home/6ad/supe_db-2.sql' : '/Users/manishrajpoot/Coinest_Share/supe_db-2.sql');
 const MAPPING_FILE_PATH = path.join(__dirname, 'id-mapping.json');
 
 interface IdMapping {
