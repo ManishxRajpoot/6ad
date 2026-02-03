@@ -125,232 +125,232 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         "lg:translate-x-0",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-      {/* Logo */}
-      <div className="px-6 py-5">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          {/* Show custom domain branding or agent's branding */}
-          {displayBrandLogo ? (
-            <img
-              src={displayBrandLogo}
-              alt={displayBrandName || 'Brand Logo'}
-              className="h-8 max-w-[200px] object-contain"
-            />
-          ) : (
-            <div className="flex items-center gap-2.5">
-              {/* Six Media - Twisted Ribbon Infinity (Meta-style) */}
-              <svg viewBox="0 0 48 28" className="w-12 h-7" fill="none">
-                <defs>
-                  <linearGradient id="userRibbonGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#6366F1"/>
-                    <stop offset="100%" stopColor="#8B5CF6"/>
-                  </linearGradient>
-                  <linearGradient id="userRibbonGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#8B5CF6"/>
-                    <stop offset="100%" stopColor="#EC4899"/>
-                  </linearGradient>
-                </defs>
-                {/* Left ribbon - continuous twisted band */}
-                <path
-                  d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14"
-                  fill="url(#userRibbonGrad1)"
-                />
-                {/* Right ribbon - continuous twisted band */}
-                <path
-                  d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14"
-                  fill="url(#userRibbonGrad2)"
-                />
-                {/* Center twist overlay for depth */}
-                <ellipse cx="24" cy="14" rx="4" ry="5" fill="white" opacity="0.15"/>
-              </svg>
-              {/* Text - Modern Typography */}
-              <div className="flex flex-col leading-none">
-                <span className="text-[17px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
-                  SIXMEDIA
-                </span>
-                <span className="text-[8px] font-semibold tracking-[0.2em] text-gray-400 mt-0.5">
-                  ADVERTISING
-                </span>
+        {/* Logo */}
+        <div className="px-6 py-5">
+          <Link href="/dashboard" className="flex items-center gap-3">
+            {/* Show custom domain branding or agent's branding */}
+            {displayBrandLogo ? (
+              <img
+                src={displayBrandLogo}
+                alt={displayBrandName || 'Brand Logo'}
+                className="h-8 max-w-[200px] object-contain"
+              />
+            ) : (
+              <div className="flex items-center gap-2.5">
+                {/* Six Media - Twisted Ribbon Infinity (Meta-style) */}
+                <svg viewBox="0 0 48 28" className="w-12 h-7" fill="none">
+                  <defs>
+                    <linearGradient id="userRibbonGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#6366F1"/>
+                      <stop offset="100%" stopColor="#8B5CF6"/>
+                    </linearGradient>
+                    <linearGradient id="userRibbonGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#8B5CF6"/>
+                      <stop offset="100%" stopColor="#EC4899"/>
+                    </linearGradient>
+                  </defs>
+                  {/* Left ribbon - continuous twisted band */}
+                  <path
+                    d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14"
+                    fill="url(#userRibbonGrad1)"
+                  />
+                  {/* Right ribbon - continuous twisted band */}
+                  <path
+                    d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14"
+                    fill="url(#userRibbonGrad2)"
+                  />
+                  {/* Center twist overlay for depth */}
+                  <ellipse cx="24" cy="14" rx="4" ry="5" fill="white" opacity="0.15"/>
+                </svg>
+                {/* Text - Modern Typography */}
+                <div className="flex flex-col leading-none">
+                  <span className="text-[17px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
+                    SIXMEDIA
+                  </span>
+                  <span className="text-[8px] font-semibold tracking-[0.2em] text-gray-400 mt-0.5">
+                    ADVERTISING
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
-        </Link>
-      </div>
-
-      {/* Main Menu */}
-      <nav className="flex-1 px-4 overflow-y-auto">
-        {/* Dashboard */}
-        <Link
-          href="/dashboard"
-          data-tutorial="dashboard-menu"
-          className={cn(
-            'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            isActive('/dashboard')
-              ? 'bg-[#52B788] text-white'
-              : 'text-gray-600 hover:bg-gray-50'
-          )}
-        >
-          <LayoutDashboard className="w-6 h-6" />
-          Dashboard
-        </Link>
-
-        {/* Wallet */}
-        <Link
-          href="/deposits"
-          data-tutorial="wallet-menu"
-          className={cn(
-            'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            isActive('/deposits') || isActive('/withdrawals')
-              ? 'bg-[#52B788] text-white'
-              : 'text-gray-600 hover:bg-gray-50'
-          )}
-        >
-          <Wallet className="w-6 h-6" />
-          Wallet
-        </Link>
-
-        {/* Platform Links - Conditionally rendered based on visibility settings */}
-        {shouldShowPlatform('facebook') && (
-          <Link
-            href="/facebook"
-            data-tutorial="facebook-menu"
-            className={cn(
-              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              pathname === '/facebook'
-                ? 'bg-[#52B788] text-white'
-                : 'text-gray-600 hover:bg-gray-50'
             )}
-          >
-            <FacebookIcon />
-            Facebook
           </Link>
-        )}
-
-        {shouldShowPlatform('google') && (
-          <Link
-            href="/google"
-            className={cn(
-              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              pathname === '/google'
-                ? 'bg-[#52B788] text-white'
-                : 'text-gray-600 hover:bg-gray-50'
-            )}
-          >
-            <GoogleIcon />
-            Google
-          </Link>
-        )}
-
-        {shouldShowPlatform('snapchat') && (
-          <Link
-            href="/snapchat"
-            className={cn(
-              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              pathname === '/snapchat'
-                ? 'bg-[#52B788] text-white'
-                : 'text-gray-600 hover:bg-gray-50'
-            )}
-          >
-            <SnapchatIcon />
-            Snapchat
-          </Link>
-        )}
-
-        {shouldShowPlatform('tiktok') && (
-          <Link
-            href="/tiktok"
-            className={cn(
-              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              pathname === '/tiktok'
-                ? 'bg-[#52B788] text-white'
-                : 'text-gray-600 hover:bg-gray-50'
-            )}
-          >
-            <TikTokIcon />
-            Tiktok
-          </Link>
-        )}
-
-        {shouldShowPlatform('bing') && (
-          <Link
-            href="/bing"
-            className={cn(
-              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              pathname === '/bing'
-                ? 'bg-[#52B788] text-white'
-                : 'text-gray-600 hover:bg-gray-50'
-            )}
-          >
-            <BingIcon />
-            Bing
-          </Link>
-        )}
-
-        {/* Guide */}
-        <Link
-          href="/guide"
-          data-tutorial="guide-menu"
-          className={cn(
-            'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            isActive('/guide')
-              ? 'bg-[#52B788] text-white'
-              : 'text-gray-600 hover:bg-gray-50'
-          )}
-        >
-          <BookOpen className="w-6 h-6" />
-          Guide
-        </Link>
-
-        {/* Referrals */}
-        <Link
-          href="/referrals"
-          className={cn(
-            'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            isActive('/referrals')
-              ? 'bg-[#52B788] text-white'
-              : 'text-gray-600 hover:bg-gray-50'
-          )}
-        >
-          <Gift className="w-6 h-6" />
-          Referrals
-        </Link>
-
-        {/* Settings */}
-        <Link
-          href="/settings"
-          className={cn(
-            'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-            isActive('/settings')
-              ? 'bg-[#52B788] text-white'
-              : 'text-gray-600 hover:bg-gray-50'
-          )}
-        >
-          <Settings className="w-6 h-6" />
-          Settings
-        </Link>
-      </nav>
-
-      {/* User Profile */}
-      <div className="p-4 border-t border-gray-100">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-medium">
-            {user?.username?.charAt(0).toUpperCase() || 'T'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {user?.username || 'TestUser'}
-            </p>
-            <p className="text-xs text-gray-500 truncate">{user?.email || 'user@6ad.in'}</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-            title="Logout"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
         </div>
-      </div>
-    </aside>
+
+        {/* Main Menu */}
+        <nav className="flex-1 px-4 overflow-y-auto">
+          {/* Dashboard */}
+          <Link
+            href="/dashboard"
+            data-tutorial="dashboard-menu"
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+              isActive('/dashboard')
+                ? 'bg-[#52B788] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <LayoutDashboard className="w-6 h-6" />
+            Dashboard
+          </Link>
+
+          {/* Wallet */}
+          <Link
+            href="/deposits"
+            data-tutorial="wallet-menu"
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+              isActive('/deposits') || isActive('/withdrawals')
+                ? 'bg-[#52B788] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <Wallet className="w-6 h-6" />
+            Wallet
+          </Link>
+
+          {/* Platform Links - Conditionally rendered based on visibility settings */}
+          {shouldShowPlatform('facebook') && (
+            <Link
+              href="/facebook"
+              data-tutorial="facebook-menu"
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+                pathname === '/facebook'
+                  ? 'bg-[#52B788] text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              )}
+            >
+              <FacebookIcon />
+              Facebook
+            </Link>
+          )}
+
+          {shouldShowPlatform('google') && (
+            <Link
+              href="/google"
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+                pathname === '/google'
+                  ? 'bg-[#52B788] text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              )}
+            >
+              <GoogleIcon />
+              Google
+            </Link>
+          )}
+
+          {shouldShowPlatform('snapchat') && (
+            <Link
+              href="/snapchat"
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+                pathname === '/snapchat'
+                  ? 'bg-[#52B788] text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              )}
+            >
+              <SnapchatIcon />
+              Snapchat
+            </Link>
+          )}
+
+          {shouldShowPlatform('tiktok') && (
+            <Link
+              href="/tiktok"
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+                pathname === '/tiktok'
+                  ? 'bg-[#52B788] text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              )}
+            >
+              <TikTokIcon />
+              Tiktok
+            </Link>
+          )}
+
+          {shouldShowPlatform('bing') && (
+            <Link
+              href="/bing"
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+                pathname === '/bing'
+                  ? 'bg-[#52B788] text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              )}
+            >
+              <BingIcon />
+              Bing
+            </Link>
+          )}
+
+          {/* Guide */}
+          <Link
+            href="/guide"
+            data-tutorial="guide-menu"
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+              isActive('/guide')
+                ? 'bg-[#52B788] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <BookOpen className="w-6 h-6" />
+            Guide
+          </Link>
+
+          {/* Referrals */}
+          <Link
+            href="/referrals"
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+              isActive('/referrals')
+                ? 'bg-[#52B788] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <Gift className="w-6 h-6" />
+            Referrals
+          </Link>
+
+          {/* Settings */}
+          <Link
+            href="/settings"
+            className={cn(
+              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+              isActive('/settings')
+                ? 'bg-[#52B788] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <Settings className="w-6 h-6" />
+            Settings
+          </Link>
+        </nav>
+
+        {/* User Profile */}
+        <div className="p-4 border-t border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-medium">
+              {user?.username?.charAt(0).toUpperCase() || 'T'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {user?.username || 'TestUser'}
+              </p>
+              <p className="text-xs text-gray-500 truncate">{user?.email || 'user@6ad.in'}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </aside>
     </>
   )
 }
