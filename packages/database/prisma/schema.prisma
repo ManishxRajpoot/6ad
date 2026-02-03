@@ -213,7 +213,7 @@ model AdAccount {
 
   // Owner
   userId            String        @db.ObjectId
-  user              User          @relation(fields: [userId], references: [id])
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Application reference
   applicationId     String?       @db.ObjectId
@@ -266,7 +266,7 @@ model AdAccountApplication {
 
   // Owner
   userId            String            @db.ObjectId
-  user              User              @relation(fields: [userId], references: [id])
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Remarks
   remarks           String?
@@ -301,7 +301,7 @@ model Deposit {
 
   // User
   userId            String            @db.ObjectId
-  user              User              @relation(fields: [userId], references: [id])
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Remarks
   remarks           String?
@@ -330,7 +330,7 @@ model Withdrawal {
 
   // User
   userId            String            @db.ObjectId
-  user              User              @relation(fields: [userId], references: [id])
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Remarks
   remarks           String?
@@ -355,7 +355,7 @@ model Refund {
 
   // User
   userId            String            @db.ObjectId
-  user              User              @relation(fields: [userId], references: [id])
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Remarks
   reason            String?
@@ -381,7 +381,7 @@ model AccountDeposit {
 
   // Account
   adAccountId       String            @db.ObjectId
-  adAccount         AdAccount         @relation(fields: [adAccountId], references: [id])
+  adAccount         AdAccount         @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
 
   // Remarks
   remarks           String?
@@ -401,7 +401,7 @@ model AccountRefund {
 
   // Account
   adAccountId       String            @db.ObjectId
-  adAccount         AdAccount         @relation(fields: [adAccountId], references: [id])
+  adAccount         AdAccount         @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
 
   // Remarks
   reason            String?
@@ -421,15 +421,15 @@ model BalanceTransfer {
 
   // From Account
   fromAccountId     String            @db.ObjectId
-  fromAccount       AdAccount         @relation("TransferFrom", fields: [fromAccountId], references: [id])
+  fromAccount       AdAccount         @relation("TransferFrom", fields: [fromAccountId], references: [id], onDelete: Cascade)
 
   // To Account
   toAccountId       String            @db.ObjectId
-  toAccount         AdAccount         @relation("TransferTo", fields: [toAccountId], references: [id])
+  toAccount         AdAccount         @relation("TransferTo", fields: [toAccountId], references: [id], onDelete: Cascade)
 
   // User who initiated the transfer
   userId            String            @db.ObjectId
-  user              User              @relation(fields: [userId], references: [id])
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Remarks
   remarks           String?
@@ -459,7 +459,7 @@ model BmShareRequest {
 
   // User
   userId            String            @db.ObjectId
-  user              User              @relation(fields: [userId], references: [id])
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Remarks
   message           String?
@@ -486,7 +486,7 @@ model WalletFlow {
 
   // User
   userId            String          @db.ObjectId
-  user              User            @relation(fields: [userId], references: [id])
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   description       String?
 
@@ -512,7 +512,7 @@ model PayLink {
 
   // User
   userId            String        @db.ObjectId
-  user              User          @relation(fields: [userId], references: [id])
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -539,7 +539,7 @@ model PayLinkRequest {
 
   // User who created the request
   userId            String              @db.ObjectId
-  user              User                @relation(fields: [userId], references: [id])
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Admin remarks
   adminRemarks      String?
@@ -555,11 +555,11 @@ model BlockHistory {
 
   // User who was blocked
   userId            String    @db.ObjectId
-  user              User      @relation("BlockedUser", fields: [userId], references: [id])
+  user              User      @relation("BlockedUser", fields: [userId], references: [id], onDelete: Cascade)
 
   // Admin/Agent who blocked
   blockedById       String    @db.ObjectId
-  blockedBy         User      @relation("BlockedBy", fields: [blockedById], references: [id])
+  blockedBy         User      @relation("BlockedBy", fields: [blockedById], references: [id], onDelete: Cascade)
 
   blockedAt         DateTime  @default(now())
   unblockedAt       DateTime?
@@ -580,7 +580,7 @@ model CustomDomain {
 
   // Agent who owns this domain
   agentId           String        @db.ObjectId
-  agent             User          @relation("AgentDomains", fields: [agentId], references: [id])
+  agent             User          @relation("AgentDomains", fields: [agentId], references: [id], onDelete: Cascade)
 
   adminRemarks      String?
 
@@ -1072,7 +1072,7 @@ model Referral {
 
   // Referrer (user who invited)
   referrerId        String    @db.ObjectId
-  referrer          User      @relation("Referrals", fields: [referrerId], references: [id])
+  referrer          User      @relation("Referrals", fields: [referrerId], references: [id], onDelete: Cascade)
 
   // Referred user (new user who signed up)
   referredUserId    String    @db.ObjectId
@@ -1115,7 +1115,7 @@ model Notification {
 
   // Target user
   userId            String            @db.ObjectId
-  user              User              @relation(fields: [userId], references: [id])
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Notification content
   type              NotificationType
@@ -1236,7 +1236,7 @@ model AgentWithdrawal {
 
   // Agent (only agents can create withdrawals)
   agentId           String            @db.ObjectId
-  agent             User              @relation(fields: [agentId], references: [id])
+  agent             User              @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   // Description/Remarks
   description       String?
