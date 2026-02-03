@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Wallet, ChevronDown, UserCircle, ShieldCheck, LogOut } from 'lucide-react'
+import { Wallet, ChevronDown, UserCircle, ShieldCheck, LogOut, Menu } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -10,9 +10,10 @@ import { NotificationBell } from '@/components/ui/NotificationBell'
 interface HeaderProps {
   title: string
   subtitle?: string
+  onMenuClick?: () => void
 }
 
-export function Header({ title, subtitle }: HeaderProps) {
+export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
   const { user, logout } = useAuthStore()
   const router = useRouter()
   const [showDropdown, setShowDropdown] = useState(false)
@@ -46,7 +47,7 @@ export function Header({ title, subtitle }: HeaderProps) {
   }
 
   return (
-    <header className="bg-white px-6 py-3 border-b border-gray-100 relative z-50">
+    <header className="bg-white px-4 lg:px-6 py-3 border-b border-gray-100 relative z-50">
       <style jsx>{`
         @keyframes wave {
           0%, 100% { transform: rotate(0deg); }
@@ -75,28 +76,36 @@ export function Header({ title, subtitle }: HeaderProps) {
       </div>
 
       <div className="flex items-center justify-between relative z-10">
-        {/* Left - Welcome Message with Wave */}
-        <div className="flex items-center gap-3">
-          <span className="text-2xl animate-wave">👋</span>
+        {/* Left - Menu Button (mobile) + Welcome Message with Wave */}
+        <div className="flex items-center gap-2 lg:gap-3">
+          {/* Mobile menu button */}
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <span className="text-xl lg:text-2xl animate-wave">👋</span>
           <div>
-            <p className="text-xs text-gray-400">{getGreeting()}</p>
-            <h1 className="text-lg font-semibold text-[#1E293B]">
+            <p className="text-[10px] lg:text-xs text-gray-400">{getGreeting()}</p>
+            <h1 className="text-sm lg:text-lg font-semibold text-[#1E293B]">
               {user?.username || 'User'}
             </h1>
           </div>
         </div>
 
         {/* Right - Balance, Notifications, Profile */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 lg:gap-3">
           {/* Balance Card */}
           <Link href="/deposits" className="group">
-            <div className="flex items-center gap-2.5 px-3 py-2 bg-gradient-to-r from-[#52B788]/10 to-emerald-50 rounded-xl border border-[#52B788]/20 hover:border-[#52B788]/40 transition-all duration-300 hover:shadow-md hover:shadow-[#52B788]/10 hover:-translate-y-0.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#52B788] to-emerald-600 flex items-center justify-center shadow-sm">
-                <Wallet className="w-4 h-4 text-white" />
+            <div className="flex items-center gap-1.5 lg:gap-2.5 px-2 lg:px-3 py-1.5 lg:py-2 bg-gradient-to-r from-[#52B788]/10 to-emerald-50 rounded-lg lg:rounded-xl border border-[#52B788]/20 hover:border-[#52B788]/40 transition-all duration-300 hover:shadow-md hover:shadow-[#52B788]/10 hover:-translate-y-0.5">
+              <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-md lg:rounded-lg bg-gradient-to-br from-[#52B788] to-emerald-600 flex items-center justify-center shadow-sm">
+                <Wallet className="w-3 h-3 lg:w-4 lg:h-4 text-white" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] text-gray-400 font-medium leading-none">Balance</span>
-                <span className="text-base font-bold text-[#52B788] tabular-nums leading-tight">
+                <span className="text-[8px] lg:text-[10px] text-gray-400 font-medium leading-none hidden sm:block">Balance</span>
+                <span className="text-xs lg:text-base font-bold text-[#52B788] tabular-nums leading-tight">
                   ${walletBalance.toLocaleString()}
                 </span>
               </div>

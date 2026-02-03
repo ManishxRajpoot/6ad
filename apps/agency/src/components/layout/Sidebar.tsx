@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
@@ -17,10 +18,20 @@ import {
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
 
-export function Sidebar() {
+type SidebarProps = {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { logout, user } = useAuthStore()
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    if (onClose) onClose()
+  }, [pathname])
 
   const handleLogout = () => {
     logout()
@@ -33,7 +44,21 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[260px] bg-white border-r border-gray-100 flex flex-col">
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      <aside className={cn(
+        "fixed left-0 top-0 h-screen w-[260px] bg-white border-r border-gray-100 flex flex-col z-50 transition-transform duration-300",
+        // Mobile: hidden by default, show when isOpen
+        "lg:translate-x-0",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
       {/* Logo */}
       <div className="px-5 py-5">
         <Link href="/dashboard" className="flex items-center gap-3">
@@ -221,5 +246,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   )
 }

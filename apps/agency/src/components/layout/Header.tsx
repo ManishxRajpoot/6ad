@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Bell, Wallet, ChevronDown, Search, LayoutDashboard, UserCircle, ShieldCheck, LogOut } from 'lucide-react'
+import { Bell, Wallet, ChevronDown, Search, LayoutDashboard, UserCircle, ShieldCheck, LogOut, Menu } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -9,9 +9,10 @@ import { useRouter } from 'next/navigation'
 interface HeaderProps {
   title: string
   subtitle?: string
+  onMenuClick?: () => void
 }
 
-export function Header({ title, subtitle }: HeaderProps) {
+export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
   const { user, logout } = useAuthStore()
   const router = useRouter()
   const [showDropdown, setShowDropdown] = useState(false)
@@ -50,23 +51,31 @@ export function Header({ title, subtitle }: HeaderProps) {
   const couponBalance = Number(user?.couponBalance) || 0
 
   return (
-    <header className="bg-white px-6 py-2.5 border-b border-slate-100 relative z-50">
+    <header className="bg-white px-3 lg:px-6 py-2.5 border-b border-slate-100 relative z-50">
       <div className="flex items-center justify-between">
-        {/* Left - Welcome Message */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#9333EA] flex items-center justify-center shadow-lg shadow-purple-500/20">
-            <LayoutDashboard className="w-5 h-5 text-white" />
+        {/* Left - Menu Button (mobile) + Welcome Message */}
+        <div className="flex items-center gap-2 lg:gap-3">
+          {/* Mobile menu button */}
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2 -ml-1 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-lg lg:rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#9333EA] flex items-center justify-center shadow-lg shadow-purple-500/20">
+            <LayoutDashboard className="w-4 h-4 lg:w-5 lg:h-5 text-white" />
           </div>
-          <div>
-            <p className="text-[11px] text-slate-400 font-medium">{getGreeting()}</p>
-            <h1 className="text-sm font-bold text-slate-800">
+          <div className="hidden sm:block">
+            <p className="text-[10px] lg:text-[11px] text-slate-400 font-medium">{getGreeting()}</p>
+            <h1 className="text-xs lg:text-sm font-bold text-slate-800">
               {user?.username || 'Partner'}
             </h1>
           </div>
         </div>
 
         {/* Center - Search Bar */}
-        <div className="hidden md:flex items-center flex-1 max-w-md mx-8">
+        <div className="hidden lg:flex items-center flex-1 max-w-md mx-8">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -78,22 +87,22 @@ export function Header({ title, subtitle }: HeaderProps) {
         </div>
 
         {/* Right - Wallet, Notifications, Profile */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 lg:gap-2">
           {/* Wallet Balance Card */}
-          <div className="flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-slate-50 to-slate-100/50 rounded-xl border border-slate-200/60">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#7C3AED] to-[#9333EA] flex items-center justify-center shadow-sm">
-                <Wallet className="w-4 h-4 text-white" />
+          <div className="flex items-center gap-1.5 lg:gap-3 px-2 lg:px-4 py-1.5 lg:py-2 bg-gradient-to-r from-slate-50 to-slate-100/50 rounded-lg lg:rounded-xl border border-slate-200/60">
+            <div className="flex items-center gap-1.5 lg:gap-2">
+              <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-md lg:rounded-lg bg-gradient-to-br from-[#7C3AED] to-[#9333EA] flex items-center justify-center shadow-sm">
+                <Wallet className="w-3 h-3 lg:w-4 lg:h-4 text-white" />
               </div>
               <div>
-                <p className="text-[10px] text-slate-400 font-medium leading-none">Wallet</p>
-                <p className="text-sm font-bold text-slate-800">{formatBalance(walletBalance)}</p>
+                <p className="text-[8px] lg:text-[10px] text-slate-400 font-medium leading-none hidden sm:block">Wallet</p>
+                <p className="text-xs lg:text-sm font-bold text-slate-800">{formatBalance(walletBalance)}</p>
               </div>
             </div>
-            <div className="h-8 w-px bg-slate-200" />
-            <div>
-              <p className="text-[10px] text-slate-400 font-medium leading-none">Coupons</p>
-              <p className="text-sm font-bold text-amber-500">{couponBalance}</p>
+            <div className="h-6 lg:h-8 w-px bg-slate-200 hidden sm:block" />
+            <div className="hidden sm:block">
+              <p className="text-[8px] lg:text-[10px] text-slate-400 font-medium leading-none">Coupons</p>
+              <p className="text-xs lg:text-sm font-bold text-amber-500">{couponBalance}</p>
             </div>
           </div>
 

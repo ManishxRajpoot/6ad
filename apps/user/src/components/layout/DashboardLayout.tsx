@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
@@ -20,6 +20,7 @@ type DashboardLayoutProps = {
 export function DashboardLayout({ children, title, subtitle }: DashboardLayoutProps) {
   const router = useRouter()
   const { isAuthenticated, isHydrated, setAuth, logout, user } = useAuthStore()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     // Wait for zustand to hydrate from localStorage
@@ -75,10 +76,10 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
         <AnnouncementBanner />
       </div>
 
-      <Sidebar />
-      <div className="ml-[240px] h-full flex flex-col">
-        <Header title={title} subtitle={subtitle} />
-        <main className="flex-1 p-6 overflow-hidden flex flex-col">{children}</main>
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="lg:ml-[240px] h-full flex flex-col">
+        <Header title={title} subtitle={subtitle} onMenuClick={() => setSidebarOpen(true)} />
+        <main className="flex-1 p-4 lg:p-6 overflow-hidden flex flex-col">{children}</main>
       </div>
 
       {/* Live Chat Widget */}

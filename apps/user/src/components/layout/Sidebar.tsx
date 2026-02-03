@@ -11,6 +11,8 @@ import {
   LogOut,
   BookOpen,
   Gift,
+  Menu,
+  X,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useDomainStore } from '@/store/domain'
@@ -48,7 +50,12 @@ const BingIcon = () => (
   </svg>
 )
 
-export function Sidebar() {
+type SidebarProps = {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { logout, user } = useAuthStore()
@@ -60,6 +67,11 @@ export function Sidebar() {
     snapchat: 'active',
     bing: 'active',
   })
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    if (onClose) onClose()
+  }, [pathname])
 
   // Fetch platform visibility settings
   useEffect(() => {
@@ -98,7 +110,21 @@ export function Sidebar() {
     : user?.agent?.brandLogo
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-gray-100 flex flex-col">
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+
+      <aside className={cn(
+        "fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-gray-100 flex flex-col z-50 transition-transform duration-300",
+        // Mobile: hidden by default, show when isOpen
+        "lg:translate-x-0",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
       {/* Logo */}
       <div className="px-6 py-5">
         <Link href="/dashboard" className="flex items-center gap-3">
@@ -325,5 +351,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   )
 }
