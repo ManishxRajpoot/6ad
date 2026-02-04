@@ -653,7 +653,20 @@ accounts.post('/', requireUser, async (c) => {
     // Get user details for email
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { agent: { select: { email: true, brandLogo: true } } }
+      include: {
+        agent: {
+          select: {
+            email: true,
+            brandLogo: true,
+            emailSenderNameApproved: true,
+            customDomains: {
+              where: { status: 'APPROVED' },
+              select: { brandLogo: true },
+              take: 1
+            }
+          }
+        }
+      }
     })
 
     const account = await prisma.adAccount.create({
@@ -671,11 +684,14 @@ accounts.post('/', requireUser, async (c) => {
 
     // Send email to user
     if (user) {
+      // Use approved domain logo if available, otherwise fall back to agent's brand logo
+      const approvedDomainLogo = user.agent?.customDomains?.[0]?.brandLogo
+      const agentLogo = approvedDomainLogo || user.agent?.brandLogo || null
       const userEmail = getAdAccountSubmittedTemplate({
         username: user.username,
         applyId: account.id.slice(-8).toUpperCase(),
         platform: data.platform,
-        agentLogo: user.agent?.brandLogo
+        agentLogo
       })
       sendEmail({ to: user.email, ...userEmail, senderName: user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
@@ -717,7 +733,7 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
     })
 
     if (!account) {
@@ -737,6 +753,8 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
     })
 
     // Send approval email to user
+    const approvedDomainLogo = account.user.agent?.customDomains?.[0]?.brandLogo
+    const agentLogo = approvedDomainLogo || account.user.agent?.brandLogo || null
     const userEmail = getAdAccountApprovedTemplate({
       username: account.user.username,
       applyId: id.slice(-8).toUpperCase(),
@@ -744,7 +762,7 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
       accountId: account.accountId,
       accountName: account.accountName || undefined,
       adminRemarks,
-      agentLogo: account.user.agent?.brandLogo
+      agentLogo
     })
     sendEmail({ to: account.user.email, ...userEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
@@ -763,7 +781,7 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
     })
 
     if (!account) {
@@ -779,12 +797,14 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
     })
 
     // Send rejection email to user
+    const approvedDomainLogo = account.user.agent?.customDomains?.[0]?.brandLogo
+    const agentLogo = approvedDomainLogo || account.user.agent?.brandLogo || null
     const userEmail = getAdAccountRejectedTemplate({
       username: account.user.username,
       applyId: id.slice(-8).toUpperCase(),
       platform: account.platform,
       adminRemarks,
-      agentLogo: account.user.agent?.brandLogo
+      agentLogo
     })
     sendEmail({ to: account.user.email, ...userEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
@@ -810,7 +830,7 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, email: true } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, email: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
     })
 
     if (!account) {
@@ -896,6 +916,8 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
     })
 
     // Send email to user
+    const approvedDomainLogo = account.user.agent?.customDomains?.[0]?.brandLogo
+    const agentLogo = approvedDomainLogo || account.user.agent?.brandLogo || null
     const userEmailTemplate = getAccountRechargeSubmittedTemplate({
       username: account.user.username,
       applyId,
@@ -905,7 +927,7 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
       platform: account.platform,
       accountId: account.accountId,
       accountName: account.accountName || undefined,
-      agentLogo: account.user.agent?.brandLogo
+      agentLogo
     })
     sendEmail({ to: account.user.email, ...userEmailTemplate, senderName: account.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
@@ -948,7 +970,7 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       where: { id },
       include: {
         adAccount: {
-          include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
+          include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
         }
       }
     })
@@ -992,6 +1014,8 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
     })
 
     // Send approval email to user
+    const approvedDomainLogoDeposit = deposit.adAccount.user.agent?.customDomains?.[0]?.brandLogo
+    const agentLogoDeposit = approvedDomainLogoDeposit || deposit.adAccount.user.agent?.brandLogo || null
     const userEmailTemplate = getAccountRechargeApprovedTemplate({
       username: deposit.adAccount.user.username,
       applyId: deposit.applyId,
@@ -1002,7 +1026,7 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       accountId: deposit.adAccount.accountId,
       accountName: deposit.adAccount.accountName || undefined,
       newBalance: Number(updatedAccount?.balance) || 0,
-      agentLogo: deposit.adAccount.user.agent?.brandLogo
+      agentLogo: agentLogoDeposit
     })
     sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate, senderName: deposit.adAccount.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
@@ -1028,7 +1052,7 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       where: { id },
       include: {
         adAccount: {
-          include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
+          include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
         }
       }
     })
@@ -1080,6 +1104,8 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
     })
 
     // Send rejection email to user with refund info
+    const approvedDomainLogoReject = deposit.adAccount.user.agent?.customDomains?.[0]?.brandLogo
+    const agentLogoReject = approvedDomainLogoReject || deposit.adAccount.user.agent?.brandLogo || null
     const userEmailTemplate = getAccountRechargeRejectedTemplate({
       username: deposit.adAccount.user.username,
       applyId: deposit.applyId,
@@ -1090,7 +1116,7 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       accountId: deposit.adAccount.accountId,
       accountName: deposit.adAccount.accountName || undefined,
       adminRemarks,
-      agentLogo: deposit.adAccount.user.agent?.brandLogo
+      agentLogo: agentLogoReject
     })
     sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate, senderName: deposit.adAccount.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
