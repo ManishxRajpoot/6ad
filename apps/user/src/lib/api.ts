@@ -101,20 +101,24 @@ export const accountsApi = {
         impressions: number
         clicks: number
         results: number
+        conversions: number
         cpc: number
         ctr: number
         cpr: number
         cpm: number
+        cpa: number
       }[]
       totals: {
         impressions: number
         clicks: number
         spent: number
         results: number
+        conversions: number
         cpc: number
         ctr: number
         cpr: number
         cpm: number
+        cpa: number
       } | null
       isCheetah: boolean
       error?: string

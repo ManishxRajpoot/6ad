@@ -2,8 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Root font size scales with viewport for fluid typography */
+/* Increased by 20% for larger UI */
+:root {
+  --min-width: 320;
+  --max-width: 1920;
+  --min-font: 15.6;
+  --max-font: 19.2;
+  font-size: clamp(
+    calc(var(--min-font) * 1px),
+    calc(var(--min-font) * 1px + (var(--max-font) - var(--min-font)) * ((100vw - var(--min-width) * 1px) / (var(--max-width) - var(--min-width)))),
+    calc(var(--max-font) * 1px)
+  );
+}
+
 body {
   background-color: #F6F6F6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Fluid container that adapts to all screen sizes */
+.fluid-container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding-left: clamp(0.5rem, 2vw, 1.5rem);
+  padding-right: clamp(0.5rem, 2vw, 1.5rem);
+}
+
+/* Prevent layout shifts on resize */
+* {
+  box-sizing: border-box;
+}
+
+/* Ensure images and media scale properly */
+img, video, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Cards and containers that scale smoothly */
+.scale-card {
+  transition: all 0.2s ease-out;
 }
 
 /* Custom scrollbar */

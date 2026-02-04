@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { agentWithdrawalsApi } from '@/lib/api'
+import { useAuthStore } from '@/store/auth'
 import { TrendingUp, TrendingDown, DollarSign, Users, Wallet, Loader2, CheckCircle, X } from 'lucide-react'
 
 interface WithdrawalStats {
@@ -24,6 +25,7 @@ const MINIMUM_WITHDRAWAL = 200
 interface Withdrawal {
   id: string
   amount: number
+  approvedAmount?: number
   paymentAddress: string
   paymentMethod?: string
   description?: string
@@ -34,6 +36,7 @@ interface Withdrawal {
 }
 
 export default function WithdrawalsPage() {
+  const refreshUser = useAuthStore((state) => state.refreshUser)
   const [stats, setStats] = useState<WithdrawalStats | null>(null)
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,6 +58,8 @@ export default function WithdrawalsPage() {
       ])
       setStats(statsRes)
       setWithdrawals(withdrawalsRes.withdrawals)
+      // Refresh user data to sync wallet balance from database
+      await refreshUser()
     } catch (err: any) {
       console.error('Failed to fetch withdrawal data:', err)
     } finally {
@@ -112,7 +117,7 @@ export default function WithdrawalsPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    const baseClasses = "px-3 py-1 rounded-full text-xs font-semibold"
+    const baseClasses = "px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold"
     switch (status) {
       case 'APPROVED':
         return <span className={`${baseClasses} bg-[#52B788] text-white`}>Approved</span>
@@ -138,209 +143,221 @@ export default function WithdrawalsPage() {
   }
 
   return (
-    <DashboardLayout title="Agent Withdrawal Profile Applications" subtitle="Manage your withdrawal requests">
-      {/* Stats Cards - Exact replica */}
-      <div className="bg-white rounded-2xl p-4 lg:p-6 mb-4 lg:mb-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-0 lg:divide-x divide-gray-100">
+    <DashboardLayout title="Agent Withdrawal Profile Applications" subtitle="">
+      {/* Stats Cards - Compact */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Available to Withdraw */}
-          <div className="px-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
-            <div className="flex items-center gap-2 lg:gap-3 mb-1.5 lg:mb-2">
-              <span className="text-xs lg:text-sm text-gray-500">Available to withdraw</span>
-              <span className="text-[10px] lg:text-xs text-emerald-500 flex items-center gap-0.5">
-                <TrendingUp className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
+          <Card className="p-3 min-h-[80px]">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[10px] xl:text-[11px] text-gray-500">Available to withdraw</span>
+              <span className="text-[9px] xl:text-[10px] text-emerald-500 flex items-center gap-0.5">
+                <TrendingUp className="w-2.5 h-2.5" />
                 <span>10.0%</span>
               </span>
             </div>
-            <div className="text-xl lg:text-[28px] font-bold text-[#7C3AED] mb-0.5 lg:mb-1">
+            <div className="text-lg xl:text-xl font-bold text-[#7C3AED] mb-0.5">
               {loading ? '...' : formatCurrency(stats?.availableToWithdraw || 0)}
             </div>
-            <div className="text-[10px] lg:text-xs text-gray-400">
+            <div className="text-[9px] xl:text-[10px] text-gray-400">
               {stats && !stats.canWithdraw ? (
                 <span className="text-orange-500">Min $200 required</span>
               ) : (
                 new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
               )}
             </div>
-          </div>
+          </Card>
 
           {/* Today Revenue */}
-          <div className="px-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
-            <div className="flex items-center gap-2 lg:gap-3 mb-1.5 lg:mb-2">
-              <span className="text-xs lg:text-sm text-gray-500">Today Revenue</span>
-              <span className={`text-[10px] lg:text-xs flex items-center gap-0.5 ${
-                (stats?.todayRevenue || 0) > 0 ? 'text-red-500' : 'text-red-500'
-              }`}>
-                <TrendingDown className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
+          <Card className="p-3 min-h-[80px]">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[10px] xl:text-[11px] text-gray-500">Today Revenue</span>
+              <span className="text-[9px] xl:text-[10px] text-red-500 flex items-center gap-0.5">
+                <TrendingDown className="w-2.5 h-2.5" />
                 <span>3.0%</span>
               </span>
             </div>
-            <div className="text-xl lg:text-[28px] font-bold text-[#7C3AED] mb-0.5 lg:mb-1">
+            <div className="text-lg xl:text-xl font-bold text-[#7C3AED] mb-0.5">
               {loading ? '...' : formatCurrency(stats?.todayRevenue || 0)}
             </div>
-            <div className="text-[10px] lg:text-xs text-gray-400">
+            <div className="text-[9px] xl:text-[10px] text-gray-400">
               143 Account & <span className="text-orange-500">44 Pending</span>
             </div>
-          </div>
+          </Card>
 
           {/* Total Ads Account */}
-          <div className="px-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
-            <div className="flex items-center gap-2 lg:gap-3 mb-1.5 lg:mb-2">
-              <span className="text-xs lg:text-sm text-gray-500">Total Ads Account</span>
-              <span className="text-[10px] lg:text-xs text-emerald-500 flex items-center gap-0.5">
-                <TrendingUp className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
+          <Card className="p-3 min-h-[80px]">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[10px] xl:text-[11px] text-gray-500">Total Ads Account</span>
+              <span className="text-[9px] xl:text-[10px] text-emerald-500 flex items-center gap-0.5">
+                <TrendingUp className="w-2.5 h-2.5" />
                 <span>3.2%</span>
               </span>
             </div>
-            <div className="text-xl lg:text-[28px] font-bold text-[#7C3AED] mb-0.5 lg:mb-1">
+            <div className="text-lg xl:text-xl font-bold text-[#7C3AED] mb-0.5">
               {loading ? '...' : (stats?.totalAdAccounts || 0).toLocaleString('en-US')}
             </div>
-            <div className="text-[10px] lg:text-xs text-gray-400">
+            <div className="text-[9px] xl:text-[10px] text-gray-400">
               Active ads Account
             </div>
-          </div>
+          </Card>
 
           {/* All Earned Amount */}
-          <div className="px-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
-            <div className="flex items-center gap-2 lg:gap-3 mb-1.5 lg:mb-2">
-              <span className="text-xs lg:text-sm text-gray-500">All Earned Amount</span>
-              <span className="text-[10px] lg:text-xs text-emerald-500 flex items-center gap-0.5">
-                <TrendingUp className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
+          <Card className="p-3 min-h-[80px]">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[10px] xl:text-[11px] text-gray-500">All Earned Amount</span>
+              <span className="text-[9px] xl:text-[10px] text-emerald-500 flex items-center gap-0.5">
+                <TrendingUp className="w-2.5 h-2.5" />
                 <span>8.3%</span>
               </span>
             </div>
-            <div className="text-[28px] font-bold text-[#7C3AED] mb-1">
+            <div className="text-lg xl:text-xl font-bold text-[#7C3AED] mb-0.5">
               {loading ? '...' : formatCurrency(stats?.totalEarned || 0)}
             </div>
-            <div className="text-xs text-gray-400">
+            <div className="text-[9px] xl:text-[10px] text-gray-400">
               Total earned amount till now
             </div>
-          </div>
+          </Card>
         </div>
-      </div>
 
-      {/* Request Withdrawal Section */}
-      <Card className="p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-1">Request Withdrawal</h2>
-        <p className="text-sm text-gray-500 mb-4">Enter your withdrawal amount</p>
+        {/* Request Withdrawal Section - Compact */}
+        <Card className="p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h2 className="text-[13px] font-semibold text-gray-800">Request Withdrawal</h2>
+              <p className="text-[10px] text-gray-500">Enter your withdrawal amount</p>
+            </div>
+          </div>
 
-        <form onSubmit={handleSubmit}>
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-600 rounded-lg text-sm">
-              {success}
-            </div>
-          )}
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Enter Amount</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                step="0.01"
-                min="0"
-                className="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent"
-              />
-            </div>
-            {stats && (
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-gray-400">
-                  Available: ${stats.availableToWithdraw.toFixed(2)}
-                </p>
-                <p className="text-xs text-gray-400">
-                  Minimum: ${stats.minimumWithdrawal || MINIMUM_WITHDRAWAL}
-                </p>
+          <form onSubmit={handleSubmit} className="flex items-end gap-3">
+            {error && (
+              <div className="mb-2 p-2 bg-red-50 border border-red-200 text-red-600 rounded-lg text-[11px]">
+                {error}
               </div>
             )}
+            {success && (
+              <div className="mb-2 p-2 bg-green-50 border border-green-200 text-green-600 rounded-lg text-[11px]">
+                {success}
+              </div>
+            )}
+
+            <div className="flex-1 max-w-xs">
+              <label className="block text-[11px] font-medium text-gray-700 mb-1">Enter Amount</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  step="0.01"
+                  min="0"
+                  className="w-full pl-6 pr-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent"
+                />
+              </div>
+              {stats && (
+                <div className="flex items-center justify-between mt-0.5">
+                  <p className="text-[9px] text-gray-400">
+                    Available: ${stats.availableToWithdraw.toFixed(2)}
+                  </p>
+                  <p className="text-[9px] text-gray-400">
+                    Min: ${stats.minimumWithdrawal || MINIMUM_WITHDRAWAL}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {stats && !stats.canWithdraw && (
+              <div className="p-2 bg-orange-50 border border-orange-200 text-orange-600 rounded-lg text-[10px] max-w-xs">
+                Need ${stats.minimumWithdrawal || MINIMUM_WITHDRAWAL} min. Balance: ${stats.availableToWithdraw.toFixed(2)}
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              disabled={submitting || loading || (stats && !stats.canWithdraw) || false}
+              className={`px-4 py-2 rounded-lg font-medium text-xs ${
+                stats && !stats.canWithdraw
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-[#7C3AED] hover:bg-[#6D28D9] text-white'
+              }`}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit'
+              )}
+            </Button>
+          </form>
+        </Card>
+
+        {/* Withdrawal History - Compact */}
+        <Card className="p-0 overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 320px)' }}>
+          <div className="p-3 border-b border-gray-100 flex-shrink-0">
+            <h2 className="text-[13px] font-semibold text-gray-800">Withdrawal History</h2>
+            <p className="text-[10px] text-gray-500">Here you can check your withdrawal history</p>
           </div>
 
-          {stats && !stats.canWithdraw && (
-            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 text-orange-600 rounded-lg text-sm">
-              You need at least ${stats.minimumWithdrawal || MINIMUM_WITHDRAWAL} to request a withdrawal. Current balance: ${stats.availableToWithdraw.toFixed(2)}
-            </div>
-          )}
-
-          <Button
-            type="submit"
-            disabled={submitting || loading || (stats && !stats.canWithdraw) || false}
-            className={`px-8 py-2.5 rounded-lg font-medium ${
-              stats && !stats.canWithdraw
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-[#7C3AED] hover:bg-[#6D28D9] text-white'
-            }`}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              'Submit'
-            )}
-          </Button>
-        </form>
-      </Card>
-
-      {/* Withdrawal History */}
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-1">Withdrawal History</h2>
-        <p className="text-sm text-gray-500 mb-4">Here you can check your withdrawal history</p>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Create Date</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Amount</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Clearence Date</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={4} className="py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      <Loader2 className="w-8 h-8 text-[#52B788] animate-spin mb-2" />
-                      <span className="text-gray-500">Loading...</span>
-                    </div>
-                  </td>
+          <div className="flex-1 overflow-auto">
+            <table className="w-full">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">Create Date</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-[#7C3AED] uppercase tracking-wider bg-gray-50">Requested</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-[#166534] uppercase tracking-wider bg-gray-50">Approved</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">Clearence Date</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">Status</th>
                 </tr>
-              ) : withdrawals.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="py-12 text-center text-gray-500">
-                    No withdrawal requests found
-                  </td>
-                </tr>
-              ) : (
-                withdrawals.map((withdrawal) => (
-                  <tr key={withdrawal.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="py-4 px-4 text-sm text-gray-500">
-                      {formatDate(withdrawal.createdAt)}
-                    </td>
-                    <td className="py-4 px-4 text-sm font-medium text-gray-800">
-                      USD ${withdrawal.amount.toFixed(2)}
-                    </td>
-                    <td className="py-4 px-4 text-sm text-gray-500">
-                      {withdrawal.clearedAt ? formatDate(withdrawal.clearedAt) : '---'}
-                    </td>
-                    <td className="py-4 px-4">
-                      {getStatusBadge(withdrawal.status)}
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center">
+                      <div className="flex flex-col items-center">
+                        <Loader2 className="w-6 h-6 text-[#52B788] animate-spin mb-1" />
+                        <span className="text-gray-500 text-[11px]">Loading...</span>
+                      </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                ) : withdrawals.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-gray-500 text-[11px]">
+                      No withdrawal requests found
+                    </td>
+                  </tr>
+                ) : (
+                  withdrawals.map((withdrawal) => (
+                    <tr key={withdrawal.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                      <td className="py-2.5 px-3 text-[11px] xl:text-[12px] text-gray-500">
+                        {formatDate(withdrawal.createdAt)}
+                      </td>
+                      <td className="py-2.5 px-3 text-[13px] font-bold text-[#7C3AED]">
+                        ${withdrawal.amount.toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-3 text-[13px] font-bold text-[#166534]">
+                        {withdrawal.status === 'APPROVED' && withdrawal.approvedAmount !== undefined
+                          ? `$${withdrawal.approvedAmount.toLocaleString()}`
+                          : withdrawal.status === 'PENDING'
+                            ? <span className="text-[11px] text-gray-400">Pending</span>
+                            : '---'}
+                      </td>
+                      <td className="py-2.5 px-3 text-[11px] xl:text-[12px] text-gray-500">
+                        {withdrawal.clearedAt ? formatDate(withdrawal.clearedAt) : '---'}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        {getStatusBadge(withdrawal.status)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
 
       {/* Success Popup Modal */}
       <div

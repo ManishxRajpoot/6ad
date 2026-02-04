@@ -388,6 +388,23 @@ export const referralsApi = {
   getAll: () => api.get<{ referrals: any[] }>('/referrals/admin'),
 }
 
+// Agent Withdrawals API (Admin)
+export const agentWithdrawalsApi = {
+  getAll: (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams()
+    if (params?.status) query.append('status', params.status)
+    if (params?.search) query.append('search', params.search)
+    if (params?.page) query.append('page', params.page.toString())
+    if (params?.limit) query.append('limit', params.limit.toString())
+    const queryString = query.toString()
+    return api.get<{ withdrawals: any[]; pagination: any }>(`/agent-withdrawals/admin${queryString ? `?${queryString}` : ''}`)
+  },
+  approve: (id: string, data?: { approvedAmount?: number; adminRemarks?: string }) =>
+    api.post<{ message: string; requestedAmount: number; approvedAmount: number }>(`/agent-withdrawals/${id}/approve`, data || {}),
+  reject: (id: string, adminRemarks?: string) =>
+    api.post<{ message: string }>(`/agent-withdrawals/${id}/reject`, { adminRemarks }),
+}
+
 // Cheetah Mobile API (猎豹移动)
 export const cheetahApi = {
   // Configuration

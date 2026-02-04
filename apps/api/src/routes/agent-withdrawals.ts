@@ -369,12 +369,20 @@ agentWithdrawals.get('/admin', requireAdmin, async (c) => {
 })
 
 // POST /agent-withdrawals/:id/approve - Approve withdrawal (Admin)
+// Admin can edit the approved amount - the full requested amount is debited from agent's balance
+// but only the approved amount is paid out
 agentWithdrawals.post('/:id/approve', requireAdmin, async (c) => {
+  console.log('========== APPROVE WITHDRAWAL ROUTE HIT ==========')
   try {
     const { id } = c.req.param()
-    const { adminRemarks } = await c.req.json()
+    console.log('Approve withdrawal request for ID:', id)
+
+    const body = await c.req.json()
+    console.log('Request body:', body)
+    const { adminRemarks, approvedAmount } = body
 
     const withdrawal = await prisma.agentWithdrawal.findUnique({ where: { id } })
+    console.log('Found withdrawal:', withdrawal)
 
     if (!withdrawal) {
       return c.json({ error: 'Withdrawal not found' }, 404)
@@ -384,20 +392,75 @@ agentWithdrawals.post('/:id/approve', requireAdmin, async (c) => {
       return c.json({ error: 'Withdrawal already processed' }, 400)
     }
 
-    await prisma.agentWithdrawal.update({
-      where: { id },
-      data: {
-        status: 'APPROVED',
-        adminRemarks,
-        approvedAt: new Date(),
-        clearedAt: new Date(),
-      }
+    // Validate approvedAmount if provided
+    const finalApprovedAmount = approvedAmount !== undefined
+      ? parseFloat(approvedAmount)
+      : withdrawal.amount
+
+    console.log('Final approved amount:', finalApprovedAmount)
+
+    if (isNaN(finalApprovedAmount) || finalApprovedAmount < 0) {
+      return c.json({ error: 'Invalid approved amount' }, 400)
+    }
+
+    if (finalApprovedAmount > withdrawal.amount) {
+      return c.json({ error: 'Approved amount cannot exceed requested amount' }, 400)
+    }
+
+    console.log('Updating withdrawal...')
+    console.log('Agent ID:', withdrawal.agentId)
+
+    // Get agent's current wallet balance before update
+    const agentBefore = await prisma.user.findUnique({
+      where: { id: withdrawal.agentId },
+      select: { walletBalance: true, username: true }
+    })
+    console.log('Agent before update:', agentBefore)
+
+    // Use transaction to update both withdrawal and agent's wallet
+    const result = await prisma.$transaction(async (tx) => {
+      // Update the withdrawal status
+      const updatedWithdrawal = await tx.agentWithdrawal.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          approvedAmount: finalApprovedAmount,
+          adminRemarks,
+          approvedAt: new Date(),
+          clearedAt: new Date(),
+        }
+      })
+      console.log('Withdrawal updated in transaction')
+
+      // Add the approved amount to agent's wallet balance
+      console.log('Updating agent wallet with increment:', finalApprovedAmount)
+      const updatedAgent = await tx.user.update({
+        where: { id: withdrawal.agentId },
+        data: {
+          walletBalance: {
+            increment: finalApprovedAmount
+          }
+        }
+      })
+      console.log('Agent updated in transaction, new balance:', updatedAgent.walletBalance)
+
+      return { updatedWithdrawal, updatedAgent }
     })
 
-    return c.json({ message: 'Withdrawal approved' })
-  } catch (error) {
+    console.log('Transaction completed successfully')
+    console.log('Updated withdrawal:', result.updatedWithdrawal)
+    console.log('Updated agent wallet:', result.updatedAgent.walletBalance)
+
+    return c.json({
+      message: 'Withdrawal approved',
+      requestedAmount: withdrawal.amount,
+      approvedAmount: finalApprovedAmount,
+      newWalletBalance: result.updatedAgent.walletBalance
+    })
+  } catch (error: any) {
     console.error('Approve agent withdrawal error:', error)
-    return c.json({ error: 'Failed to approve withdrawal' }, 500)
+    console.error('Error stack:', error.stack)
+    return c.json({ error: 'Failed to approve withdrawal', details: error.message }, 500)
   }
 })
 

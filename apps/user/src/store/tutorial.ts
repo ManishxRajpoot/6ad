@@ -1,6 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 export interface TutorialStep {
   id: string
@@ -25,6 +26,7 @@ interface TutorialState {
   currentTutorial: Tutorial | null
   currentStepIndex: number
   completedTutorials: string[]
+  isHydrated: boolean
 
   // Actions
   startTutorial: (tutorial: Tutorial) => void
@@ -33,73 +35,85 @@ interface TutorialState {
   endTutorial: () => void
   skipTutorial: () => void
   markCompleted: (tutorialId: string) => void
+  setHydrated: (state: boolean) => void
 }
 
-export const useTutorialStore = create<TutorialState>((set, get) => ({
-  isActive: false,
-  currentTutorial: null,
-  currentStepIndex: 0,
-  completedTutorials: [],
-
-  startTutorial: (tutorial) => set({
-    isActive: true,
-    currentTutorial: tutorial,
-    currentStepIndex: 0,
-  }),
-
-  nextStep: () => {
-    const { currentTutorial, currentStepIndex } = get()
-    if (!currentTutorial) return
-
-    if (currentStepIndex < currentTutorial.steps.length - 1) {
-      set({ currentStepIndex: currentStepIndex + 1 })
-    } else {
-      // Tutorial completed
-      get().markCompleted(currentTutorial.id)
-      set({
-        isActive: false,
-        currentTutorial: null,
-        currentStepIndex: 0,
-      })
-    }
-  },
-
-  prevStep: () => {
-    const { currentStepIndex } = get()
-    if (currentStepIndex > 0) {
-      set({ currentStepIndex: currentStepIndex - 1 })
-    }
-  },
-
-  endTutorial: () => {
-    const { currentTutorial } = get()
-    if (currentTutorial) {
-      get().markCompleted(currentTutorial.id)
-    }
-    set({
+export const useTutorialStore = create<TutorialState>()(
+  persist(
+    (set, get) => ({
       isActive: false,
       currentTutorial: null,
       currentStepIndex: 0,
-    })
-  },
+      completedTutorials: [],
+      isHydrated: false,
 
-  skipTutorial: () => set({
-    isActive: false,
-    currentTutorial: null,
-    currentStepIndex: 0,
-  }),
+      startTutorial: (tutorial) => set({
+        isActive: true,
+        currentTutorial: tutorial,
+        currentStepIndex: 0,
+      }),
 
-  markCompleted: (tutorialId) => {
-    const { completedTutorials } = get()
-    if (!completedTutorials.includes(tutorialId)) {
-      set({ completedTutorials: [...completedTutorials, tutorialId] })
-      // Persist to localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('completedTutorials', JSON.stringify([...completedTutorials, tutorialId]))
-      }
+      nextStep: () => {
+        const { currentTutorial, currentStepIndex } = get()
+        if (!currentTutorial) return
+
+        if (currentStepIndex < currentTutorial.steps.length - 1) {
+          set({ currentStepIndex: currentStepIndex + 1 })
+        } else {
+          // Tutorial completed
+          get().markCompleted(currentTutorial.id)
+          set({
+            isActive: false,
+            currentTutorial: null,
+            currentStepIndex: 0,
+          })
+        }
+      },
+
+      prevStep: () => {
+        const { currentStepIndex } = get()
+        if (currentStepIndex > 0) {
+          set({ currentStepIndex: currentStepIndex - 1 })
+        }
+      },
+
+      endTutorial: () => {
+        const { currentTutorial } = get()
+        if (currentTutorial) {
+          get().markCompleted(currentTutorial.id)
+        }
+        set({
+          isActive: false,
+          currentTutorial: null,
+          currentStepIndex: 0,
+        })
+      },
+
+      skipTutorial: () => set({
+        isActive: false,
+        currentTutorial: null,
+        currentStepIndex: 0,
+      }),
+
+      markCompleted: (tutorialId) => {
+        const { completedTutorials } = get()
+        if (!completedTutorials.includes(tutorialId)) {
+          set({ completedTutorials: [...completedTutorials, tutorialId] })
+        }
+      },
+
+      setHydrated: (state) => {
+        set({ isHydrated: state })
+      },
+    }),
+    {
+      name: 'tutorial-storage',
+      onRehydrateStorage: () => (state) => {
+        state?.setHydrated(true)
+      },
     }
-  },
-}))
+  )
+)
 
 // Tutorial definitions
 export const tutorials: Tutorial[] = [

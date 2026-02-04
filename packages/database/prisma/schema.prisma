@@ -1227,7 +1227,8 @@ model ChatMessage {
 model AgentWithdrawal {
   id                String            @id @default(auto()) @map("_id") @db.ObjectId
 
-  amount            Float
+  amount            Float             // Original requested amount by agent
+  approvedAmount    Float?            // Amount approved by admin (can be different from requested)
   status            TransactionStatus @default(PENDING)
 
   // Payment address/details

@@ -50,7 +50,7 @@ export function TableCell({ children, className, isHeader }: TableCellProps) {
   return (
     <Component
       className={cn(
-        'px-4 py-3 text-sm',
+        'px-5 py-3.5 text-[15px]',
         isHeader ? 'font-medium text-gray-500 text-left' : 'text-gray-700',
         className
       )}

@@ -80,9 +80,9 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
   return (
     <div className="h-screen overflow-hidden bg-[#F8F9FA]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="lg:ml-[260px] h-full flex flex-col">
+      <div className="lg:ml-[240px] xl:ml-[264px] 2xl:ml-[288px] h-full flex flex-col transition-all duration-300">
         <Header title={title} subtitle={subtitle} onMenuClick={() => setSidebarOpen(true)} />
-        <main className={`flex-1 p-3 lg:p-4 overflow-y-auto transition-all duration-300 ease-out ${isPageLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
+        <main className={`flex-1 p-3 sm:p-4 lg:p-5 overflow-y-auto overflow-x-hidden transition-all duration-300 ease-out ${isPageLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}>
           {children}
         </main>
       </div>

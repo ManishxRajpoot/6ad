@@ -1755,15 +1755,50 @@ accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
       })
     }
 
+    // High-value conversion action types for CPA calculation
+    // These are meaningful business outcomes (purchases, leads, registrations)
+    const HIGH_VALUE_ACTION_TYPES = [
+      'purchase', 'omni_purchase', 'web_in_store_purchase', 'offline_purchase',
+      'lead', 'onsite_conversion.lead', 'offsite_conversion.fb_pixel_lead',
+      'complete_registration', 'offsite_complete_registration_add_meta_leads',
+      'submit_application', 'subscribe', 'start_trial',
+      'onsite_conversion.purchase', 'onsite_conversion.complete_registration'
+    ]
+
+    // Helper function to count conversions (high-value actions only)
+    const countConversions = (actions: any[]): number => {
+      if (!actions || !Array.isArray(actions)) return 0
+      return actions
+        .filter((action: any) => HIGH_VALUE_ACTION_TYPES.some(type =>
+          action.action_type?.toLowerCase().includes(type.toLowerCase())
+        ))
+        .reduce((sum: number, action: any) => sum + (parseInt(action.value) || 0), 0)
+    }
+
+    // Helper function to count all results
+    const countAllResults = (actions: any[]): number => {
+      if (!actions || !Array.isArray(actions)) return 0
+      return actions.reduce((sum: number, action: any) => sum + (parseInt(action.value) || 0), 0)
+    }
+
     // Fetch insights for each month with full analytics
     const monthlyData = []
     let totalImpressions = 0
     let totalClicks = 0
     let totalSpent = 0
     let totalResults = 0
+    let totalConversions = 0
 
     for (const monthInfo of months) {
       try {
+        let deposits = 0
+        let spent = 0
+        let impressions = 0
+        let clicks = 0
+        let results = 0
+        let conversions = 0
+
+        // Try getAccountInsightsDateRange first (without cost_per_action_type as Cheetah doesn't support it)
         const result = await cheetahApi.getAccountInsightsDateRange(
           accountId,
           monthInfo.startDate,
@@ -1771,22 +1806,23 @@ accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
           'impressions,clicks,spend,actions'
         )
 
-        let deposits = 0
-        let spent = 0
-        let impressions = 0
-        let clicks = 0
-        let results = 0
+        // Debug logging
+        console.log(`[Monthly Insights] Account: ${accountId}, Month: ${monthInfo.month} ${monthInfo.year}`)
+        console.log(`[Monthly Insights] API Response code: ${result.code}, msg: ${result.msg}`)
 
         if (result.code === 0 && result.data) {
-          // Sum up metrics for the month
+          // Log raw data for debugging
+          console.log(`[Monthly Insights] Raw data:`, JSON.stringify(result.data)?.substring(0, 300))
+
+          // Sum up metrics from insights
           if (Array.isArray(result.data)) {
             result.data.forEach((day: any) => {
               spent += parseFloat(day.spend) || 0
               impressions += parseInt(day.impressions) || 0
               clicks += parseInt(day.clicks) || 0
-              // Actions can be an array of different action types
               if (day.actions && Array.isArray(day.actions)) {
-                results += day.actions.reduce((sum: number, action: any) => sum + (parseInt(action.value) || 0), 0)
+                results += countAllResults(day.actions)
+                conversions += countConversions(day.actions)
               } else if (day.actions) {
                 results += parseInt(day.actions) || 0
               }
@@ -1796,24 +1832,43 @@ accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
             impressions = parseInt(result.data.impressions) || 0
             clicks = parseInt(result.data.clicks) || 0
             if (result.data.actions && Array.isArray(result.data.actions)) {
-              results = result.data.actions.reduce((sum: number, action: any) => sum + (parseInt(action.value) || 0), 0)
+              results = countAllResults(result.data.actions)
+              conversions = countConversions(result.data.actions)
             } else if (result.data.actions) {
               results = parseInt(result.data.actions) || 0
             }
+          }
+          console.log(`[Monthly Insights] Parsed: spent=${spent}, impressions=${impressions}, clicks=${clicks}, results=${results}, conversions=${conversions}`)
+        } else {
+          // Fallback to getDaySpend if insights API fails
+          console.log(`[Monthly Insights] Trying getDaySpend fallback for ${accountId}`)
+          const spendResult = await cheetahApi.getDaySpend(accountId, monthInfo.startDate, monthInfo.endDate)
+          if (spendResult.code === 0 && spendResult.data) {
+            if (Array.isArray(spendResult.data)) {
+              spendResult.data.forEach((day: any) => {
+                spent += parseFloat(day.spend) || 0
+              })
+            }
+            console.log(`[Monthly Insights] getDaySpend success: spent=${spent}`)
+          } else {
+            console.log(`[Monthly Insights] getDaySpend also failed: code=${spendResult.code}, msg=${spendResult.msg}`)
           }
         }
 
         // Calculate analytics metrics
         const cpc = clicks > 0 ? spent / clicks : 0 // Cost Per Click
         const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0 // Click Through Rate (%)
-        const cpr = results > 0 ? spent / results : 0 // Cost Per Result
+        const cpr = results > 0 ? spent / results : 0 // Cost Per Result (all actions)
         const cpm = impressions > 0 ? (spent / impressions) * 1000 : 0 // Cost Per Mille (1000 impressions)
+        // CPA = Cost Per Acquisition (purchases, leads, registrations only)
+        const cpa = conversions > 0 ? spent / conversions : 0
 
         // Aggregate totals
         totalImpressions += impressions
         totalClicks += clicks
         totalSpent += spent
         totalResults += results
+        totalConversions += conversions
 
         // Get deposit amount from our database for this month
         const depositsInMonth = await prisma.accountDeposit.aggregate({
@@ -1840,10 +1895,12 @@ accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
           impressions,
           clicks,
           results,
+          conversions,
           cpc: parseFloat(cpc.toFixed(2)),
           ctr: parseFloat(ctr.toFixed(2)),
           cpr: parseFloat(cpr.toFixed(2)),
-          cpm: parseFloat(cpm.toFixed(2))
+          cpm: parseFloat(cpm.toFixed(2)),
+          cpa: parseFloat(cpa.toFixed(2))
         })
       } catch (err) {
         monthlyData.push({
@@ -1854,24 +1911,30 @@ accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
           impressions: 0,
           clicks: 0,
           results: 0,
+          conversions: 0,
           cpc: 0,
           ctr: 0,
           cpr: 0,
-          cpm: 0
+          cpm: 0,
+          cpa: 0
         })
       }
     }
 
     // Calculate overall totals
+    const totalCpr = totalResults > 0 ? totalSpent / totalResults : 0
+    const totalCpa = totalConversions > 0 ? totalSpent / totalConversions : 0
     const totals = {
       impressions: totalImpressions,
       clicks: totalClicks,
       spent: parseFloat(totalSpent.toFixed(2)),
       results: totalResults,
+      conversions: totalConversions,
       cpc: totalClicks > 0 ? parseFloat((totalSpent / totalClicks).toFixed(2)) : 0,
       ctr: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
-      cpr: totalResults > 0 ? parseFloat((totalSpent / totalResults).toFixed(2)) : 0,
-      cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0
+      cpr: parseFloat(totalCpr.toFixed(2)),
+      cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0,
+      cpa: parseFloat(totalCpa.toFixed(2)) // Cost Per Acquisition (purchases, leads, registrations)
     }
 
     return c.json({ monthlyData, totals, isCheetah: true })

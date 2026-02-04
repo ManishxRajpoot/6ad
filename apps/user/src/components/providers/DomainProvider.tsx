@@ -19,6 +19,8 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
   const [isInvalidDomain, setIsInvalidDomain] = useState(false)
   const [invalidHostname, setInvalidHostname] = useState('')
   const [isInitializing, setIsInitializing] = useState(true)
+  const [networkError, setNetworkError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     const checkCustomDomain = async () => {
@@ -61,9 +63,15 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         console.error('Failed to check custom domain:', error)
-        // If API fails for a custom domain, block access
-        setInvalidHostname(hostname)
-        setIsInvalidDomain(true)
+        // Check if it's a network error
+        if (error instanceof TypeError && error.message.includes('fetch')) {
+          setNetworkError(true)
+          setErrorMessage('Unable to connect to server. Please check your internet connection.')
+        } else {
+          // If API fails for a custom domain, block access
+          setInvalidHostname(hostname)
+          setIsInvalidDomain(true)
+        }
         setDomainInfo(false, null, null)
       } finally {
         setLoading(false)
@@ -106,6 +114,76 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
               to { transform: rotate(360deg); }
             }
           `}</style>
+        </div>
+      </div>
+    )
+  }
+
+  // Show network error page
+  if (networkError) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#ffffff',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}>
+        <div style={{
+          textAlign: 'center',
+          padding: '32px',
+          maxWidth: '500px',
+        }}>
+          <div style={{
+            width: '80px',
+            height: '80px',
+            backgroundColor: '#fef2f2',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 24px',
+          }}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+              <path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <h2 style={{
+            fontSize: '24px',
+            fontWeight: '600',
+            color: '#111827',
+            marginBottom: '12px',
+          }}>Connection Error</h2>
+          <p style={{
+            color: '#6b7280',
+            fontSize: '16px',
+            lineHeight: '1.6',
+            marginBottom: '24px',
+          }}>
+            {errorMessage || 'Unable to connect to the server. Please check your internet connection and try again.'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              backgroundColor: '#8b5cf6',
+              color: '#ffffff',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              border: 'none',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Retry
+          </button>
         </div>
       </div>
     )

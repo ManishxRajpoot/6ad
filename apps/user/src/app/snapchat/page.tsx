@@ -617,23 +617,22 @@ export default function SnapchatPage() {
         ))}
       </div>
 
-      {/* Row 3: Main Content - Sidebar + Form */}
-      <div className="flex gap-2 lg:gap-4 flex-1 min-h-0 overflow-hidden">
-        {/* Left Sidebar */}
-        <div className="w-44 lg:w-60 flex-shrink-0 hidden md:block">
-          <Card className="p-4 h-full border border-gray-100/50 bg-gradient-to-b from-white to-gray-50/50 relative overflow-hidden">
-            {/* Decorative gradient background */}
+      {/* Row 3: Main Content */}
+      <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
+        {/* Left Sidebar - Balanced size, scroll only on small screens */}
+        <div className="w-64 lg:w-72 flex-shrink-0 hidden md:block">
+          <Card className="p-4 h-full border border-gray-100/50 bg-gradient-to-b from-white to-gray-50/50 relative overflow-hidden flex flex-col">
             <div className="absolute inset-0 bg-gradient-to-br from-[#FFFC00]/5 via-transparent to-[#52B788]/5" />
 
-            {/* Snapchat Logo */}
-            <div className="relative z-10 flex flex-col items-center mb-4 pb-4 border-b border-gray-100">
+            {/* Snapchat Logo - Larger and balanced */}
+            <div className="relative z-10 flex flex-col items-center mb-4 pb-4 border-b border-gray-100 flex-shrink-0">
               <div className="relative">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#FFFC00] to-[#E6E300] flex items-center justify-center shadow-md shadow-yellow-500/20">
-                  <svg viewBox="0 0 500 500" className="w-7 h-7" fill="white">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#FFFC00] to-[#E6E300] flex items-center justify-center shadow-lg shadow-yellow-500/30">
+                  <svg viewBox="0 0 500 500" className="w-8 h-8" fill="white">
                     <path d="M417.93,340.71c-60.61-29.34-70.27-74.64-70.7-78-.52-4.07-1.11-7.27,3.38-11.41,4.33-4,23.54-15.89,28.87-19.61,8.81-6.16,12.69-12.31,9.83-19.87-2-5.23-6.87-7.2-12-7.2a22.3,22.3,0,0,0-4.81.54c-9.68,2.1-19.08,6.95-24.52,8.26a8.56,8.56,0,0,1-2,.27c-2.9,0-4-1.29-3.72-4.78.68-10.58,2.12-31.23.45-50.52-2.29-26.54-10.85-39.69-21-51.32C316.8,101.43,294,77.2,250,77.2S183.23,101.43,178.35,107c-10.18,11.63-18.73,24.78-21,51.32-1.67,19.29-.17,39.93.45,50.52.2,3.32-.82,4.78-3.72,4.78a8.64,8.64,0,0,1-2-.27c-5.43-1.31-14.83-6.16-24.51-8.26a22.3,22.3,0,0,0-4.81-.54c-5.15,0-10,2-12,7.2-2.86,7.56,1,13.71,9.84,19.87,5.33,3.72,24.54,15.6,28.87,19.61,4.48,4.14,3.9,7.34,3.38,11.41-.43,3.41-10.1,48.71-70.7,78-3.55,1.72-9.59,5.36,1.06,11.24,16.72,9.24,27.85,8.25,36.5,13.82,7.34,4.73,3,14.93,8.34,18.61,6.56,4.53,25.95-.32,51,7.95,21,6.92,33.76,26.47,71,26.47s50.37-19.64,71-26.47c25-8.27,44.43-3.42,51-7.95,5.33-3.68,1-13.88,8.34-18.61,8.65-5.57,19.77-4.58,36.5-13.82C427.52,346.07,421.48,342.43,417.93,340.71Z"/>
                   </svg>
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md border border-gray-100">
                   <div className="w-4 h-4 bg-[#52B788] rounded-full flex items-center justify-center">
                     <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12"></polyline>
@@ -641,41 +640,48 @@ export default function SnapchatPage() {
                   </div>
                 </div>
               </div>
-              <p className="mt-2 text-xs font-medium text-gray-500">Ad Management</p>
+              <p className="mt-2 text-sm font-medium text-gray-600">Ad Management</p>
             </div>
 
-            {/* Navigation Menu */}
-            <div className="relative z-10 space-y-2">
+            {/* Navigation Menu - Scroll only on small screens */}
+            <div className="relative z-10 space-y-2 overflow-y-auto flex-1 scroll-smooth" style={{ scrollbarWidth: 'thin' }}>
               {menuItems.map((menu) => (
                 <div key={menu.section}>
                   <button
                     onClick={() => toggleSection(menu.section)}
-                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-semibold text-gray-700 hover:bg-[#FFFC00]/10 rounded-lg transition-all duration-200 ease-out transform hover:translate-x-0.5 active:scale-[0.98]"
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-[#FFFC00]/10 rounded-lg transition-all duration-200 active:scale-[0.98]"
                   >
-                    <div className="flex items-center gap-2">
-                      <span>{menu.icon}</span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-lg">{menu.icon}</span>
                       <span>{menu.title}</span>
                     </div>
-                    {expandedSections.includes(menu.section) ? (
-                      <ChevronUp className="w-4 h-4 text-[#CCCA00]" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
-                    )}
+                    <ChevronDown
+                      className={`w-4 h-4 transition-all duration-300 ${
+                        expandedSections.includes(menu.section)
+                          ? 'rotate-180 text-[#CCCA00]'
+                          : 'rotate-0 text-gray-400'
+                      }`}
+                    />
                   </button>
 
-                  <div className={`ml-5 space-y-0.5 border-l-2 border-[#FFFC00]/30 pl-3 overflow-hidden transition-all duration-300 ease-in-out ${
+                  <div className={`ml-5 space-y-1 border-l-2 border-[#FFFC00]/30 pl-4 overflow-hidden transition-all duration-300 ease-in-out ${
                     expandedSections.includes(menu.section) ? 'max-h-96 opacity-100 mt-1' : 'max-h-0 opacity-0 mt-0'
                   }`}>
                     {menu.items.map((item, index) => (
                       <button
                         key={item.id}
-                        onClick={() => setActiveSubPage(item.id)}
-                        style={{ animationDelay: `${index * 50}ms` }}
-                        className={`w-full text-left px-2 py-1.5 text-sm rounded transition-all duration-200 ease-out transform hover:translate-x-1 active:scale-95 ${
+                        onClick={() => {
+                          setActiveSubPage(item.id)
+                          setCurrentPage(1)
+                        }}
+                        style={{
+                          animationDelay: `${index * 50}ms`,
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-200 ease-out transform hover:translate-x-0.5 active:scale-95 ${
                           expandedSections.includes(menu.section) ? 'animate-slideIn' : ''
                         } ${
                           activeSubPage === item.id
-                            ? 'bg-gradient-to-r from-[#FFFC00] to-[#E6E300] text-black font-semibold shadow-sm'
+                            ? 'bg-gradient-to-r from-[#FFFC00] to-[#E6E300] text-black font-semibold shadow-md'
                             : 'text-gray-600 hover:bg-[#FFFC00]/10 hover:text-gray-800'
                         }`}
                       >
@@ -689,10 +695,9 @@ export default function SnapchatPage() {
           </Card>
         </div>
 
-        {/* Right Content - Scrollable Form */}
-        <Card className="flex-1 p-0 rounded-2xl overflow-hidden border border-gray-100/50 shadow-sm flex flex-col min-h-0">
-          {/* Scrollable Content Area */}
-          <div className="overflow-y-auto flex-1 min-h-0 bg-gradient-to-b from-white to-gray-50/30">
+        {/* Right Content */}
+        <Card className="flex-1 p-0 rounded-xl lg:rounded-2xl overflow-hidden border border-gray-100/50 shadow-sm flex flex-col min-h-0">
+          <div className="overflow-y-auto flex-1 min-h-0 bg-gradient-to-b from-white to-gray-50/30 scroll-smooth">
               {/* Apply Ads Account Form */}
               {activeSubPage === 'apply-ads-account' && (
                 <>

@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, UserStatus, Platform, AccountStatus, TransactionStatus, TransactionType } from '@prisma/client'
+import { PrismaClient, UserRole, UserStatus, Platform, AccountStatus, TransactionStatus, TransactionType, PayLinkRequestType, PayLinkRequestStatus } from '@prisma/client'
 import * as bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
@@ -45,6 +45,8 @@ async function main() {
   await prisma.agentWithdrawal.deleteMany()
   await prisma.blockHistory.deleteMany()
   await prisma.customDomain.deleteMany()
+  // Clear self-referential user relations first
+  await prisma.user.updateMany({ data: { creatorId: null, agentId: null } })
   await prisma.user.deleteMany()
   await prisma.globalSettings.deleteMany()
   await prisma.paymentMethod.deleteMany()
@@ -63,7 +65,7 @@ async function main() {
       phone: '+91 9876543210',
       role: UserRole.ADMIN,
       status: UserStatus.ACTIVE,
-      walletBalance: 100000,
+      walletBalance: 0,
       emailVerified: true,
       twoFactorEnabled: true,
       twoFactorSecret: 'JBSWY3DPEHPK3PXP',
@@ -85,8 +87,8 @@ async function main() {
       phone: '+91 9876543211',
       role: UserRole.AGENT,
       status: UserStatus.ACTIVE,
-      walletBalance: 25000,
-      couponBalance: 10,
+      walletBalance: 0,
+      couponBalance: 0,
       emailVerified: true,
       twoFactorEnabled: true,
       twoFactorSecret: 'JBSWY3DPEHPK3PXQ',
@@ -117,7 +119,7 @@ async function main() {
       phone: '+91 9876543212',
       role: UserRole.AGENT,
       status: UserStatus.ACTIVE,
-      walletBalance: 15000,
+      walletBalance: 0,
       couponBalance: 5,
       emailVerified: true,
       twoFactorEnabled: true,
@@ -156,7 +158,7 @@ async function main() {
         phone: '+91 9876543213',
         role: UserRole.USER,
         status: UserStatus.ACTIVE,
-        walletBalance: 5000,
+        walletBalance: 0,
         emailVerified: true,
         twoFactorEnabled: true,
         twoFactorSecret: 'JBSWY3DPEHPK3PXS',
@@ -174,7 +176,7 @@ async function main() {
         phone: '+91 9876543214',
         role: UserRole.USER,
         status: UserStatus.ACTIVE,
-        walletBalance: 3500,
+        walletBalance: 0,
         emailVerified: true,
         twoFactorEnabled: true,
         twoFactorSecret: 'JBSWY3DPEHPK3PXT',
@@ -192,7 +194,7 @@ async function main() {
         phone: '+91 9876543215',
         role: UserRole.USER,
         status: UserStatus.ACTIVE,
-        walletBalance: 8000,
+        walletBalance: 0,
         emailVerified: true,
         twoFactorEnabled: true,
         twoFactorSecret: 'JBSWY3DPEHPK3PXU',
@@ -210,7 +212,7 @@ async function main() {
         phone: '+91 9876543216',
         role: UserRole.USER,
         status: UserStatus.ACTIVE,
-        walletBalance: 2000,
+        walletBalance: 0,
         emailVerified: true,
         twoFactorEnabled: true,
         twoFactorSecret: 'JBSWY3DPEHPK3PXV',
@@ -228,7 +230,7 @@ async function main() {
         phone: '+91 9876543217',
         role: UserRole.USER,
         status: UserStatus.BLOCKED,
-        walletBalance: 500,
+        walletBalance: 0,
         emailVerified: true,
         twoFactorEnabled: false,
         agentId: agent2.id,
@@ -238,6 +240,52 @@ async function main() {
   ])
 
   console.log(`✅ Created ${users.length} regular users (password: user123)\n`)
+
+  // ============= CREATE MORE USERS (50 Demo Records) =============
+  console.log('👥 Creating additional demo users (50 records)...')
+
+  const userFirstNames = ['John', 'Emma', 'Michael', 'Sarah', 'David', 'Lisa', 'Robert', 'Jennifer', 'William', 'Jessica', 'James', 'Ashley', 'Christopher', 'Amanda', 'Matthew', 'Stephanie', 'Daniel', 'Nicole', 'Andrew', 'Heather', 'Ryan', 'Michelle', 'Kevin', 'Rachel', 'Brian']
+  const userLastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Anderson', 'Taylor', 'Thomas', 'Moore', 'Jackson', 'Martin', 'Lee', 'Thompson', 'White', 'Harris', 'Clark', 'Lewis', 'Walker', 'Hall', 'Young']
+  const userStatuses = [UserStatus.ACTIVE, UserStatus.ACTIVE, UserStatus.ACTIVE, UserStatus.ACTIVE, UserStatus.BLOCKED] // 80% active, 20% blocked
+
+  const additionalUsers = []
+  for (let i = 0; i < 50; i++) {
+    const firstName = userFirstNames[Math.floor(Math.random() * userFirstNames.length)]
+    const lastName = userLastNames[Math.floor(Math.random() * userLastNames.length)]
+    const agentPrefix = i % 2 === 0 ? 'agency_partner_' : 'digital_partner_'
+    const username = `${agentPrefix}${firstName.toLowerCase()}${i}`
+    const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${i}@example.com`
+    const status = userStatuses[Math.floor(Math.random() * userStatuses.length)]
+    const walletBalance = Math.floor(Math.random() * 9000) + 500 // 500-9500
+    const couponBalance = Math.floor(Math.random() * 10) // 0-9 coupons
+    const daysAgo = Math.floor(Math.random() * 180) // Random date within last 180 days
+    const createdAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+
+    additionalUsers.push(
+      prisma.user.create({
+        data: {
+          email,
+          password: userPassword,
+          plaintextPassword: 'user123',
+          username,
+          realName: `${firstName} ${lastName}`,
+          phone: `+91 98765${String(43218 + i).padStart(5, '0')}`,
+          role: UserRole.USER,
+          status,
+          walletBalance,
+          couponBalance,
+          emailVerified: true,
+          twoFactorEnabled: false,
+          agentId: i % 2 === 0 ? agent1.id : agent2.id,
+          creatorId: i % 2 === 0 ? agent1.id : agent2.id,
+          createdAt,
+        },
+      })
+    )
+  }
+
+  await Promise.all(additionalUsers)
+  console.log(`✅ Created 50 additional user records\n`)
 
   // ============= CREATE AD ACCOUNT APPLICATIONS =============
   console.log('📝 Creating Ad Account Applications...')
@@ -424,6 +472,102 @@ async function main() {
 
   console.log(`✅ Created ${deposits.length} wallet deposits\n`)
 
+  // ============= CREATE AGENT DEPOSITS (100 Demo Records) =============
+  console.log('💰 Creating Agent Wallet Deposits (100 demo records)...')
+
+  const paymentMethods = ['Bank Transfer', 'UPI', 'USDT TRC20', 'USDT BEP20', 'PayPal']
+  const statuses = [TransactionStatus.APPROVED, TransactionStatus.APPROVED, TransactionStatus.PENDING, TransactionStatus.REJECTED]
+
+  const agentDeposits = []
+  for (let i = 0; i < 100; i++) {
+    const amount = Math.floor(Math.random() * 9000) + 1000 // Random amount between 1000-10000
+    const status = statuses[Math.floor(Math.random() * statuses.length)]
+    const paymentMethod = paymentMethods[Math.floor(Math.random() * paymentMethods.length)]
+    const daysAgo = Math.floor(Math.random() * 60) // Random date within last 60 days
+    const createdAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+
+    agentDeposits.push(
+      prisma.deposit.create({
+        data: {
+          applyId: generateId('PWD'),
+          amount,
+          status,
+          paymentMethod,
+          transactionId: status !== TransactionStatus.PENDING ? `TXN${Date.now()}${i}` : null,
+          paymentProof: status !== TransactionStatus.PENDING ? `https://placehold.co/400x300/7C3AED/white?text=Payment+${i + 1}` : null,
+          remarks: i % 3 === 0 ? `Agent deposit request #${i + 1}` : null,
+          userId: i % 2 === 0 ? agent1.id : agent2.id, // Alternate between agents
+          approvedAt: status === TransactionStatus.APPROVED ? createdAt : null,
+          createdAt,
+        },
+      })
+    )
+  }
+
+  await Promise.all(agentDeposits)
+  console.log(`✅ Created 100 agent deposit records\n`)
+
+  // ============= CREATE PAY LINK REQUESTS (100 Demo Records) =============
+  console.log('🔗 Creating Pay Link Requests (100 demo records)...')
+
+  const countries = ['United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'France', 'India', 'Singapore', 'UAE', 'Japan']
+  const firstNames = ['John', 'Emma', 'Michael', 'Sarah', 'David', 'Lisa', 'Robert', 'Jennifer', 'William', 'Jessica', 'James', 'Ashley', 'Christopher', 'Amanda', 'Matthew', 'Stephanie', 'Daniel', 'Nicole', 'Andrew', 'Heather']
+  const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Anderson', 'Taylor', 'Thomas', 'Moore', 'Jackson', 'Martin', 'Lee', 'Thompson', 'White', 'Harris']
+  const companyNames = ['TechCorp Inc', 'Global Media LLC', 'Digital Solutions', 'Marketing Pro', 'AdVentures Agency', 'Cloud Nine Studios', 'Pixel Perfect', 'Growth Hackers', 'Scale Up Media', 'Infinity Ads', 'Blue Ocean Digital', 'Red Rock Marketing', 'Green Valley Tech', 'Silver Line Media', 'Gold Standard Ads']
+  const payLinkStatuses = [PayLinkRequestStatus.PENDING, PayLinkRequestStatus.PENDING, PayLinkRequestStatus.LINK_CREATED, PayLinkRequestStatus.COMPLETED, PayLinkRequestStatus.REJECTED]
+
+  const payLinkRequests = []
+  for (let i = 0; i < 100; i++) {
+    const isCompany = Math.random() > 0.6 // 40% company, 60% individual
+    const type = isCompany ? PayLinkRequestType.COMPANY : PayLinkRequestType.INDIVIDUAL
+    const firstName = firstNames[Math.floor(Math.random() * firstNames.length)]
+    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)]
+    const fullName = `${firstName} ${lastName}`
+    const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${i}@example.com`
+    const country = countries[Math.floor(Math.random() * countries.length)]
+    const amount = Math.floor(Math.random() * 4500) + 500 // Random amount between 500-5000
+    const status = payLinkStatuses[Math.floor(Math.random() * payLinkStatuses.length)]
+    const daysAgo = Math.floor(Math.random() * 90) // Random date within last 90 days
+    const createdAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+
+    const requestData: any = {
+      applyId: generateId('PL'),
+      type,
+      fullName,
+      email,
+      country,
+      amount,
+      status,
+      userId: i % 2 === 0 ? agent1.id : agent2.id, // Alternate between agents
+      createdAt,
+    }
+
+    // Add company fields if company type
+    if (isCompany) {
+      requestData.companyName = companyNames[Math.floor(Math.random() * companyNames.length)]
+      requestData.website = `https://www.${requestData.companyName.toLowerCase().replace(/\s+/g, '')}.com`
+    }
+
+    // Add pay link if status is LINK_CREATED or COMPLETED
+    if (status === PayLinkRequestStatus.LINK_CREATED || status === PayLinkRequestStatus.COMPLETED) {
+      requestData.payLink = `https://pay.stripe.com/c/${Math.random().toString(36).substring(2, 15)}`
+    }
+
+    // Add admin remarks for rejected ones
+    if (status === PayLinkRequestStatus.REJECTED) {
+      requestData.adminRemarks = 'Unable to verify business information'
+    }
+
+    payLinkRequests.push(
+      prisma.payLinkRequest.create({
+        data: requestData,
+      })
+    )
+  }
+
+  await Promise.all(payLinkRequests)
+  console.log(`✅ Created 100 pay link request records\n`)
+
   // ============= CREATE ACCOUNT DEPOSITS (Recharges) =============
   console.log('💳 Creating Account Deposits (Recharges)...')
 
@@ -495,49 +639,64 @@ async function main() {
 
   console.log(`✅ Created ${withdrawals.length} withdrawals\n`)
 
-  // ============= CREATE WALLET FLOWS =============
-  console.log('📈 Creating Wallet Flow Records...')
+  // ============= CREATE WALLET FLOWS (100 Demo Records) =============
+  console.log('📈 Creating Wallet Flow Records (100 demo records)...')
 
-  await Promise.all([
-    prisma.walletFlow.create({
-      data: {
-        type: TransactionType.DEPOSIT,
-        amount: 5000,
-        balanceBefore: 0,
-        balanceAfter: 5000,
-        referenceId: deposits[0].id,
-        referenceType: 'deposit',
-        userId: users[0].id,
-        description: 'Wallet deposit via Bank Transfer',
-      },
-    }),
-    prisma.walletFlow.create({
-      data: {
-        type: TransactionType.WITHDRAWAL,
-        amount: -500,
-        balanceBefore: 5500,
-        balanceAfter: 5000,
-        referenceId: withdrawals[0].id,
-        referenceType: 'withdrawal',
-        userId: users[0].id,
-        description: 'Withdrawal to HDFC Bank',
-      },
-    }),
-    prisma.walletFlow.create({
-      data: {
-        type: TransactionType.DEPOSIT,
-        amount: 3500,
-        balanceBefore: 0,
-        balanceAfter: 3500,
-        referenceId: deposits[1].id,
-        referenceType: 'deposit',
-        userId: users[1].id,
-        description: 'Wallet deposit via UPI',
-      },
-    }),
-  ])
+  const transactionTypes = [TransactionType.DEPOSIT, TransactionType.DEPOSIT, TransactionType.WITHDRAWAL, TransactionType.REFUND, TransactionType.TRANSFER, TransactionType.CREDIT]
+  const referenceTypes = ['deposit', 'withdrawal', 'refund', 'transfer', 'ad_account', 'bonus']
+  const flowDescriptions = [
+    'Wallet deposit via Bank Transfer',
+    'Wallet deposit via UPI',
+    'Wallet deposit via USDT TRC20',
+    'Withdrawal to bank account',
+    'Refund from ad account',
+    'Balance transfer received',
+    'Ad account recharge',
+    'Commission credit',
+    'Bonus credit added',
+    'Pay link payment received',
+  ]
 
-  console.log(`✅ Created wallet flow records\n`)
+  const walletFlows = []
+  let runningBalance = 10000 // Starting balance for demo
+
+  for (let i = 0; i < 100; i++) {
+    const txType = transactionTypes[Math.floor(Math.random() * transactionTypes.length)]
+    const isDebit = txType === TransactionType.WITHDRAWAL
+    const amount = isDebit
+      ? -(Math.floor(Math.random() * 500) + 100) // Withdrawal: -100 to -600
+      : Math.floor(Math.random() * 2000) + 200   // Credit: 200 to 2200
+
+    const balanceBefore = runningBalance
+    const balanceAfter = runningBalance + amount
+    runningBalance = balanceAfter > 0 ? balanceAfter : 1000 // Reset if goes negative
+
+    const daysAgo = Math.floor(Math.random() * 90)
+    const createdAt = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+
+    const description = isDebit
+      ? flowDescriptions[3]
+      : flowDescriptions[Math.floor(Math.random() * flowDescriptions.length)]
+
+    walletFlows.push(
+      prisma.walletFlow.create({
+        data: {
+          type: txType,
+          amount,
+          balanceBefore,
+          balanceAfter: balanceAfter > 0 ? balanceAfter : 1000,
+          referenceId: `ref_${Date.now()}_${i}`,
+          referenceType: referenceTypes[Math.floor(Math.random() * referenceTypes.length)],
+          userId: i % 3 === 0 ? agent1.id : (i % 3 === 1 ? agent2.id : users[i % users.length].id),
+          description,
+          createdAt,
+        },
+      })
+    )
+  }
+
+  await Promise.all(walletFlows)
+  console.log(`✅ Created 100 wallet flow records\n`)
 
   // ============= CREATE GLOBAL SETTINGS =============
   console.log('⚙️  Creating Global Settings...')

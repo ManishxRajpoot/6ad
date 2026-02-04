@@ -955,21 +955,21 @@ export default function TikTokPage() {
       </div>
 
       {/* Row 3: Main Content */}
-      <div className="flex gap-2 lg:gap-4 flex-1 min-h-0 overflow-hidden">
-        {/* Left Sidebar */}
-        <div className="w-44 lg:w-60 flex-shrink-0 hidden md:block">
-          <Card className="p-4 h-full border border-gray-100/50 bg-gradient-to-b from-white to-gray-50/50 relative overflow-hidden">
+      <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
+        {/* Left Sidebar - Balanced size, scroll only on small screens */}
+        <div className="w-64 lg:w-72 flex-shrink-0 hidden md:block">
+          <Card className="p-4 h-full border border-gray-100/50 bg-gradient-to-b from-white to-gray-50/50 relative overflow-hidden flex flex-col">
             <div className="absolute inset-0 bg-gradient-to-br from-[#FF0050]/5 via-transparent to-[#00F2EA]/5" />
 
-            {/* TikTok Logo */}
-            <div className="relative z-10 flex flex-col items-center mb-4 pb-4 border-b border-gray-100">
+            {/* TikTok Logo - Larger and balanced */}
+            <div className="relative z-10 flex flex-col items-center mb-4 pb-4 border-b border-gray-100 flex-shrink-0">
               <div className="relative">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#FF0050] via-[#000000] to-[#00F2EA] flex items-center justify-center shadow-md shadow-pink-500/20">
-                  <svg viewBox="0 0 24 24" className="w-6 h-6" fill="white">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#FF0050] via-[#000000] to-[#00F2EA] flex items-center justify-center shadow-lg shadow-pink-500/30">
+                  <svg viewBox="0 0 24 24" className="w-7 h-7" fill="white">
                     <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
                   </svg>
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md border border-gray-100">
                   <div className="w-4 h-4 bg-[#52B788] rounded-full flex items-center justify-center">
                     <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12"></polyline>
@@ -977,30 +977,32 @@ export default function TikTokPage() {
                   </div>
                 </div>
               </div>
-              <p className="mt-2 text-xs font-medium text-gray-500">Ad Management</p>
+              <p className="mt-2 text-sm font-medium text-gray-600">Ad Management</p>
             </div>
 
-            {/* Navigation Menu */}
-            <div className="relative z-10 space-y-2">
+            {/* Navigation Menu - Scroll only on small screens */}
+            <div className="relative z-10 space-y-2 overflow-y-auto flex-1 scroll-smooth" style={{ scrollbarWidth: 'thin' }}>
               {menuItems.map((menu) => (
                 <div key={menu.section}>
                   <button
                     onClick={() => toggleSection(menu.section)}
-                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-semibold text-gray-700 hover:bg-[#FF0050]/5 rounded-lg transition-all"
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-[#FF0050]/5 rounded-lg transition-all duration-200 active:scale-[0.98]"
                   >
-                    <div className="flex items-center gap-2">
-                      <span>{menu.icon}</span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-lg">{menu.icon}</span>
                       <span>{menu.title}</span>
                     </div>
-                    {expandedSections.includes(menu.section) ? (
-                      <ChevronUp className="w-4 h-4 text-[#FF0050]" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
-                    )}
+                    <ChevronDown
+                      className={`w-4 h-4 transition-all duration-300 ${
+                        expandedSections.includes(menu.section)
+                          ? 'rotate-180 text-[#FF0050]'
+                          : 'rotate-0 text-gray-400'
+                      }`}
+                    />
                   </button>
 
                   <div
-                    className={`ml-5 space-y-0.5 border-l-2 border-[#FF0050]/20 pl-3 overflow-hidden transition-all duration-300 ease-in-out ${
+                    className={`ml-5 space-y-1 border-l-2 border-[#FF0050]/20 pl-4 overflow-hidden transition-all duration-300 ease-in-out ${
                       expandedSections.includes(menu.section)
                         ? 'max-h-96 opacity-100 mt-1'
                         : 'max-h-0 opacity-0 mt-0'
@@ -1009,13 +1011,18 @@ export default function TikTokPage() {
                     {menu.items.map((item, index) => (
                       <button
                         key={item.id}
-                        onClick={() => setActiveSubPage(item.id)}
-                        style={{ animationDelay: `${index * 50}ms` }}
-                        className={`w-full text-left px-2 py-1.5 text-sm rounded transition-all duration-200 ease-out transform hover:translate-x-1 active:scale-95 ${
+                        onClick={() => {
+                          setActiveSubPage(item.id)
+                          setCurrentPage(1)
+                        }}
+                        style={{
+                          animationDelay: `${index * 50}ms`,
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-200 ease-out transform hover:translate-x-0.5 active:scale-95 ${
                           expandedSections.includes(menu.section) ? 'animate-slideIn' : ''
                         } ${
                           activeSubPage === item.id
-                            ? 'bg-gradient-to-r from-[#FF0050] to-[#00F2EA] text-white font-medium shadow-sm shadow-pink-200'
+                            ? 'bg-gradient-to-r from-[#FF0050] to-[#00F2EA] text-white font-medium shadow-md shadow-pink-200'
                             : 'text-gray-600 hover:bg-[#FF0050]/5 hover:text-[#FF0050]'
                         }`}
                       >
@@ -1030,8 +1037,8 @@ export default function TikTokPage() {
         </div>
 
         {/* Right Content */}
-        <Card className="flex-1 p-0 rounded-2xl overflow-hidden border border-gray-100/50 shadow-sm flex flex-col min-h-0">
-          <div className="overflow-y-auto flex-1 min-h-0 bg-gradient-to-b from-white to-gray-50/30">
+        <Card className="flex-1 p-0 rounded-xl lg:rounded-2xl overflow-hidden border border-gray-100/50 shadow-sm flex flex-col min-h-0">
+          <div className="overflow-y-auto flex-1 min-h-0 bg-gradient-to-b from-white to-gray-50/30 scroll-smooth">
               {/* Apply Ads Account Form */}
               {activeSubPage === 'apply-ads-account' && (
                 <>

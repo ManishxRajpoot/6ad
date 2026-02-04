@@ -8,18 +8,18 @@ import { Loader2, Search, ChevronLeft, ChevronRight, Download, X, Eye, ChevronDo
 import { bmAdRequestApi, usersApi } from '@/lib/api'
 import * as XLSX from 'xlsx'
 
-// Platform icons - Black & White
+// Platform icons - Black & White (compact size matching users page)
 const FacebookIcon = () => (
-  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-    <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-700" fill="currentColor">
+  <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+    <svg viewBox="0 0 24 24" className="w-3 h-3 text-gray-700" fill="currentColor">
       <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
     </svg>
   </div>
 )
 
 const GoogleIcon = () => (
-  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-    <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-700" fill="currentColor">
+  <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+    <svg viewBox="0 0 24 24" className="w-3 h-3 text-gray-700" fill="currentColor">
       <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
       <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
       <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -29,24 +29,24 @@ const GoogleIcon = () => (
 )
 
 const TikTokIcon = () => (
-  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-    <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-700" fill="currentColor">
+  <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+    <svg viewBox="0 0 24 24" className="w-3 h-3 text-gray-700" fill="currentColor">
       <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
     </svg>
   </div>
 )
 
 const SnapchatIcon = () => (
-  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-    <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-700" fill="currentColor">
+  <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+    <svg viewBox="0 0 24 24" className="w-3 h-3 text-gray-700" fill="currentColor">
       <path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301.165-.088.344-.104.464-.104.182 0 .359.029.509.09.45.149.734.479.734.838.015.449-.39.839-1.213 1.168-.089.029-.209.075-.344.119-.45.135-1.139.36-1.333.81-.09.224-.061.524.12.868l.015.015c.06.136 1.526 3.475 4.791 4.014.255.044.435.27.42.509-.045.359-.225.689-.555.93-.703.51-1.838.795-3.453.855-.045.015-.089.06-.104.105-.105.3-.195.6-.314.899-.091.221-.315.39-.575.39h-.016c-.155 0-.329-.044-.5-.103-.503-.165-1.169-.36-1.793-.36-.224 0-.435.015-.614.045-.406.063-.72.19-1.018.32a6.418 6.418 0 01-1.154.405c-.196.06-.375.09-.555.09-.181 0-.359-.03-.555-.09a6.418 6.418 0 01-1.154-.405c-.299-.13-.612-.257-1.018-.32a2.896 2.896 0 00-.614-.045c-.624 0-1.29.195-1.793.36-.171.059-.345.103-.5.103h-.016c-.26 0-.484-.169-.575-.39-.119-.299-.21-.599-.314-.899-.015-.045-.06-.09-.104-.105-1.615-.06-2.75-.345-3.453-.855-.329-.241-.51-.571-.555-.93-.015-.239.165-.465.42-.509 3.265-.539 4.731-3.878 4.791-4.014l.015-.015c.181-.344.21-.644.12-.868-.194-.45-.884-.675-1.333-.81-.135-.044-.255-.09-.344-.119-.823-.329-1.228-.719-1.213-1.168 0-.359.284-.689.734-.838.15-.061.327-.09.509-.09.12 0 .299.016.464.104.374.181.733.285 1.033.301.198 0 .326-.045.401-.09-.008-.165-.018-.33-.03-.51l-.003-.06c-.104-1.628-.23-3.654.299-4.847C7.859 1.069 11.216.793 12.206.793z"/>
     </svg>
   </div>
 )
 
 const BingIcon = () => (
-  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-    <svg viewBox="0 0 24 24" className="w-4 h-4 text-gray-700" fill="currentColor">
+  <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center">
+    <svg viewBox="0 0 24 24" className="w-3 h-3 text-gray-700" fill="currentColor">
       <path d="M5 3v16.5l4.5 2.5 7-4v-4l-4.5 2.5V9l5.5-2.5L5 3z"/>
     </svg>
   </div>
@@ -303,13 +303,13 @@ export default function BMAdRequestPage() {
     const normalizedStatus = status?.toUpperCase()
     switch (normalizedStatus) {
       case 'APPROVED':
-        return <span className="px-4 py-1.5 rounded-md text-xs font-semibold bg-[#52B788] text-white">Approved</span>
+        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#52B788] text-white">Approved</span>
       case 'PENDING':
-        return <span className="px-4 py-1.5 rounded-md text-xs font-semibold bg-[#F59E0B] text-white">Pending</span>
+        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#F59E0B] text-white">Pending</span>
       case 'REJECTED':
-        return <span className="px-4 py-1.5 rounded-md text-xs font-semibold bg-[#EF4444] text-white">Rejected</span>
+        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#EF4444] text-white">Rejected</span>
       default:
-        return <span className="px-4 py-1.5 rounded-md text-xs font-semibold bg-gray-100 text-gray-600">{status}</span>
+        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-gray-100 text-gray-600">{status}</span>
     }
   }
 
@@ -627,21 +627,21 @@ export default function BMAdRequestPage() {
 
   return (
     <DashboardLayout title="BM & AD Applications Management" subtitle="">
-      <div className="flex flex-col h-[calc(100vh-120px)]">
+      <div className="space-y-3">
       {/* Fixed Top Section */}
-      <div className="flex-shrink-0 bg-[#F6F6F6] pb-4">
+      <div className="flex-shrink-0 bg-[#F6F6F6]">
         {/* Top Actions Bar */}
-        <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3 flex-wrap">
           {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <div className="relative flex-1 min-w-[180px] lg:flex-none group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#7C3AED]" />
             <input
               type="text"
               placeholder="Search users, ID, accounts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm w-[250px] focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent"
+              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-[12px] w-full lg:w-[220px] focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] bg-white transition-all"
             />
           </div>
 
@@ -649,10 +649,10 @@ export default function BMAdRequestPage() {
           <div className="relative dropdown-container">
             <button
               onClick={() => { setShowDateDropdown(!showDateDropdown); setShowStatusDropdown(false); setShowPlatformDropdown(false) }}
-              className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-gray-300 transition-colors min-w-[150px] justify-between bg-white"
+              className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-[12px] text-gray-600 hover:border-gray-300 transition-colors min-w-[120px] justify-between bg-white"
             >
-              <span>{dateFilter === 'all' ? 'Date and Time' : dateFilter === 'today' ? 'Today' : dateFilter === 'week' ? 'This Week' : 'This Month'}</span>
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showDateDropdown ? 'rotate-180' : ''}`} />
+              <span>{dateFilter === 'all' ? 'All Time' : dateFilter === 'today' ? 'Today' : dateFilter === 'week' ? 'This Week' : 'This Month'}</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${showDateDropdown ? 'rotate-180' : ''}`} />
             </button>
             <div className={`absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 transition-all duration-200 ease-out origin-top ${
               showDateDropdown
@@ -668,7 +668,7 @@ export default function BMAdRequestPage() {
                 <button
                   key={option.value}
                   onClick={() => { setDateFilter(option.value); setShowDateDropdown(false); setCurrentPage(1) }}
-                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-all duration-150 ${dateFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                  className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${dateFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
                   style={{ transitionDelay: showDateDropdown ? `${index * 30}ms` : '0ms' }}
                 >
                   {option.label}
@@ -681,10 +681,10 @@ export default function BMAdRequestPage() {
           <div className="relative dropdown-container">
             <button
               onClick={() => { setShowStatusDropdown(!showStatusDropdown); setShowDateDropdown(false); setShowPlatformDropdown(false) }}
-              className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-gray-300 transition-colors min-w-[130px] justify-between bg-white"
+              className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-[12px] text-gray-600 hover:border-gray-300 transition-colors min-w-[110px] justify-between bg-white"
             >
               <span>{statusFilter === '' ? 'All Status' : statusFilter === 'APPROVED' ? 'Approved' : statusFilter === 'PENDING' ? 'Pending' : 'Rejected'}</span>
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
             </button>
             <div className={`absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 transition-all duration-200 ease-out origin-top ${
               showStatusDropdown
@@ -700,7 +700,7 @@ export default function BMAdRequestPage() {
                 <button
                   key={option.value}
                   onClick={() => { setStatusFilter(option.value); setShowStatusDropdown(false); setCurrentPage(1) }}
-                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-all duration-150 ${statusFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                  className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${statusFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
                   style={{ transitionDelay: showStatusDropdown ? `${index * 30}ms` : '0ms' }}
                 >
                   {option.label}
@@ -713,10 +713,10 @@ export default function BMAdRequestPage() {
           <div className="relative dropdown-container">
             <button
               onClick={() => { setShowPlatformDropdown(!showPlatformDropdown); setShowDateDropdown(false); setShowStatusDropdown(false) }}
-              className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-gray-300 transition-colors min-w-[140px] justify-between bg-white"
+              className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-[12px] text-gray-600 hover:border-gray-300 transition-colors min-w-[120px] justify-between bg-white"
             >
               <span>{platformFilter === 'all' ? 'All Platforms' : platformFilter}</span>
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showPlatformDropdown ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${showPlatformDropdown ? 'rotate-180' : ''}`} />
             </button>
             <div className={`absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 transition-all duration-200 ease-out origin-top ${
               showPlatformDropdown
@@ -734,7 +734,7 @@ export default function BMAdRequestPage() {
                 <button
                   key={option.value}
                   onClick={() => { setPlatformFilter(option.value); setShowPlatformDropdown(false); setCurrentPage(1) }}
-                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 transition-all duration-150 ${platformFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                  className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${platformFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
                   style={{ transitionDelay: showPlatformDropdown ? `${index * 30}ms` : '0ms' }}
                 >
                   {option.label}
@@ -747,7 +747,7 @@ export default function BMAdRequestPage() {
         {/* Export Button */}
         <button
           onClick={() => setShowExportPopup(true)}
-          className="flex items-center gap-2 px-4 py-2.5 border border-[#52B788] text-[#52B788] rounded-lg text-sm font-medium hover:bg-[#52B788]/5 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 border border-[#52B788] text-[#52B788] rounded-lg text-[12px] font-medium hover:bg-[#52B788]/5 transition-colors"
         >
           <Download className="w-4 h-4" />
           Export
@@ -755,51 +755,51 @@ export default function BMAdRequestPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         {/* Total Applications - Purple */}
-        <Card className="p-4 relative overflow-hidden">
+        <Card className="p-3 relative overflow-hidden min-h-[80px]">
           <div className="flex items-start justify-between relative z-10">
             <div>
-              <span className="text-sm text-gray-500">Total Applications</span>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{stats.totalApplications.toLocaleString()}</p>
+              <span className="text-[11px] text-gray-500">Total Applications</span>
+              <p className="text-xl font-bold text-gray-800">{stats.totalApplications.toLocaleString()}</p>
             </div>
-            <span className="px-2 py-0.5 bg-[#7C3AED] text-white text-xs font-medium rounded">Total</span>
+            <span className="px-2 py-0.5 bg-[#7C3AED] text-white text-[10px] font-medium rounded">Total</span>
           </div>
           <StatsChart value={stats.totalApplications} color="#7C3AED" filterId="glowPurpleBm" gradientId="fadePurpleBm" clipId="clipPurpleBm" />
         </Card>
 
         {/* Total Approved - Green */}
-        <Card className="p-4 relative overflow-hidden">
+        <Card className="p-3 relative overflow-hidden min-h-[80px]">
           <div className="flex items-start justify-between relative z-10">
             <div>
-              <span className="text-sm text-gray-500">Total Approved Requests</span>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{stats.totalApproved.toLocaleString()}</p>
+              <span className="text-[11px] text-gray-500">Total Approved</span>
+              <p className="text-xl font-bold text-gray-800">{stats.totalApproved.toLocaleString()}</p>
             </div>
-            <span className="px-2 py-0.5 bg-[#52B788] text-white text-xs font-medium rounded">Approved</span>
+            <span className="px-2 py-0.5 bg-[#52B788] text-white text-[10px] font-medium rounded">Approved</span>
           </div>
           <StatsChart value={stats.totalApproved} color="#52B788" filterId="glowGreenBm" gradientId="fadeGreenBm" clipId="clipGreenBm" />
         </Card>
 
         {/* Total Pending - Orange */}
-        <Card className="p-4 relative overflow-hidden">
+        <Card className="p-3 relative overflow-hidden min-h-[80px]">
           <div className="flex items-start justify-between relative z-10">
             <div>
-              <span className="text-sm text-gray-500">Total Pending Requests</span>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{stats.totalPending.toLocaleString()}</p>
+              <span className="text-[11px] text-gray-500">Total Pending</span>
+              <p className="text-xl font-bold text-gray-800">{stats.totalPending.toLocaleString()}</p>
             </div>
-            <span className="px-2 py-0.5 bg-[#F59E0B] text-white text-xs font-medium rounded">Pending</span>
+            <span className="px-2 py-0.5 bg-[#F59E0B] text-white text-[10px] font-medium rounded">Pending</span>
           </div>
           <StatsChart value={stats.totalPending} color="#F59E0B" filterId="glowOrangeBm" gradientId="fadeOrangeBm" clipId="clipOrangeBm" />
         </Card>
 
         {/* Total Rejected - Red */}
-        <Card className="p-4 relative overflow-hidden">
+        <Card className="p-3 relative overflow-hidden min-h-[80px]">
           <div className="flex items-start justify-between relative z-10">
             <div>
-              <span className="text-sm text-gray-500">Total Rejected Requests</span>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{stats.totalRejected.toLocaleString()}</p>
+              <span className="text-[11px] text-gray-500">Total Rejected</span>
+              <p className="text-xl font-bold text-gray-800">{stats.totalRejected.toLocaleString()}</p>
             </div>
-            <span className="px-2 py-0.5 bg-[#EF4444] text-white text-xs font-medium rounded">Rejected</span>
+            <span className="px-2 py-0.5 bg-[#EF4444] text-white text-[10px] font-medium rounded">Rejected</span>
           </div>
           <StatsChart value={stats.totalRejected} color="#EF4444" filterId="glowRedBm" gradientId="fadeRedBm" clipId="clipRedBm" />
         </Card>
@@ -807,14 +807,14 @@ export default function BMAdRequestPage() {
       </div>
 
       {/* Tabs & Table - Flex grow to fill remaining space */}
-      <Card className="p-0 overflow-hidden flex flex-col flex-1 min-h-0">
+      <Card className="p-0 overflow-hidden flex flex-col flex-1 min-h-0" style={{ height: 'calc(100vh - 280px)' }}>
         {/* Tabs with smooth sliding indicator */}
-        <div className="border-b border-gray-100">
+        <div className="border-b border-gray-100 flex-shrink-0">
           <div className="flex relative">
             <button
               ref={accountTabRef}
               onClick={() => { setActiveTab('account'); setCurrentPage(1) }}
-              className={`px-6 py-4 text-sm font-medium transition-all duration-300 ease-out relative z-10 ${
+              className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                 activeTab === 'account'
                   ? 'text-[#7C3AED]'
                   : 'text-gray-500 hover:text-gray-700'
@@ -825,7 +825,7 @@ export default function BMAdRequestPage() {
             <button
               ref={bmTabRef}
               onClick={() => { setActiveTab('bm'); setCurrentPage(1) }}
-              className={`px-6 py-4 text-sm font-medium transition-all duration-300 ease-out relative z-10 ${
+              className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                 activeTab === 'bm'
                   ? 'text-[#7C3AED]'
                   : 'text-gray-500 hover:text-gray-700'
@@ -846,28 +846,28 @@ export default function BMAdRequestPage() {
 
         {/* Table with fade animation - Scrollable area */}
         <div className="overflow-auto flex-1 min-h-0" key={activeTab}>
-          <table className="w-full animate-tabFadeIn">
-            <thead>
-              <tr className="bg-gray-50/50 transition-all duration-300">
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">User Name</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">Platform</th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">Apply ID</th>
-                <th className="text-center py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">
-                  {activeTab === 'account' ? 'Account Name → Ad Account ID' : 'BM ID'}
+          <table className="w-full animate-tabFadeIn text-[11px] xl:text-[12px]">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+                <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">User Name</th>
+                <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Platform</th>
+                <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Apply ID</th>
+                <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">
+                  {activeTab === 'account' ? 'Account → Ad ID' : 'BM ID'}
                 </th>
                 {activeTab === 'account' ? (
                   <>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">Opening Charge</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">Request Date</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">Status</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">Action</th>
+                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Opening</th>
+                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Date</th>
+                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Status</th>
+                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Action</th>
                   </>
                 ) : (
                   <>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">Ad Account ID</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">Request Time</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">Completion Time</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">Status</th>
+                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Ad Account ID</th>
+                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Request</th>
+                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Completed</th>
+                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Status</th>
                   </>
                 )}
               </tr>
@@ -875,9 +875,9 @@ export default function BMAdRequestPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center">
+                  <td colSpan={8} className="py-6 text-center">
                     <div className="flex flex-col items-center">
-                      <Loader2 className="w-8 h-8 text-[#7C3AED] animate-spin mb-2" />
+                      <Loader2 className="w-5 h-5 text-[#7C3AED] animate-spin mb-1" />
                       <span className="text-gray-500">Loading...</span>
                     </div>
                   </td>
@@ -885,7 +885,7 @@ export default function BMAdRequestPage() {
               ) : activeTab === 'account' ? (
                 paginatedApplications.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-gray-500">
+                    <td colSpan={8} className="py-6 text-center text-gray-500">
                       {searchQuery ? 'No matching applications found' : 'No applications found'}
                     </td>
                   </tr>
@@ -895,46 +895,46 @@ export default function BMAdRequestPage() {
                     return (
                       <tr
                         key={`account-${app.id}`}
-                        className="border-b border-gray-50 hover:bg-gray-50/50 align-middle tab-row-animate"
-                        style={{ animationDelay: `${index * 50}ms` }}
+                        className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate"
+                        style={{ animationDelay: `${index * 20}ms` }}
                       >
-                        <td className="py-4 px-4 text-sm text-gray-700 whitespace-nowrap">{app.user?.username || 'Unknown'}</td>
-                        <td className="py-4 px-4">{getPlatformIcon(app.platform)}</td>
-                        <td className="py-4 px-4 text-sm text-gray-600 font-mono">{app.applyId || '---'}</td>
-                        <td className="py-4 px-4">
+                        <td className="py-2.5 px-3 text-gray-700 whitespace-nowrap">{app.user?.username || 'Unknown'}</td>
+                        <td className="py-2.5 px-3">{getPlatformIcon(app.platform)}</td>
+                        <td className="py-2.5 px-3 text-gray-600 font-mono">{app.applyId || '---'}</td>
+                        <td className="py-2.5 px-3">
                           {accountDetails.length > 0 ? (
-                            <div className="flex flex-col items-center justify-center gap-1.5">
+                            <div className="flex flex-col items-center justify-center gap-1">
                               {accountDetails.map((detail, idx) => (
-                                <div key={idx} className="flex items-center justify-center gap-2">
-                                  <span className="px-2 py-0.5 bg-[#52B788]/10 text-[#52B788] text-xs font-medium rounded whitespace-nowrap">
+                                <div key={idx} className="flex items-center justify-center gap-1">
+                                  <span className="px-1.5 py-0.5 bg-[#52B788]/10 text-[#52B788] text-[10px] font-medium rounded whitespace-nowrap">
                                     {detail.name}
                                   </span>
-                                  <span className="text-gray-400">→</span>
+                                  <span className="text-gray-400 text-[10px]">→</span>
                                   {detail.accountId ? (
-                                    <span className="px-2 py-0.5 bg-[#7C3AED]/10 text-[#7C3AED] text-xs font-mono font-medium rounded whitespace-nowrap">
+                                    <span className="px-1.5 py-0.5 bg-[#7C3AED]/10 text-[#7C3AED] text-[10px] font-mono font-medium rounded whitespace-nowrap">
                                       {detail.accountId}
                                     </span>
                                   ) : (
-                                    <span className="text-xs text-gray-400 italic whitespace-nowrap">Not assigned</span>
+                                    <span className="text-[10px] text-gray-400 italic whitespace-nowrap">N/A</span>
                                   )}
                                 </div>
                               ))}
                             </div>
                           ) : (
                             <div className="text-center">
-                              <span className="text-sm text-gray-400">---</span>
+                              <span className="text-gray-400">---</span>
                             </div>
                           )}
                         </td>
-                        <td className="py-4 px-4 text-sm font-semibold text-[#7C3AED] whitespace-nowrap">{formatCurrency(app.openingFee)}</td>
-                        <td className="py-4 px-4 text-sm text-gray-500 whitespace-nowrap">{formatDate(app.createdAt)}</td>
-                        <td className="py-4 px-4">{getStatusBadge(app.status)}</td>
-                        <td className="py-4 px-4">
+                        <td className="py-2.5 px-3 font-semibold text-[#7C3AED] whitespace-nowrap">{formatCurrency(app.openingFee)}</td>
+                        <td className="py-2.5 px-3 text-gray-500 whitespace-nowrap">{formatDate(app.createdAt)}</td>
+                        <td className="py-2.5 px-3">{getStatusBadge(app.status)}</td>
+                        <td className="py-2.5 px-3">
                           <button
                             onClick={() => handleViewDetails(app)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#7C3AED]/10 text-[#7C3AED] rounded-md text-xs font-medium hover:bg-[#7C3AED]/20 transition-colors whitespace-nowrap"
+                            className="flex items-center gap-1 px-2 py-1 bg-[#7C3AED]/10 text-[#7C3AED] rounded font-medium hover:bg-[#7C3AED]/20 transition-colors whitespace-nowrap"
                           >
-                            <Eye className="w-3.5 h-3.5" />
+                            <Eye className="w-3 h-3" />
                             View
                           </button>
                         </td>
@@ -945,7 +945,7 @@ export default function BMAdRequestPage() {
               ) : (
                 paginatedBmShares.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-gray-500">
+                    <td colSpan={8} className="py-6 text-center text-gray-500">
                       {searchQuery ? 'No matching BM share requests found' : 'No BM share requests found'}
                     </td>
                   </tr>
@@ -953,17 +953,17 @@ export default function BMAdRequestPage() {
                   paginatedBmShares.map((share, index) => (
                     <tr
                       key={`bm-${share.id}`}
-                      className="border-b border-gray-50 hover:bg-gray-50/50 align-middle tab-row-animate"
-                      style={{ animationDelay: `${index * 50}ms` }}
+                      className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate"
+                      style={{ animationDelay: `${index * 20}ms` }}
                     >
-                      <td className="py-4 px-4 text-sm text-gray-700 whitespace-nowrap">{share.user?.username || 'Unknown'}</td>
-                      <td className="py-4 px-4">{getPlatformIcon(share.platform)}</td>
-                      <td className="py-4 px-4 text-sm text-gray-600 font-mono">{share.applyId || '---'}</td>
-                      <td className="py-4 px-4 text-center text-sm text-[#7C3AED] font-mono whitespace-nowrap">{share.bmId || '---'}</td>
-                      <td className="py-4 px-4 text-sm text-[#52B788] font-mono whitespace-nowrap">{share.adAccountId || '---'}</td>
-                      <td className="py-4 px-4 text-sm text-gray-500 whitespace-nowrap">{formatDate(share.createdAt)}</td>
-                      <td className="py-4 px-4 text-sm text-gray-500 whitespace-nowrap">{share.completedAt ? formatDate(share.completedAt) : '---'}</td>
-                      <td className="py-4 px-4">{getStatusBadge(share.status)}</td>
+                      <td className="py-2.5 px-3 text-gray-700 whitespace-nowrap">{share.user?.username || 'Unknown'}</td>
+                      <td className="py-2.5 px-3">{getPlatformIcon(share.platform)}</td>
+                      <td className="py-2.5 px-3 text-gray-600 font-mono">{share.applyId || '---'}</td>
+                      <td className="py-2.5 px-3 text-center text-[#7C3AED] font-mono whitespace-nowrap">{share.bmId || '---'}</td>
+                      <td className="py-2.5 px-3 text-[#52B788] font-mono whitespace-nowrap">{share.adAccountId || '---'}</td>
+                      <td className="py-2.5 px-3 text-gray-500 whitespace-nowrap">{formatDate(share.createdAt)}</td>
+                      <td className="py-2.5 px-3 text-gray-500 whitespace-nowrap">{share.completedAt ? formatDate(share.completedAt) : '---'}</td>
+                      <td className="py-2.5 px-3">{getStatusBadge(share.status)}</td>
                     </tr>
                   ))
                 )
@@ -973,25 +973,25 @@ export default function BMAdRequestPage() {
         </div>
 
         {/* Pagination - Fixed at bottom */}
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-4 border-t border-gray-100 bg-white">
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-white text-[12px]">
           <button
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 px-3 py-1.5 text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
-            Previous
+            Prev
           </button>
 
           <div className="flex items-center gap-1">
-            {effectiveTotalPages <= 7 ? (
+            {effectiveTotalPages <= 5 ? (
               Array.from({ length: effectiveTotalPages }, (_, i) => i + 1).map((page) => (
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
-                  className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                  className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                     currentPage === page
-                      ? 'bg-[#52B788] text-white'
+                      ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
@@ -1000,33 +1000,35 @@ export default function BMAdRequestPage() {
               ))
             ) : (
               <>
-                {[1, 2, 3].map((page) => (
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  className={`w-8 h-8 rounded-lg font-medium transition-colors ${
+                    currentPage === 1
+                      ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  1
+                </button>
+                {currentPage > 3 && <span className="w-4 text-center text-gray-400">...</span>}
+                {currentPage > 2 && currentPage < effectiveTotalPages - 1 && (
                   <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                      currentPage === page
-                        ? 'bg-[#52B788] text-white'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
+                    className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm"
                   >
-                    {page}
+                    {currentPage}
                   </button>
-                ))}
-                <span className="w-8 h-8 flex items-center justify-center text-gray-400">...</span>
-                {[effectiveTotalPages - 2, effectiveTotalPages - 1, effectiveTotalPages].map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                      currentPage === page
-                        ? 'bg-[#52B788] text-white'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
+                )}
+                {currentPage < effectiveTotalPages - 2 && <span className="w-4 text-center text-gray-400">...</span>}
+                <button
+                  onClick={() => setCurrentPage(effectiveTotalPages)}
+                  className={`w-8 h-8 rounded-lg font-medium transition-colors ${
+                    currentPage === effectiveTotalPages
+                      ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  {effectiveTotalPages}
+                </button>
               </>
             )}
           </div>
@@ -1034,7 +1036,7 @@ export default function BMAdRequestPage() {
           <button
             onClick={() => setCurrentPage(p => Math.min(effectiveTotalPages, p + 1))}
             disabled={currentPage === effectiveTotalPages || effectiveTotalPages === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 px-3 py-1.5 text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Next
             <ChevronRight className="w-4 h-4" />
@@ -1043,7 +1045,7 @@ export default function BMAdRequestPage() {
       </Card>
       </div>
 
-      {/* View Details Popup Modal */}
+      {/* View Details Popup Modal - Compact */}
       <div
         className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 transition-all duration-300 ease-out ${
           showDetailsPopup ? 'opacity-100 visible' : 'opacity-0 invisible'
@@ -1051,241 +1053,230 @@ export default function BMAdRequestPage() {
         onClick={() => setShowDetailsPopup(false)}
       >
         <div
-          className={`bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 relative transition-all duration-300 ease-out max-h-[90vh] overflow-y-auto ${
+          className={`bg-white rounded-xl p-4 max-w-xl w-full mx-4 relative transition-all duration-300 ease-out max-h-[85vh] overflow-y-auto ${
             showDetailsPopup ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'
           }`}
           onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={() => setShowDetailsPopup(false)}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
 
-          <h3 className="text-xl font-bold text-gray-800 mb-1">Application Details</h3>
-          <p className="text-sm text-gray-500 mb-6">View the details submitted by the user</p>
+          <h3 className="text-[15px] font-bold text-gray-800 mb-0.5">Application Details</h3>
+          <p className="text-[11px] text-gray-500 mb-3">View the details submitted by the user</p>
 
           {loadingDetails ? (
-            <div className="flex flex-col items-center py-12">
-              <Loader2 className="w-8 h-8 text-[#7C3AED] animate-spin mb-2" />
-              <span className="text-gray-500">Loading details...</span>
+            <div className="flex flex-col items-center py-6">
+              <Loader2 className="w-5 h-5 text-[#7C3AED] animate-spin mb-1" />
+              <span className="text-[11px] text-gray-500">Loading details...</span>
             </div>
           ) : selectedApplication ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Status Banner */}
-              <div className={`p-4 rounded-lg ${
+              <div className={`p-2.5 rounded-lg ${
                 selectedApplication.status === 'APPROVED' ? 'bg-green-50 border border-green-200' :
                 selectedApplication.status === 'PENDING' ? 'bg-orange-50 border border-orange-200' :
                 'bg-red-50 border border-red-200'
               }`}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-sm font-medium text-gray-600">Status</span>
-                    <div className="mt-1">{getStatusBadge(selectedApplication.status)}</div>
+                    <span className="text-[10px] font-medium text-gray-600">Status</span>
+                    <div className="mt-0.5">{getStatusBadge(selectedApplication.status)}</div>
                   </div>
                   {selectedApplication.adminRemarks && (
-                    <div className="text-right">
-                      <span className="text-sm font-medium text-gray-600">Admin Remarks</span>
-                      <p className="text-sm text-gray-700 mt-1">{selectedApplication.adminRemarks}</p>
+                    <div className="text-right max-w-[50%]">
+                      <span className="text-[10px] font-medium text-gray-600">Remarks</span>
+                      <p className="text-[11px] text-gray-700 mt-0.5 truncate">{selectedApplication.adminRemarks}</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Details Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">User</span>
-                  <p className="text-sm font-semibold text-gray-800 mt-1">{selectedApplication.user?.username || 'Unknown'}</p>
-                  <p className="text-xs text-gray-500">{selectedApplication.user?.email}</p>
+              {/* Details Grid - Compact */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">User</span>
+                  <p className="text-[11px] font-semibold text-gray-800 truncate">{selectedApplication.user?.username || 'Unknown'}</p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Platform</span>
-                  <div className="flex items-center gap-2 mt-1">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Platform</span>
+                  <div className="flex items-center gap-1 mt-0.5">
                     {getPlatformIcon(selectedApplication.platform)}
-                    <span className="text-sm font-semibold text-gray-800">{selectedApplication.platform}</span>
+                    <span className="text-[11px] font-semibold text-gray-800">{selectedApplication.platform}</span>
                   </div>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Apply ID</span>
-                  <p className="text-sm font-mono font-semibold text-gray-800 mt-1">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Apply ID</span>
+                  <p className="text-[11px] font-mono font-semibold text-gray-800 truncate">
                     {selectedApplication.applyId || '---'}
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Opening Fee</span>
-                  <p className="text-sm font-bold text-[#7C3AED] mt-1">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Opening Fee</span>
+                  <p className="text-[11px] font-bold text-[#7C3AED]">
                     {formatCurrency(selectedApplication.openingFee)}
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Deposit Amount</span>
-                  <p className="text-sm font-bold text-[#52B788] mt-1">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Deposit</span>
+                  <p className="text-[11px] font-bold text-[#52B788]">
                     {formatCurrency(selectedApplication.depositAmount)}
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Total Cost</span>
-                  <p className="text-sm font-bold text-orange-500 mt-1">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Total Cost</span>
+                  <p className="text-[11px] font-bold text-orange-500">
                     {formatCurrency(selectedApplication.totalCost)}
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">License Type</span>
-                  <p className="text-sm font-semibold text-gray-800 mt-1">{selectedApplication.licenseType || 'NEW'}</p>
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">BM ID</span>
+                  <p className="text-[11px] font-mono font-semibold text-[#7C3AED] truncate">{selectedApplication.bmId || '---'}</p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg col-span-2">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Ad Accounts ({selectedApplication.adAccountQty || 1} requested)</span>
-                  <div className="mt-3 space-y-2">
-                    {getAccountDetails(selectedApplication).length > 0 ? (
-                      getAccountDetails(selectedApplication).map((detail, idx) => (
-                        <div key={idx} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-gray-100">
-                          <span className="w-6 h-6 flex items-center justify-center bg-gray-200 text-gray-600 text-xs font-bold rounded-full">
-                            {idx + 1}
-                          </span>
-                          <div className="flex items-center gap-2 flex-1">
-                            <div className="flex flex-col">
-                              <span className="text-xs text-gray-400">Account Name</span>
-                              <span className="px-2 py-0.5 bg-[#52B788]/10 text-[#52B788] text-sm font-medium rounded">
-                                {detail.name}
-                              </span>
-                            </div>
-                            <span className="text-gray-300 text-lg">→</span>
-                            <div className="flex flex-col">
-                              <span className="text-xs text-gray-400">Ad Account ID</span>
-                              {detail.accountId ? (
-                                <span className="px-2 py-0.5 bg-[#7C3AED]/10 text-[#7C3AED] text-sm font-mono font-medium rounded">
-                                  {detail.accountId}
-                                </span>
-                              ) : (
-                                <span className="text-sm text-orange-500 italic">Not assigned</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <span className="text-sm text-gray-400">---</span>
-                    )}
-                  </div>
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Timezone</span>
+                  <p className="text-[11px] font-semibold text-gray-800 truncate">{selectedApplication.timezone || '---'}</p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">BM ID</span>
-                  <p className="text-sm font-mono font-semibold text-[#7C3AED] mt-1">{selectedApplication.bmId || '---'}</p>
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Currency</span>
+                  <p className="text-[11px] font-semibold text-gray-800">{selectedApplication.currency || '---'}</p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Timezone</span>
-                  <p className="text-sm font-semibold text-gray-800 mt-1">{selectedApplication.timezone || '---'}</p>
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">License</span>
+                  <p className="text-[11px] font-semibold text-gray-800">{selectedApplication.licenseType || 'NEW'}</p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Currency</span>
-                  <p className="text-sm font-semibold text-gray-800 mt-1">{selectedApplication.currency || '---'}</p>
-                </div>
-
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Daily Budget</span>
-                  <p className="text-sm font-semibold text-gray-800 mt-1">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Daily Budget</span>
+                  <p className="text-[11px] font-semibold text-gray-800">
                     {selectedApplication.dailyBudget ? formatCurrency(selectedApplication.dailyBudget) : '---'}
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Target Region</span>
-                  <p className="text-sm font-semibold text-gray-800 mt-1">{selectedApplication.targetRegion || '---'}</p>
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Region</span>
+                  <p className="text-[11px] font-semibold text-gray-800 truncate">{selectedApplication.targetRegion || '---'}</p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-lg col-span-2">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Business Name</span>
-                  <p className="text-sm font-semibold text-gray-800 mt-1">{selectedApplication.businessName || '---'}</p>
-                </div>
-
-                {(selectedApplication.pageLink || selectedApplication.pageUrls) && (
-                  <div className="p-4 bg-gray-50 rounded-lg col-span-2">
-                    <span className="text-xs text-gray-500 uppercase tracking-wide">Page URLs</span>
-                    <div className="mt-1 space-y-1">
-                      {selectedApplication.pageUrls ? (
-                        selectedApplication.pageUrls.split(',').map((url, idx) => (
-                          <a
-                            key={idx}
-                            href={url.trim()}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-semibold text-blue-600 hover:underline block truncate"
-                          >
-                            {url.trim()}
-                          </a>
-                        ))
-                      ) : selectedApplication.pageLink ? (
-                        <a
-                          href={selectedApplication.pageLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-semibold text-blue-600 hover:underline block truncate"
-                        >
-                          {selectedApplication.pageLink}
-                        </a>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
-
-                {selectedApplication.websiteLink && (
-                  <div className="p-4 bg-gray-50 rounded-lg col-span-2">
-                    <span className="text-xs text-gray-500 uppercase tracking-wide">Website Link</span>
-                    <a
-                      href={selectedApplication.websiteLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-semibold text-blue-600 hover:underline mt-1 block truncate"
-                    >
-                      {selectedApplication.websiteLink}
-                    </a>
-                  </div>
-                )}
-
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <span className="text-xs text-gray-500 uppercase tracking-wide">Request Date</span>
-                  <p className="text-sm font-semibold text-gray-800 mt-1">{formatDate(selectedApplication.createdAt)}</p>
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Request Date</span>
+                  <p className="text-[11px] font-semibold text-gray-800">{formatDate(selectedApplication.createdAt)}</p>
                 </div>
 
                 {selectedApplication.approvedAt && (
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <span className="text-xs text-gray-500 uppercase tracking-wide">Approved Date</span>
-                    <p className="text-sm font-semibold text-green-600 mt-1">{formatDate(selectedApplication.approvedAt)}</p>
+                  <div className="p-2 bg-gray-50 rounded-lg">
+                    <span className="text-[9px] text-gray-500 uppercase tracking-wide">Approved</span>
+                    <p className="text-[11px] font-semibold text-green-600">{formatDate(selectedApplication.approvedAt)}</p>
                   </div>
                 )}
 
                 {selectedApplication.rejectedAt && (
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <span className="text-xs text-gray-500 uppercase tracking-wide">Rejected Date</span>
-                    <p className="text-sm font-semibold text-red-600 mt-1">{formatDate(selectedApplication.rejectedAt)}</p>
+                  <div className="p-2 bg-gray-50 rounded-lg">
+                    <span className="text-[9px] text-gray-500 uppercase tracking-wide">Rejected</span>
+                    <p className="text-[11px] font-semibold text-red-600">{formatDate(selectedApplication.rejectedAt)}</p>
                   </div>
                 )}
+
+                <div className="p-2 bg-gray-50 rounded-lg col-span-3">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Business Name</span>
+                  <p className="text-[11px] font-semibold text-gray-800">{selectedApplication.businessName || '---'}</p>
+                </div>
               </div>
 
+              {/* Ad Accounts - Compact */}
+              <div className="p-2 bg-gray-50 rounded-lg">
+                <span className="text-[9px] text-gray-500 uppercase tracking-wide">Ad Accounts ({selectedApplication.adAccountQty || 1})</span>
+                <div className="mt-1.5 space-y-1">
+                  {getAccountDetails(selectedApplication).length > 0 ? (
+                    getAccountDetails(selectedApplication).map((detail, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-1.5 bg-white rounded border border-gray-100">
+                        <span className="w-4 h-4 flex items-center justify-center bg-gray-200 text-gray-600 text-[9px] font-bold rounded-full flex-shrink-0">
+                          {idx + 1}
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-[#52B788]/10 text-[#52B788] text-[10px] font-medium rounded truncate max-w-[120px]">
+                          {detail.name}
+                        </span>
+                        <span className="text-gray-400 text-[10px]">→</span>
+                        {detail.accountId ? (
+                          <span className="px-1.5 py-0.5 bg-[#7C3AED]/10 text-[#7C3AED] text-[10px] font-mono font-medium rounded truncate">
+                            {detail.accountId}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-orange-500 italic">N/A</span>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <span className="text-[11px] text-gray-400">---</span>
+                  )}
+                </div>
+              </div>
+
+              {/* URLs - Compact */}
+              {(selectedApplication.pageLink || selectedApplication.pageUrls || selectedApplication.websiteLink) && (
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Links</span>
+                  <div className="mt-1 space-y-0.5">
+                    {selectedApplication.pageUrls ? (
+                      selectedApplication.pageUrls.split(',').slice(0, 2).map((url, idx) => (
+                        <a
+                          key={idx}
+                          href={url.trim()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-blue-600 hover:underline block truncate"
+                        >
+                          {url.trim()}
+                        </a>
+                      ))
+                    ) : selectedApplication.pageLink ? (
+                      <a
+                        href={selectedApplication.pageLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-blue-600 hover:underline block truncate"
+                      >
+                        {selectedApplication.pageLink}
+                      </a>
+                    ) : null}
+                    {selectedApplication.websiteLink && (
+                      <a
+                        href={selectedApplication.websiteLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-blue-600 hover:underline block truncate"
+                      >
+                        {selectedApplication.websiteLink}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Close Button */}
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-end pt-2">
                 <button
                   onClick={() => setShowDetailsPopup(false)}
-                  className="px-6 py-2.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-lg font-medium transition-colors"
+                  className="px-4 py-1.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-lg text-[12px] font-medium transition-colors"
                 >
                   Close
                 </button>
               </div>
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-6 text-[11px] text-gray-500">
               No details available
             </div>
           )}

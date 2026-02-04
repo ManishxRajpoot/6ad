@@ -52,18 +52,18 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
         )}
         onClick={onClose}
       />
-      {/* Modal with scale and fade animation */}
+      {/* Modal with scale and fade animation - Compact */}
       <div
         className={cn(
-          'relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-auto transition-all duration-200 ease-out',
+          'relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 max-h-[85vh] overflow-auto transition-all duration-200 ease-out',
           isAnimating
             ? "opacity-100 scale-100 translate-y-0"
             : "opacity-0 scale-95 translate-y-4",
           className
         )}
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
           <button
             onClick={onClose}
             className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"

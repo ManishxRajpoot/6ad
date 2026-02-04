@@ -79,7 +79,7 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="lg:ml-[240px] h-full flex flex-col">
         <Header title={title} subtitle={subtitle} onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-4 lg:p-6 overflow-hidden flex flex-col">{children}</main>
+        <main className="flex-1 p-4 lg:p-6 overflow-auto">{children}</main>
       </div>
 
       {/* Live Chat Widget */}

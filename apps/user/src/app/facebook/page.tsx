@@ -530,7 +530,8 @@ export default function FacebookPage() {
       }
     }
     fetchUserData()
-  }, [updateUser])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Auto-refresh stats every 1 second for real-time updates
   useEffect(() => {
@@ -1365,71 +1366,78 @@ export default function FacebookPage() {
       {/* Global styles */}
       <style jsx global>{`
         @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(10px); }
+          from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }
         @keyframes checkBounce {
           0% { transform: scale(0); }
-          50% { transform: scale(1.2); }
+          50% { transform: scale(1.15); }
           100% { transform: scale(1); }
         }
         @keyframes toastPop {
           0% { opacity: 0; transform: scale(0.5); }
-          50% { transform: scale(1.05); }
+          50% { transform: scale(1.03); }
           100% { opacity: 1; transform: scale(1); }
         }
         @keyframes slideIn {
-          from { opacity: 0; transform: translateX(-10px); }
+          from { opacity: 0; transform: translateX(-8px); }
           to { opacity: 1; transform: translateX(0); }
         }
-        .animate-fadeInUp { animation: fadeInUp 0.3s ease-out forwards; }
-        .animate-checkBounce { animation: checkBounce 0.5s ease-out 0.1s forwards; }
-        .animate-toastPop { animation: toastPop 0.4s ease-out forwards; }
-        .animate-slideIn { animation: slideIn 0.3s ease-out forwards; }
-        .table-row-animate { animation: fadeInUp 0.3s ease-out forwards; }
-        .table-row-animate:nth-child(1) { animation-delay: 0.05s; }
-        .table-row-animate:nth-child(2) { animation-delay: 0.1s; }
-        .table-row-animate:nth-child(3) { animation-delay: 0.15s; }
-        .table-row-animate:nth-child(4) { animation-delay: 0.2s; }
-        .table-row-animate:nth-child(5) { animation-delay: 0.25s; }
-        .table-row-animate:nth-child(6) { animation-delay: 0.3s; }
-        .table-row-animate:nth-child(7) { animation-delay: 0.35s; }
-        .table-row-animate:nth-child(8) { animation-delay: 0.4s; }
-        .stat-card { transition: all 0.3s ease; }
-        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px -5px rgba(139, 92, 246, 0.15); }
+        .animate-fadeInUp { animation: fadeInUp 0.25s ease-out forwards; }
+        .animate-checkBounce { animation: checkBounce 0.4s ease-out 0.1s forwards; }
+        .animate-toastPop { animation: toastPop 0.35s ease-out forwards; }
+        .animate-slideIn { animation: slideIn 0.25s ease-out forwards; }
+        .table-row-animate { animation: fadeInUp 0.25s ease-out forwards; }
+        .table-row-animate:nth-child(1) { animation-delay: 0.03s; }
+        .table-row-animate:nth-child(2) { animation-delay: 0.06s; }
+        .table-row-animate:nth-child(3) { animation-delay: 0.09s; }
+        .table-row-animate:nth-child(4) { animation-delay: 0.12s; }
+        .table-row-animate:nth-child(5) { animation-delay: 0.15s; }
+        .table-row-animate:nth-child(6) { animation-delay: 0.18s; }
+        .table-row-animate:nth-child(7) { animation-delay: 0.21s; }
+        .table-row-animate:nth-child(8) { animation-delay: 0.24s; }
+        .stat-card { transition: all 0.2s ease; }
+        .stat-card:hover { transform: translateY(-1px); box-shadow: 0 4px 15px -3px rgba(139, 92, 246, 0.12); }
+        /* Smooth scrolling */
+        .scroll-smooth { scroll-behavior: smooth; }
+        /* Custom scrollbar */
+        .scroll-smooth::-webkit-scrollbar { width: 4px; }
+        .scroll-smooth::-webkit-scrollbar-track { background: transparent; }
+        .scroll-smooth::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 4px; }
+        .scroll-smooth::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
       `}</style>
 
-      {/* Row 1: Header Bar */}
-      <div className="flex items-center gap-2 mb-3 p-2 bg-white rounded-xl shadow-sm border border-gray-100/50">
-        <div className="relative w-48">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+      {/* Row 1: Header Bar - Responsive */}
+      <div className="flex flex-wrap items-center gap-1.5 lg:gap-2 mb-2 lg:mb-3 p-1.5 lg:p-2 bg-white rounded-lg lg:rounded-xl shadow-sm border border-gray-100/50">
+        <div className="relative w-32 lg:w-48">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 lg:w-3.5 h-3 lg:h-3.5 text-gray-400" />
           <input
             type="text"
             placeholder="Search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
+            className="w-full pl-7 lg:pl-8 pr-2 lg:pr-3 py-1 lg:py-1.5 bg-gray-50 border border-gray-200 rounded-md text-[10px] lg:text-xs focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
           />
         </div>
 
-        <div className="w-36">
+        <div className="w-28 lg:w-36 hidden sm:block">
           <Select
             options={dateFilterOptions}
             value={dateFilter}
             onChange={setDateFilter}
-            placeholder="Date and Time"
+            placeholder="Date"
             size="sm"
-            
+
           />
         </div>
-        <div className="w-28">
+        <div className="w-24 lg:w-28 hidden sm:block">
           <Select
             options={actionFilterOptions}
             value={actionFilter}
             onChange={setActionFilter}
             placeholder="Action"
             size="sm"
-            
+
           />
         </div>
 
@@ -1439,16 +1447,16 @@ export default function FacebookPage() {
         <div className="relative" ref={exportDropdownRef}>
           <Button
             variant="outline"
-            className="border-gray-200 text-gray-600 rounded-md hover:bg-gray-50 whitespace-nowrap text-xs px-3 py-1.5 h-auto"
+            className="border-gray-200 text-gray-600 rounded-md hover:bg-gray-50 whitespace-nowrap text-[10px] lg:text-xs px-2 lg:px-3 py-1 lg:py-1.5 h-auto"
             onClick={() => setShowExportDropdown(!showExportDropdown)}
           >
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            Export
-            <ChevronDown className={`w-3.5 h-3.5 ml-1.5 transition-transform duration-200 ${showExportDropdown ? 'rotate-180' : ''}`} />
+            <Download className="w-3 lg:w-3.5 h-3 lg:h-3.5 mr-1" />
+            <span className="hidden sm:inline">Export</span>
+            <ChevronDown className={`w-3 lg:w-3.5 h-3 lg:h-3.5 ml-1 transition-transform duration-200 ${showExportDropdown ? 'rotate-180' : ''}`} />
           </Button>
 
           {showExportDropdown && (
-            <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="absolute right-0 mt-2 w-48 lg:w-56 bg-white border border-gray-200 rounded-lg lg:rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="py-1">
                 {exportOptions.map((option) => (
                   <button
@@ -1457,9 +1465,9 @@ export default function FacebookPage() {
                       exportToExcel(option.id)
                       setShowExportDropdown(false)
                     }}
-                    className="w-full px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-[#52B788]/10 hover:text-[#52B788] transition-colors duration-150 flex items-center gap-2"
+                    className="w-full px-3 lg:px-4 py-2 text-xs lg:text-sm text-left text-gray-700 hover:bg-[#52B788]/10 hover:text-[#52B788] transition-colors duration-150 flex items-center gap-2"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-3.5 h-3.5" />
                     {option.label}
                   </button>
                 ))}
@@ -1469,10 +1477,11 @@ export default function FacebookPage() {
         </div>
         <Button
           onClick={() => setActiveSubPage('apply-ads-account')}
-          className="bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-md shadow-sm whitespace-nowrap text-xs px-3 py-1.5 h-auto"
+          className="bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-md shadow-sm whitespace-nowrap text-[10px] lg:text-xs px-2 lg:px-3 py-1 lg:py-1.5 h-auto"
         >
-          <Plus className="w-3.5 h-3.5 mr-1" />
-          Ads Account
+          <Plus className="w-3 lg:w-3.5 h-3 lg:h-3.5 mr-0.5 lg:mr-1" />
+          <span className="hidden sm:inline">Ads Account</span>
+          <span className="sm:hidden">Add</span>
         </Button>
       </div>
 
@@ -1489,9 +1498,9 @@ export default function FacebookPage() {
           animation: chartPulse 2s ease-in-out infinite;
         }
       `}</style>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4 mb-3 lg:mb-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 lg:gap-3 mb-2 lg:mb-3">
         {statsData.map((stat, index) => (
-          <Card key={index} className="stat-card p-2.5 lg:p-4 border border-gray-100 bg-white rounded-xl relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02]">
+          <Card key={index} className="stat-card p-2 lg:p-3 border border-gray-100 bg-white rounded-lg lg:rounded-xl relative overflow-hidden transition-all duration-300 hover:shadow-md hover:scale-[1.01]">
             {/* Top row: Title and Badge */}
             <div className="flex items-center justify-between mb-1.5 lg:mb-2">
               <p className="text-[11px] lg:text-sm text-gray-500 font-medium">{stat.label}</p>
@@ -1545,21 +1554,21 @@ export default function FacebookPage() {
       </div>
 
       {/* Row 3: Main Content */}
-      <div className="flex gap-2 lg:gap-4 flex-1 min-h-0 overflow-hidden">
-        {/* Left Sidebar */}
-        <div className="w-44 lg:w-60 flex-shrink-0 hidden md:block">
-          <Card className="p-4 h-full border border-gray-100/50 bg-gradient-to-b from-white to-gray-50/50 relative overflow-hidden">
+      <div className="flex gap-4 flex-1 min-h-0 overflow-hidden">
+        {/* Left Sidebar - Balanced size, scroll only on small screens */}
+        <div className="w-64 lg:w-72 flex-shrink-0 hidden md:block">
+          <Card className="p-4 h-full border border-gray-100/50 bg-gradient-to-b from-white to-gray-50/50 relative overflow-hidden flex flex-col">
             <div className="absolute inset-0 bg-gradient-to-br from-[#8B5CF6]/5 via-transparent to-[#52B788]/5" />
 
-            {/* Facebook Logo */}
-            <div className="relative z-10 flex flex-col items-center mb-4 pb-4 border-b border-gray-100">
+            {/* Facebook Logo - Larger and balanced */}
+            <div className="relative z-10 flex flex-col items-center mb-4 pb-4 border-b border-gray-100 flex-shrink-0">
               <div className="relative">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#1877F2] to-[#0C5DC7] flex items-center justify-center shadow-md shadow-blue-500/20">
-                  <svg viewBox="0 0 24 24" className="w-6 h-6" fill="white">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#1877F2] to-[#0C5DC7] flex items-center justify-center shadow-lg shadow-blue-500/30">
+                  <svg viewBox="0 0 24 24" className="w-7 h-7" fill="white">
                     <path d="M9.198 21.5h4v-8.01h3.604l.396-3.98h-4V7.5a1 1 0 0 1 1-1h3v-4h-3a5 5 0 0 0-5 5v2.01h-2l-.396 3.98h2.396v8.01Z" />
                   </svg>
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100">
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-md border border-gray-100">
                   <div className="w-4 h-4 bg-[#52B788] rounded-full flex items-center justify-center">
                     <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12"></polyline>
@@ -1567,20 +1576,20 @@ export default function FacebookPage() {
                   </div>
                 </div>
               </div>
-              <p className="mt-2 text-xs font-medium text-gray-500">Ad Management</p>
+              <p className="mt-2 text-sm font-medium text-gray-600">Ad Management</p>
             </div>
 
-            {/* Navigation Menu */}
-            <div className="relative z-10 space-y-2">
+            {/* Navigation Menu - Scroll only on small screens */}
+            <div className="relative z-10 space-y-2 overflow-y-auto flex-1 scroll-smooth" style={{ scrollbarWidth: 'thin' }}>
               {menuItems.map((menu) => (
                 <div key={menu.section}>
                   <button
                     onClick={() => toggleSection(menu.section)}
                     data-tutorial={(menu as any).tutorialId}
-                    className="w-full flex items-center justify-between px-2 py-2 text-sm font-semibold text-gray-700 hover:bg-[#8B5CF6]/5 rounded-lg transition-all duration-200 active:scale-[0.98] hover:translate-x-0.5"
+                    className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-[#8B5CF6]/5 rounded-lg transition-all duration-200 active:scale-[0.98]"
                   >
-                    <div className="flex items-center gap-2">
-                      <span>{menu.icon}</span>
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-lg">{menu.icon}</span>
                       <span>{menu.title}</span>
                     </div>
                     <ChevronDown
@@ -1593,7 +1602,7 @@ export default function FacebookPage() {
                   </button>
 
                   <div
-                    className={`ml-5 space-y-0.5 border-l-2 border-[#8B5CF6]/20 pl-3 overflow-hidden transition-all duration-300 ease-in-out ${
+                    className={`ml-5 space-y-1 border-l-2 border-[#8B5CF6]/20 pl-4 overflow-hidden transition-all duration-300 ease-in-out ${
                       expandedSections.includes(menu.section)
                         ? 'max-h-96 opacity-100 mt-1'
                         : 'max-h-0 opacity-0 mt-0'
@@ -1610,11 +1619,11 @@ export default function FacebookPage() {
                         style={{
                           animationDelay: `${index * 50}ms`,
                         }}
-                        className={`w-full text-left px-2 py-1.5 text-sm rounded transition-all duration-200 ease-out transform hover:translate-x-1 active:scale-95 ${
+                        className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-200 ease-out transform hover:translate-x-0.5 active:scale-95 ${
                           expandedSections.includes(menu.section) ? 'animate-slideIn' : ''
                         } ${
                           activeSubPage === item.id
-                            ? 'bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white font-medium shadow-sm shadow-purple-200'
+                            ? 'bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white font-medium shadow-md shadow-purple-200'
                             : 'text-gray-600 hover:bg-[#8B5CF6]/5 hover:text-[#8B5CF6]'
                         }`}
                       >
@@ -1629,8 +1638,8 @@ export default function FacebookPage() {
         </div>
 
         {/* Right Content */}
-        <Card className="flex-1 p-0 rounded-2xl overflow-hidden border border-gray-100/50 shadow-sm flex flex-col min-h-0">
-          <div className="overflow-y-auto flex-1 min-h-0 bg-gradient-to-b from-white to-gray-50/30">
+        <Card className="flex-1 p-0 rounded-xl lg:rounded-2xl overflow-hidden border border-gray-100/50 shadow-sm flex flex-col min-h-0">
+          <div className="overflow-y-auto flex-1 min-h-0 bg-gradient-to-b from-white to-gray-50/30 scroll-smooth">
               {/* Apply Ads Account Form */}
               {activeSubPage === 'apply-ads-account' && (
                 <>
@@ -1664,15 +1673,15 @@ export default function FacebookPage() {
                       <p className="text-xs text-gray-400 mt-3">You can still manage your existing accounts through the menu</p>
                     </div>
                   ) : (
-                    <div className="px-8 py-6 space-y-5">
+                    <div className="px-4 lg:px-6 py-4 lg:py-5 space-y-4">
 
                       {/* License */}
-                      <div className="space-y-3" data-tutorial="license-section">
-                    <label className="block text-sm font-semibold text-gray-800">License</label>
-                    <div className="flex gap-2">
+                      <div className="space-y-2" data-tutorial="license-section">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">License</label>
+                    <div className="flex gap-1.5">
                       <button
                         onClick={() => setLicenseType('new')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        className={`px-3 py-1.5 rounded-lg text-[10px] lg:text-xs font-medium transition-all ${
                           licenseType === 'new'
                             ? 'bg-[#8B5CF6] text-white shadow-sm'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -1682,23 +1691,23 @@ export default function FacebookPage() {
                       </button>
                       <button
                         onClick={() => setLicenseType('existing')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        className={`px-3 py-1.5 rounded-lg text-[10px] lg:text-xs font-medium transition-all ${
                           licenseType === 'existing'
                             ? 'bg-[#8B5CF6] text-white shadow-sm'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                       >
-                        Existing License
+                        Existing
                       </button>
                     </div>
 
                     {licenseType === 'new' && (
                       <input
                         type="text"
-                        placeholder="Enter license name (e.g., ADM Marketing 1)"
+                        placeholder="Enter license name"
                         value={newLicenseName}
                         onChange={(e) => setNewLicenseName(e.target.value)}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
                       />
                     )}
 
@@ -1708,23 +1717,24 @@ export default function FacebookPage() {
                           options={userLicenseOptions}
                           value={selectedLicense}
                           onChange={setSelectedLicense}
-                          placeholder="Select existing license"
+                          placeholder="Select license"
+                          size="sm"
                         />
                       ) : (
-                        <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl text-center">
-                          <p className="text-sm text-gray-500">No existing licenses found</p>
-                          <p className="text-xs text-gray-400 mt-1">Create a new license first by applying for an ad account</p>
+                        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                          <p className="text-xs text-gray-500">No existing licenses</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">Create a new license first</p>
                         </div>
                       )
                     )}
                   </div>
 
                   {/* Pages */}
-                  <div className="space-y-3" data-tutorial="pages-section">
+                  <div className="space-y-2" data-tutorial="pages-section">
                     <div className="flex items-center justify-between">
-                      <label className="block text-sm font-semibold text-gray-800">
-                        Number of Pages
-                        <span className="text-xs font-normal text-gray-500 ml-2">(1-5 free, 6-10 +$5 each)</span>
+                      <label className="block text-xs lg:text-sm font-semibold text-gray-800">
+                        Pages
+                        <span className="text-[9px] lg:text-[10px] font-normal text-gray-500 ml-1">(1-5 free, +$5/extra)</span>
                       </label>
                     </div>
                     <Select
@@ -1732,26 +1742,27 @@ export default function FacebookPage() {
                       value={pageCount}
                       onChange={handlePageCountChange}
                       placeholder="Select pages"
+                      size="sm"
                     />
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       {pageUrls.map((url, index) => (
                         <div key={index} className="relative">
                           <input
                             type="text"
-                            placeholder={`Enter Facebook Page ${index + 1} URL`}
+                            placeholder={`Page ${index + 1} URL`}
                             value={url}
                             onChange={(e) => updatePageUrl(index, e.target.value)}
-                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all pr-10"
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all pr-8"
                           />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400">#{index + 1}</span>
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-gray-400">#{index + 1}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
                   {/* Share Profile */}
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-2.5" data-tutorial="share-profile-checkbox">
+                  <div className="space-y-2">
+                    <div className="flex items-start gap-2" data-tutorial="share-profile-checkbox">
                       <div className="relative mt-0.5">
                         <input
                           type="checkbox"
@@ -1762,14 +1773,14 @@ export default function FacebookPage() {
                         />
                         <label
                           htmlFor="shareProfile"
-                          className={`flex items-center justify-center w-5 h-5 rounded border-2 cursor-pointer transition-all duration-200 ease-out
+                          className={`flex items-center justify-center w-4 h-4 rounded border-2 cursor-pointer transition-all duration-200 ease-out
                             ${pageShareConfirmed
                               ? 'bg-[#8B5CF6] border-[#8B5CF6] scale-110'
                               : 'bg-white border-gray-300 hover:border-[#8B5CF6]/50 active:scale-95'
                             }`}
                         >
                           <svg
-                            className={`w-3 h-3 text-white transition-all duration-200 ${pageShareConfirmed ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}
+                            className={`w-2.5 h-2.5 text-white transition-all duration-200 ${pageShareConfirmed ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -1779,32 +1790,30 @@ export default function FacebookPage() {
                           </svg>
                         </label>
                       </div>
-                      <label htmlFor="shareProfile" className="text-sm text-gray-600 cursor-pointer select-none">
-                        Please make sure you have already shared your page with this profile
+                      <label htmlFor="shareProfile" className="text-[10px] lg:text-xs text-gray-600 cursor-pointer select-none">
+                        Confirm you shared your page with this profile
                       </label>
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-gradient-to-r from-[#8B5CF6]/5 to-[#52B788]/5 border border-[#8B5CF6]/20 rounded-xl">
-                      <span className="text-sm text-gray-700 font-medium truncate flex-1">
+                    <div className="flex items-center justify-between p-2 bg-gradient-to-r from-[#8B5CF6]/5 to-[#52B788]/5 border border-[#8B5CF6]/20 rounded-lg">
+                      <span className="text-[10px] lg:text-xs text-gray-700 font-medium truncate flex-1">
                         {profileShareLink}
                       </span>
                       <button
                         onClick={() => copyToClipboard(profileShareLink, 999)}
-                        className="p-1.5 hover:bg-white/80 rounded transition-colors ml-2 flex-shrink-0"
+                        className="p-1 hover:bg-white/80 rounded transition-colors ml-1.5 flex-shrink-0"
                       >
-                        {copiedId === 999 ? <Check className="w-4 h-4 text-[#52B788]" /> : <Copy className="w-4 h-4 text-[#8B5CF6]" />}
+                        {copiedId === 999 ? <Check className="w-3.5 h-3.5 text-[#52B788]" /> : <Copy className="w-3.5 h-3.5 text-[#8B5CF6]" />}
                       </button>
                     </div>
                   </div>
 
                   {/* Domain */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-sm font-semibold text-gray-800">Unlimited Domain?</label>
-                    </div>
-                    <div className="flex gap-2">
+                  <div className="space-y-2">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">Unlimited Domain?</label>
+                    <div className="flex gap-1.5">
                       <button
                         onClick={() => setUnlimitedDomain('yes')}
-                        className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                        className={`px-3 py-1.5 rounded-full text-[10px] lg:text-xs font-medium transition-all ${
                           unlimitedDomain === 'yes'
                             ? 'bg-[#8B5CF6] text-white shadow-sm'
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -1814,7 +1823,7 @@ export default function FacebookPage() {
                       </button>
                       <button
                         onClick={() => setUnlimitedDomain('no')}
-                        className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                        className={`px-3 py-1.5 rounded-full text-[10px] lg:text-xs font-medium transition-all ${
                           unlimitedDomain === 'no'
                             ? 'bg-[#52B788] text-white shadow-sm'
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -1831,16 +1840,17 @@ export default function FacebookPage() {
                           value={domainCount}
                           onChange={handleDomainCountChange}
                           placeholder="Select domains"
+                          size="sm"
                         />
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           {domainUrls.map((url, index) => (
                             <input
                               key={index}
                               type="text"
-                              placeholder={`Enter Domain ${index + 1} (e.g., example.com)`}
+                              placeholder={`Domain ${index + 1} (e.g., example.com)`}
                               value={url}
                               onChange={(e) => updateDomainUrl(index, e.target.value)}
-                              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
                             />
                           ))}
                         </div>
@@ -1849,12 +1859,12 @@ export default function FacebookPage() {
                   </div>
 
                   {/* Is App */}
-                  <div className="space-y-3">
-                    <label className="block text-sm font-semibold text-gray-800">Is App?</label>
-                    <div className="flex gap-2">
+                  <div className="space-y-2">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">Is App?</label>
+                    <div className="flex gap-1.5">
                       <button
                         onClick={() => setIsApp('yes')}
-                        className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                        className={`px-3 py-1.5 rounded-full text-[10px] lg:text-xs font-medium transition-all ${
                           isApp === 'yes'
                             ? 'bg-[#8B5CF6] text-white shadow-sm'
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -1864,7 +1874,7 @@ export default function FacebookPage() {
                       </button>
                       <button
                         onClick={() => setIsApp('no')}
-                        className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                        className={`px-3 py-1.5 rounded-full text-[10px] lg:text-xs font-medium transition-all ${
                           isApp === 'no'
                             ? 'bg-[#52B788] text-white shadow-sm'
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -1880,50 +1890,52 @@ export default function FacebookPage() {
                           placeholder="Enter App ID"
                           value={appId}
                           onChange={(e) => setAppId(e.target.value)}
-                          className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
                         />
-                        <p className="text-xs text-green-600">App ID is free - no additional charge</p>
+                        <p className="text-[9px] lg:text-[10px] text-green-600">App ID is free - no additional charge</p>
                       </div>
                     )}
                   </div>
 
                   {/* Ad Accounts */}
-                  <div className="space-y-3" data-tutorial="ad-accounts-section">
-                    <label className="block text-sm font-semibold text-gray-800">
-                      How many Ad Accounts?
-                      <span className="text-xs font-normal text-gray-500 ml-2">(1-5 accounts, same fee)</span>
+                  <div className="space-y-2" data-tutorial="ad-accounts-section">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">
+                      Ad Accounts
+                      <span className="text-[9px] lg:text-[10px] font-normal text-gray-500 ml-1">(1-5, same fee)</span>
                     </label>
                     <Select
                       options={adAccountCountOptions}
                       value={adAccountCount}
                       onChange={handleAdAccountCountChange}
-                      placeholder="Select ad accounts"
+                      placeholder="Select"
+                      size="sm"
                     />
 
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {adAccounts.map((account, index) => (
-                        <div key={index} className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3 overflow-visible" style={{ position: 'relative', zIndex: adAccounts.length - index }}>
-                          <span className="text-sm font-semibold text-[#8B5CF6]">Ad Account {index + 1}</span>
-                          <div className="grid grid-cols-3 gap-3">
+                        <div key={index} className="p-2.5 bg-gray-50 rounded-lg border border-gray-200 space-y-2 overflow-visible" style={{ position: 'relative', zIndex: adAccounts.length - index }}>
+                          <span className="text-[10px] lg:text-xs font-semibold text-[#8B5CF6]">Account {index + 1}</span>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                             <input
                               type="text"
                               placeholder="Account Name"
                               value={account.name}
                               onChange={(e) => updateAdAccount(index, 'name', e.target.value)}
-                              className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] transition-all"
+                              className="px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] transition-all"
                             />
                             <SearchableSelect
                               options={timezoneOptions}
                               value={account.timezone}
                               onChange={(value) => updateAdAccount(index, 'timezone', value)}
                               placeholder="Timezone"
-                              searchPlaceholder="Type to search (e.g., kol)"
+                              searchPlaceholder="Search timezone"
                             />
                             <Select
                               options={depositOptions}
                               value={account.deposit}
                               onChange={(value) => updateAdAccount(index, 'deposit', value)}
                               placeholder="Deposit"
+                              size="sm"
                             />
                           </div>
                         </div>
@@ -1932,45 +1944,45 @@ export default function FacebookPage() {
                   </div>
 
                   {/* Message */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-800">Message / Remarks</label>
+                  <div className="space-y-1">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">Message</label>
                     <textarea
-                      placeholder="Enter any message or remarks for admin"
+                      placeholder="Remarks for admin (optional)"
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
-                      rows={3}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white resize-none transition-all"
+                      rows={2}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white resize-none transition-all"
                     />
                   </div>
 
                   {/* Cost Summary - Compact */}
-                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
                     {/* Cost Items - Inline */}
-                    <div className="px-4 py-3 bg-gray-50 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                      <span className="text-gray-500">Opening Fee: <span className={useCoupon ? 'line-through text-gray-400' : 'font-medium text-gray-700'}>${costs.openingFee.toFixed(2)}</span></span>
+                    <div className="px-3 py-2 bg-gray-50 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] lg:text-xs">
+                      <span className="text-gray-500">Fee: <span className={useCoupon ? 'line-through text-gray-400' : 'font-medium text-gray-700'}>${costs.openingFee.toFixed(2)}</span></span>
                       <span className="text-gray-300">|</span>
                       <span className="text-gray-500">Deposit: <span className="font-medium text-gray-700">${costs.totalDeposits}</span></span>
                       <span className="text-gray-300">|</span>
-                      <span className="text-gray-500">Fee ({costs.commissionRate}%): <span className="font-medium text-[#F59E0B]">+${costs.depositMarkupAmount.toFixed(2)}</span></span>
+                      <span className="text-gray-500">{costs.commissionRate}%: <span className="font-medium text-[#F59E0B]">+${costs.depositMarkupAmount.toFixed(2)}</span></span>
                       {costs.domainCost > 0 && <><span className="text-gray-300">|</span><span className="text-gray-500">Domain: <span className={useCoupon ? 'line-through text-gray-400' : 'font-medium text-gray-700'}>${costs.domainCost}</span></span></>}
-                      {costs.extraPagesCost > 0 && <><span className="text-gray-300">|</span><span className="text-gray-500">Extra Pages: <span className={useCoupon ? 'line-through text-gray-400' : 'font-medium text-gray-700'}>${costs.extraPagesCost}</span></span></>}
-                      {useCoupon && costs.savings > 0 && <><span className="text-gray-300">|</span><span className="text-[#22C55E]">Saved: -${costs.savings.toFixed(2)}</span></>}
+                      {costs.extraPagesCost > 0 && <><span className="text-gray-300">|</span><span className="text-gray-500">Pages: <span className={useCoupon ? 'line-through text-gray-400' : 'font-medium text-gray-700'}>${costs.extraPagesCost}</span></span></>}
+                      {useCoupon && costs.savings > 0 && <><span className="text-gray-300">|</span><span className="text-[#22C55E]">-${costs.savings.toFixed(2)}</span></>}
                     </div>
                     {/* Total Row */}
-                    <div className="px-4 py-2.5 bg-white flex items-center justify-between border-t border-gray-100">
-                      <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500">Total:</span>
-                          <span className="text-base font-bold text-[#52B788]">${costs.totalCost.toFixed(2)}</span>
+                    <div className="px-3 py-2 bg-white flex items-center justify-between border-t border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] lg:text-xs text-gray-500">Total:</span>
+                          <span className="text-sm lg:text-base font-bold text-[#52B788]">${costs.totalCost.toFixed(2)}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-500">Balance:</span>
-                          <span className="text-base font-bold text-[#3B82F6]">${userBalance.toLocaleString()}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] lg:text-xs text-gray-500">Bal:</span>
+                          <span className="text-sm lg:text-base font-bold text-[#3B82F6]">${userBalance.toLocaleString()}</span>
                         </div>
                       </div>
                       {userBalance < costs.totalCost && (
-                        <span className="text-[10px] px-2 py-1 rounded-full font-medium bg-[#EF4444]/10 text-[#EF4444]">
-                          ✗ Insufficient Balance
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-[#EF4444]/10 text-[#EF4444]">
+                          Insufficient
                         </span>
                       )}
                     </div>
@@ -1978,19 +1990,19 @@ export default function FacebookPage() {
 
                   {/* Coupon Section */}
                   {userCouponBalance > 0 && (
-                    <div className="p-4 bg-gradient-to-br from-[#F59E0B]/5 to-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-xl">
+                    <div className="p-2.5 bg-gradient-to-br from-[#F59E0B]/5 to-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-lg">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#F59E0B]/20 rounded-xl flex items-center justify-center">
-                            <span className="text-xl">🎟️</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-[#F59E0B]/20 rounded-lg flex items-center justify-center">
+                            <span className="text-sm">🎟️</span>
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-gray-800">Free Account Coupons</p>
-                            <p className="text-xs text-gray-500">You have <span className="font-bold text-[#F59E0B]">{userCouponBalance}</span> coupon{userCouponBalance > 1 ? 's' : ''} available</p>
+                            <p className="text-[10px] lg:text-xs font-semibold text-gray-800">Coupons</p>
+                            <p className="text-[9px] lg:text-[10px] text-gray-500"><span className="font-bold text-[#F59E0B]">{userCouponBalance}</span> available</p>
                           </div>
                         </div>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <span className="text-sm text-gray-600">{useCoupon ? 'Using Coupon' : 'Use Coupon'}</span>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <span className="text-[10px] lg:text-xs text-gray-600">{useCoupon ? 'On' : 'Use'}</span>
                           <div className="relative">
                             <input
                               type="checkbox"
@@ -1998,13 +2010,13 @@ export default function FacebookPage() {
                               onChange={(e) => setUseCoupon(e.target.checked)}
                               className="sr-only peer"
                             />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#F59E0B]/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#F59E0B]"></div>
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#F59E0B]/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#F59E0B]"></div>
                           </div>
                         </label>
                       </div>
                       {useCoupon && (
-                        <p className="text-xs text-[#F59E0B] mt-2 pl-13">
-                          ✓ Opening fee waived (Save ${costs.savings.toFixed(2)}) - Deposit amount still charged
+                        <p className="text-[9px] text-[#F59E0B] mt-1.5">
+                          ✓ Save ${costs.savings.toFixed(2)}
                         </p>
                       )}
                     </div>
@@ -2012,8 +2024,8 @@ export default function FacebookPage() {
 
                   {/* Error Message */}
                   {submitError && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                      <p className="text-sm text-red-700 font-medium text-center">
+                    <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-[10px] lg:text-xs text-red-700 font-medium text-center">
                         {submitError}
                       </p>
                     </div>
@@ -2022,21 +2034,21 @@ export default function FacebookPage() {
                   {/* Submit Button */}
                   <Button
                     data-tutorial="submit-application"
-                    className="w-full bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-xl py-3 text-base font-semibold shadow-lg shadow-purple-500/30 transition-all hover:shadow-xl hover:shadow-purple-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-lg py-2.5 text-xs lg:text-sm font-semibold shadow-md shadow-purple-500/20 transition-all hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={!pageShareConfirmed || userBalance < costs.totalCost || isSubmitting || submitSuccess}
                     onClick={handleSubmitApplication}
                   >
                     {isSubmitting ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Loader2 className="w-4 h-4 animate-spin" />
                         Submitting...
                       </span>
                     ) : userBalance < costs.totalCost ? (
                       'Insufficient Balance'
                     ) : useCoupon ? (
-                      `Pay $${costs.totalCost.toFixed(2)} (Opening Fee Waived)`
+                      `Pay $${costs.totalCost.toFixed(2)}`
                     ) : (
-                      `Pay $${costs.totalCost.toFixed(2)} and Submit`
+                      `Pay $${costs.totalCost.toFixed(2)} & Submit`
                     )}
                   </Button>
 
@@ -2047,49 +2059,49 @@ export default function FacebookPage() {
 
               {/* Account List Table */}
               {activeSubPage === 'account-list' && (
-                <div className="p-6">
+                <div className="p-3 lg:p-5">
                   {isLoading ? (
-                    <div className="py-16 text-center">
-                      <Loader2 className="w-8 h-8 animate-spin text-[#8B5CF6] mx-auto mb-4" />
-                      <p className="text-sm text-gray-500">Loading your accounts...</p>
+                    <div className="py-12 text-center">
+                      <Loader2 className="w-6 h-6 animate-spin text-[#8B5CF6] mx-auto mb-3" />
+                      <p className="text-xs text-gray-500">Loading your accounts...</p>
                     </div>
                   ) : (
                   <>
                   {/* Section Header */}
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-800">Your Ad Accounts</h3>
-                      <p className="text-sm text-gray-500 mt-1">Manage your connected advertising accounts</p>
+                      <h3 className="text-sm lg:text-base font-semibold text-gray-800">Your Ad Accounts</h3>
+                      <p className="text-[10px] lg:text-xs text-gray-500 mt-0.5">Manage your advertising accounts</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">Total:</span>
-                      <span className="px-3 py-1 bg-[#8B5CF6]/10 text-[#8B5CF6] rounded-full text-sm font-semibold">{currentData.length} accounts</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] lg:text-xs text-gray-500 hidden sm:inline">Total:</span>
+                      <span className="px-2 py-0.5 bg-[#8B5CF6]/10 text-[#8B5CF6] rounded-full text-[10px] lg:text-xs font-semibold">{currentData.length}</span>
                     </div>
                   </div>
 
                   {/* Account Cards Grid */}
-                  <div className="grid gap-4">
+                  <div className="grid gap-2 lg:gap-3">
                     {paginatedData.length === 0 ? (
-                      <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center">
-                          <Wallet className="w-8 h-8 text-[#8B5CF6]" />
+                      <div className="text-center py-8 lg:py-12 bg-gray-50 rounded-lg lg:rounded-xl border border-dashed border-gray-200">
+                        <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#8B5CF6]/10 flex items-center justify-center">
+                          <Wallet className="w-6 h-6 text-[#8B5CF6]" />
                         </div>
-                        <h4 className="text-lg font-semibold text-gray-800 mb-2">No Ad Accounts Yet</h4>
-                        <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
-                          You don't have any approved ad accounts. Apply for a new ad account or check your application status.
+                        <h4 className="text-sm lg:text-base font-semibold text-gray-800 mb-1.5">No Ad Accounts Yet</h4>
+                        <p className="text-[10px] lg:text-xs text-gray-500 mb-3 max-w-xs mx-auto px-4">
+                          Apply for a new ad account or check your application status.
                         </p>
-                        <div className="flex items-center justify-center gap-3">
+                        <div className="flex items-center justify-center gap-2 flex-wrap px-4">
                           <button
                             onClick={() => setActiveSubPage('apply-ads-account')}
-                            className="px-4 py-2 bg-[#8B5CF6] text-white rounded-lg text-sm font-medium hover:bg-[#7C3AED] transition-colors"
+                            className="px-3 py-1.5 bg-[#8B5CF6] text-white rounded-lg text-[10px] lg:text-xs font-medium hover:bg-[#7C3AED] transition-colors"
                           >
-                            Apply for Ad Account
+                            Apply Now
                           </button>
                           <button
                             onClick={() => setActiveSubPage('account-applied-records')}
-                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                            className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-[10px] lg:text-xs font-medium hover:bg-gray-200 transition-colors"
                           >
-                            View Applications
+                            View Apps
                           </button>
                         </div>
                       </div>
@@ -2101,40 +2113,39 @@ export default function FacebookPage() {
                       return (
                       <div
                         key={item.id}
-                        className="table-row-animate p-4 bg-white border border-gray-100 rounded-xl hover:border-[#8B5CF6]/30 hover:shadow-lg hover:shadow-[#8B5CF6]/5 transition-all duration-300 group"
+                        className="table-row-animate p-3 lg:p-4 bg-white border border-gray-100 rounded-xl hover:border-[#8B5CF6]/30 hover:shadow-md hover:shadow-[#8B5CF6]/5 transition-all duration-300 group"
                         style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}
                       >
                         <div className="grid grid-cols-3 items-center gap-4">
                           {/* Left Side - Account Info */}
-                          <div className="flex items-center gap-4 min-w-0">
+                          <div className="flex items-center gap-3 min-w-0">
                             {/* Account Avatar */}
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#8B5CF6]/5 flex items-center justify-center group-hover:from-[#8B5CF6]/20 group-hover:to-[#8B5CF6]/10 transition-all flex-shrink-0">
-                              <span className="text-lg font-bold text-[#8B5CF6]">{(item.accountName || item.adsAccountName || 'A').charAt(0).toUpperCase()}</span>
+                            <div className="w-10 h-10 lg:w-11 lg:h-11 rounded-xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#8B5CF6]/5 flex items-center justify-center group-hover:from-[#8B5CF6]/20 group-hover:to-[#8B5CF6]/10 transition-all flex-shrink-0">
+                              <span className="text-base lg:text-lg font-bold text-[#8B5CF6]">{(item.accountName || item.adsAccountName || 'A').charAt(0).toUpperCase()}</span>
                             </div>
 
                             {/* Account Details */}
-                            <div className="space-y-1 min-w-0">
+                            <div className="space-y-0.5 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="text-sm font-semibold text-gray-800">{item.accountName || item.adsAccountName || 'Unknown Account'}</h4>
-                                {/* Show balance for Cheetah accounts, nothing for non-Cheetah */}
+                                <h4 className="text-sm font-semibold text-gray-800 truncate">{item.accountName || item.adsAccountName || 'Unknown'}</h4>
                                 {isCheetahAccount && (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#52B788]/10 text-[#52B788]">
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#52B788]/10 text-[#52B788]">
                                     ${remainingBalance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-3 text-xs">
-                                <span className="text-gray-500">License:</span>
-                                <span className="text-gray-700 font-medium">{item.licenseName || item.license || 'N/A'}</span>
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-gray-400">License:</span>
+                                <span className="text-gray-600 font-medium truncate">{item.licenseName || item.license || 'N/A'}</span>
                               </div>
                             </div>
                           </div>
 
                           {/* Center - Account ID */}
                           <div className="flex justify-center">
-                            <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg">
-                              <span className="text-xs text-gray-500">ID:</span>
-                              <span className="text-sm text-[#8B5CF6] font-mono font-semibold">{item.accountId || item.adsAccountId}</span>
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
+                              <span className="text-xs text-gray-400">ID:</span>
+                              <span className="text-xs text-[#8B5CF6] font-mono font-medium">{item.accountId || item.adsAccountId}</span>
                             </div>
                           </div>
 
@@ -2143,14 +2154,14 @@ export default function FacebookPage() {
                             <button
                               onClick={() => handleBmShareClick(item)}
                               data-tutorial="get-bm-access-btn"
-                              className="px-4 py-2 bg-[#8B5CF6]/10 text-[#8B5CF6] rounded-lg text-sm font-medium hover:bg-[#8B5CF6] hover:text-white transition-all duration-200"
+                              className="px-3.5 py-1.5 bg-[#8B5CF6]/10 text-[#8B5CF6] rounded-lg text-xs font-medium hover:bg-[#8B5CF6] hover:text-white transition-all duration-200"
                             >
-                              Get Access
+                              Access
                             </button>
                             <button
                               onClick={() => handleDepositClick(item.id)}
                               data-tutorial="account-deposit-btn"
-                              className="px-4 py-2 bg-[#52B788]/10 text-[#52B788] rounded-lg text-sm font-medium hover:bg-[#52B788] hover:text-white transition-all duration-200"
+                              className="px-3.5 py-1.5 bg-[#52B788]/10 text-[#52B788] rounded-lg text-xs font-medium hover:bg-[#52B788] hover:text-white transition-all duration-200"
                             >
                               Deposit
                             </button>
@@ -2190,13 +2201,13 @@ export default function FacebookPage() {
                     <table className="w-full">
                       <thead>
                         <tr className="bg-gradient-to-r from-[#8B5CF6]/5 to-gray-50">
-                          <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
-                          <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">License</th>
-                          <th className="text-left py-4 px-5 text-xs font-semibold text-[#8B5CF6] uppercase tracking-wider">Request Time</th>
-                          <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Cost</th>
-                          <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ad Accounts</th>
-                          <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">License</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-[#8B5CF6] uppercase tracking-wider">Time</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Cost</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Accounts</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
@@ -2206,31 +2217,31 @@ export default function FacebookPage() {
                           const timeStr = createdDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
                           return (
                             <tr key={item.id} className="table-row-animate hover:bg-[#8B5CF6]/5 transition-all duration-300" style={{ opacity: 0 }}>
-                              <td className="py-4 px-5 text-sm text-gray-700 font-mono">{item.applyId}</td>
-                              <td className="py-4 px-5">
-                                <div className="flex items-center gap-2">
-                                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs text-gray-700 font-mono">{item.applyId}</td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4 hidden sm:table-cell">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] lg:text-[10px] font-semibold ${
                                     item.licenseType === 'NEW' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
                                   }`}>
                                     {item.licenseType}
                                   </span>
-                                  <span className="text-sm text-gray-700">{item.licenseNo || '-'}</span>
+                                  <span className="text-[10px] lg:text-xs text-gray-700 truncate max-w-[80px]">{item.licenseNo || '-'}</span>
                                 </div>
                               </td>
-                              <td className="py-4 px-5">
-                                <span className="text-sm">
-                                  <span className="text-gray-700">{dateStr}/</span>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4">
+                                <span className="text-[10px] lg:text-xs">
+                                  <span className="text-gray-700 hidden lg:inline">{dateStr}/</span>
                                   <span className="text-[#8B5CF6] font-medium">{timeStr}</span>
                                 </span>
                               </td>
-                              <td className="py-4 px-5 text-sm text-gray-700 font-medium">${parseFloat(item.totalCost).toFixed(2)}</td>
-                              <td className="py-4 px-5">
-                                <span className="px-2 py-1 bg-[#8B5CF6]/10 text-[#8B5CF6] rounded text-xs font-semibold">
-                                  {item.adAccountQty} account{item.adAccountQty > 1 ? 's' : ''}
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs text-gray-700 font-medium">${parseFloat(item.totalCost).toFixed(2)}</td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4 hidden md:table-cell">
+                                <span className="px-1.5 py-0.5 bg-[#8B5CF6]/10 text-[#8B5CF6] rounded text-[9px] lg:text-xs font-semibold">
+                                  {item.adAccountQty}
                                 </span>
                               </td>
-                              <td className="py-4 px-5">{getStatusBadge(item.status)}</td>
-                              <td className="py-4 px-5">
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4">{getStatusBadge(item.status)}</td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4">
                                 <button
                                   onClick={() => {
                                     // Parse accountDetails if it's a string

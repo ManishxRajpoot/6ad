@@ -60,7 +60,7 @@ export function Select({
   return (
     <div className={cn('relative', className)} ref={selectRef}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
           {label}
         </label>
       )}
@@ -70,13 +70,13 @@ export function Select({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          'w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-left',
-          'flex items-center justify-between gap-2',
+          'w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[12px] text-left',
+          'flex items-center justify-between gap-1.5',
           'transition-all duration-200',
-          'focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788] focus:bg-white',
+          'focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white',
           'hover:border-gray-300',
           disabled && 'opacity-50 cursor-not-allowed',
-          isOpen && 'border-[#52B788] ring-2 ring-[#52B788]/20 bg-white'
+          isOpen && 'border-[#7C3AED] ring-2 ring-[#7C3AED]/20 bg-white'
         )}
         disabled={disabled}
       >
@@ -87,7 +87,7 @@ export function Select({
         </span>
         <ChevronDown
           className={cn(
-            'w-4 h-4 text-gray-400 transition-transform duration-200',
+            'w-3.5 h-3.5 text-gray-400 transition-transform duration-200',
             isOpen && 'transform rotate-180'
           )}
         />
@@ -96,7 +96,7 @@ export function Select({
       {/* Dropdown Menu */}
       {isOpen && (
         <div
-          className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+          className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
           style={{
             animation: 'dropdownIn 0.2s ease-out'
           }}
@@ -124,11 +124,11 @@ export function Select({
                   setIsOpen(false)
                 }}
                 className={cn(
-                  'w-full px-4 py-3 text-sm text-left flex items-center justify-between gap-2',
+                  'w-full px-3 py-2 text-[12px] text-left flex items-center justify-between gap-1.5',
                   'transition-all duration-150',
-                  'hover:bg-[#52B788]/10',
+                  'hover:bg-[#7C3AED]/10',
                   value === option.value
-                    ? 'bg-[#52B788]/10 text-[#52B788] font-medium'
+                    ? 'bg-[#7C3AED]/10 text-[#7C3AED] font-medium'
                     : 'text-gray-700'
                 )}
                 style={{
@@ -137,7 +137,7 @@ export function Select({
               >
                 <span>{option.label}</span>
                 {value === option.value && (
-                  <Check className="w-4 h-4 text-[#52B788]" />
+                  <Check className="w-3.5 h-3.5 text-[#7C3AED]" />
                 )}
               </button>
             ))}

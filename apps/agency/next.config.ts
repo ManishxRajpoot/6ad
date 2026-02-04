@@ -5,6 +5,12 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+
+  // Always disable webpack cache - no stale module errors
+  webpack: (config) => {
+    config.cache = false
+    return config
+  },
 }
 
 export default nextConfig

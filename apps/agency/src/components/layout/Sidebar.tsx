@@ -54,24 +54,25 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       )}
 
       <aside className={cn(
-        "fixed left-0 top-0 h-screen w-[260px] bg-white border-r border-gray-100 flex flex-col z-50 transition-transform duration-300",
+        "fixed left-0 top-0 h-screen bg-white border-r border-gray-100 flex flex-col z-50 transition-transform duration-300",
+        "w-[240px] xl:w-[264px] 2xl:w-[288px]",
         // Mobile: hidden by default, show when isOpen
         "lg:translate-x-0",
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {/* Logo */}
-        <div className="px-5 py-5">
-          <Link href="/dashboard" className="flex items-center gap-3">
+        <div className="px-5 py-4">
+          <Link href="/dashboard" className="flex items-center gap-2.5">
             {user?.brandLogo ? (
               <img
                 src={user.brandLogo}
                 alt={user.brandName || 'Brand Logo'}
-                className="h-10 max-w-[180px] object-contain"
+                className="h-10 max-w-[192px] object-contain"
               />
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 {/* Six Media - Twisted Ribbon Infinity (Meta-style) */}
-                <svg viewBox="0 0 48 28" className="w-14 h-8" fill="none">
+                <svg viewBox="0 0 48 28" className="w-12 h-7" fill="none">
                   <defs>
                     <linearGradient id="ribbonGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
                       <stop offset="0%" stopColor="#6366F1"/>
@@ -97,10 +98,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 </svg>
                 {/* Text - Modern Typography */}
                 <div className="flex flex-col leading-none">
-                  <span className="text-[20px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
+                  <span className="text-[19px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
                     SIXMEDIA
                   </span>
-                  <span className="text-[9px] font-semibold tracking-[0.25em] text-gray-400 mt-0.5">
+                  <span className="text-[8px] font-semibold tracking-[0.2em] text-gray-400">
                     ADVERTISING
                   </span>
                 </div>
@@ -227,18 +228,18 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         {/* User Profile */}
         <div className="p-4 border-t border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-base font-medium">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-base font-medium">
               {user?.username?.charAt(0).toUpperCase() || 'A'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[15px] font-medium text-gray-900 truncate">
+              <p className="text-[14px] font-medium text-gray-900 truncate">
                 {user?.username || 'Agent'}
               </p>
-              <p className="text-sm text-gray-500 truncate">{user?.email || 'agent@sixmedia.in'}</p>
+              <p className="text-[12px] text-gray-500 truncate">{user?.email || 'agent@sixmedia.in'}</p>
             </div>
             <button
               onClick={handleLogout}
-              className="p-2.5 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
               title="Logout"
             >
               <LogOut className="w-5 h-5" />

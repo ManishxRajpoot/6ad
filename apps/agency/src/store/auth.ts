@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { authApi } from '@/lib/api'
 
 type User = {
   id: string
@@ -39,6 +40,7 @@ type AuthState = {
   setAuth: (user: User, token: string) => void
   setUser: (user: User) => void
   updateUser: (user: Partial<User>) => void
+  refreshUser: () => Promise<void>
   logout: () => void
   setHydrated: (state: boolean) => void
 }
@@ -61,6 +63,14 @@ export const useAuthStore = create<AuthState>()(
         set((state) => ({
           user: state.user ? { ...state.user, ...userData } : null
         }))
+      },
+      refreshUser: async () => {
+        try {
+          const { user } = await authApi.me()
+          set({ user })
+        } catch (error) {
+          console.error('Failed to refresh user:', error)
+        }
       },
       logout: () => {
         localStorage.removeItem('token')
