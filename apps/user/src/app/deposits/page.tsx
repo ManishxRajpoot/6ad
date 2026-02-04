@@ -646,9 +646,7 @@ export default function DepositsPage() {
       `}</style>
 
       <Card className="p-0 rounded-2xl overflow-hidden shadow-sm border border-gray-100 animate-scaleIn flex flex-col" style={{ height: 'calc(100vh - 140px)' }}>
-        {/* Scrollable content area - everything scrolls together */}
-        <div className="flex-1 overflow-auto">
-        {/* Header with Search and Actions - scrolls with content */}
+        {/* Header with Search and Actions - fixed at top */}
         <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-white to-gray-50/50">
           <div className="flex items-center justify-between gap-3">
             {/* Search */}
@@ -759,7 +757,8 @@ export default function DepositsPage() {
           </div>
         </div>
 
-        {/* Table Content - Table header is sticky within this scroll area */}
+        {/* Scrollable Table Content Area */}
+        <div className="flex-1 overflow-auto">
           {activeTab === 'add-money' && (
             <table className="w-full">
               <thead className="sticky top-0 z-10">
@@ -943,89 +942,6 @@ export default function DepositsPage() {
               </tbody>
             </table>
           )}
-
-        {/* Pagination for Deposits - inside scroll area */}
-        {activeTab === 'add-money' && filteredDeposits.length > 0 && (() => {
-          const totalPages = itemsPerPage === -1 ? 1 : Math.ceil(filteredDeposits.length / itemsPerPage)
-
-          return (
-            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between bg-white sticky bottom-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-gray-500">Show</span>
-                <PaginationSelect
-                  value={itemsPerPage}
-                  onChange={(value) => {
-                    setItemsPerPage(value)
-                    setCurrentPage(1)
-                  }}
-                />
-                <span className="text-[11px] text-gray-500">entries</span>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => currentPage > 1 && setCurrentPage(p => p - 1)}
-                  disabled={currentPage === 1}
-                  className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
-                    currentPage === 1
-                      ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
-                  }`}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-
-                {(() => {
-                  const pages: (number | string)[] = []
-                  if (totalPages <= 7) {
-                    for (let i = 1; i <= totalPages; i++) pages.push(i)
-                  } else {
-                    if (currentPage <= 3) {
-                      pages.push(1, 2, 3, 4, '...', totalPages)
-                    } else if (currentPage >= totalPages - 2) {
-                      pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
-                    } else {
-                      pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages)
-                    }
-                  }
-                  return pages.map((page, idx) => (
-                    typeof page === 'number' ? (
-                      <button
-                        key={idx}
-                        onClick={() => setCurrentPage(page)}
-                        className={`min-w-[28px] h-7 px-2 rounded-lg text-[11px] font-medium transition-all ${
-                          currentPage === page
-                            ? 'bg-[#7C3AED] text-white shadow-sm'
-                            : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ) : (
-                      <span key={idx} className="text-gray-400 text-[11px] px-1">...</span>
-                    )
-                  ))
-                })()}
-
-                <button
-                  onClick={() => currentPage < totalPages && setCurrentPage(p => p + 1)}
-                  disabled={currentPage === totalPages}
-                  className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
-                    currentPage === totalPages
-                      ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
-                  }`}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="text-[11px] text-gray-500">
-                Showing {((currentPage - 1) * (itemsPerPage === -1 ? filteredDeposits.length : itemsPerPage)) + 1}-{Math.min(currentPage * (itemsPerPage === -1 ? filteredDeposits.length : itemsPerPage), filteredDeposits.length)} of {filteredDeposits.length}
-              </div>
-            </div>
-          )
-        })()}
 
           {activeTab === 'pay-link' && (
             loadingPayLinks ? (
@@ -1318,13 +1234,97 @@ export default function DepositsPage() {
               )
             })()
           )}
+        </div>
 
-        {/* Pagination for Wallet Flow - inside scroll area */}
+        {/* Pagination for Deposits - fixed at bottom */}
+        {activeTab === 'add-money' && filteredDeposits.length > 0 && (() => {
+          const totalPages = itemsPerPage === -1 ? 1 : Math.ceil(filteredDeposits.length / itemsPerPage)
+
+          return (
+            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between bg-white">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-gray-500">Show</span>
+                <PaginationSelect
+                  value={itemsPerPage}
+                  onChange={(value) => {
+                    setItemsPerPage(value)
+                    setCurrentPage(1)
+                  }}
+                />
+                <span className="text-[11px] text-gray-500">entries</span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => currentPage > 1 && setCurrentPage(p => p - 1)}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
+                    currentPage === 1
+                      ? 'text-gray-300 cursor-not-allowed'
+                      : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                {(() => {
+                  const pages: (number | string)[] = []
+                  if (totalPages <= 7) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i)
+                  } else {
+                    if (currentPage <= 3) {
+                      pages.push(1, 2, 3, 4, '...', totalPages)
+                    } else if (currentPage >= totalPages - 2) {
+                      pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+                    } else {
+                      pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages)
+                    }
+                  }
+                  return pages.map((page, idx) => (
+                    typeof page === 'number' ? (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentPage(page)}
+                        className={`min-w-[28px] h-7 px-2 rounded-lg text-[11px] font-medium transition-all ${
+                          currentPage === page
+                            ? 'bg-[#7C3AED] text-white shadow-sm'
+                            : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ) : (
+                      <span key={idx} className="text-gray-400 text-[11px] px-1">...</span>
+                    )
+                  ))
+                })()}
+
+                <button
+                  onClick={() => currentPage < totalPages && setCurrentPage(p => p + 1)}
+                  disabled={currentPage === totalPages}
+                  className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
+                    currentPage === totalPages
+                      ? 'text-gray-300 cursor-not-allowed'
+                      : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
+                  }`}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="text-[11px] text-gray-500">
+                Showing {((currentPage - 1) * (itemsPerPage === -1 ? filteredDeposits.length : itemsPerPage)) + 1}-{Math.min(currentPage * (itemsPerPage === -1 ? filteredDeposits.length : itemsPerPage), filteredDeposits.length)} of {filteredDeposits.length}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Pagination for Wallet Flow - fixed at bottom */}
         {activeTab === 'wallet-flow' && walletFlows.length > 0 && (() => {
           const totalPages = Math.ceil(walletFlows.length / walletFlowPerPage)
 
           return (
-            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between bg-white sticky bottom-0">
+            <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between bg-white">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-gray-500">Show</span>
                 <PaginationSelect
@@ -1407,7 +1407,6 @@ export default function DepositsPage() {
             </div>
           )
         })()}
-        </div>
       </Card>
 
       {/* Add Deposit Money Modal */}
