@@ -8,7 +8,9 @@
     "packages/*"
   ],
   "scripts": {
+    "clean": "rm -rf apps/*/.next apps/*/.turbo .turbo",
     "dev": "turbo run dev",
+    "dev:fresh": "npm run clean && turbo run dev",
     "build": "npm run db:generate && turbo run build",
     "start": "node apps/api/dist/index.js",
     "lint": "turbo run lint",
