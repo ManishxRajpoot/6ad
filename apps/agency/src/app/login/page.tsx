@@ -880,16 +880,16 @@ export default function LoginPage() {
     // Default Login Form
     return (
       <div className="w-full max-w-[440px] px-2 sm:px-0">
-        <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 shadow-xl shadow-gray-200/50">
-          {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center mb-6 sm:mb-8">
+        <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-6 sm:p-8 xl:p-10 shadow-xl shadow-gray-200/50">
+          {/* Mobile/Tablet Logo */}
+          <div className="xl:hidden flex items-center justify-center mb-6 sm:mb-8">
             <SixMediaLogo size="small" />
           </div>
 
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 text-center lg:text-left">
+          <h1 className="text-xl sm:text-2xl xl:text-3xl font-bold text-gray-900 mb-2 text-center xl:text-left">
             Agency Portal
           </h1>
-          <p className="text-gray-500 mb-6 sm:mb-8 text-sm sm:text-base text-center lg:text-left">
+          <p className="text-gray-500 mb-6 sm:mb-8 text-sm sm:text-base text-center xl:text-left">
             Sign in to manage your agency dashboard
           </p>
 
@@ -1008,9 +1008,9 @@ export default function LoginPage() {
       </div>
 
       {/* Content Container */}
-      <div className="relative z-10 min-h-screen flex flex-col lg:flex-row">
-        {/* Left Section - Branding & Features (hidden on mobile) */}
-        <div className="hidden lg:flex w-full lg:w-[55%] p-8 lg:p-12 flex-col justify-between">
+      <div className="relative z-10 min-h-screen flex flex-col xl:flex-row">
+        {/* Left Section - Branding & Features (hidden on mobile and tablet) */}
+        <div className="hidden xl:flex w-full xl:w-[55%] p-8 xl:p-12 flex-col justify-between">
           {/* Logo Section */}
           <div className="flex items-center gap-4">
             <SixMediaLogo />
@@ -1019,16 +1019,16 @@ export default function LoginPage() {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 flex flex-col justify-center py-12 lg:py-0">
+          <div className="flex-1 flex flex-col justify-center py-12 xl:py-0">
             <div className="max-w-xl">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 bg-teal-100 border border-teal-200 rounded-full px-4 py-2 mb-6">
-                <Briefcase className="w-4 h-4 text-teal-600" />
-                <span className="text-teal-700 text-sm font-medium">Agency Management Portal</span>
+              <div className="inline-flex items-center gap-2 bg-teal-100 border border-teal-200 rounded-full px-3 xl:px-4 py-1.5 xl:py-2 mb-6">
+                <Briefcase className="w-3.5 xl:w-4 h-3.5 xl:h-4 text-teal-600" />
+                <span className="text-teal-700 text-xs xl:text-sm font-medium">Agency Management Portal</span>
               </div>
 
               {/* Headline */}
-              <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+              <h1 className="text-3xl xl:text-5xl 2xl:text-6xl font-bold text-gray-900 mb-6 leading-tight">
                 Manage Your
                 <br />
                 <span className="bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-500 bg-clip-text text-transparent">
@@ -1131,7 +1131,7 @@ export default function LoginPage() {
         </div>
 
         {/* Right Section - Dynamic Content */}
-        <div className="w-full lg:w-[45%] min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-12 overflow-hidden perspective-1000">
+        <div className="w-full xl:w-[45%] min-h-screen flex items-center justify-center p-4 sm:p-6 xl:p-12 overflow-hidden perspective-1000">
           <div className={`w-full max-w-[440px] flex items-center justify-center transform-style-3d ${animationClass}`}>
             {renderRightContent()}
           </div>

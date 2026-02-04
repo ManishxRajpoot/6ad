@@ -798,9 +798,9 @@ export default function LoginPage() {
     // Default Login Form
     return (
       <div className="w-full max-w-[440px] px-2 sm:px-0">
-        <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 shadow-xl shadow-gray-200/50">
-          {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center gap-2 mb-6 sm:mb-8">
+        <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-6 sm:p-8 xl:p-10 shadow-xl shadow-gray-200/50">
+          {/* Mobile/Tablet Logo */}
+          <div className="xl:hidden flex items-center justify-center gap-2 mb-6 sm:mb-8">
             {isUsingCustomBranding && branding.brandLogo ? (
               <img src={branding.brandLogo} alt="Logo" className="h-10 sm:h-12 max-w-[200px] sm:max-w-[220px] object-contain" />
             ) : (
@@ -808,10 +808,10 @@ export default function LoginPage() {
             )}
           </div>
 
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 text-center lg:text-left">
+          <h1 className="text-xl sm:text-2xl xl:text-3xl font-bold text-gray-900 mb-2 text-center xl:text-left">
             Welcome back
           </h1>
-          <p className="text-gray-500 mb-6 sm:mb-8 text-sm sm:text-base text-center lg:text-left">
+          <p className="text-gray-500 mb-6 sm:mb-8 text-sm sm:text-base text-center xl:text-left">
             Sign in to manage your ad accounts
           </p>
 
@@ -930,9 +930,9 @@ export default function LoginPage() {
       </div>
 
       {/* Content Container */}
-      <div className="relative z-10 min-h-screen flex flex-col lg:flex-row">
-        {/* Left Section - Branding & Features (hidden on mobile) */}
-        <div className="hidden lg:flex w-full lg:w-[55%] p-8 lg:p-16 flex-col justify-between">
+      <div className="relative z-10 min-h-screen flex flex-col xl:flex-row">
+        {/* Left Section - Branding & Features (hidden on mobile and tablet) */}
+        <div className="hidden xl:flex w-full xl:w-[55%] p-8 xl:p-16 flex-col justify-between">
           {/* Logo Section */}
           <div className="flex items-center gap-3">
             {isUsingCustomBranding && branding.brandLogo ? (
@@ -1031,7 +1031,7 @@ export default function LoginPage() {
         </div>
 
         {/* Right Section - Dynamic Content */}
-        <div className="w-full lg:w-[45%] min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-12 overflow-hidden perspective-1000">
+        <div className="w-full xl:w-[45%] min-h-screen flex items-center justify-center p-4 sm:p-6 xl:p-12 overflow-hidden perspective-1000">
           <div className={`w-full max-w-[440px] flex items-center justify-center transform-style-3d ${animationClass}`}>
             {renderRightContent()}
           </div>
