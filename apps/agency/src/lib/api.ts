@@ -213,6 +213,13 @@ export const domainsApi = {
   getDnsConfig: () => api.get<{ vpsIp: string }>('/domains/dns-config'),
 }
 
+// Branding API (Agent email sender name + branding)
+export const brandingApi = {
+  get: () => api.get<{ branding: { id: string; brandLogo: string | null; brandName: string | null; emailSenderName: string | null; emailSenderNameApproved: string | null; emailSenderNameStatus: string | null } }>('/agents/branding'),
+  update: (data: { brandLogo?: string; brandName?: string; emailSenderName?: string }) =>
+    api.patch<{ message: string; agent: any }>('/agents/branding', data),
+}
+
 // Agent Withdrawals API
 export const agentWithdrawalsApi = {
   getStats: () => api.get<{

@@ -677,7 +677,7 @@ accounts.post('/', requireUser, async (c) => {
         platform: data.platform,
         agentLogo: user.agent?.brandLogo
       })
-      sendEmail({ to: user.email, ...userEmail }).catch(console.error)
+      sendEmail({ to: user.email, ...userEmail, senderName: user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
       // Send notification to admin and agent
       const adminNotification = getAdminNotificationTemplate({
@@ -717,7 +717,7 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
     })
 
     if (!account) {
@@ -746,7 +746,7 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
       adminRemarks,
       agentLogo: account.user.agent?.brandLogo
     })
-    sendEmail({ to: account.user.email, ...userEmail }).catch(console.error)
+    sendEmail({ to: account.user.email, ...userEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
     return c.json({ message: 'Account approved successfully' })
   } catch (error) {
@@ -763,7 +763,7 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
     })
 
     if (!account) {
@@ -786,7 +786,7 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
       adminRemarks,
       agentLogo: account.user.agent?.brandLogo
     })
-    sendEmail({ to: account.user.email, ...userEmail }).catch(console.error)
+    sendEmail({ to: account.user.email, ...userEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
     return c.json({ message: 'Account rejected' })
   } catch (error) {
@@ -907,7 +907,7 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
       accountName: account.accountName || undefined,
       agentLogo: account.user.agent?.brandLogo
     })
-    sendEmail({ to: account.user.email, ...userEmailTemplate }).catch(console.error)
+    sendEmail({ to: account.user.email, ...userEmailTemplate, senderName: account.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
     // Notify admins and agent
     const adminNotification = getAdminNotificationTemplate({
@@ -948,7 +948,7 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       where: { id },
       include: {
         adAccount: {
-          include: { user: { include: { agent: { select: { brandLogo: true } } } } }
+          include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
         }
       }
     })
@@ -1004,7 +1004,7 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       newBalance: Number(updatedAccount?.balance) || 0,
       agentLogo: deposit.adAccount.user.agent?.brandLogo
     })
-    sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate }).catch(console.error)
+    sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate, senderName: deposit.adAccount.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
     return c.json({
       message: 'Account deposit approved',
@@ -1028,7 +1028,7 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       where: { id },
       include: {
         adAccount: {
-          include: { user: { include: { agent: { select: { brandLogo: true } } } } }
+          include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
         }
       }
     })
@@ -1092,7 +1092,7 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       adminRemarks,
       agentLogo: deposit.adAccount.user.agent?.brandLogo
     })
-    sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate }).catch(console.error)
+    sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate, senderName: deposit.adAccount.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
     return c.json({ message: 'Account deposit rejected and refunded' })
   } catch (error) {

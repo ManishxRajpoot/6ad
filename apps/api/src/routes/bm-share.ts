@@ -198,7 +198,7 @@ bmShare.post('/', requireUser, async (c) => {
     // Get user with agent info for email
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { agent: { select: { email: true, brandLogo: true } } }
+      include: { agent: { select: { email: true, brandLogo: true, emailSenderNameApproved: true } } }
     })
 
     // Create request with PROCESSING status immediately
@@ -231,7 +231,7 @@ bmShare.post('/', requireUser, async (c) => {
         bmId: data.bmId,
         agentLogo: user.agent?.brandLogo
       })
-      sendEmail({ to: user.email, ...userEmailTemplate }).catch(console.error)
+      sendEmail({ to: user.email, ...userEmailTemplate, senderName: user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
       // Notify admins and agent
       const adminNotification = getAdminNotificationTemplate({
@@ -404,7 +404,7 @@ bmShare.post('/:id/approve', requireAdmin, async (c) => {
 
     const request = await prisma.bmShareRequest.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
     })
 
     if (!request) {
@@ -456,7 +456,7 @@ bmShare.post('/:id/approve', requireAdmin, async (c) => {
       adminRemarks: (adminRemarks || '') + apiMessage,
       agentLogo: request.user.agent?.brandLogo
     })
-    sendEmail({ to: request.user.email, ...userEmailTemplate }).catch(console.error)
+    sendEmail({ to: request.user.email, ...userEmailTemplate, senderName: request.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
     return c.json({ message: 'BM share request approved.' + apiMessage })
   } catch (error) {
@@ -473,7 +473,7 @@ bmShare.post('/:id/reject', requireAdmin, async (c) => {
 
     const request = await prisma.bmShareRequest.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
     })
 
     if (!request) {
@@ -503,7 +503,7 @@ bmShare.post('/:id/reject', requireAdmin, async (c) => {
       adminRemarks,
       agentLogo: request.user.agent?.brandLogo
     })
-    sendEmail({ to: request.user.email, ...userEmailTemplate }).catch(console.error)
+    sendEmail({ to: request.user.email, ...userEmailTemplate, senderName: request.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
     return c.json({ message: 'BM share request rejected' })
   } catch (error) {

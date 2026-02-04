@@ -612,7 +612,7 @@ auth.post('/email/send-code', verifyToken, async (c) => {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, username: true, emailVerified: true }
+      select: { email: true, username: true, emailVerified: true, agent: { select: { brandLogo: true, emailSenderNameApproved: true } } }
     })
 
     if (!user) {
@@ -637,11 +637,12 @@ auth.post('/email/send-code', verifyToken, async (c) => {
     })
 
     // Send verification email
-    const emailTemplate = getVerificationEmailTemplate(code, user.username)
+    const emailTemplate = getVerificationEmailTemplate(code, user.username, user.agent?.brandLogo)
     const emailSent = await sendEmail({
       to: user.email,
       subject: emailTemplate.subject,
-      html: emailTemplate.html
+      html: emailTemplate.html,
+      senderName: user.agent?.emailSenderNameApproved || undefined
     })
 
     if (!emailSent) {

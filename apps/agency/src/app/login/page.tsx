@@ -1010,25 +1010,25 @@ export default function LoginPage() {
       {/* Content Container */}
       <div className="relative z-10 min-h-screen flex flex-col xl:flex-row">
         {/* Left Section - Branding & Features (hidden on mobile and tablet) */}
-        <div className="hidden xl:flex w-full xl:w-[55%] p-8 xl:p-12 flex-col justify-between">
+        <div className="hidden xl:flex w-full xl:w-[55%] p-6 xl:p-10 2xl:p-12 flex-col justify-between">
           {/* Logo Section */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 xl:gap-4">
             <SixMediaLogo />
-            <div className="h-10 w-px bg-gray-300" />
-            <span className="text-lg font-semibold text-gray-700">Agency Portal</span>
+            <div className="h-8 xl:h-10 w-px bg-gray-300" />
+            <span className="text-base xl:text-lg font-semibold text-gray-700">Agency Portal</span>
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 flex flex-col justify-center py-12 xl:py-0">
+          <div className="flex-1 flex flex-col justify-center py-8 xl:py-0">
             <div className="max-w-xl">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 bg-teal-100 border border-teal-200 rounded-full px-3 xl:px-4 py-1.5 xl:py-2 mb-6">
-                <Briefcase className="w-3.5 xl:w-4 h-3.5 xl:h-4 text-teal-600" />
-                <span className="text-teal-700 text-xs xl:text-sm font-medium">Agency Management Portal</span>
+              <div className="inline-flex items-center gap-1.5 xl:gap-2 bg-teal-100 border border-teal-200 rounded-full px-2.5 xl:px-4 py-1 xl:py-2 mb-4 xl:mb-6">
+                <Briefcase className="w-3 xl:w-4 h-3 xl:h-4 text-teal-600" />
+                <span className="text-teal-700 text-[11px] xl:text-sm font-medium">Agency Management Portal</span>
               </div>
 
               {/* Headline */}
-              <h1 className="text-3xl xl:text-5xl 2xl:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+              <h1 className="text-2xl xl:text-4xl 2xl:text-5xl font-bold text-gray-900 mb-4 xl:mb-6 leading-tight">
                 Manage Your
                 <br />
                 <span className="bg-gradient-to-r from-teal-600 via-cyan-600 to-teal-500 bg-clip-text text-transparent">
@@ -1038,68 +1038,68 @@ export default function LoginPage() {
                 With Ease
               </h1>
 
-              <p className="text-gray-600 text-lg mb-10 leading-relaxed max-w-lg">
+              <p className="text-gray-600 text-sm xl:text-base 2xl:text-lg mb-6 xl:mb-10 leading-relaxed max-w-lg">
                 Access your agency dashboard to manage users, track performance, and grow your advertising business.
               </p>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-5 hover:shadow-lg hover:border-teal-200 transition-all group">
-                  <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <Users className="w-5 h-5 text-teal-600" />
+              <div className="grid grid-cols-3 gap-2 xl:gap-4 mb-6 xl:mb-10">
+                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl xl:rounded-2xl p-3 xl:p-5 hover:shadow-lg hover:border-teal-200 transition-all group">
+                  <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-teal-100 flex items-center justify-center mb-2 xl:mb-3 group-hover:scale-110 transition-transform">
+                    <Users className="w-4 h-4 xl:w-5 xl:h-5 text-teal-600" />
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">500+</p>
-                  <p className="text-gray-500 text-sm">Active Users</p>
+                  <p className="text-lg xl:text-2xl font-bold text-gray-900">500+</p>
+                  <p className="text-gray-500 text-[10px] xl:text-sm">Active Users</p>
                 </div>
 
-                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-5 hover:shadow-lg hover:border-cyan-200 transition-all group">
-                  <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <TrendingUp className="w-5 h-5 text-cyan-600" />
+                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl xl:rounded-2xl p-3 xl:p-5 hover:shadow-lg hover:border-cyan-200 transition-all group">
+                  <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-cyan-100 flex items-center justify-center mb-2 xl:mb-3 group-hover:scale-110 transition-transform">
+                    <TrendingUp className="w-4 h-4 xl:w-5 xl:h-5 text-cyan-600" />
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">$1.2M+</p>
-                  <p className="text-gray-500 text-sm">Monthly Volume</p>
+                  <p className="text-lg xl:text-2xl font-bold text-gray-900">$1.2M+</p>
+                  <p className="text-gray-500 text-[10px] xl:text-sm">Monthly Vol</p>
                 </div>
 
-                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-5 hover:shadow-lg hover:border-emerald-200 transition-all group col-span-2 lg:col-span-1">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <BarChart3 className="w-5 h-5 text-emerald-600" />
+                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl xl:rounded-2xl p-3 xl:p-5 hover:shadow-lg hover:border-emerald-200 transition-all group">
+                  <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-emerald-100 flex items-center justify-center mb-2 xl:mb-3 group-hover:scale-110 transition-transform">
+                    <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 text-emerald-600" />
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">99.9%</p>
-                  <p className="text-gray-500 text-sm">Uptime</p>
+                  <p className="text-lg xl:text-2xl font-bold text-gray-900">99.9%</p>
+                  <p className="text-gray-500 text-[10px] xl:text-sm">Uptime</p>
                 </div>
               </div>
 
               {/* Features */}
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-2 text-gray-600">
-                  <CheckCircle2 className="w-5 h-5 text-teal-500" />
-                  <span className="text-sm">User Management</span>
+              <div className="flex flex-wrap gap-2 xl:gap-4">
+                <div className="flex items-center gap-1.5 xl:gap-2 text-gray-600">
+                  <CheckCircle2 className="w-4 h-4 xl:w-5 xl:h-5 text-teal-500" />
+                  <span className="text-[11px] xl:text-sm">User Management</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <CheckCircle2 className="w-5 h-5 text-teal-500" />
-                  <span className="text-sm">Real-time Analytics</span>
+                <div className="flex items-center gap-1.5 xl:gap-2 text-gray-600">
+                  <CheckCircle2 className="w-4 h-4 xl:w-5 xl:h-5 text-teal-500" />
+                  <span className="text-[11px] xl:text-sm">Real-time Analytics</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <CheckCircle2 className="w-5 h-5 text-teal-500" />
-                  <span className="text-sm">Secure Platform</span>
+                <div className="flex items-center gap-1.5 xl:gap-2 text-gray-600">
+                  <CheckCircle2 className="w-4 h-4 xl:w-5 xl:h-5 text-teal-500" />
+                  <span className="text-[11px] xl:text-sm">Secure Platform</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="hidden lg:flex items-center gap-4">
-            <span className="text-gray-400 text-sm">Supported platforms:</span>
-            <div className="flex items-center gap-3">
+          <div className="hidden xl:flex items-center gap-3 xl:gap-4">
+            <span className="text-gray-400 text-[11px] xl:text-sm">Supported platforms:</span>
+            <div className="flex items-center gap-2 xl:gap-3">
               {/* Facebook */}
-              <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
-                <svg className="w-5 h-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
+              <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
+                <svg className="w-4 h-4 xl:w-5 xl:h-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
               </div>
               {/* Google */}
-              <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
+                <svg className="w-4 h-4 xl:w-5 xl:h-5" viewBox="0 0 24 24">
                   <path fill="#EA4335" d="M5.26 9.76A7.05 7.05 0 0 1 12 5.06c1.68 0 3.19.58 4.39 1.54l3.28-3.28A11.96 11.96 0 0 0 12 .06c-4.74 0-8.8 2.76-10.74 6.76l4 3.1z"/>
                   <path fill="#34A853" d="M1.26 9.76A11.91 11.91 0 0 0 0 12.06c0 1.92.45 3.73 1.26 5.34l4-3.1a7.15 7.15 0 0 1 0-4.44l-4-3.1z"/>
                   <path fill="#4285F4" d="M12 18.06c-2.67 0-5-1.47-6.26-3.66l-4 3.1C4.2 21.36 7.8 24.06 12 24.06c3.02 0 5.74-1.14 7.84-2.98l-3.9-3.02c-1.1.72-2.47 1.14-3.94 1.14z"/>
@@ -1107,20 +1107,20 @@ export default function LoginPage() {
                 </svg>
               </div>
               {/* TikTok */}
-              <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
-                <svg className="w-5 h-5 text-gray-900" viewBox="0 0 24 24" fill="currentColor">
+              <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
+                <svg className="w-4 h-4 xl:w-5 xl:h-5 text-gray-900" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
                 </svg>
               </div>
               {/* Snapchat */}
-              <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
-                <svg className="w-5 h-5 text-[#FFFC00]" viewBox="0 0 24 24" fill="currentColor">
+              <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
+                <svg className="w-4 h-4 xl:w-5 xl:h-5 text-[#FFFC00]" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301a.603.603 0 0 1 .272-.063c.12 0 .24.03.345.09.264.135.39.345.39.585 0 .196-.076.375-.21.515-.15.135-.39.27-.795.39-.06.016-.12.03-.18.045-.165.045-.345.09-.51.135-.075.016-.15.045-.225.075-.15.06-.255.135-.3.225-.045.105-.045.225 0 .36.09.195.18.39.285.585.12.24.375.705.66 1.125.36.54.78.99 1.245 1.35.27.195.54.36.81.495.15.075.27.15.375.225.27.165.42.39.435.6.03.21-.075.435-.285.615a1.665 1.665 0 0 1-.765.345 4.2 4.2 0 0 1-.84.12c-.225.015-.45.045-.675.105-.15.045-.285.12-.405.21-.21.165-.315.33-.315.465-.015.135.015.27.075.405.06.135.135.27.225.405.18.27.285.585.255.885-.045.405-.345.72-.735.84-.21.06-.435.09-.66.09-.21 0-.405-.03-.585-.075a4.065 4.065 0 0 0-.675-.12c-.15-.015-.3-.015-.45 0-.195.015-.39.045-.585.09-.255.06-.51.135-.765.225l-.09.03c-.255.09-.54.18-.84.255a4.62 4.62 0 0 1-1.095.135c-.375 0-.75-.045-1.11-.135a7.316 7.316 0 0 1-.84-.255l-.075-.03a8.06 8.06 0 0 0-.765-.225 3.975 3.975 0 0 0-.585-.09c-.15-.015-.3-.015-.45 0-.225.015-.45.06-.675.12-.195.045-.39.075-.585.075-.225 0-.45-.03-.66-.09-.39-.12-.69-.435-.735-.84-.03-.3.075-.615.255-.885.09-.135.165-.27.225-.405.06-.135.09-.27.075-.405 0-.135-.105-.3-.315-.465a1.11 1.11 0 0 0-.405-.21 4.62 4.62 0 0 0-.675-.105 4.2 4.2 0 0 1-.84-.12 1.665 1.665 0 0 1-.765-.345c-.21-.18-.315-.405-.285-.615.015-.21.165-.435.435-.6.105-.075.225-.15.375-.225.27-.135.54-.3.81-.495.465-.36.885-.81 1.245-1.35.285-.42.54-.885.66-1.125.105-.195.195-.39.285-.585.045-.135.045-.255 0-.36-.045-.09-.15-.165-.3-.225a1.665 1.665 0 0 0-.225-.075 6.6 6.6 0 0 1-.51-.135c-.06-.015-.12-.03-.18-.045-.405-.12-.645-.255-.795-.39a.585.585 0 0 1-.21-.515c0-.24.126-.45.39-.585a.69.69 0 0 1 .345-.09c.09 0 .18.015.27.063.375.18.735.285 1.035.3.198 0 .326-.044.4-.089a4.95 4.95 0 0 1-.032-.51l-.004-.06c-.103-1.628-.229-3.654.3-4.847C7.86 1.069 11.215.793 12.206.793z"/>
                 </svg>
               </div>
               {/* Bing */}
-              <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow">
+                <svg className="w-4 h-4 xl:w-5 xl:h-5" viewBox="0 0 24 24">
                   <path fill="#008373" d="M5 3v16.5l4.5 2.5 8-4.5v-4L9.5 10V5.5L5 3z"/>
                   <path fill="#00A99D" d="M9.5 5.5V10l8 3.5v4l-8 4.5L5 19.5V3l4.5 2.5z"/>
                   <path fill="#00C8B4" d="M9.5 10l8 3.5v4l-8 4.5v-12z"/>

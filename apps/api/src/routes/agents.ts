@@ -119,6 +119,40 @@ agents.get('/', requireAdmin, async (c) => {
   }
 })
 
+// GET /agents/branding - Get own branding settings (Agent only)
+agents.get('/branding', async (c) => {
+  try {
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+
+    // Only agents can get their branding
+    if (userRole !== 'AGENT') {
+      return c.json({ error: 'Only agents can access branding' }, 403)
+    }
+
+    const agent = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        brandLogo: true,
+        brandName: true,
+        emailSenderName: true,
+        emailSenderNameApproved: true,
+        emailSenderNameStatus: true,
+      }
+    })
+
+    if (!agent) {
+      return c.json({ error: 'Agent not found' }, 404)
+    }
+
+    return c.json({ branding: agent })
+  } catch (error) {
+    console.error('Get branding error:', error)
+    return c.json({ error: 'Failed to get branding' }, 500)
+  }
+})
+
 // PATCH /agents/branding - Update own branding (Agent only)
 // NOTE: This route MUST be before /:id routes to avoid being matched as an ID
 agents.patch('/branding', async (c) => {
@@ -132,26 +166,162 @@ agents.patch('/branding', async (c) => {
     }
 
     const body = await c.req.json()
-    const { brandLogo, brandName } = body
+    const { brandLogo, brandName, emailSenderName } = body
+
+    // If emailSenderName is being updated, set status to PENDING for admin approval
+    const updateData: any = {
+      brandLogo: brandLogo || null,
+      brandName: brandName || null,
+    }
+
+    // Handle email sender name with approval workflow
+    if (emailSenderName !== undefined) {
+      if (emailSenderName && emailSenderName.trim()) {
+        updateData.emailSenderName = emailSenderName.trim()
+        updateData.emailSenderNameStatus = 'PENDING'
+      } else {
+        // If clearing the email sender name, clear both pending and approved
+        updateData.emailSenderName = null
+        updateData.emailSenderNameApproved = null
+        updateData.emailSenderNameStatus = null
+      }
+    }
 
     const agent = await prisma.user.update({
       where: { id: userId },
-      data: {
-        brandLogo: brandLogo || null,
-        brandName: brandName || null,
-      },
+      data: updateData,
       select: {
         id: true,
         brandLogo: true,
         brandName: true,
+        emailSenderName: true,
+        emailSenderNameApproved: true,
+        emailSenderNameStatus: true,
         updatedAt: true,
       }
     })
 
-    return c.json({ message: 'Branding updated successfully', agent })
+    return c.json({ message: 'Branding updated successfully. Email sender name requires admin approval.', agent })
   } catch (error) {
     console.error('Update branding error:', error)
     return c.json({ error: 'Failed to update branding' }, 500)
+  }
+})
+
+// ==================== ADMIN EMAIL SENDER NAME APPROVAL ====================
+
+// GET /agents/email-settings/pending - Get all agents with pending email sender name requests (Admin only)
+agents.get('/email-settings/pending', requireAdmin, async (c) => {
+  try {
+    const pendingRequests = await prisma.user.findMany({
+      where: {
+        role: 'AGENT',
+        emailSenderNameStatus: 'PENDING',
+        emailSenderName: { not: null }
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        emailSenderName: true,
+        emailSenderNameApproved: true,
+        emailSenderNameStatus: true,
+        brandName: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' }
+    })
+
+    return c.json({ requests: pendingRequests })
+  } catch (error) {
+    console.error('Get pending email settings error:', error)
+    return c.json({ error: 'Failed to get pending email settings' }, 500)
+  }
+})
+
+// PATCH /agents/email-settings/:id/approve - Approve email sender name (Admin only)
+agents.patch('/email-settings/:id/approve', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+
+    const agent = await prisma.user.findUnique({
+      where: { id, role: 'AGENT' },
+      select: { emailSenderName: true, emailSenderNameStatus: true }
+    })
+
+    if (!agent) {
+      return c.json({ error: 'Agent not found' }, 404)
+    }
+
+    if (agent.emailSenderNameStatus !== 'PENDING') {
+      return c.json({ error: 'No pending email sender name request found' }, 400)
+    }
+
+    const updatedAgent = await prisma.user.update({
+      where: { id },
+      data: {
+        emailSenderNameApproved: agent.emailSenderName,
+        emailSenderNameStatus: 'APPROVED',
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        emailSenderName: true,
+        emailSenderNameApproved: true,
+        emailSenderNameStatus: true,
+      }
+    })
+
+    return c.json({ message: 'Email sender name approved successfully', agent: updatedAgent })
+  } catch (error) {
+    console.error('Approve email sender name error:', error)
+    return c.json({ error: 'Failed to approve email sender name' }, 500)
+  }
+})
+
+// PATCH /agents/email-settings/:id/reject - Reject email sender name (Admin only)
+agents.patch('/email-settings/:id/reject', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+    const body = await c.req.json()
+    const { reason } = body
+
+    const agent = await prisma.user.findUnique({
+      where: { id, role: 'AGENT' },
+      select: { emailSenderName: true, emailSenderNameStatus: true }
+    })
+
+    if (!agent) {
+      return c.json({ error: 'Agent not found' }, 404)
+    }
+
+    if (agent.emailSenderNameStatus !== 'PENDING') {
+      return c.json({ error: 'No pending email sender name request found' }, 400)
+    }
+
+    // Reset the pending name and status
+    const updatedAgent = await prisma.user.update({
+      where: { id },
+      data: {
+        emailSenderName: null,
+        emailSenderNameStatus: 'REJECTED',
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        emailSenderName: true,
+        emailSenderNameApproved: true,
+        emailSenderNameStatus: true,
+      }
+    })
+
+    return c.json({ message: 'Email sender name rejected', agent: updatedAgent })
+  } catch (error) {
+    console.error('Reject email sender name error:', error)
+    return c.json({ error: 'Failed to reject email sender name' }, 500)
   }
 })
 

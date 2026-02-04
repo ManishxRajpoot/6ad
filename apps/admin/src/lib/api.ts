@@ -75,6 +75,12 @@ export const agentsApi = {
   unblock: (id: string) => api.post<{ message: string }>(`/agents/${id}/unblock`, {}),
   addCoupons: (agentId: string, amount: number) => api.post<{ message: string; agent: any }>(`/agents/${agentId}/add-coupons`, { amount }),
   removeCoupons: (agentId: string, amount: number) => api.post<{ message: string; agent: any }>(`/agents/${agentId}/remove-coupons`, { amount }),
+  // Email Sender Name Approvals
+  emailSettings: {
+    getPending: () => api.get<{ requests: any[] }>('/agents/email-settings/pending'),
+    approve: (id: string) => api.patch<{ message: string; agent: any }>(`/agents/email-settings/${id}/approve`, {}),
+    reject: (id: string, reason?: string) => api.patch<{ message: string; agent: any }>(`/agents/email-settings/${id}/reject`, { reason }),
+  }
 }
 
 // Users API

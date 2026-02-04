@@ -932,7 +932,7 @@ export default function LoginPage() {
       {/* Content Container */}
       <div className="relative z-10 min-h-screen flex flex-col xl:flex-row">
         {/* Left Section - Branding & Features (hidden on mobile and tablet) */}
-        <div className="hidden xl:flex w-full xl:w-[55%] p-8 xl:p-16 flex-col justify-between">
+        <div className="hidden xl:flex w-full xl:w-[55%] p-6 xl:p-10 2xl:p-16 flex-col justify-between">
           {/* Logo Section */}
           <div className="flex items-center gap-3">
             {isUsingCustomBranding && branding.brandLogo ? (
@@ -943,16 +943,16 @@ export default function LoginPage() {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 flex flex-col justify-center py-12 lg:py-0">
+          <div className="flex-1 flex flex-col justify-center py-12 xl:py-0">
             <div className="max-w-xl">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 bg-purple-100 border border-purple-200 rounded-full px-4 py-2 mb-6">
-                <Award className="w-4 h-4 text-purple-600" />
-                <span className="text-purple-700 text-sm font-medium">Premium Ad Account Platform</span>
+              <div className="inline-flex items-center gap-2 bg-purple-100 border border-purple-200 rounded-full px-3 py-1.5 xl:px-4 xl:py-2 mb-4 xl:mb-6">
+                <Award className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-purple-600" />
+                <span className="text-purple-700 text-xs xl:text-sm font-medium">Premium Ad Account Platform</span>
               </div>
 
               {/* Headline */}
-              <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+              <h1 className="text-3xl xl:text-5xl 2xl:text-6xl font-bold text-gray-900 mb-4 xl:mb-6 leading-tight">
                 Scale Your
                 <br />
                 <span className="bg-gradient-to-r from-purple-600 via-violet-600 to-emerald-500 bg-clip-text text-transparent">
@@ -962,64 +962,64 @@ export default function LoginPage() {
                 Without Limits
               </h1>
 
-              <p className="text-gray-600 text-lg mb-10 leading-relaxed max-w-lg">
+              <p className="text-gray-600 text-base xl:text-lg mb-6 xl:mb-10 leading-relaxed max-w-lg">
                 Access premium ad accounts for Facebook, Google, TikTok & more. Trusted by thousands of media buyers worldwide.
               </p>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-5 hover:shadow-lg hover:border-purple-200 transition-all group">
-                  <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <TrendingUp className="w-5 h-5 text-purple-600" />
+              <div className="grid grid-cols-3 gap-3 xl:gap-4 mb-6 xl:mb-10">
+                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl xl:rounded-2xl p-3 xl:p-5 hover:shadow-lg hover:border-purple-200 transition-all group">
+                  <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-purple-100 flex items-center justify-center mb-2 xl:mb-3 group-hover:scale-110 transition-transform">
+                    <TrendingUp className="w-4 h-4 xl:w-5 xl:h-5 text-purple-600" />
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">$2.5M+</p>
-                  <p className="text-gray-500 text-sm">Ad Spend Managed</p>
+                  <p className="text-lg xl:text-2xl font-bold text-gray-900">$2.5M+</p>
+                  <p className="text-gray-500 text-xs xl:text-sm">Ad Spend</p>
                 </div>
 
-                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-5 hover:shadow-lg hover:border-emerald-200 transition-all group">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <Users className="w-5 h-5 text-emerald-600" />
+                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl xl:rounded-2xl p-3 xl:p-5 hover:shadow-lg hover:border-emerald-200 transition-all group">
+                  <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-emerald-100 flex items-center justify-center mb-2 xl:mb-3 group-hover:scale-110 transition-transform">
+                    <Users className="w-4 h-4 xl:w-5 xl:h-5 text-emerald-600" />
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">10K+</p>
-                  <p className="text-gray-500 text-sm">Active Advertisers</p>
+                  <p className="text-lg xl:text-2xl font-bold text-gray-900">10K+</p>
+                  <p className="text-gray-500 text-xs xl:text-sm">Advertisers</p>
                 </div>
 
-                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl p-5 hover:shadow-lg hover:border-blue-200 transition-all group col-span-2 lg:col-span-1">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <svg className="w-5 h-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl xl:rounded-2xl p-3 xl:p-5 hover:shadow-lg hover:border-blue-200 transition-all group">
+                  <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-blue-100 flex items-center justify-center mb-2 xl:mb-3 group-hover:scale-110 transition-transform">
+                    <svg className="w-4 h-4 xl:w-5 xl:h-5 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">500+</p>
-                  <p className="text-gray-500 text-sm">Facebook Accounts</p>
+                  <p className="text-lg xl:text-2xl font-bold text-gray-900">500+</p>
+                  <p className="text-gray-500 text-xs xl:text-sm">FB Accounts</p>
                 </div>
               </div>
 
               {/* Features */}
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-2 text-gray-600">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                  <span className="text-sm">Instant Access</span>
+              <div className="flex flex-wrap gap-3 xl:gap-4">
+                <div className="flex items-center gap-1.5 xl:gap-2 text-gray-600">
+                  <CheckCircle2 className="w-4 h-4 xl:w-5 xl:h-5 text-emerald-500" />
+                  <span className="text-xs xl:text-sm">Instant Access</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                  <span className="text-sm">Secure Platform</span>
+                <div className="flex items-center gap-1.5 xl:gap-2 text-gray-600">
+                  <CheckCircle2 className="w-4 h-4 xl:w-5 xl:h-5 text-emerald-500" />
+                  <span className="text-xs xl:text-sm">Secure Platform</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                  <span className="text-sm">24/7 Support</span>
+                <div className="flex items-center gap-1.5 xl:gap-2 text-gray-600">
+                  <CheckCircle2 className="w-4 h-4 xl:w-5 xl:h-5 text-emerald-500" />
+                  <span className="text-xs xl:text-sm">24/7 Support</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Platform logos with loop animation */}
-          <div className="hidden lg:flex items-center gap-6">
-            <span className="text-gray-400 text-sm">Supported platforms:</span>
-            <div className="flex items-center gap-4 platform-container overflow-hidden">
-              <div className="flex items-center gap-4 animate-slide">
+          <div className="hidden xl:flex items-center gap-4 xl:gap-6">
+            <span className="text-gray-400 text-xs xl:text-sm">Supported platforms:</span>
+            <div className="flex items-center gap-3 xl:gap-4 platform-container overflow-hidden">
+              <div className="flex items-center gap-3 xl:gap-4 animate-slide">
                 {[...platforms, ...platforms].map((platform, index) => (
                   <div
                     key={index}
-                    className="w-10 h-10 rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow flex-shrink-0"
+                    className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-white border border-gray-200 flex items-center justify-center shadow-sm hover:shadow-md transition-shadow flex-shrink-0"
                     title={platform.name}
                   >
                     {platform.icon}

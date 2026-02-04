@@ -25,12 +25,14 @@ interface EmailOptions {
   subject: string
   html: string
   text?: string
+  senderName?: string  // Custom sender name for whitelabel agencies
 }
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
+    const senderName = options.senderName || 'Six Media'
     const info = await transporter.sendMail({
-      from: '"Six Media" <info@6ad.in>',
+      from: `"${senderName}" <info@6ad.in>`,
       to: options.to,
       subject: options.subject,
       html: options.html,

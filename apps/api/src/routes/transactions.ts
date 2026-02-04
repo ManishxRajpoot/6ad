@@ -169,7 +169,7 @@ transactions.post('/deposits', requireUser, async (c) => {
     // Get user for email
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { agent: { select: { email: true, brandLogo: true } } }
+      include: { agent: { select: { email: true, brandLogo: true, emailSenderNameApproved: true } } }
     })
 
     // Regular (non-crypto) deposit - create as pending
@@ -195,7 +195,7 @@ transactions.post('/deposits', requireUser, async (c) => {
         txHash: transactionId,
         agentLogo: user.agent?.brandLogo
       })
-      sendEmail({ to: user.email, ...userEmailTemplate }).catch(console.error)
+      sendEmail({ to: user.email, ...userEmailTemplate, senderName: user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
       // Notify admins and agent
       const adminNotification = getAdminNotificationTemplate({
@@ -230,7 +230,7 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
 
     const deposit = await prisma.deposit.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
     })
 
     if (!deposit) {
@@ -296,7 +296,7 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
       newBalance,
       agentLogo: deposit.user.agent?.brandLogo
     })
-    sendEmail({ to: deposit.user.email, ...userEmailTemplate }).catch(console.error)
+    sendEmail({ to: deposit.user.email, ...userEmailTemplate, senderName: deposit.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
     return c.json({ message: 'Deposit approved successfully' })
   } catch (error) {
@@ -313,7 +313,7 @@ transactions.post('/deposits/:id/reject', requireAdmin, async (c) => {
 
     const deposit = await prisma.deposit.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true } } } } }
     })
 
     if (!deposit) {
@@ -341,7 +341,7 @@ transactions.post('/deposits/:id/reject', requireAdmin, async (c) => {
       adminRemarks,
       agentLogo: deposit.user.agent?.brandLogo
     })
-    sendEmail({ to: deposit.user.email, ...userEmailTemplate }).catch(console.error)
+    sendEmail({ to: deposit.user.email, ...userEmailTemplate, senderName: deposit.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
     return c.json({ message: 'Deposit rejected' })
   } catch (error) {

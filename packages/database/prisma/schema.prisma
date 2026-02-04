@@ -149,6 +149,9 @@ model User {
   // Whitelabel branding (for agents)
   brandLogo         String?
   brandName         String?
+  emailSenderName           String?   // Custom email sender name for whitelabel (pending approval)
+  emailSenderNameApproved   String?   // Approved email sender name (used in actual emails)
+  emailSenderNameStatus     String?   @default("PENDING") // PENDING, APPROVED, REJECTED
 
   // Relations
   agentId           String?     @db.ObjectId
