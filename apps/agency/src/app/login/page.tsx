@@ -879,17 +879,17 @@ export default function LoginPage() {
 
     // Default Login Form
     return (
-      <div className="w-full max-w-[440px]">
-        <div className="bg-white border border-gray-200 rounded-3xl p-8 lg:p-10 shadow-xl shadow-gray-200/50">
+      <div className="w-full max-w-[440px] px-2 sm:px-0">
+        <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 shadow-xl shadow-gray-200/50">
           {/* Mobile Logo */}
-          <div className="lg:hidden flex items-center justify-center mb-8">
+          <div className="lg:hidden flex items-center justify-center mb-6 sm:mb-8">
             <SixMediaLogo size="small" />
           </div>
 
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 text-center lg:text-left">
             Agency Portal
           </h1>
-          <p className="text-gray-500 mb-8">
+          <p className="text-gray-500 mb-6 sm:mb-8 text-sm sm:text-base text-center lg:text-left">
             Sign in to manage your agency dashboard
           </p>
 
@@ -972,19 +972,19 @@ export default function LoginPage() {
           </div>
 
           {/* Security badges */}
-          <div className="flex items-center justify-center gap-6">
-            <div className="flex items-center gap-2 text-gray-500">
-              <Shield className="w-4 h-4 text-teal-500" />
-              <span className="text-xs">SSL Encrypted</span>
+          <div className="flex items-center justify-center gap-4 sm:gap-6">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
+              <Shield className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-teal-500" />
+              <span className="text-[10px] sm:text-xs">SSL Encrypted</span>
             </div>
-            <div className="flex items-center gap-2 text-gray-500">
-              <Zap className="w-4 h-4 text-cyan-500" />
-              <span className="text-xs">2FA Protected</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
+              <Zap className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-500" />
+              <span className="text-[10px] sm:text-xs">2FA Protected</span>
             </div>
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
+        <p className="text-center text-[10px] sm:text-xs text-gray-400 mt-4 sm:mt-6 px-4">
           Contact administrator for account access or support
         </p>
       </div>
@@ -1009,8 +1009,8 @@ export default function LoginPage() {
 
       {/* Content Container */}
       <div className="relative z-10 min-h-screen flex flex-col lg:flex-row">
-        {/* Left Section - Branding & Features */}
-        <div className="w-full lg:w-[55%] p-8 lg:p-12 flex flex-col justify-between">
+        {/* Left Section - Branding & Features (hidden on mobile) */}
+        <div className="hidden lg:flex w-full lg:w-[55%] p-8 lg:p-12 flex-col justify-between">
           {/* Logo Section */}
           <div className="flex items-center gap-4">
             <SixMediaLogo />
@@ -1131,8 +1131,8 @@ export default function LoginPage() {
         </div>
 
         {/* Right Section - Dynamic Content */}
-        <div className="w-full lg:w-[45%] flex items-center justify-center p-6 lg:p-12 overflow-hidden perspective-1000">
-          <div className={`w-full flex items-center justify-center transform-style-3d ${animationClass}`}>
+        <div className="w-full lg:w-[45%] min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-12 overflow-hidden perspective-1000">
+          <div className={`w-full max-w-[440px] flex items-center justify-center transform-style-3d ${animationClass}`}>
             {renderRightContent()}
           </div>
         </div>

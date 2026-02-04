@@ -60,7 +60,7 @@ export function Select({
   return (
     <div className={cn('relative', className)} ref={selectRef}>
       {label && (
-        <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+        <label className="block text-[15px] font-medium text-gray-700 mb-2">
           {label}
         </label>
       )}
@@ -70,7 +70,7 @@ export function Select({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          'w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[12px] text-left',
+          'w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-[14px] text-left',
           'flex items-center justify-between gap-1.5',
           'transition-all duration-200',
           'focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white',
@@ -87,7 +87,7 @@ export function Select({
         </span>
         <ChevronDown
           className={cn(
-            'w-3.5 h-3.5 text-gray-400 transition-transform duration-200',
+            'w-4 h-4 text-gray-400 transition-transform duration-200',
             isOpen && 'transform rotate-180'
           )}
         />
@@ -124,7 +124,7 @@ export function Select({
                   setIsOpen(false)
                 }}
                 className={cn(
-                  'w-full px-3 py-2 text-[12px] text-left flex items-center justify-between gap-1.5',
+                  'w-full px-4 py-3 text-[14px] text-left flex items-center justify-between gap-2',
                   'transition-all duration-150',
                   'hover:bg-[#7C3AED]/10',
                   value === option.value
@@ -137,7 +137,7 @@ export function Select({
               >
                 <span>{option.label}</span>
                 {value === option.value && (
-                  <Check className="w-3.5 h-3.5 text-[#7C3AED]" />
+                  <Check className="w-4 h-4 text-[#7C3AED]" />
                 )}
               </button>
             ))}

@@ -46,14 +46,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-purple-50 p-4 sm:p-6">
       <div className="w-full max-w-md">
-        <div className="rounded-2xl bg-white p-8 shadow-lg">
+        <div className="rounded-2xl sm:rounded-3xl bg-white p-6 sm:p-8 shadow-xl shadow-gray-200/50 border border-gray-100">
           {/* Logo */}
-          <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex items-center justify-center gap-3">
+          <div className="mb-6 sm:mb-8 text-center">
+            <div className="mx-auto mb-4 flex items-center justify-center gap-2 sm:gap-3">
               {/* Six Media - Twisted Ribbon Infinity (Meta-style) */}
-              <svg viewBox="0 0 48 28" className="w-16 h-9" fill="none">
+              <svg viewBox="0 0 48 28" className="w-12 sm:w-16 h-7 sm:h-9" fill="none">
                 <defs>
                   <linearGradient id="adminLoginRibbon1" x1="0%" y1="0%" x2="100%" y2="0%">
                     <stop offset="0%" stopColor="#6366F1"/>
@@ -79,22 +79,22 @@ export default function LoginPage() {
               </svg>
               {/* Text - Modern Typography */}
               <div className="flex flex-col leading-none text-left">
-                <span className="text-[24px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
+                <span className="text-[18px] sm:text-[24px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
                   SIXMEDIA
                 </span>
-                <span className="text-[10px] font-semibold tracking-[0.25em] text-gray-400 mt-0.5">
+                <span className="text-[8px] sm:text-[10px] font-semibold tracking-[0.25em] text-gray-400 mt-0.5">
                   ADMIN PANEL
                 </span>
               </div>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mt-6">Welcome Back</h1>
-            <p className="mt-2 text-gray-500">Sign in to your admin account</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mt-4 sm:mt-6">Welcome Back</h1>
+            <p className="mt-2 text-sm sm:text-base text-gray-500">Sign in to your admin account</p>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             {error && (
-              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+              <div className="rounded-lg bg-red-50 p-3 text-xs sm:text-sm text-red-600 border border-red-200">
                 {error}
               </div>
             )}
@@ -119,10 +119,15 @@ export default function LoginPage() {
               required
             />
 
-            <Button type="submit" loading={loading} className="w-full">
+            <Button type="submit" loading={loading} className="w-full py-3 sm:py-3.5">
               Sign In
             </Button>
           </form>
+
+          {/* Footer */}
+          <p className="text-center text-[10px] sm:text-xs text-gray-400 mt-4 sm:mt-6">
+            Admin access only. Contact support for assistance.
+          </p>
         </div>
       </div>
     </div>

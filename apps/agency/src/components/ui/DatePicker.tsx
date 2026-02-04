@@ -146,14 +146,14 @@ export function DatePicker({
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-200 ${
+        className={`flex items-center gap-2 px-4 py-3 rounded-lg border transition-all duration-200 ${
           isOpen
             ? 'border-[#7C3AED] bg-[#7C3AED]/5 shadow-sm'
             : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
         }`}
       >
-        <Calendar className={`w-3.5 h-3.5 ${isOpen ? 'text-[#7C3AED]' : 'text-gray-400'}`} />
-        <span className="text-[12px] text-gray-600">
+        <Calendar className={`w-4 h-4 ${isOpen ? 'text-[#7C3AED]' : 'text-gray-400'}`} />
+        <span className="text-[14px] text-gray-600">
           {startDate || endDate ? (
             <>
               <span className="font-medium text-gray-800">
@@ -176,13 +176,13 @@ export function DatePicker({
           className="p-1.5 rounded-full hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
           title="Clear dates"
         >
-          <X className="w-3.5 h-3.5" />
+          <X className="w-4 h-4" />
         </button>
       )}
 
       {/* Calendar Dropdown - Compact */}
       {isOpen && (
-        <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-3 z-[100] min-w-[280px]"
+        <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-4 z-[100] min-w-[320px]"
           style={{
             animation: 'fadeInUp 0.2s ease-out',
           }}
@@ -195,7 +195,7 @@ export function DatePicker({
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <h3 className="font-semibold text-gray-800 text-[13px]">
+            <h3 className="font-semibold text-gray-800 text-[15px]">
               {months[currentMonth.getMonth()]} {currentMonth.getFullYear()}
             </h3>
             <button
@@ -210,7 +210,7 @@ export function DatePicker({
           <div className="flex items-center justify-center gap-2 mb-3">
             <button
               onClick={() => setSelectingStart(true)}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-[11px] font-medium ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg transition-all text-[13px] font-medium ${
                 selectingStart
                   ? 'bg-[#7C3AED] text-white shadow-sm'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -221,7 +221,7 @@ export function DatePicker({
             </button>
             <button
               onClick={() => setSelectingStart(false)}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-[11px] font-medium ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg transition-all text-[13px] font-medium ${
                 !selectingStart
                   ? 'bg-[#7C3AED] text-white shadow-sm'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -237,7 +237,7 @@ export function DatePicker({
             {daysOfWeek.map((day) => (
               <div
                 key={day}
-                className="w-8 h-6 flex items-center justify-center text-[10px] font-semibold text-gray-400"
+                className="w-10 h-7 flex items-center justify-center text-[12px] font-semibold text-gray-400"
               >
                 {day}
               </div>
@@ -252,7 +252,7 @@ export function DatePicker({
                   <button
                     onClick={() => handleDateClick(day)}
                     className={`
-                      w-8 h-8 flex items-center justify-center text-[12px] rounded-lg transition-all duration-150 font-medium
+                      w-10 h-10 flex items-center justify-center text-[14px] rounded-lg transition-all duration-150 font-medium
                       ${isStartDate(day) || isEndDate(day)
                         ? 'bg-[#7C3AED] text-white shadow-sm'
                         : isDateInRange(day)
@@ -266,7 +266,7 @@ export function DatePicker({
                     {day}
                   </button>
                 ) : (
-                  <div className="w-8 h-8" />
+                  <div className="w-10 h-10" />
                 )}
               </div>
             ))}
@@ -282,7 +282,7 @@ export function DatePicker({
                 onEndDateChange(dateStr)
                 setIsOpen(false)
               }}
-              className="px-2 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              className="px-3 py-2 text-[13px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
             >
               Today
             </button>
@@ -294,7 +294,7 @@ export function DatePicker({
                 onEndDateChange(formatDateForInput(today))
                 setIsOpen(false)
               }}
-              className="px-2 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              className="px-3 py-2 text-[13px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
             >
               Last 7 days
             </button>
@@ -306,7 +306,7 @@ export function DatePicker({
                 onEndDateChange(formatDateForInput(today))
                 setIsOpen(false)
               }}
-              className="px-2 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              className="px-3 py-2 text-[13px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
             >
               Last 30 days
             </button>
@@ -318,7 +318,7 @@ export function DatePicker({
                 onEndDateChange(formatDateForInput(today))
                 setIsOpen(false)
               }}
-              className="px-2 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              className="px-3 py-2 text-[13px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
             >
               This month
             </button>
