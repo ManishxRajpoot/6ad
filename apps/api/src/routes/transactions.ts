@@ -169,7 +169,7 @@ transactions.post('/deposits', requireUser, async (c) => {
     // Get user for email
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { agent: { select: { email: true, brandLogo: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } }
+      include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } }
     })
 
     // Regular (non-crypto) deposit - create as pending
@@ -189,13 +189,15 @@ transactions.post('/deposits', requireUser, async (c) => {
     if (user) {
       const approvedDomainLogo = user.agent?.customDomains?.[0]?.brandLogo
       const agentLogo = approvedDomainLogo || user.agent?.brandLogo || null
+      const agentBrandName = user.agent?.username || null
       const userEmailTemplate = getWalletDepositSubmittedTemplate({
         username: user.username,
         applyId,
         amount,
         paymentMethod,
         txHash: transactionId,
-        agentLogo
+        agentLogo,
+        agentBrandName
       })
       sendEmail({ to: user.email, ...userEmailTemplate, senderName: user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
@@ -232,7 +234,7 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
 
     const deposit = await prisma.deposit.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
     })
 
     if (!deposit) {
@@ -293,12 +295,14 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
     // Send approval email to user
     const approvedDomainLogoApprove = deposit.user.agent?.customDomains?.[0]?.brandLogo
     const agentLogoApprove = approvedDomainLogoApprove || deposit.user.agent?.brandLogo || null
+    const agentBrandNameApprove = deposit.user.agent?.username || null
     const userEmailTemplate = getWalletDepositApprovedTemplate({
       username: deposit.user.username,
       applyId: deposit.applyId,
       amount: Number(deposit.amount),
       newBalance,
-      agentLogo: agentLogoApprove
+      agentLogo: agentLogoApprove,
+      agentBrandName: agentBrandNameApprove
     })
     sendEmail({ to: deposit.user.email, ...userEmailTemplate, senderName: deposit.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 
@@ -317,7 +321,7 @@ transactions.post('/deposits/:id/reject', requireAdmin, async (c) => {
 
     const deposit = await prisma.deposit.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
     })
 
     if (!deposit) {
@@ -340,12 +344,14 @@ transactions.post('/deposits/:id/reject', requireAdmin, async (c) => {
     // Send rejection email to user
     const approvedDomainLogoReject = deposit.user.agent?.customDomains?.[0]?.brandLogo
     const agentLogoReject = approvedDomainLogoReject || deposit.user.agent?.brandLogo || null
+    const agentBrandNameReject = deposit.user.agent?.username || null
     const userEmailTemplate = getWalletDepositRejectedTemplate({
       username: deposit.user.username,
       applyId: deposit.applyId,
       amount: Number(deposit.amount),
       adminRemarks,
-      agentLogo: agentLogoReject
+      agentLogo: agentLogoReject,
+      agentBrandName: agentBrandNameReject
     })
     sendEmail({ to: deposit.user.email, ...userEmailTemplate, senderName: deposit.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
 

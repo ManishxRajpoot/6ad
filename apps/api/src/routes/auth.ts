@@ -619,6 +619,7 @@ auth.post('/email/send-code', verifyToken, async (c) => {
         agent: {
           select: {
             brandLogo: true,
+            username: true,
             emailSenderNameApproved: true,
             customDomains: {
               where: { status: 'APPROVED' },
@@ -654,7 +655,8 @@ auth.post('/email/send-code', verifyToken, async (c) => {
     // Send verification email - Use approved domain logo if available
     const approvedDomainLogo = user.agent?.customDomains?.[0]?.brandLogo
     const agentLogo = approvedDomainLogo || user.agent?.brandLogo || null
-    const emailTemplate = getVerificationEmailTemplate(code, user.username, agentLogo)
+    const agentBrandName = user.agent?.username || null
+    const emailTemplate = getVerificationEmailTemplate(code, user.username, agentLogo, agentBrandName)
     const emailSent = await sendEmail({
       to: user.email,
       subject: emailTemplate.subject,

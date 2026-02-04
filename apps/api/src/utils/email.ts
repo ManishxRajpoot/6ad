@@ -67,10 +67,18 @@ const SIX_MEDIA_LOGO_SVG = `
 `
 
 // Get logo HTML - uses agent logo if available, otherwise Six Media logo
-function getLogoHtml(agentLogo?: string | null): string {
-  if (agentLogo) {
+function getLogoHtml(agentLogo?: string | null, agentBrandName?: string | null): string {
+  // Only use agent logo if it's a valid base64 image or URL (not just text like "Logo")
+  if (agentLogo && (agentLogo.startsWith('data:image') || agentLogo.startsWith('http'))) {
     return `<img src="${agentLogo}" alt="Logo" style="height: 40px; max-width: 180px; object-fit: contain;" />`
   }
+  // If agent has brand name but no logo, show brand name text
+  if (agentBrandName) {
+    return `
+      <span style="font-size: 20px; font-weight: 700; color: #ffffff;">${agentBrandName}</span>
+    `
+  }
+  // Default Six Media logo
   return `
     <table cellpadding="0" cellspacing="0" border="0">
       <tr>
@@ -99,12 +107,16 @@ interface BaseTemplateOptions {
   subtitle?: string
   headerColor?: 'purple' | 'green' | 'red' | 'amber'
   agentLogo?: string | null
+  agentBrandName?: string | null
   content: string
   footerText?: string
 }
 
 function getBaseEmailTemplate(options: BaseTemplateOptions): string {
-  const { title, subtitle, headerColor = 'purple', agentLogo, content, footerText } = options
+  const { title, subtitle, headerColor = 'purple', agentLogo, agentBrandName, content, footerText } = options
+
+  // Use agent brand name in footer if available
+  const platformName = agentBrandName || 'Six Media'
 
   const gradients = {
     purple: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #EC4899 100%)',
@@ -131,7 +143,7 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
                 <td style="padding: 28px 32px 24px; background: ${gradients[headerColor]}; border-radius: 16px 16px 0 0;">
                   <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                      <td>${getLogoHtml(agentLogo)}</td>
+                      <td>${getLogoHtml(agentLogo, agentBrandName)}</td>
                     </tr>
                     <tr>
                       <td style="padding-top: 20px;">
@@ -154,7 +166,7 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
               <tr>
                 <td style="padding: 20px 32px; background-color: #f9fafb; border-radius: 0 0 16px 16px; border-top: 1px solid #e5e7eb;">
                   <p style="margin: 0; color: #9ca3af; font-size: 12px; text-align: center; line-height: 1.6;">
-                    ${footerText || 'This is an automated message from Six Media Platform.<br>Please do not reply to this email.'}
+                    ${footerText || `This is an automated message from ${platformName} Platform.<br>Please do not reply to this email.`}
                   </p>
                 </td>
               </tr>
@@ -200,6 +212,7 @@ interface AdAccountEmailData {
   accountId?: string
   adminRemarks?: string
   agentLogo?: string | null
+  agentBrandName?: string | null
 }
 
 export function getAdAccountSubmittedTemplate(data: AdAccountEmailData): { subject: string; html: string } {
@@ -232,6 +245,7 @@ export function getAdAccountSubmittedTemplate(data: AdAccountEmailData): { subje
       subtitle: 'Ad Account Opening',
       headerColor: 'purple',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -274,6 +288,7 @@ export function getAdAccountApprovedTemplate(data: AdAccountEmailData): { subjec
       subtitle: 'Ad Account Opening',
       headerColor: 'green',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -314,6 +329,7 @@ export function getAdAccountRejectedTemplate(data: AdAccountEmailData): { subjec
       subtitle: 'Ad Account Opening',
       headerColor: 'red',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -332,6 +348,7 @@ interface WalletDepositEmailData {
   adminRemarks?: string
   newBalance?: number
   agentLogo?: string | null
+  agentBrandName?: string | null
 }
 
 export function getWalletDepositSubmittedTemplate(data: WalletDepositEmailData): { subject: string; html: string } {
@@ -365,6 +382,7 @@ export function getWalletDepositSubmittedTemplate(data: WalletDepositEmailData):
       subtitle: 'Wallet Top-up',
       headerColor: 'purple',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -400,6 +418,7 @@ export function getWalletDepositApprovedTemplate(data: WalletDepositEmailData): 
       subtitle: 'Wallet Top-up',
       headerColor: 'green',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -440,6 +459,7 @@ export function getWalletDepositRejectedTemplate(data: WalletDepositEmailData): 
       subtitle: 'Wallet Top-up',
       headerColor: 'red',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -461,6 +481,7 @@ interface AccountRechargeEmailData {
   newBalance?: number
   adminRemarks?: string
   agentLogo?: string | null
+  agentBrandName?: string | null
 }
 
 export function getAccountRechargeSubmittedTemplate(data: AccountRechargeEmailData): { subject: string; html: string } {
@@ -496,6 +517,7 @@ export function getAccountRechargeSubmittedTemplate(data: AccountRechargeEmailDa
       subtitle: 'Ad Account Top-up',
       headerColor: 'purple',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -533,6 +555,7 @@ export function getAccountRechargeApprovedTemplate(data: AccountRechargeEmailDat
       subtitle: 'Ad Account Top-up',
       headerColor: 'green',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -575,6 +598,7 @@ export function getAccountRechargeRejectedTemplate(data: AccountRechargeEmailDat
       subtitle: 'Ad Account Top-up',
       headerColor: 'red',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -592,6 +616,7 @@ interface BMShareEmailData {
   bmId: string
   adminRemarks?: string
   agentLogo?: string | null
+  agentBrandName?: string | null
 }
 
 export function getBMShareSubmittedTemplate(data: BMShareEmailData): { subject: string; html: string } {
@@ -625,6 +650,7 @@ export function getBMShareSubmittedTemplate(data: BMShareEmailData): { subject: 
       subtitle: 'Business Manager Share',
       headerColor: 'purple',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -667,6 +693,7 @@ export function getBMShareApprovedTemplate(data: BMShareEmailData): { subject: s
       subtitle: 'Business Manager Share',
       headerColor: 'green',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -709,6 +736,7 @@ export function getBMShareRejectedTemplate(data: BMShareEmailData): { subject: s
       subtitle: 'Business Manager Share',
       headerColor: 'red',
       agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }
@@ -775,7 +803,7 @@ export function getAdminNotificationTemplate(data: AdminNotificationData): { sub
 // =====================================================
 
 // Email templates (updated to new design)
-export function getVerificationEmailTemplate(code: string, username: string, agentLogo?: string | null): { subject: string; html: string } {
+export function getVerificationEmailTemplate(code: string, username: string, agentLogo?: string | null, agentBrandName?: string | null): { subject: string; html: string } {
   const content = `
     <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
       Hello <strong>${username}</strong>,
@@ -802,12 +830,13 @@ export function getVerificationEmailTemplate(code: string, username: string, age
       subtitle: 'Verify your email address',
       headerColor: 'green',
       agentLogo,
+      agentBrandName,
       content
     })
   }
 }
 
-export function get2FADisabledEmailTemplate(username: string, agentLogo?: string | null): { subject: string; html: string } {
+export function get2FADisabledEmailTemplate(username: string, agentLogo?: string | null, agentBrandName?: string | null): { subject: string; html: string } {
   const content = `
     <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
       Hello <strong>${username}</strong>,
@@ -834,6 +863,7 @@ export function get2FADisabledEmailTemplate(username: string, agentLogo?: string
       subtitle: '2FA has been disabled',
       headerColor: 'red',
       agentLogo,
+      agentBrandName,
       content
     })
   }
