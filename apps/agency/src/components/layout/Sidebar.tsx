@@ -14,6 +14,7 @@ import {
   Globe,
   FileText,
   Wallet,
+  CreditCard,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from 'next/navigation'
@@ -152,6 +153,20 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           >
             <Users className="w-5 h-5" />
             Users
+          </Link>
+
+          {/* Ad Accounts */}
+          <Link
+            href="/ad-accounts"
+            className={cn(
+              'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-200 mb-1.5',
+              isActive('/ad-accounts')
+                ? 'bg-[#7C3AED] text-white'
+                : 'text-gray-600 hover:bg-gray-50'
+            )}
+          >
+            <CreditCard className="w-5 h-5" />
+            Ad Accounts
           </Link>
 
           {/* Transactions */}

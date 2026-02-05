@@ -198,6 +198,16 @@ export const accountsApi = {
   getById: (id: string) => api.get<{ account: any }>(`/accounts/${id}`),
   create: (data: any) => api.post<{ account: any }>('/accounts', data),
   update: (id: string, data: any) => api.put<{ account: any }>(`/accounts/${id}`, data),
+  // Agent: Get all ad accounts for users under this agent with Cheetah status
+  getAgentAll: (params?: { platform?: string; search?: string; page?: number; limit?: number }) => {
+    const queryParams = new URLSearchParams()
+    if (params?.platform) queryParams.append('platform', params.platform)
+    if (params?.search) queryParams.append('search', params.search)
+    if (params?.page) queryParams.append('page', params.page.toString())
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    const queryString = queryParams.toString()
+    return api.get<{ accounts: any[]; pagination: any }>(`/accounts/agent-all${queryString ? `?${queryString}` : ''}`)
+  },
 }
 
 // Domains API (Agent whitelabel - domain + logo)

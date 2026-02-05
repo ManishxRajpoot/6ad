@@ -1693,6 +1693,143 @@ accounts.get('/cheetah-balances/batch', requireUser, async (c) => {
   }
 })
 
+// GET /accounts/agent-all - Get all ad accounts for agent's users with Cheetah status
+accounts.get('/agent-all', async (c) => {
+  try {
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+
+    if (userRole !== 'AGENT') {
+      return c.json({ error: 'Only agents can access this endpoint' }, 403)
+    }
+
+    const { platform, status, search, page = '1', limit = '50' } = c.req.query()
+
+    // Build where clause for accounts belonging to users under this agent
+    const where: any = {
+      user: { agentId: userId },
+      status: 'APPROVED' // Only show approved accounts
+    }
+
+    if (platform) {
+      where.platform = platform.toUpperCase()
+    }
+
+    // Get accounts with user info
+    const pageNum = parseInt(page)
+    const limitNum = parseInt(limit)
+    const skip = (pageNum - 1) * limitNum
+
+    const [accounts, total] = await Promise.all([
+      prisma.adAccount.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              realName: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum
+      }),
+      prisma.adAccount.count({ where })
+    ])
+
+    // Filter by search if provided (on username or accountName)
+    let filteredAccounts = accounts
+    if (search) {
+      const searchLower = search.toLowerCase()
+      filteredAccounts = accounts.filter(acc =>
+        acc.accountName?.toLowerCase().includes(searchLower) ||
+        acc.accountId?.toLowerCase().includes(searchLower) ||
+        acc.user?.username?.toLowerCase().includes(searchLower) ||
+        acc.user?.realName?.toLowerCase().includes(searchLower)
+      )
+    }
+
+    // Fetch Cheetah status for Facebook accounts
+    const fbAccountIds = filteredAccounts
+      .filter(acc => acc.platform === 'FACEBOOK')
+      .map(acc => acc.accountId)
+      .filter(Boolean)
+
+    let cheetahStatuses: Record<string, any> = {}
+
+    if (fbAccountIds.length > 0) {
+      const configLoaded = await loadCheetahConfig()
+      if (configLoaded) {
+        for (const accountId of fbAccountIds) {
+          try {
+            const result = await cheetahApi.getAccount(accountId)
+            if (result.code === 0 && result.data && result.data.length > 0) {
+              const cheetahAccount = result.data[0]
+              const spendCap = parseFloat(cheetahAccount.spend_cap) || 0
+              const amountSpent = parseFloat(cheetahAccount.amount_spent) || 0
+              cheetahStatuses[accountId] = {
+                isCheetah: true,
+                spendCap,
+                amountSpent,
+                balance: parseFloat(cheetahAccount.balance) || 0,
+                remainingBalance: spendCap - amountSpent,
+                currency: cheetahAccount.currency,
+                status: cheetahAccount.account_status,
+                statusText: cheetahAccount.account_status_text || getStatusText(cheetahAccount.account_status),
+                disableReason: cheetahAccount.disable_reason,
+                disableReasonText: cheetahAccount.disable_reason_text
+              }
+            } else {
+              cheetahStatuses[accountId] = { isCheetah: false }
+            }
+          } catch (err) {
+            cheetahStatuses[accountId] = { isCheetah: false, error: true }
+          }
+        }
+      }
+    }
+
+    // Merge Cheetah data with accounts
+    const accountsWithStatus = filteredAccounts.map(acc => ({
+      ...acc,
+      cheetahData: cheetahStatuses[acc.accountId] || null
+    }))
+
+    return c.json({
+      accounts: accountsWithStatus,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    })
+  } catch (error) {
+    console.error('Get agent accounts error:', error)
+    return c.json({ error: 'Failed to get accounts' }, 500)
+  }
+})
+
+// Helper function to get status text from status code
+function getStatusText(status: number): string {
+  const statusMap: Record<number, string> = {
+    1: 'Active',
+    2: 'Disabled',
+    3: 'Unsettled',
+    7: 'Pending Risk Review',
+    8: 'Pending Settlement',
+    9: 'In Grace Period',
+    100: 'Pending Closure',
+    101: 'Closed',
+    201: 'Any Active',
+    202: 'Any Closed'
+  }
+  return statusMap[status] || 'Unknown'
+}
+
 // GET /accounts/:id/insights - Get account insights from Cheetah API
 accounts.get('/:id/insights', requireUser, async (c) => {
   try {
