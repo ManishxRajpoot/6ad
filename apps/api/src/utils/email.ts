@@ -975,8 +975,20 @@ export function getAdminNotificationTemplate(data: AdminNotificationData): { sub
     </p>
   `
 
+  // Build subject based on type
+  let subject = `[Action Required] ${typeLabels[data.type]}`
+  if (data.type === 'wallet_deposit' && data.amount) {
+    subject = `${data.username} submitted $${data.amount.toLocaleString()} deposit`
+  } else if (data.type === 'account_recharge' && data.amount) {
+    subject = `${data.username} requested $${data.amount.toLocaleString()} recharge`
+  } else if (data.type === 'ad_account') {
+    subject = `${data.username} requested new ad account${data.platform ? ` (${data.platform})` : ''}`
+  } else if (data.type === 'bm_share') {
+    subject = `${data.username} requested BM share${data.platform ? ` (${data.platform})` : ''}`
+  }
+
   return {
-    subject: `[Action Required] ${typeLabels[data.type]} - ${data.applyId}`,
+    subject,
     html: getBaseEmailTemplate({
       title: typeLabels[data.type],
       subtitle: `From: ${data.username}`,
