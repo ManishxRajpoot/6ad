@@ -33,9 +33,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: `Request failed with status ${response.status}` }))
+
     // Handle specific HTTP status codes
     if (response.status === 401) {
-      // Clear invalid token and redirect to login
+      // Check if this is a login attempt (has error message from API)
+      if (errorData.error) {
+        // Login failure - throw the actual API error message
+        throw new Error(errorData.error)
+      }
+      // Session expired - clear token and redirect to login
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token')
         localStorage.removeItem('user')
@@ -45,10 +52,13 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     }
 
     if (response.status === 403) {
+      // Check if API returned a specific error message
+      if (errorData.error || errorData.message) {
+        throw new Error(errorData.error || errorData.message)
+      }
       throw new Error('You do not have permission to access this resource.')
     }
 
-    const errorData = await response.json().catch(() => ({ message: `Request failed with status ${response.status}` }))
     // API returns { error: "..." } format, but some endpoints return { message: "..." }
     const errorMessage = errorData.error || errorData.message || `Request failed with status ${response.status}`
     throw new Error(errorMessage)

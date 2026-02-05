@@ -120,7 +120,9 @@ export default function LoginPage() {
       if (err.response?.data?.blocked) {
         setSecurityStep('blocked')
       } else {
-        setError(err.message || 'Login failed')
+        // Get error message from API response or fall back to err.message
+        const errorMessage = err.response?.data?.error || err.message || 'Login failed'
+        setError(errorMessage)
       }
     } finally {
       setLoading(false)
