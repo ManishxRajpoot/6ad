@@ -20,45 +20,40 @@ export function SuccessPopup({
   title,
   message,
   onClose,
-  duration = 1500
+  duration = 2000
 }: SuccessPopupProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
-
-  // Use refs to track timers and prevent memory leaks
   const timersRef = useRef<NodeJS.Timeout[]>([])
   const onCloseRef = useRef(onClose)
 
-  // Keep onClose ref updated without triggering effect re-runs
   useEffect(() => {
     onCloseRef.current = onClose
   }, [onClose])
 
-  // Cleanup function to clear all timers
   const clearAllTimers = useCallback(() => {
     timersRef.current.forEach(timer => clearTimeout(timer))
     timersRef.current = []
   }, [])
 
   useEffect(() => {
-    // Clear any existing timers first
     clearAllTimers()
 
     if (isOpen) {
       setIsVisible(true)
-      // Trigger animation after mount
-      const animTimer = setTimeout(() => {
-        setIsAnimating(true)
-      }, 10)
-      timersRef.current.push(animTimer)
+      // Use requestAnimationFrame for smoother animation start
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsAnimating(true)
+        })
+      })
 
-      // Auto close after duration
       const closeTimer = setTimeout(() => {
         setIsAnimating(false)
         const fadeTimer = setTimeout(() => {
           setIsVisible(false)
           onCloseRef.current()
-        }, 300)
+        }, 200)
         timersRef.current.push(fadeTimer)
       }, duration)
       timersRef.current.push(closeTimer)
@@ -68,7 +63,7 @@ export function SuccessPopup({
       setIsAnimating(false)
       const timer = setTimeout(() => {
         setIsVisible(false)
-      }, 300)
+      }, 200)
       timersRef.current.push(timer)
       return clearAllTimers
     }
@@ -78,30 +73,30 @@ export function SuccessPopup({
 
   const config = {
     success: {
-      bg: 'bg-emerald-500',
-      border: 'border-emerald-500',
-      text: 'text-emerald-500',
+      bg: '#10b981',
+      border: '#10b981',
+      text: '#10b981',
       icon: Check,
       defaultTitle: 'Success!'
     },
     error: {
-      bg: 'bg-red-500',
-      border: 'border-red-500',
-      text: 'text-red-500',
+      bg: '#ef4444',
+      border: '#ef4444',
+      text: '#ef4444',
       icon: X,
       defaultTitle: 'Error!'
     },
     warning: {
-      bg: 'bg-amber-500',
-      border: 'border-amber-500',
-      text: 'text-amber-500',
+      bg: '#f59e0b',
+      border: '#f59e0b',
+      text: '#f59e0b',
       icon: AlertTriangle,
       defaultTitle: 'Warning!'
     },
     info: {
-      bg: 'bg-blue-500',
-      border: 'border-blue-500',
-      text: 'text-blue-500',
+      bg: '#3b82f6',
+      border: '#3b82f6',
+      text: '#3b82f6',
       icon: Info,
       defaultTitle: 'Info'
     }
@@ -110,31 +105,73 @@ export function SuccessPopup({
   const { bg, border, text, icon: Icon, defaultTitle } = config[type]
 
   return (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center pointer-events-none">
+    <>
       <div
-        className={`
-          flex flex-col items-center gap-3 px-8 py-6 rounded-2xl shadow-2xl bg-white border-2 ${border}
-          transform transition-all duration-300 ease-out
-          ${isAnimating ? 'opacity-100 scale-100 animate-popIn' : 'opacity-0 scale-75'}
-        `}
+        className="fixed inset-0 z-[99999] flex items-center justify-center pointer-events-none"
+        style={{ perspective: '1000px' }}
       >
-        {/* Icon Circle */}
         <div
-          className={`w-16 h-16 rounded-full flex items-center justify-center ${bg} ${isAnimating ? 'animate-bounceIn' : ''}`}
+          style={{
+            backgroundColor: 'white',
+            borderColor: border,
+            borderWidth: '2px',
+            borderStyle: 'solid',
+            borderRadius: '16px',
+            padding: '24px 32px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '12px',
+            transform: isAnimating ? 'scale(1)' : 'scale(0.8)',
+            opacity: isAnimating ? 1 : 0,
+            transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease-out',
+            willChange: 'transform, opacity',
+          }}
         >
-          <Icon className="w-8 h-8 text-white" strokeWidth={3} />
+          {/* Icon Circle */}
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              backgroundColor: bg,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transform: isAnimating ? 'scale(1)' : 'scale(0.5)',
+              transition: 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s',
+              willChange: 'transform',
+            }}
+          >
+            <Icon style={{ width: '32px', height: '32px', color: 'white' }} strokeWidth={3} />
+          </div>
+
+          {/* Title */}
+          <span style={{
+            fontSize: '18px',
+            fontWeight: 600,
+            color: text,
+            opacity: isAnimating ? 1 : 0,
+            transform: isAnimating ? 'translateY(0)' : 'translateY(10px)',
+            transition: 'opacity 0.2s ease-out 0.1s, transform 0.2s ease-out 0.1s',
+          }}>
+            {title || defaultTitle}
+          </span>
+
+          {/* Message */}
+          <span style={{
+            fontSize: '14px',
+            color: '#4b5563',
+            textAlign: 'center',
+            maxWidth: '280px',
+            opacity: isAnimating ? 1 : 0,
+            transition: 'opacity 0.2s ease-out 0.15s',
+          }}>
+            {message}
+          </span>
         </div>
-
-        {/* Title */}
-        <span className={`text-lg font-semibold ${text}`}>
-          {title || defaultTitle}
-        </span>
-
-        {/* Message */}
-        <span className="text-gray-600 text-sm text-center max-w-xs">
-          {message}
-        </span>
       </div>
-    </div>
+    </>
   )
 }

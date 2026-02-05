@@ -29,8 +29,6 @@ export function Toast({
 }: ToastProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
-  const [progress, setProgress] = useState(100)
-
   const timersRef = useRef<NodeJS.Timeout[]>([])
   const onCloseRef = useRef(onClose)
 
@@ -48,14 +46,11 @@ export function Toast({
 
     if (isOpen) {
       setIsVisible(true)
-      setProgress(100)
-
-      const animTimer = setTimeout(() => {
-        setIsAnimating(true)
-        // Start progress bar
-        setTimeout(() => setProgress(0), 50)
-      }, 10)
-      timersRef.current.push(animTimer)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsAnimating(true)
+        })
+      })
 
       if (duration > 0) {
         const closeTimer = setTimeout(() => {
@@ -63,7 +58,7 @@ export function Toast({
           const fadeTimer = setTimeout(() => {
             setIsVisible(false)
             onCloseRef.current()
-          }, 300)
+          }, 200)
           timersRef.current.push(fadeTimer)
         }, duration)
         timersRef.current.push(closeTimer)
@@ -74,7 +69,7 @@ export function Toast({
       setIsAnimating(false)
       const timer = setTimeout(() => {
         setIsVisible(false)
-      }, 300)
+      }, 200)
       timersRef.current.push(timer)
       return clearAllTimers
     }
@@ -83,104 +78,84 @@ export function Toast({
   if (!isVisible) return null
 
   const config = {
-    success: {
-      bg: 'bg-emerald-500',
-      bgLight: 'bg-emerald-50',
-      border: 'border-emerald-200',
-      text: 'text-emerald-800',
-      icon: Check,
-      defaultTitle: 'Success!'
-    },
-    error: {
-      bg: 'bg-red-500',
-      bgLight: 'bg-red-50',
-      border: 'border-red-200',
-      text: 'text-red-800',
-      icon: X,
-      defaultTitle: 'Error'
-    },
-    warning: {
-      bg: 'bg-amber-500',
-      bgLight: 'bg-amber-50',
-      border: 'border-amber-200',
-      text: 'text-amber-800',
-      icon: AlertTriangle,
-      defaultTitle: 'Warning'
-    },
-    info: {
-      bg: 'bg-blue-500',
-      bgLight: 'bg-blue-50',
-      border: 'border-blue-200',
-      text: 'text-blue-800',
-      icon: Info,
-      defaultTitle: 'Info'
-    },
-    network: {
-      bg: 'bg-gray-500',
-      bgLight: 'bg-gray-50',
-      border: 'border-gray-200',
-      text: 'text-gray-800',
-      icon: WifiOff,
-      defaultTitle: 'Connection Error'
-    },
-    auth: {
-      bg: 'bg-orange-500',
-      bgLight: 'bg-orange-50',
-      border: 'border-orange-200',
-      text: 'text-orange-800',
-      icon: ShieldX,
-      defaultTitle: 'Authentication Error'
-    },
-    timeout: {
-      bg: 'bg-purple-500',
-      bgLight: 'bg-purple-50',
-      border: 'border-purple-200',
-      text: 'text-purple-800',
-      icon: Clock,
-      defaultTitle: 'Request Timeout'
-    },
-    server: {
-      bg: 'bg-rose-500',
-      bgLight: 'bg-rose-50',
-      border: 'border-rose-200',
-      text: 'text-rose-800',
-      icon: ServerCrash,
-      defaultTitle: 'Server Error'
-    }
+    success: { bg: '#10b981', bgLight: '#ecfdf5', border: '#a7f3d0', text: '#065f46', icon: Check, defaultTitle: 'Success!' },
+    error: { bg: '#ef4444', bgLight: '#fef2f2', border: '#fecaca', text: '#991b1b', icon: X, defaultTitle: 'Error' },
+    warning: { bg: '#f59e0b', bgLight: '#fffbeb', border: '#fde68a', text: '#92400e', icon: AlertTriangle, defaultTitle: 'Warning' },
+    info: { bg: '#3b82f6', bgLight: '#eff6ff', border: '#bfdbfe', text: '#1e40af', icon: Info, defaultTitle: 'Info' },
+    network: { bg: '#6b7280', bgLight: '#f9fafb', border: '#d1d5db', text: '#374151', icon: WifiOff, defaultTitle: 'Connection Error' },
+    auth: { bg: '#f97316', bgLight: '#fff7ed', border: '#fed7aa', text: '#9a3412', icon: ShieldX, defaultTitle: 'Authentication Error' },
+    timeout: { bg: '#8b5cf6', bgLight: '#f5f3ff', border: '#c4b5fd', text: '#5b21b6', icon: Clock, defaultTitle: 'Request Timeout' },
+    server: { bg: '#e11d48', bgLight: '#fff1f2', border: '#fecdd3', text: '#9f1239', icon: ServerCrash, defaultTitle: 'Server Error' }
   }
 
   const { bg, bgLight, border, text, icon: Icon, defaultTitle } = config[type]
 
+  const handleClose = () => {
+    setIsAnimating(false)
+    setTimeout(() => {
+      setIsVisible(false)
+      onClose()
+    }, 200)
+  }
+
   return (
-    <div className="fixed top-4 right-4 z-[99999] pointer-events-auto">
+    <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 99999 }}>
       <div
-        className={`
-          ${bgLight} ${border} border rounded-xl shadow-2xl min-w-[340px] max-w-md overflow-hidden
-          transform transition-all duration-300 ease-out
-          ${isAnimating ? 'opacity-100 translate-x-0 scale-100' : 'opacity-0 translate-x-full scale-95'}
-        `}
+        style={{
+          backgroundColor: bgLight,
+          borderColor: border,
+          borderWidth: '1px',
+          borderStyle: 'solid',
+          borderRadius: '12px',
+          minWidth: '340px',
+          maxWidth: '400px',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          overflow: 'hidden',
+          transform: isAnimating ? 'translateX(0)' : 'translateX(100%)',
+          opacity: isAnimating ? 1 : 0,
+          transition: 'transform 0.2s ease-out, opacity 0.2s ease-out',
+          willChange: 'transform, opacity',
+        }}
       >
-        <div className="p-4">
-          <div className="flex items-start gap-3">
+        <div style={{ padding: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
             {/* Icon */}
-            <div className={`${bg} w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0`}>
-              <Icon className="w-5 h-5 text-white" strokeWidth={2.5} />
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              backgroundColor: bg,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Icon style={{ width: '20px', height: '20px', color: 'white' }} strokeWidth={2.5} />
             </div>
 
             {/* Content */}
-            <div className="flex-1 min-w-0 pt-0.5">
-              <h4 className={`text-sm font-semibold ${text}`}>
+            <div style={{ flex: 1, minWidth: 0, paddingTop: '2px' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 600, color: text, margin: 0 }}>
                 {title || defaultTitle}
               </h4>
-              <p className={`text-xs mt-1 ${text} opacity-80 leading-relaxed`}>
+              <p style={{ fontSize: '12px', marginTop: '4px', color: text, opacity: 0.8, lineHeight: 1.5, margin: '4px 0 0 0' }}>
                 {message}
               </p>
 
-              {/* Action Button */}
               {action && (
                 <button
                   onClick={action.onClick}
-                  className={`mt-2 text-xs font-medium ${text} underline hover:no-underline`}
+                  style={{
+                    marginTop: '8px',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    color: text,
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
                 >
                   {action.label}
                 </button>
@@ -189,27 +164,33 @@ export function Toast({
 
             {/* Close Button */}
             <button
-              onClick={() => {
-                setIsAnimating(false)
-                setTimeout(() => {
-                  setIsVisible(false)
-                  onClose()
-                }, 300)
+              onClick={handleClose}
+              style={{
+                color: text,
+                opacity: 0.6,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                flexShrink: 0,
+                transition: 'opacity 0.15s',
               }}
-              className={`${text} opacity-60 hover:opacity-100 transition-opacity flex-shrink-0`}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
             >
-              <X className="h-4 w-4" />
+              <X style={{ width: '16px', height: '16px' }} />
             </button>
           </div>
         </div>
 
         {/* Progress Bar */}
-        <div className="h-1 w-full bg-gray-100">
+        <div style={{ height: '3px', backgroundColor: border }}>
           <div
-            className={`h-full ${bg}`}
             style={{
-              width: `${progress}%`,
-              transition: `width ${duration}ms linear`,
+              height: '100%',
+              backgroundColor: bg,
+              width: isAnimating ? '0%' : '100%',
+              transition: isAnimating ? `width ${duration}ms linear` : 'none',
             }}
           />
         </div>

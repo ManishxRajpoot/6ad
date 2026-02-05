@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { X, CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react'
 
 type ToastType = 'success' | 'error' | 'warning' | 'info'
@@ -15,10 +15,18 @@ type ToastProps = {
 }
 
 export function Toast({ id, type, title, message, onClose, duration = 5000 }: ToastProps) {
+  const [isVisible, setIsVisible] = useState(false)
+
   useEffect(() => {
+    // Trigger animation on mount
+    requestAnimationFrame(() => {
+      setIsVisible(true)
+    })
+
     if (duration > 0) {
       const timer = setTimeout(() => {
-        onClose(id)
+        setIsVisible(false)
+        setTimeout(() => onClose(id), 200)
       }, duration)
 
       return () => clearTimeout(timer)
@@ -33,49 +41,59 @@ export function Toast({ id, type, title, message, onClose, duration = 5000 }: To
   }
 
   const colors = {
-    success: {
-      bg: 'bg-green-50',
-      border: 'border-green-200',
-      text: 'text-green-800',
-      icon: 'text-green-500',
-    },
-    error: {
-      bg: 'bg-red-50',
-      border: 'border-red-200',
-      text: 'text-red-800',
-      icon: 'text-red-500',
-    },
-    warning: {
-      bg: 'bg-yellow-50',
-      border: 'border-yellow-200',
-      text: 'text-yellow-800',
-      icon: 'text-yellow-500',
-    },
-    info: {
-      bg: 'bg-blue-50',
-      border: 'border-blue-200',
-      text: 'text-blue-800',
-      icon: 'text-blue-500',
-    },
+    success: { bg: '#f0fdf4', border: '#bbf7d0', text: '#166534', icon: '#22c55e' },
+    error: { bg: '#fef2f2', border: '#fecaca', text: '#991b1b', icon: '#ef4444' },
+    warning: { bg: '#fefce8', border: '#fef08a', text: '#854d0e', icon: '#eab308' },
+    info: { bg: '#eff6ff', border: '#bfdbfe', text: '#1e40af', icon: '#3b82f6' },
   }
 
   const style = colors[type]
 
+  const handleClose = () => {
+    setIsVisible(false)
+    setTimeout(() => onClose(id), 200)
+  }
+
   return (
     <div
-      className={`${style.bg} ${style.border} border rounded-lg shadow-lg p-4 min-w-[320px] max-w-md animate-in slide-in-from-right-full fade-in duration-300`}
+      style={{
+        backgroundColor: style.bg,
+        borderColor: style.border,
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderRadius: '8px',
+        padding: '16px',
+        minWidth: '320px',
+        maxWidth: '400px',
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
+        opacity: isVisible ? 1 : 0,
+        transition: 'transform 0.2s ease-out, opacity 0.2s ease-out',
+        willChange: 'transform, opacity',
+      }}
     >
-      <div className="flex items-start gap-3">
-        <div className={style.icon}>{icons[type]}</div>
-        <div className="flex-1 min-w-0">
-          <h4 className={`text-sm font-semibold ${style.text}`}>{title}</h4>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+        <div style={{ color: style.icon, flexShrink: 0 }}>{icons[type]}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h4 style={{ fontSize: '14px', fontWeight: 600, color: style.text, margin: 0 }}>{title}</h4>
           {message && (
-            <p className={`text-xs mt-1 ${style.text} opacity-90`}>{message}</p>
+            <p style={{ fontSize: '12px', marginTop: '4px', color: style.text, opacity: 0.9, margin: '4px 0 0 0' }}>{message}</p>
           )}
         </div>
         <button
-          onClick={() => onClose(id)}
-          className={`${style.icon} hover:opacity-70 transition-opacity flex-shrink-0`}
+          onClick={handleClose}
+          style={{
+            color: style.icon,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            flexShrink: 0,
+            opacity: 0.7,
+            transition: 'opacity 0.15s',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+          onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
         >
           <X className="h-4 w-4" />
         </button>
