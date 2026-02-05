@@ -42,26 +42,66 @@ export interface SmtpConfig {
 
 // Create transporter with custom SMTP config
 function createCustomTransporter(config: SmtpConfig) {
+  // Auto-detect secure mode based on port if encryption setting is mismatched
+  // Port 465 always uses implicit SSL/TLS (secure: true)
+  // Port 587/25 use STARTTLS (secure: false, then upgrade)
+  const isImplicitTLS = config.port === 465
+  const useSecure = config.encryption === 'SSL' || isImplicitTLS
+
+  console.log('[SMTP] Creating transporter:', {
+    host: config.host,
+    port: config.port,
+    encryption: config.encryption,
+    useSecure,
+    isImplicitTLS
+  })
+
   return nodemailer.createTransport({
     host: config.host,
     port: config.port,
-    secure: config.encryption === 'SSL', // SSL uses secure, TLS uses STARTTLS
+    secure: useSecure,
     auth: {
       user: config.username,
       pass: config.password
     },
-    ...(config.encryption === 'TLS' && { requireTLS: true })
+    // For port 587, require TLS upgrade (STARTTLS)
+    ...(config.port === 587 && !useSecure && { requireTLS: true }),
+    // Connection timeout for better error messages
+    connectionTimeout: 30000,
+    greetingTimeout: 15000,
+    socketTimeout: 30000
   })
 }
 
 // Test SMTP connection
 export async function testSmtpConnection(config: SmtpConfig): Promise<{ success: boolean; error?: string }> {
   try {
+    console.log('[SMTP] Testing connection to:', config.host, 'port:', config.port)
     const transporter = createCustomTransporter(config)
     await transporter.verify()
+    console.log('[SMTP] Connection test successful')
     return { success: true }
   } catch (error: any) {
-    return { success: false, error: error.message || 'Connection failed' }
+    console.error('[SMTP] Connection test failed:', error.message)
+
+    // Provide more helpful error messages
+    let errorMessage = error.message || 'Connection failed'
+
+    if (error.code === 'ECONNREFUSED') {
+      errorMessage = `Cannot connect to ${config.host}:${config.port}. Server may be blocking the connection or the hostname/port is incorrect.`
+    } else if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKET') {
+      errorMessage = `Connection timed out to ${config.host}:${config.port}. The server may be unreachable or the port may be blocked.`
+    } else if (error.code === 'ENOTFOUND') {
+      errorMessage = `Hostname "${config.host}" not found. Please check the SMTP host address.`
+    } else if (error.message.includes('self signed certificate') || error.message.includes('certificate')) {
+      errorMessage = `SSL/TLS certificate error. The server certificate may be invalid or self-signed.`
+    } else if (error.message.includes('wrong version number') || error.message.includes('SSL routines')) {
+      errorMessage = `SSL/TLS protocol error. Try changing the encryption type (SSL for port 465, TLS for port 587).`
+    } else if (error.responseCode === 535 || error.message.includes('authentication')) {
+      errorMessage = `Authentication failed. Please check your username and password.`
+    }
+
+    return { success: false, error: errorMessage }
   }
 }
 
