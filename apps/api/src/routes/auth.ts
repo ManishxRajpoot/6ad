@@ -154,7 +154,7 @@ auth.post('/login', async (c) => {
 
     if (!user) {
       console.log('[LOGIN] FAILED: User not found')
-      return c.json({ error: 'Invalid email/username or password' }, 401)
+      return c.json({ error: 'Account not found. Please check your email/username or contact support.' }, 401)
     }
 
     // Check password
