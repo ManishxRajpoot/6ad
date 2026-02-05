@@ -36,6 +36,8 @@ type Agent = {
   snapchatCommission?: number | string
   bingFee?: number | string
   bingCommission?: number | string
+  // Agent settings
+  showBalanceToAgent?: boolean
 }
 
 type PlatformFees = {
@@ -68,6 +70,7 @@ export default function AgentsPage() {
     password: '',
     phone: '',
     status: 'ACTIVE',
+    showBalanceToAgent: false,
     platformFees: {
       facebook: { openingFee: '', depositFee: '' },
       google: { openingFee: '', depositFee: '' },
@@ -115,6 +118,7 @@ export default function AgentsPage() {
       password: '',
       phone: agent.phone || '',
       status: agent.status,
+      showBalanceToAgent: agent.showBalanceToAgent || false,
       platformFees: {
         facebook: { openingFee: String(Number(agent.fbFee) || 0), depositFee: String(Number(agent.fbCommission) || 0) },
         google: { openingFee: String(Number(agent.googleFee) || 0), depositFee: String(Number(agent.googleCommission) || 0) },
@@ -136,6 +140,7 @@ export default function AgentsPage() {
       password: '',
       phone: '',
       status: 'ACTIVE',
+      showBalanceToAgent: false,
       platformFees: {
         facebook: { openingFee: '', depositFee: '' },
         google: { openingFee: '', depositFee: '' },
@@ -159,6 +164,7 @@ export default function AgentsPage() {
         email: formData.email,
         phone: formData.phone,
         status: formData.status,
+        showBalanceToAgent: formData.showBalanceToAgent,
         fbFee: Number(formData.platformFees.facebook.openingFee) || 0,
         fbCommission: Number(formData.platformFees.facebook.depositFee) || 0,
         googleFee: Number(formData.platformFees.google.openingFee) || 0,
@@ -782,6 +788,35 @@ export default function AgentsPage() {
                   className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Agent Dashboard Settings */}
+          <div className="space-y-2.5">
+            <h3 className="text-xs font-semibold text-gray-900 border-b pb-1.5">Dashboard Settings</h3>
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-teal-500 flex items-center justify-center">
+                  <DollarSign className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-800">Show Ad Account Balance</p>
+                  <p className="text-[10px] text-gray-500">Allow this agent to view account balances</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, showBalanceToAgent: !formData.showBalanceToAgent })}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  formData.showBalanceToAgent ? 'bg-teal-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    formData.showBalanceToAgent ? 'translate-x-5' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
           </div>
 

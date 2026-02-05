@@ -221,30 +221,28 @@ export default function WithdrawalsPage() {
         </div>
 
         {/* Request Withdrawal Section - Compact */}
-        <Card className="p-3">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h2 className="text-[13px] font-semibold text-gray-800">Request Withdrawal</h2>
-              <p className="text-[10px] text-gray-500">Enter your withdrawal amount</p>
-            </div>
+        <Card className="p-4">
+          <div className="mb-3">
+            <h2 className="text-sm font-semibold text-gray-800">Request Withdrawal</h2>
+            <p className="text-[11px] text-gray-500">Enter your withdrawal amount</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex items-end gap-3">
-            {error && (
-              <div className="mb-2 p-2 bg-red-50 border border-red-200 text-red-600 rounded-lg text-[11px]">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div className="mb-2 p-2 bg-green-50 border border-green-200 text-green-600 rounded-lg text-[11px]">
-                {success}
-              </div>
-            )}
+          {error && (
+            <div className="mb-3 p-2.5 bg-red-50 border border-red-200 text-red-600 rounded-lg text-[11px]">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="mb-3 p-2.5 bg-green-50 border border-green-200 text-green-600 rounded-lg text-[11px]">
+              {success}
+            </div>
+          )}
 
-            <div className="flex-1 max-w-xs">
-              <label className="block text-[11px] font-medium text-gray-700 mb-1">Enter Amount</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+          <form onSubmit={handleSubmit}>
+            <label className="block text-[11px] font-medium text-gray-700 mb-1.5">Enter Amount</label>
+            <div className="flex items-center gap-3">
+              <div className="relative w-64">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
                 <input
                   type="number"
                   value={amount}
@@ -252,45 +250,46 @@ export default function WithdrawalsPage() {
                   placeholder="0.00"
                   step="0.01"
                   min="0"
-                  className="w-full pl-6 pr-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent"
+                  className="w-full pl-7 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent h-[42px]"
                 />
               </div>
-              {stats && (
-                <div className="flex items-center justify-between mt-0.5">
-                  <p className="text-[9px] text-gray-400">
-                    Available: ${stats.availableToWithdraw.toFixed(2)}
-                  </p>
-                  <p className="text-[9px] text-gray-400">
-                    Min: ${stats.minimumWithdrawal || MINIMUM_WITHDRAWAL}
-                  </p>
-                </div>
-              )}
+
+              <Button
+                type="submit"
+                disabled={submitting || loading || (stats && !stats.canWithdraw) || false}
+                className={`px-6 rounded-lg font-medium text-sm h-[42px] ${
+                  stats && !stats.canWithdraw
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-[#7C3AED] hover:bg-[#6D28D9] text-white'
+                }`}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit'
+                )}
+              </Button>
             </div>
 
-            {stats && !stats.canWithdraw && (
-              <div className="p-2 bg-orange-50 border border-orange-200 text-orange-600 rounded-lg text-[10px] max-w-xs">
-                Need ${stats.minimumWithdrawal || MINIMUM_WITHDRAWAL} min. Balance: ${stats.availableToWithdraw.toFixed(2)}
+            {stats && (
+              <div className="flex items-center gap-4 mt-1.5 w-64">
+                <p className="text-[10px] text-gray-400">
+                  Available: <span className="text-[#52B788] font-medium">${stats.availableToWithdraw.toFixed(2)}</span>
+                </p>
+                <p className="text-[10px] text-gray-400">
+                  Min: <span className="font-medium">${stats.minimumWithdrawal || MINIMUM_WITHDRAWAL}</span>
+                </p>
               </div>
             )}
 
-            <Button
-              type="submit"
-              disabled={submitting || loading || (stats && !stats.canWithdraw) || false}
-              className={`px-4 py-2 rounded-lg font-medium text-xs ${
-                stats && !stats.canWithdraw
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-[#7C3AED] hover:bg-[#6D28D9] text-white'
-              }`}
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                'Submit'
-              )}
-            </Button>
+            {stats && !stats.canWithdraw && (
+              <div className="mt-3 p-2.5 bg-orange-50 border border-orange-200 text-orange-600 rounded-lg text-[11px] inline-block">
+                Minimum balance of ${stats.minimumWithdrawal || MINIMUM_WITHDRAWAL} required. Current balance: ${stats.availableToWithdraw.toFixed(2)}
+              </div>
+            )}
           </form>
         </Card>
 

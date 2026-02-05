@@ -60,6 +60,7 @@ export default function AdAccountsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(25)
   const [pagination, setPagination] = useState<any>(null)
+  const [showBalance, setShowBalance] = useState(false) // Controlled by admin setting
 
   // Dropdown states
   const [showPlatformDropdown, setShowPlatformDropdown] = useState(false)
@@ -117,6 +118,10 @@ export default function AdAccountsPage() {
       const response = await accountsApi.getAgentAll(params)
       setAccounts(response.accounts || [])
       setPagination(response.pagination)
+      // Update balance visibility from admin setting
+      if (response.showBalanceToAgents !== undefined) {
+        setShowBalance(response.showBalanceToAgents)
+      }
     } catch (error: any) {
       console.error('Failed to fetch accounts:', error)
       toast.error('Error', error.message || 'Failed to load ad accounts')
@@ -139,7 +144,7 @@ export default function AdAccountsPage() {
     return () => clearTimeout(timer)
   }, [searchQuery])
 
-  // Filter accounts by Cheetah status
+  // Filter accounts by status
   const filteredAccounts = accounts.filter(acc => {
     if (statusFilter === 'all') return true
     const cheetahStatus = acc.cheetahData?.status
@@ -155,10 +160,10 @@ export default function AdAccountsPage() {
   const disabledAccounts = accounts.filter(a => a.cheetahData?.status === 2).length
   const reviewAccounts = accounts.filter(a => [3, 7, 8, 9].includes(a.cheetahData?.status || 0)).length
 
-  // Get Cheetah status badge
-  const getCheetahStatusBadge = (cheetahData: AdAccount['cheetahData']) => {
+  // Get account status badge
+  const getAccountStatusBadge = (cheetahData: AdAccount['cheetahData']) => {
     if (!cheetahData?.isCheetah) {
-      return <span className="px-2 py-1 rounded text-[10px] font-semibold bg-gray-100 text-gray-500">Non-Cheetah</span>
+      return <span className="px-2 py-1 rounded text-[10px] font-semibold bg-gray-100 text-gray-500">Manual</span>
     }
 
     const status = cheetahData.status
@@ -433,7 +438,9 @@ export default function AdAccountsPage() {
                   <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[20%]">Account</th>
                   <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[15%]">User</th>
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[15%]">Account ID</th>
-                  <th className="text-right py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[12%]">Balance</th>
+                  {showBalance && (
+                    <th className="text-right py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[12%]">Balance</th>
+                  )}
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[12%]">Status</th>
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[12%]">Created</th>
                 </tr>
@@ -441,7 +448,7 @@ export default function AdAccountsPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center">
+                    <td colSpan={showBalance ? 6 : 5} className="py-6 text-center">
                       <div className="flex flex-col items-center">
                         <Loader2 className="w-5 h-5 text-[#7C3AED] animate-spin mb-1" />
                         <span className="text-gray-500">Loading accounts...</span>
@@ -450,7 +457,7 @@ export default function AdAccountsPage() {
                   </tr>
                 ) : filteredAccounts.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-gray-500">
+                    <td colSpan={showBalance ? 6 : 5} className="py-6 text-center text-gray-500">
                       {searchQuery ? 'No matching accounts found' : 'No ad accounts found'}
                     </td>
                   </tr>
@@ -487,16 +494,18 @@ export default function AdAccountsPage() {
                         </code>
                       </td>
 
-                      {/* Balance */}
-                      <td className="py-2.5 px-3 text-right">
-                        <p className="font-semibold text-[#52B788]">
-                          ${(account.cheetahData?.remainingBalance || account.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                      </td>
+                      {/* Balance - Only shown if admin enabled */}
+                      {showBalance && (
+                        <td className="py-2.5 px-3 text-right">
+                          <p className="font-semibold text-[#52B788]">
+                            ${(account.cheetahData?.remainingBalance || account.balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </td>
+                      )}
 
                       {/* Status */}
                       <td className="py-2.5 px-3 text-center">
-                        {getCheetahStatusBadge(account.cheetahData)}
+                        {getAccountStatusBadge(account.cheetahData)}
                       </td>
 
                       {/* Created */}

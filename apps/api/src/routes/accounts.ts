@@ -689,8 +689,21 @@ accounts.get('/agent-all', async (c) => {
       cheetahData: cheetahStatuses[acc.accountId] || null
     }))
 
+    // Get balance visibility setting from this agent's profile
+    let showBalanceToAgents = false
+    try {
+      const agent = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { showBalanceToAgent: true }
+      })
+      showBalanceToAgents = agent?.showBalanceToAgent ?? false
+    } catch (e) {
+      // Silently fail - use default (false)
+    }
+
     return c.json({
       accounts: accountsWithStatus,
+      showBalanceToAgents,
       pagination: {
         page: pageNum,
         limit: limitNum,

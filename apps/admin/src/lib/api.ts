@@ -217,6 +217,12 @@ export const settingsApi = {
     update: (data: { commissionRate?: number; minWithdrawal?: number; maxTiers?: number }) =>
       api.patch<{ message: string; settings: any }>('/settings/referrals', data),
   },
+  // Agent Balance Visibility
+  agentBalanceVisibility: {
+    get: () => api.get<{ showBalanceToAgents: boolean }>('/settings/agent-balance-visibility'),
+    update: (showBalanceToAgents: boolean) =>
+      api.put<{ message: string; showBalanceToAgents: boolean }>('/settings/agent-balance-visibility', { showBalanceToAgents }),
+  },
 }
 
 // Payment Methods API

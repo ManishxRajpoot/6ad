@@ -206,7 +206,7 @@ export const accountsApi = {
     if (params?.page) queryParams.append('page', params.page.toString())
     if (params?.limit) queryParams.append('limit', params.limit.toString())
     const queryString = queryParams.toString()
-    return api.get<{ accounts: any[]; pagination: any }>(`/accounts/agent-all${queryString ? `?${queryString}` : ''}`)
+    return api.get<{ accounts: any[]; showBalanceToAgents: boolean; pagination: any }>(`/accounts/agent-all${queryString ? `?${queryString}` : ''}`)
   },
 }
 

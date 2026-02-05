@@ -93,6 +93,7 @@ agents.get('/', requireAdmin, async (c) => {
           bingCommission: true,
           twoFactorEnabled: true,
           twoFactorSecret: true,
+          showBalanceToAgent: true,
           createdAt: true,
           _count: {
             select: { users: true }
@@ -678,6 +679,9 @@ agents.patch('/:id', requireAdmin, async (c) => {
     if (body.bingFee !== undefined) updateData.bingFee = Number(body.bingFee) || 0
     if (body.bingCommission !== undefined) updateData.bingCommission = Number(body.bingCommission) || 0
 
+    // Agent dashboard settings
+    if (body.showBalanceToAgent !== undefined) updateData.showBalanceToAgent = Boolean(body.showBalanceToAgent)
+
     console.log('Updating agent with data:', JSON.stringify(updateData, null, 2))
 
     const agent = await prisma.user.update({
@@ -699,6 +703,7 @@ agents.patch('/:id', requireAdmin, async (c) => {
         snapchatCommission: true,
         bingFee: true,
         bingCommission: true,
+        showBalanceToAgent: true,
         updatedAt: true,
       }
     })

@@ -563,6 +563,63 @@ settings.patch('/profile/avatar', requireUser, async (c) => {
   }
 })
 
+// ============= AGENT BALANCE VISIBILITY =============
+
+// GET /settings/agent-balance-visibility - Get agent balance visibility setting
+settings.get('/agent-balance-visibility', async (c) => {
+  try {
+    let globalSettings = await prisma.globalSettings.findFirst()
+
+    // Create default settings if not exists
+    if (!globalSettings) {
+      globalSettings = await prisma.globalSettings.create({
+        data: {
+          showBalanceToAgents: false
+        }
+      })
+    }
+
+    return c.json({
+      showBalanceToAgents: globalSettings.showBalanceToAgents ?? false
+    })
+  } catch (error) {
+    console.error('Get agent balance visibility error:', error)
+    return c.json({ error: 'Failed to get agent balance visibility setting' }, 500)
+  }
+})
+
+// PUT /settings/agent-balance-visibility - Update agent balance visibility (Admin only)
+settings.put('/agent-balance-visibility', requireAdmin, async (c) => {
+  try {
+    const { showBalanceToAgents } = await c.req.json()
+
+    if (typeof showBalanceToAgents !== 'boolean') {
+      return c.json({ error: 'showBalanceToAgents must be a boolean' }, 400)
+    }
+
+    let globalSettings = await prisma.globalSettings.findFirst()
+
+    if (globalSettings) {
+      globalSettings = await prisma.globalSettings.update({
+        where: { id: globalSettings.id },
+        data: { showBalanceToAgents }
+      })
+    } else {
+      globalSettings = await prisma.globalSettings.create({
+        data: { showBalanceToAgents }
+      })
+    }
+
+    return c.json({
+      message: 'Agent balance visibility updated',
+      showBalanceToAgents: globalSettings.showBalanceToAgents
+    })
+  } catch (error) {
+    console.error('Update agent balance visibility error:', error)
+    return c.json({ error: 'Failed to update agent balance visibility' }, 500)
+  }
+})
+
 // ============= REFERRAL DOMAIN =============
 
 // GET /settings/referral-domain - Get referral domain (public for users)
