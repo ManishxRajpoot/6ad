@@ -25,6 +25,7 @@ import {
   EyeOff,
   Zap,
   ChevronRight,
+  ChevronDown,
   Palette
 } from 'lucide-react'
 
@@ -87,6 +88,7 @@ export default function WhitelabelPage() {
   const [testingSmtp, setTestingSmtp] = useState(false)
   const [loadingSmtp, setLoadingSmtp] = useState(true)
   const [smtpTestResult, setSmtpTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [encryptionDropdownOpen, setEncryptionDropdownOpen] = useState(false)
 
   const fetchDomains = async () => {
     try {
@@ -318,24 +320,9 @@ export default function WhitelabelPage() {
 
   // Sidebar menu items
   const menuItems = [
-    {
-      id: 'domain' as TabType,
-      label: 'Domain & Branding',
-      icon: Globe,
-      description: 'Custom domain and logo'
-    },
-    {
-      id: 'email' as TabType,
-      label: 'Email Sender',
-      icon: Mail,
-      description: 'Email sender name settings'
-    },
-    {
-      id: 'smtp' as TabType,
-      label: 'SMTP Server',
-      icon: Server,
-      description: 'Custom SMTP configuration'
-    }
+    { id: 'domain' as TabType, label: 'Domain & Branding', icon: Globe, description: 'Custom domain & logo' },
+    { id: 'email' as TabType, label: 'Email Sender', icon: Mail, description: 'Sender name' },
+    { id: 'smtp' as TabType, label: 'SMTP Server', icon: Server, description: 'Custom SMTP' }
   ]
 
   // Get status for sidebar
@@ -357,89 +344,84 @@ export default function WhitelabelPage() {
   }
 
   return (
-    <DashboardLayout title="Whitelabel" subtitle="Customize your brand for your users">
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 h-auto lg:h-[calc(100vh-140px)]">
+    <DashboardLayout title="Whitelabel" subtitle="Customize your brand">
+      <div className="flex flex-col lg:flex-row gap-3 lg:gap-4">
         {/* Left Sidebar Navigation */}
-        <div className="w-full lg:w-56 lg:flex-shrink-0">
-          <Card className="p-2.5 h-full">
+        <div className="w-full lg:w-64 lg:flex-shrink-0">
+          <Card className="p-3">
             {/* Header Card */}
-            <div className="flex items-center gap-2 p-2 mb-2 bg-gradient-to-r from-[#7C3AED]/10 to-[#9333EA]/5 rounded-lg">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#9333EA] flex items-center justify-center text-white shadow">
-                <Palette className="w-4 h-4" />
+            <div className="flex items-center gap-2.5 p-2.5 mb-3 bg-gradient-to-r from-teal-600/10 to-teal-500/5 rounded-lg">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-600 to-teal-500 flex items-center justify-center text-white shadow-sm">
+                <Palette className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-gray-900">Brand Settings</p>
-                <p className="text-[10px] text-gray-500">Customize your identity</p>
+                <p className="text-[13px] font-semibold text-gray-900">Brand Settings</p>
+                <p className="text-[11px] text-gray-500">Customize identity</p>
               </div>
             </div>
 
             {/* Menu Items */}
-            <nav className="space-y-0.5">
-              {menuItems.map((item) => {
-                const status = item.id === 'domain' ? getDomainStatus() : item.id === 'email' ? getEmailStatus() : getSmtpStatus()
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`w-full flex items-center gap-2 p-2 rounded-lg transition-all duration-200 group ${
-                      activeTab === item.id
-                        ? 'bg-[#7C3AED] text-white shadow-sm'
-                        : 'text-gray-600 hover:bg-[#7C3AED]/5'
-                    }`}
-                  >
-                    <div className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${
-                      activeTab === item.id
-                        ? 'bg-white/20'
-                        : 'bg-[#7C3AED]/10 group-hover:bg-[#7C3AED]/20'
-                    }`}>
-                      <item.icon className={`w-3.5 h-3.5 ${activeTab === item.id ? 'text-white' : 'text-[#7C3AED]'}`} />
-                    </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <p className={`text-xs font-medium ${activeTab === item.id ? 'text-white' : 'text-gray-900'}`}>
-                        {item.label}
-                      </p>
-                      <p className={`text-[10px] truncate ${activeTab === item.id ? 'text-white/70' : 'text-gray-400'}`}>
-                        {item.description}
-                      </p>
-                    </div>
-                    <ChevronRight className={`w-3.5 h-3.5 flex-shrink-0 ${activeTab === item.id ? 'text-white/70' : 'text-gray-300'}`} />
-                  </button>
-                )
-              })}
+            <nav className="space-y-1">
+              {menuItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center gap-2.5 p-2.5 rounded-lg transition-all duration-200 group ${
+                    activeTab === item.id
+                      ? 'bg-teal-600 text-white shadow-sm'
+                      : 'text-gray-600 hover:bg-teal-50'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                    activeTab === item.id ? 'bg-white/20' : 'bg-teal-100 group-hover:bg-teal-200'
+                  }`}>
+                    <item.icon className={`w-4 h-4 ${activeTab === item.id ? 'text-white' : 'text-teal-600'}`} />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className={`text-[13px] font-medium ${activeTab === item.id ? 'text-white' : 'text-gray-900'}`}>
+                      {item.label}
+                    </p>
+                    <p className={`text-[10px] ${activeTab === item.id ? 'text-white/70' : 'text-gray-400'}`}>
+                      {item.description}
+                    </p>
+                  </div>
+                  <ChevronRight className={`w-3.5 h-3.5 ${activeTab === item.id ? 'text-white/70' : 'text-gray-300'}`} />
+                </button>
+              ))}
             </nav>
 
             {/* Status Overview */}
-            <div className="mt-3 p-2 bg-[#7C3AED]/5 rounded-lg border border-[#7C3AED]/10">
-              <p className="text-[10px] font-medium text-[#7C3AED] uppercase tracking-wider mb-1.5">Status Overview</p>
-              <div className="space-y-1">
+            <div className="mt-3 p-3 bg-teal-50 rounded-lg border border-teal-100">
+              <p className="text-[10px] font-semibold text-teal-700 uppercase tracking-wider mb-2">Status Overview</p>
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-gray-600">Domain</span>
+                  <span className="text-[12px] text-gray-600">Domain</span>
                   {getDomainStatus() ? (
-                    <span className={`flex items-center gap-0.5 text-[11px] font-medium ${getDomainStatus()?.color}`}>
-                      <Check className="w-2.5 h-2.5" /> {getDomainStatus()?.label}
+                    <span className={`flex items-center gap-1 text-[10px] font-medium ${getDomainStatus()?.color}`}>
+                      <Check className="w-3 h-3" /> {getDomainStatus()?.label}
                     </span>
                   ) : (
-                    <span className="text-[11px] text-gray-400 font-medium">Not configured</span>
+                    <span className="text-[10px] text-gray-400 font-medium">Not set</span>
                   )}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-gray-600">Email Sender</span>
+                  <span className="text-[12px] text-gray-600">Email</span>
                   {getEmailStatus() ? (
-                    <span className={`flex items-center gap-0.5 text-[11px] font-medium ${getEmailStatus()?.color}`}>
-                      <Check className="w-2.5 h-2.5" /> {getEmailStatus()?.label}
+                    <span className={`flex items-center gap-1 text-[10px] font-medium ${getEmailStatus()?.color}`}>
+                      <Check className="w-3 h-3" /> {getEmailStatus()?.label}
                     </span>
                   ) : (
-                    <span className="text-[11px] text-gray-400 font-medium">Default</span>
+                    <span className="text-[10px] text-gray-400 font-medium">Default</span>
                   )}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-gray-600">SMTP Server</span>
+                  <span className="text-[12px] text-gray-600">SMTP</span>
                   {getSmtpStatus() ? (
-                    <span className={`flex items-center gap-0.5 text-[11px] font-medium ${getSmtpStatus()?.color}`}>
-                      <Check className="w-2.5 h-2.5" /> {getSmtpStatus()?.label}
+                    <span className={`flex items-center gap-1 text-[10px] font-medium ${getSmtpStatus()?.color}`}>
+                      <Check className="w-3 h-3" /> {getSmtpStatus()?.label}
                     </span>
                   ) : (
-                    <span className="text-[11px] text-gray-400 font-medium">Default</span>
+                    <span className="text-[10px] text-gray-400 font-medium">Default</span>
                   )}
                 </div>
               </div>
@@ -448,15 +430,15 @@ export default function WhitelabelPage() {
         </div>
 
         {/* Right Content Area */}
-        <div className="flex-1 min-w-0 overflow-y-auto">
-          <Card className="p-5 min-h-full">
+        <div className="flex-1 min-w-0">
+          <Card className="p-4">
             {/* Domain & Branding Tab */}
             {activeTab === 'domain' && (
-              <div className="space-y-5 max-w-2xl animate-tabFadeIn">
+              <div className="space-y-5 max-w-xl">
                 {/* Section Header */}
                 <div>
-                  <h2 className="text-base font-semibold text-gray-900">Domain & Branding</h2>
-                  <p className="text-sm text-gray-500">Configure your custom domain and brand logo</p>
+                  <h2 className="text-[15px] font-semibold text-gray-900">Domain & Branding</h2>
+                  <p className="text-[12px] text-gray-500">Configure custom domain and logo</p>
                 </div>
 
                 {loading ? (
@@ -469,8 +451,8 @@ export default function WhitelabelPage() {
                     <div className="pb-4 border-b border-gray-100">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-[#7C3AED]/10 flex items-center justify-center">
-                            <Globe className="w-3.5 h-3.5 text-[#7C3AED]" />
+                          <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
+                            <Globe className="w-3.5 h-3.5 text-[#0D9488]" />
                           </div>
                           <h3 className="text-sm font-medium text-gray-900">Domain Configuration</h3>
                         </div>
@@ -524,7 +506,7 @@ export default function WhitelabelPage() {
                               })
                               setShowDnsModal(true)
                             }}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-lg text-sm font-medium transition-all"
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-sm font-medium transition-all"
                           >
                             <RefreshCw className="w-4 h-4" />
                             Configure DNS
@@ -554,8 +536,8 @@ export default function WhitelabelPage() {
                     {/* Logo Section */}
                     <div>
                       <div className="flex items-center gap-2 mb-3">
-                        <div className="w-7 h-7 rounded-lg bg-[#7C3AED]/10 flex items-center justify-center">
-                          <Upload className="w-3.5 h-3.5 text-[#7C3AED]" />
+                        <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
+                          <Upload className="w-3.5 h-3.5 text-[#0D9488]" />
                         </div>
                         <h3 className="text-sm font-medium text-gray-900">Brand Logo</h3>
                       </div>
@@ -599,7 +581,7 @@ export default function WhitelabelPage() {
                               updateFileInputRef.current?.click()
                             }}
                             disabled={updatingLogo}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {updatingLogo ? (
                               <>
@@ -616,8 +598,8 @@ export default function WhitelabelPage() {
                         </div>
 
                         {/* Logo Requirements */}
-                        <div className="p-3 bg-[#7C3AED]/5 border border-[#7C3AED]/10 rounded-lg">
-                          <p className="text-xs font-medium text-[#7C3AED] mb-1.5">Logo Requirements</p>
+                        <div className="p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
+                          <p className="text-xs font-medium text-[#0D9488] mb-1.5">Logo Requirements</p>
                           <ul className="text-xs text-gray-600 space-y-0.5">
                             <li>• <strong>Recommended:</strong> 280×56px (5:1 ratio)</li>
                             <li>• <strong>Format:</strong> PNG with transparent background</li>
@@ -639,7 +621,7 @@ export default function WhitelabelPage() {
                           value={newDomain}
                           onChange={(e) => setNewDomain(e.target.value)}
                           placeholder="ads.youragency.com"
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white transition-all"
+                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white transition-all"
                         />
                         <p className="text-xs text-gray-500 mt-1">Enter without http:// or https://</p>
                       </div>
@@ -667,7 +649,7 @@ export default function WhitelabelPage() {
                       ) : (
                         <div
                           onClick={() => fileInputRef.current?.click()}
-                          className="p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center cursor-pointer hover:border-[#7C3AED] hover:bg-[#7C3AED]/5 transition-colors"
+                          className="p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center cursor-pointer hover:border-[#0D9488] hover:bg-[#0D9488]/5 transition-colors"
                         >
                           <Upload className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />
                           <p className="text-sm text-gray-500">Click to upload logo</p>
@@ -683,8 +665,8 @@ export default function WhitelabelPage() {
                       />
 
                       {/* Logo Requirements */}
-                      <div className="mt-3 p-3 bg-[#7C3AED]/5 border border-[#7C3AED]/10 rounded-lg">
-                        <p className="text-xs font-medium text-[#7C3AED] mb-1.5">Recommended Specifications</p>
+                      <div className="mt-3 p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
+                        <p className="text-xs font-medium text-[#0D9488] mb-1.5">Recommended Specifications</p>
                         <ul className="text-xs text-gray-600 space-y-0.5">
                           <li>• <strong>Size:</strong> 280×56 pixels (or similar aspect ratio)</li>
                           <li>• <strong>Format:</strong> PNG with transparent background</li>
@@ -707,7 +689,7 @@ export default function WhitelabelPage() {
                       <button
                         onClick={handleSubmitDomain}
                         disabled={submitting}
-                        className="flex-1 flex items-center justify-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 flex items-center justify-center gap-2 bg-[#0D9488] hover:bg-[#0F766E] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                         {submitting ? 'Submitting...' : 'Submit Domain'}
@@ -717,8 +699,8 @@ export default function WhitelabelPage() {
                 ) : (
                   /* Empty State */
                   <div className="text-center py-8">
-                    <div className="w-14 h-14 rounded-full bg-[#7C3AED]/10 flex items-center justify-center mx-auto mb-3">
-                      <Globe className="w-7 h-7 text-[#7C3AED]" />
+                    <div className="w-14 h-14 rounded-full bg-[#0D9488]/10 flex items-center justify-center mx-auto mb-3">
+                      <Globe className="w-7 h-7 text-[#0D9488]" />
                     </div>
                     <h3 className="text-base font-medium text-gray-900 mb-1.5">No domain configured</h3>
                     <p className="text-sm text-gray-500 mb-4 max-w-sm mx-auto">
@@ -726,7 +708,7 @@ export default function WhitelabelPage() {
                     </p>
                     <button
                       onClick={() => setShowAddDomainForm(true)}
-                      className="inline-flex items-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-5 py-2 rounded-lg text-sm font-medium transition-all"
+                      className="inline-flex items-center gap-2 bg-[#0D9488] hover:bg-[#0F766E] text-white px-5 py-2 rounded-lg text-sm font-medium transition-all"
                     >
                       <Plus className="w-4 h-4" />
                       Configure Domain
@@ -738,11 +720,11 @@ export default function WhitelabelPage() {
 
             {/* Email Sender Tab */}
             {activeTab === 'email' && (
-              <div className="space-y-5 max-w-2xl animate-tabFadeIn">
+              <div className="space-y-5 max-w-xl">
                 {/* Section Header */}
                 <div>
-                  <h2 className="text-base font-semibold text-gray-900">Email Sender Settings</h2>
-                  <p className="text-sm text-gray-500">Customize how your users receive emails</p>
+                  <h2 className="text-[15px] font-semibold text-gray-900">Email Sender Settings</h2>
+                  <p className="text-[12px] text-gray-500">Customize email sender name</p>
                 </div>
 
                 {loadingBranding ? (
@@ -754,8 +736,8 @@ export default function WhitelabelPage() {
                     {/* Current Status */}
                     <div className="pb-4 border-b border-gray-100">
                       <div className="flex items-center gap-2 mb-3">
-                        <div className="w-7 h-7 rounded-lg bg-[#7C3AED]/10 flex items-center justify-center">
-                          <Mail className="w-3.5 h-3.5 text-[#7C3AED]" />
+                        <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
+                          <Mail className="w-3.5 h-3.5 text-[#0D9488]" />
                         </div>
                         <h3 className="text-sm font-medium text-gray-900">Current Status</h3>
                       </div>
@@ -812,13 +794,13 @@ export default function WhitelabelPage() {
                       <h3 className="text-sm font-medium text-gray-900 mb-3">Email Sender Name</h3>
 
                       <div className="space-y-2">
-                        <label className={`flex items-center gap-2.5 p-3 border rounded-lg cursor-pointer transition-all ${!useCustomEmail ? 'border-[#7C3AED] bg-[#7C3AED]/5' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <label className={`flex items-center gap-2.5 p-3 border rounded-lg cursor-pointer transition-all ${!useCustomEmail ? 'border-[#0D9488] bg-[#0D9488]/5' : 'border-gray-200 hover:border-gray-300'}`}>
                           <input
                             type="radio"
                             name="emailOption"
                             checked={!useCustomEmail}
                             onChange={() => setUseCustomEmail(false)}
-                            className="w-4 h-4 text-[#7C3AED] border-gray-300 focus:ring-[#7C3AED]"
+                            className="w-4 h-4 text-[#0D9488] border-gray-300 focus:ring-[#0D9488]"
                           />
                           <div className="flex-1">
                             <span className="text-sm font-medium text-gray-900">Use default (Six Media)</span>
@@ -826,13 +808,13 @@ export default function WhitelabelPage() {
                           </div>
                         </label>
 
-                        <label className={`flex items-center gap-2.5 p-3 border rounded-lg cursor-pointer transition-all ${useCustomEmail ? 'border-[#7C3AED] bg-[#7C3AED]/5' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <label className={`flex items-center gap-2.5 p-3 border rounded-lg cursor-pointer transition-all ${useCustomEmail ? 'border-[#0D9488] bg-[#0D9488]/5' : 'border-gray-200 hover:border-gray-300'}`}>
                           <input
                             type="radio"
                             name="emailOption"
                             checked={useCustomEmail}
                             onChange={() => setUseCustomEmail(true)}
-                            className="w-4 h-4 text-[#7C3AED] border-gray-300 focus:ring-[#7C3AED]"
+                            className="w-4 h-4 text-[#0D9488] border-gray-300 focus:ring-[#0D9488]"
                           />
                           <div className="flex-1">
                             <span className="text-sm font-medium text-gray-900">Use custom name</span>
@@ -850,7 +832,7 @@ export default function WhitelabelPage() {
                             value={emailSenderName}
                             onChange={(e) => setEmailSenderName(e.target.value)}
                             placeholder="Enter your agency name"
-                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white transition-all"
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white transition-all"
                             maxLength={50}
                           />
                           <p className="text-xs text-gray-500 mt-1">
@@ -861,8 +843,8 @@ export default function WhitelabelPage() {
                     </div>
 
                     {/* Preview */}
-                    <div className="p-3 bg-[#7C3AED]/5 border border-[#7C3AED]/10 rounded-lg">
-                      <p className="text-xs font-medium text-[#7C3AED] mb-1.5">Preview (after approval)</p>
+                    <div className="p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
+                      <p className="text-xs font-medium text-[#0D9488] mb-1.5">Preview (after approval)</p>
                       <div className="flex items-center gap-2 text-sm flex-wrap">
                         <span className="text-gray-500">From:</span>
                         <span className="font-medium text-gray-900">
@@ -875,7 +857,7 @@ export default function WhitelabelPage() {
                     <button
                       onClick={handleSaveEmailSettings}
                       disabled={savingEmail || (useCustomEmail && !emailSenderName.trim())}
-                      className="w-full flex items-center justify-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-5 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full flex items-center justify-center gap-2 bg-[#0D9488] hover:bg-[#0F766E] text-white px-5 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {savingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                       {savingEmail ? 'Saving...' : emailSenderNameStatus === 'PENDING' ? 'Update Request' : 'Submit for Approval'}
@@ -891,11 +873,11 @@ export default function WhitelabelPage() {
 
             {/* SMTP Server Tab */}
             {activeTab === 'smtp' && (
-              <div className="space-y-5 max-w-2xl animate-tabFadeIn">
+              <div className="space-y-5 max-w-xl">
                 {/* Section Header */}
                 <div>
-                  <h2 className="text-base font-semibold text-gray-900">SMTP Server Configuration</h2>
-                  <p className="text-sm text-gray-500">Configure custom SMTP for sending emails from your domain</p>
+                  <h2 className="text-[15px] font-semibold text-gray-900">SMTP Server Configuration</h2>
+                  <p className="text-[12px] text-gray-500">Configure custom SMTP server</p>
                 </div>
 
                 {loadingSmtp ? (
@@ -907,20 +889,20 @@ export default function WhitelabelPage() {
                     {/* SMTP Option */}
                     <div className="pb-4 border-b border-gray-100">
                       <div className="flex items-center gap-2 mb-3">
-                        <div className="w-7 h-7 rounded-lg bg-[#7C3AED]/10 flex items-center justify-center">
-                          <Server className="w-3.5 h-3.5 text-[#7C3AED]" />
+                        <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
+                          <Server className="w-3.5 h-3.5 text-[#0D9488]" />
                         </div>
                         <h3 className="text-sm font-medium text-gray-900">SMTP Server</h3>
                       </div>
 
                       <div className="space-y-2">
-                        <label className={`flex items-center gap-2.5 p-3 border rounded-lg cursor-pointer transition-all ${!smtpEnabled ? 'border-[#7C3AED] bg-[#7C3AED]/5' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <label className={`flex items-center gap-2.5 p-3 border rounded-lg cursor-pointer transition-all ${!smtpEnabled ? 'border-[#0D9488] bg-[#0D9488]/5' : 'border-gray-200 hover:border-gray-300'}`}>
                           <input
                             type="radio"
                             name="smtpOption"
                             checked={!smtpEnabled}
                             onChange={() => setSmtpEnabled(false)}
-                            className="w-4 h-4 text-[#7C3AED] border-gray-300 focus:ring-[#7C3AED]"
+                            className="w-4 h-4 text-[#0D9488] border-gray-300 focus:ring-[#0D9488]"
                           />
                           <div className="flex-1">
                             <span className="text-sm font-medium text-gray-900">Use default SMTP</span>
@@ -928,13 +910,13 @@ export default function WhitelabelPage() {
                           </div>
                         </label>
 
-                        <label className={`flex items-center gap-2.5 p-3 border rounded-lg cursor-pointer transition-all ${smtpEnabled ? 'border-[#7C3AED] bg-[#7C3AED]/5' : 'border-gray-200 hover:border-gray-300'}`}>
+                        <label className={`flex items-center gap-2.5 p-3 border rounded-lg cursor-pointer transition-all ${smtpEnabled ? 'border-[#0D9488] bg-[#0D9488]/5' : 'border-gray-200 hover:border-gray-300'}`}>
                           <input
                             type="radio"
                             name="smtpOption"
                             checked={smtpEnabled}
                             onChange={() => setSmtpEnabled(true)}
-                            className="w-4 h-4 text-[#7C3AED] border-gray-300 focus:ring-[#7C3AED]"
+                            className="w-4 h-4 text-[#0D9488] border-gray-300 focus:ring-[#0D9488]"
                           />
                           <div className="flex-1">
                             <span className="text-sm font-medium text-gray-900">Use custom SMTP server</span>
@@ -957,7 +939,7 @@ export default function WhitelabelPage() {
                             value={smtpHost}
                             onChange={(e) => setSmtpHost(e.target.value)}
                             placeholder="smtp.yourdomain.com"
-                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white transition-all"
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white transition-all"
                           />
                         </div>
 
@@ -970,20 +952,55 @@ export default function WhitelabelPage() {
                               value={smtpPort}
                               onChange={(e) => setSmtpPort(e.target.value)}
                               placeholder="587"
-                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white transition-all"
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white transition-all"
                             />
                           </div>
-                          <div>
+                          <div className="relative">
                             <label className="block text-sm text-gray-600 mb-1">Encryption</label>
-                            <select
-                              value={smtpEncryption}
-                              onChange={(e) => setSmtpEncryption(e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white transition-all"
+                            <button
+                              type="button"
+                              onClick={() => setEncryptionDropdownOpen(!encryptionDropdownOpen)}
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white transition-all flex items-center justify-between text-left"
                             >
-                              <option value="TLS">TLS (Port 587)</option>
-                              <option value="SSL">SSL (Port 465)</option>
-                              <option value="NONE">None</option>
-                            </select>
+                              <span className="text-gray-900">
+                                {smtpEncryption === 'TLS' ? 'TLS (Port 587)' : smtpEncryption === 'SSL' ? 'SSL (Port 465)' : 'None'}
+                              </span>
+                              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${encryptionDropdownOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {encryptionDropdownOpen && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-10"
+                                  onClick={() => setEncryptionDropdownOpen(false)}
+                                />
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden">
+                                  {[
+                                    { value: 'TLS', label: 'TLS (Port 587)' },
+                                    { value: 'SSL', label: 'SSL (Port 465)' },
+                                    { value: 'NONE', label: 'None' }
+                                  ].map((option) => (
+                                    <button
+                                      key={option.value}
+                                      type="button"
+                                      onClick={() => {
+                                        setSmtpEncryption(option.value)
+                                        setEncryptionDropdownOpen(false)
+                                      }}
+                                      className={`w-full px-3 py-2 text-left text-sm transition-colors flex items-center justify-between ${
+                                        smtpEncryption === option.value
+                                          ? 'bg-teal-50 text-teal-700'
+                                          : 'text-gray-700 hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      <span>{option.label}</span>
+                                      {smtpEncryption === option.value && (
+                                        <Check className="w-4 h-4 text-teal-600" />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -995,7 +1012,7 @@ export default function WhitelabelPage() {
                             value={smtpUsername}
                             onChange={(e) => setSmtpUsername(e.target.value)}
                             placeholder="your@email.com"
-                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white transition-all"
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white transition-all"
                           />
                         </div>
 
@@ -1008,7 +1025,7 @@ export default function WhitelabelPage() {
                               value={smtpPassword}
                               onChange={(e) => setSmtpPassword(e.target.value)}
                               placeholder="••••••••"
-                              className="w-full px-3 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white transition-all"
+                              className="w-full px-3 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white transition-all"
                             />
                             <button
                               type="button"
@@ -1028,7 +1045,7 @@ export default function WhitelabelPage() {
                             value={smtpFromEmail}
                             onChange={(e) => setSmtpFromEmail(e.target.value)}
                             placeholder="noreply@yourdomain.com"
-                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white transition-all"
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white transition-all"
                           />
                           <p className="text-xs text-gray-500 mt-1">This will be the sender email address for all emails</p>
                         </div>
@@ -1053,7 +1070,7 @@ export default function WhitelabelPage() {
                         <button
                           onClick={handleTestSmtp}
                           disabled={testingSmtp || !smtpHost || !smtpPort || !smtpUsername || !smtpPassword || !smtpFromEmail}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-[#7C3AED]/10 text-gray-700 hover:text-[#7C3AED] rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-[#0D9488]/10 text-gray-700 hover:text-[#0D9488] rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {testingSmtp ? (
                             <>
@@ -1072,8 +1089,8 @@ export default function WhitelabelPage() {
 
                     {/* Preview */}
                     {smtpEnabled && smtpFromEmail && (
-                      <div className="p-3 bg-[#7C3AED]/5 border border-[#7C3AED]/10 rounded-lg">
-                        <p className="text-xs font-medium text-[#7C3AED] mb-1.5">Email Preview</p>
+                      <div className="p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
+                        <p className="text-xs font-medium text-[#0D9488] mb-1.5">Email Preview</p>
                         <div className="flex items-center gap-2 text-sm flex-wrap">
                           <span className="text-gray-500">From:</span>
                           <span className="font-medium text-gray-900">
@@ -1087,7 +1104,7 @@ export default function WhitelabelPage() {
                     <button
                       onClick={handleSaveSmtp}
                       disabled={savingSmtp || (smtpEnabled && (!smtpHost || !smtpPort || !smtpUsername || !smtpFromEmail))}
-                      className="w-full flex items-center justify-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-5 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full flex items-center justify-center gap-2 bg-[#0D9488] hover:bg-[#0F766E] text-white px-5 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {savingSmtp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                       {savingSmtp ? 'Saving...' : 'Save SMTP Settings'}
@@ -1221,7 +1238,7 @@ export default function WhitelabelPage() {
                 <button
                   onClick={() => handleVerifyDns(selectedDomain)}
                   disabled={verifying}
-                  className="flex-1 flex items-center justify-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 bg-[#0D9488] hover:bg-[#0F766E] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50"
                 >
                   {verifying ? (
                     <>

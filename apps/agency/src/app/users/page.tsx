@@ -27,7 +27,8 @@ import {
   Loader2,
   Ban,
   CheckCircle,
-  ShieldOff
+  ShieldOff,
+  XCircle
 } from 'lucide-react'
 
 type User = {
@@ -527,10 +528,15 @@ export default function UsersPage() {
   const blockedUsers = users.filter(u => u.status === 'BLOCKED').length
 
   const getStatusBadge = (status: string) => {
+    const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     if (status === 'ACTIVE') {
-      return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#52B788] text-white">Active</span>
+      return <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
+        <CheckCircle className="w-3 h-3" /> Active
+      </span>
     }
-    return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#EF4444] text-white">Blocked</span>
+    return <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700`}>
+      <XCircle className="w-3 h-3" /> Blocked
+    </span>
   }
 
   return (
@@ -541,13 +547,13 @@ export default function UsersPage() {
           <div className="flex items-center gap-3 flex-wrap">
             {/* Search */}
             <div className="relative flex-1 min-w-[180px] lg:flex-none group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#7C3AED]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#0D9488]" />
               <input
                 type="text"
                 placeholder="Search users, email, phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-[12px] w-full lg:w-[220px] focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] bg-white transition-all"
+                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-[12px] w-full lg:w-[220px] focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] bg-white transition-all"
               />
             </div>
 
@@ -576,7 +582,7 @@ export default function UsersPage() {
                   <button
                     key={option.value}
                     onClick={() => { setSortBy(option.value); setShowSortDropdown(false) }}
-                    className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${sortBy === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                    className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${sortBy === option.value ? 'text-[#0D9488] bg-[#0D9488]/5 font-medium' : 'text-gray-600'}`}
                     style={{ transitionDelay: showSortDropdown ? `${index * 30}ms` : '0ms' }}
                   >
                     {option.label}
@@ -589,7 +595,7 @@ export default function UsersPage() {
           {/* Add User Button */}
           <button
             onClick={handleAddUser}
-            className="flex items-center gap-2 px-4 py-2 bg-[#7C3AED] text-white rounded-lg text-[12px] font-medium hover:bg-[#6D28D9] transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-[#0D9488] text-white rounded-lg text-[12px] font-medium hover:bg-[#0F766E] transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add User
@@ -607,7 +613,7 @@ export default function UsersPage() {
               </div>
               <span className="px-2 py-0.5 bg-[#52B788] text-white text-[10px] font-medium rounded">+{activeUsers} active</span>
             </div>
-            <StatsChart value={totalUsers} color="#7C3AED" filterId="glowPurpleUsers" gradientId="fadePurpleUsers" clipId="clipPurpleUsers" />
+            <StatsChart value={totalUsers} color="#0D9488" filterId="glowPurpleUsers" gradientId="fadePurpleUsers" clipId="clipPurpleUsers" />
           </Card>
 
           {/* Total Balance - Green */}
@@ -657,7 +663,7 @@ export default function UsersPage() {
                 onClick={() => { setStatusFilter('all'); setCurrentPage(1) }}
                 className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                   statusFilter === 'all'
-                    ? 'text-[#7C3AED]'
+                    ? 'text-[#0D9488]'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -668,7 +674,7 @@ export default function UsersPage() {
                 onClick={() => { setStatusFilter('active'); setCurrentPage(1) }}
                 className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                   statusFilter === 'active'
-                    ? 'text-[#7C3AED]'
+                    ? 'text-[#0D9488]'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -679,7 +685,7 @@ export default function UsersPage() {
                 onClick={() => { setStatusFilter('blocked'); setCurrentPage(1) }}
                 className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                   statusFilter === 'blocked'
-                    ? 'text-[#7C3AED]'
+                    ? 'text-[#0D9488]'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -687,7 +693,7 @@ export default function UsersPage() {
               </button>
               {/* Sliding indicator */}
               <div
-                className="absolute bottom-0 h-0.5 bg-[#7C3AED] transition-all duration-300 ease-out"
+                className="absolute bottom-0 h-0.5 bg-[#0D9488] transition-all duration-300 ease-out"
                 style={{
                   left: indicatorStyle.left,
                   width: indicatorStyle.width,
@@ -715,7 +721,7 @@ export default function UsersPage() {
                   <tr>
                     <td colSpan={7} className="py-6 text-center">
                       <div className="flex flex-col items-center">
-                        <Loader2 className="w-5 h-5 text-[#7C3AED] animate-spin mb-1" />
+                        <Loader2 className="w-5 h-5 text-[#0D9488] animate-spin mb-1" />
                         <span className="text-gray-500">Loading...</span>
                       </div>
                     </td>
@@ -736,7 +742,7 @@ export default function UsersPage() {
                       {/* User Info */}
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#7C3AED] to-purple-600 flex items-center justify-center text-white font-semibold text-[11px] shadow-sm flex-shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0D9488] to-teal-600 flex items-center justify-center text-white font-semibold text-[11px] shadow-sm flex-shrink-0">
                             {(user.realName || user.username).charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
@@ -800,7 +806,7 @@ export default function UsersPage() {
                       {/* Coupons */}
                       <td className="py-2.5 px-3">
                         <div className="flex items-center justify-center gap-1">
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[#7C3AED]/10 text-[#7C3AED] font-semibold">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[#0D9488]/10 text-[#0D9488] font-semibold">
                             <Ticket className="w-3 h-3" />
                             {user.couponBalance || 0}
                           </span>
@@ -808,7 +814,7 @@ export default function UsersPage() {
                             <button
                               onClick={() => handleGiveCoupon(user, 'give')}
                               disabled={agentCoupons < 1}
-                              className="p-1 rounded bg-[#7C3AED]/10 text-[#7C3AED] hover:bg-[#7C3AED]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="p-1 rounded bg-[#0D9488]/10 text-[#0D9488] hover:bg-[#0D9488]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Give Coupon"
                             >
                               <Plus className="w-3 h-3" />
@@ -840,7 +846,7 @@ export default function UsersPage() {
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => handleEditUser(user)}
-                            className="flex items-center gap-1 px-2 py-1 bg-[#7C3AED]/10 text-[#7C3AED] rounded font-medium hover:bg-[#7C3AED]/20 transition-colors whitespace-nowrap"
+                            className="flex items-center gap-1 px-2 py-1 bg-[#0D9488]/10 text-[#0D9488] rounded font-medium hover:bg-[#0D9488]/20 transition-colors whitespace-nowrap"
                           >
                             <Edit className="w-3 h-3" />
                             Edit
@@ -902,7 +908,7 @@ export default function UsersPage() {
                       onClick={() => setCurrentPage(page)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === page
-                          ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -915,7 +921,7 @@ export default function UsersPage() {
                       onClick={() => setCurrentPage(1)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === 1
-                          ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -924,7 +930,7 @@ export default function UsersPage() {
                     {currentPage > 3 && <span className="w-4 text-center text-gray-400">...</span>}
                     {currentPage > 2 && currentPage < totalPages - 1 && (
                       <button
-                        className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm"
+                        className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm"
                       >
                         {currentPage}
                       </button>
@@ -934,7 +940,7 @@ export default function UsersPage() {
                       onClick={() => setCurrentPage(totalPages)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === totalPages
-                          ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -968,7 +974,7 @@ export default function UsersPage() {
           {/* Basic Info */}
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-gray-900 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-[#7C3AED]" />
+              <Users className="w-3.5 h-3.5 text-[#0D9488]" />
               Basic Information
             </h3>
             <div className="grid grid-cols-2 gap-2">
@@ -979,7 +985,7 @@ export default function UsersPage() {
                   required
                   value={formData.realName}
                   onChange={(e) => setFormData({ ...formData, realName: e.target.value })}
-                  className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#7C3AED] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]/20"
+                  className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#0D9488] focus:outline-none focus:ring-1 focus:ring-[#0D9488]/20"
                   placeholder="Enter full name"
                 />
               </div>
@@ -990,7 +996,7 @@ export default function UsersPage() {
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#7C3AED] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]/20"
+                  className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#0D9488] focus:outline-none focus:ring-1 focus:ring-[#0D9488]/20"
                   placeholder="email@example.com"
                 />
               </div>
@@ -1002,7 +1008,7 @@ export default function UsersPage() {
                     required
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value.replace(/[^a-zA-Z0-9_]/g, '') })}
-                    className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#7C3AED] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]/20"
+                    className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#0D9488] focus:outline-none focus:ring-1 focus:ring-[#0D9488]/20"
                   />
                 ) : (
                   <div className="relative">
@@ -1012,7 +1018,7 @@ export default function UsersPage() {
                       required
                       value={formData.username}
                       onChange={(e) => setFormData({ ...formData, username: e.target.value.replace(/[^a-zA-Z0-9_]/g, '') })}
-                      className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#7C3AED] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]/20"
+                      className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#0D9488] focus:outline-none focus:ring-1 focus:ring-[#0D9488]/20"
                       style={{ paddingLeft: `${usernamePrefix.length * 7 + 10}px` }}
                     />
                   </div>
@@ -1027,7 +1033,7 @@ export default function UsersPage() {
                   required={!isEditMode}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#7C3AED] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]/20"
+                  className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#0D9488] focus:outline-none focus:ring-1 focus:ring-[#0D9488]/20"
                   placeholder={isEditMode ? "Leave blank to keep" : "Enter password"}
                 />
               </div>
@@ -1037,7 +1043,7 @@ export default function UsersPage() {
                   type="text"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#7C3AED] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]/20"
+                  className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#0D9488] focus:outline-none focus:ring-1 focus:ring-[#0D9488]/20"
                   placeholder="+1234567890"
                 />
               </div>
@@ -1046,7 +1052,7 @@ export default function UsersPage() {
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#7C3AED] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]/20"
+                  className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#0D9488] focus:outline-none focus:ring-1 focus:ring-[#0D9488]/20"
                 >
                   <option value="ACTIVE">Active</option>
                   <option value="BLOCKED">Blocked</option>
@@ -1092,7 +1098,7 @@ export default function UsersPage() {
                         platformFees: { ...formData.platformFees, facebook: { ...formData.platformFees.facebook, openingFee: e.target.value } }
                       })}
                       placeholder={`Min: $${Number(agentUser?.fbFee) || 0}`}
-                      className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                      className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                     />
                   </div>
                 </div>
@@ -1107,7 +1113,7 @@ export default function UsersPage() {
                         platformFees: { ...formData.platformFees, facebook: { ...formData.platformFees.facebook, depositFee: e.target.value } }
                       })}
                       placeholder={`Min: ${Number(agentUser?.fbCommission) || 0}%`}
-                      className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                      className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                     />
                   </div>
                 </div>
@@ -1121,7 +1127,7 @@ export default function UsersPage() {
                         platformFees: { ...formData.platformFees, facebook: { ...formData.platformFees.facebook, unlimitedDomainFee: e.target.value } }
                       })}
                       placeholder={`Min: $${Number(agentUser?.fbUnlimitedDomainFee) || 0}`}
-                      className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                      className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                     />
                   </div>
                 </div>
@@ -1149,7 +1155,7 @@ export default function UsersPage() {
                       platformFees: { ...formData.platformFees, google: { ...formData.platformFees.google, openingFee: e.target.value } }
                     })}
                     placeholder={`Min: $${Number(agentUser?.googleFee) || 0}`}
-                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                   />
                 </div>
                 <div className="px-1 py-1 flex items-center justify-center">
@@ -1162,7 +1168,7 @@ export default function UsersPage() {
                       platformFees: { ...formData.platformFees, google: { ...formData.platformFees.google, depositFee: e.target.value } }
                     })}
                     placeholder={`Min: ${Number(agentUser?.googleCommission) || 0}%`}
-                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                   />
                 </div>
                 <div className="px-1 py-1 flex items-center justify-center">
@@ -1189,7 +1195,7 @@ export default function UsersPage() {
                       platformFees: { ...formData.platformFees, tiktok: { ...formData.platformFees.tiktok, openingFee: e.target.value } }
                     })}
                     placeholder={`Min: $${Number(agentUser?.tiktokFee) || 0}`}
-                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                   />
                 </div>
                 <div className="px-1 py-1 flex items-center justify-center">
@@ -1202,7 +1208,7 @@ export default function UsersPage() {
                       platformFees: { ...formData.platformFees, tiktok: { ...formData.platformFees.tiktok, depositFee: e.target.value } }
                     })}
                     placeholder={`Min: ${Number(agentUser?.tiktokCommission) || 0}%`}
-                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                   />
                 </div>
                 <div className="px-1 py-1 flex items-center justify-center">
@@ -1229,7 +1235,7 @@ export default function UsersPage() {
                       platformFees: { ...formData.platformFees, snapchat: { ...formData.platformFees.snapchat, openingFee: e.target.value } }
                     })}
                     placeholder={`Min: $${Number(agentUser?.snapchatFee) || 0}`}
-                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                   />
                 </div>
                 <div className="px-1 py-1 flex items-center justify-center">
@@ -1242,7 +1248,7 @@ export default function UsersPage() {
                       platformFees: { ...formData.platformFees, snapchat: { ...formData.platformFees.snapchat, depositFee: e.target.value } }
                     })}
                     placeholder={`Min: ${Number(agentUser?.snapchatCommission) || 0}%`}
-                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                   />
                 </div>
                 <div className="px-1 py-1 flex items-center justify-center">
@@ -1269,7 +1275,7 @@ export default function UsersPage() {
                       platformFees: { ...formData.platformFees, bing: { ...formData.platformFees.bing, openingFee: e.target.value } }
                     })}
                     placeholder={`Min: $${Number(agentUser?.bingFee) || 0}`}
-                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                   />
                 </div>
                 <div className="px-1 py-1 flex items-center justify-center">
@@ -1282,7 +1288,7 @@ export default function UsersPage() {
                       platformFees: { ...formData.platformFees, bing: { ...formData.platformFees.bing, depositFee: e.target.value } }
                     })}
                     placeholder={`Min: ${Number(agentUser?.bingCommission) || 0}%`}
-                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#7C3AED] focus:outline-none placeholder:text-gray-300"
+                    className="w-full h-6 px-1.5 rounded border border-gray-200 text-[10px] text-center focus:border-[#0D9488] focus:outline-none placeholder:text-gray-300"
                   />
                 </div>
                 <div className="px-1 py-1 flex items-center justify-center">
@@ -1300,7 +1306,7 @@ export default function UsersPage() {
               onChange={(e) => setFormData({ ...formData, personalRemarks: e.target.value })}
               placeholder="Add any notes about this user..."
               rows={2}
-              className="w-full px-2.5 py-2 rounded-md border border-gray-200 text-xs focus:border-[#7C3AED] focus:outline-none focus:ring-1 focus:ring-[#7C3AED]/20 resize-none"
+              className="w-full px-2.5 py-2 rounded-md border border-gray-200 text-xs focus:border-[#0D9488] focus:outline-none focus:ring-1 focus:ring-[#0D9488]/20 resize-none"
             />
           </div>
 
@@ -1316,7 +1322,7 @@ export default function UsersPage() {
             <button
               type="submit"
               disabled={formLoading}
-              className="px-4 h-8 rounded-md bg-[#7C3AED] text-white text-xs font-medium hover:bg-[#6D28D9] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 h-8 rounded-md bg-[#0D9488] text-white text-xs font-medium hover:bg-[#0F766E] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {formLoading ? 'Saving...' : (selectedUser ? 'Update User' : 'Create User')}
             </button>
@@ -1411,19 +1417,19 @@ export default function UsersPage() {
       >
         <div className="space-y-5">
           {/* Agent's Coupons */}
-          <div className={`flex items-center gap-4 p-4 rounded-xl ${couponMode === 'give' ? 'bg-[#7C3AED]/10' : 'bg-[#F59E0B]/10'}`}>
+          <div className={`flex items-center gap-4 p-4 rounded-xl ${couponMode === 'give' ? 'bg-[#0D9488]/10' : 'bg-[#F59E0B]/10'}`}>
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-              couponMode === 'give' ? 'bg-[#7C3AED]/20' : 'bg-[#F59E0B]/20'
+              couponMode === 'give' ? 'bg-[#0D9488]/20' : 'bg-[#F59E0B]/20'
             }`}>
               {couponMode === 'give' ? (
-                <Ticket className="w-6 h-6 text-[#7C3AED]" />
+                <Ticket className="w-6 h-6 text-[#0D9488]" />
               ) : (
                 <Undo2 className="w-6 h-6 text-[#F59E0B]" />
               )}
             </div>
             <div>
               <p className="text-sm text-gray-600">Your Available Coupons</p>
-              <p className={`text-2xl font-bold ${couponMode === 'give' ? 'text-[#7C3AED]' : 'text-[#F59E0B]'}`}>
+              <p className={`text-2xl font-bold ${couponMode === 'give' ? 'text-[#0D9488]' : 'text-[#F59E0B]'}`}>
                 {agentCoupons}
               </p>
             </div>
@@ -1436,11 +1442,11 @@ export default function UsersPage() {
               <button
                 type="button"
                 onClick={() => setCouponUserDropdownOpen(!couponUserDropdownOpen)}
-                className="w-full h-12 px-4 rounded-xl border border-gray-200 text-sm text-left flex items-center justify-between hover:border-[#7C3AED]/30 transition-colors"
+                className="w-full h-12 px-4 rounded-xl border border-gray-200 text-sm text-left flex items-center justify-between hover:border-[#0D9488]/30 transition-colors"
               >
                 {couponUser ? (
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#7C3AED] to-purple-600 flex items-center justify-center text-white text-sm font-semibold">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0D9488] to-teal-600 flex items-center justify-center text-white text-sm font-semibold">
                       {couponUser.username.charAt(0).toUpperCase()}
                     </div>
                     <div>
@@ -1467,17 +1473,17 @@ export default function UsersPage() {
                           setCouponUserDropdownOpen(false)
                         }}
                         className={`w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors ${
-                          couponUser?.id === user.id ? 'bg-[#7C3AED]/5' : ''
+                          couponUser?.id === user.id ? 'bg-[#0D9488]/5' : ''
                         }`}
                       >
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#7C3AED] to-purple-600 flex items-center justify-center text-white text-sm font-semibold">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0D9488] to-teal-600 flex items-center justify-center text-white text-sm font-semibold">
                           {user.username.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-medium text-gray-900">{user.username}</p>
                           <p className="text-xs text-gray-500">{user.email}</p>
                         </div>
-                        <span className="text-xs text-[#7C3AED] bg-[#7C3AED]/10 px-2 py-1 rounded-full">
+                        <span className="text-xs text-[#0D9488] bg-[#0D9488]/10 px-2 py-1 rounded-full">
                           {user.couponBalance || 0}
                         </span>
                       </button>
@@ -1500,7 +1506,7 @@ export default function UsersPage() {
                 const max = couponMode === 'give' ? agentCoupons : (couponUser?.couponBalance || 1)
                 setCouponAmount(Math.min(Math.max(1, parseInt(e.target.value) || 1), max))
               }}
-              className="w-full h-12 px-4 rounded-xl border border-gray-200 text-lg font-semibold text-center focus:border-[#7C3AED] focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20"
+              className="w-full h-12 px-4 rounded-xl border border-gray-200 text-lg font-semibold text-center focus:border-[#0D9488] focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20"
             />
             {couponUser && (
               <p className="text-xs text-gray-500 mt-2 text-center">
@@ -1521,7 +1527,7 @@ export default function UsersPage() {
                 disabled={couponMode === 'give' ? amt > agentCoupons : amt > (couponUser?.couponBalance || 0)}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
                   couponAmount === amt
-                    ? couponMode === 'give' ? 'bg-[#7C3AED] text-white' : 'bg-[#F59E0B] text-white'
+                    ? couponMode === 'give' ? 'bg-[#0D9488] text-white' : 'bg-[#F59E0B] text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed'
                 }`}
               >
@@ -1554,7 +1560,7 @@ export default function UsersPage() {
                 (couponMode === 'take' && couponAmount > (couponUser?.couponBalance || 0))
               }
               className={`px-5 h-10 rounded-lg text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 ${
-                couponMode === 'give' ? 'bg-[#7C3AED] hover:bg-[#6D28D9]' : 'bg-[#F59E0B] hover:bg-[#D97706]'
+                couponMode === 'give' ? 'bg-[#0D9488] hover:bg-[#0F766E]' : 'bg-[#F59E0B] hover:bg-[#D97706]'
               }`}
             >
               {couponLoading ? (

@@ -103,7 +103,7 @@ export function UpdateChecker() {
           justifyContent: 'center',
           flexShrink: 0,
         }}>
-          <ArrowUpCircle style={{ width: '20px', height: '20px', color: '#7C3AED' }} strokeWidth={2} />
+          <ArrowUpCircle style={{ width: '20px', height: '20px', color: '#0D9488' }} strokeWidth={2} />
         </div>
 
         <div style={{ flex: 1 }}>
@@ -118,7 +118,7 @@ export function UpdateChecker() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
-                background: '#7C3AED',
+                background: '#0D9488',
                 color: 'white',
                 padding: '6px 12px',
                 borderRadius: '6px',
@@ -128,8 +128,8 @@ export function UpdateChecker() {
                 cursor: 'pointer',
                 transition: 'background 0.15s',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#6D28D9'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#7C3AED'}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#0F766E'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#0D9488'}
             >
               <RefreshCw style={{ width: '12px', height: '12px' }} />
               Refresh

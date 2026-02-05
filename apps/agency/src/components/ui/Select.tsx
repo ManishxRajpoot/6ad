@@ -73,10 +73,10 @@ export function Select({
           'w-full h-[34px] px-3 bg-white border border-gray-200 rounded-lg text-[12px] text-left',
           'flex items-center justify-between gap-1',
           'transition-all duration-200',
-          'focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED]',
+          'focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488]',
           'hover:border-gray-300',
           disabled && 'opacity-50 cursor-not-allowed',
-          isOpen && 'border-[#7C3AED] ring-2 ring-[#7C3AED]/20'
+          isOpen && 'border-[#0D9488] ring-2 ring-[#0D9488]/20'
         )}
         disabled={disabled}
       >
@@ -126,9 +126,9 @@ export function Select({
                 className={cn(
                   'w-full px-3 py-1.5 text-[11px] text-left flex items-center justify-between gap-2',
                   'transition-all duration-150',
-                  'hover:bg-[#7C3AED]/10',
+                  'hover:bg-[#0D9488]/10',
                   value === option.value
-                    ? 'bg-[#7C3AED]/10 text-[#7C3AED] font-medium'
+                    ? 'bg-[#0D9488]/10 text-[#0D9488] font-medium'
                     : 'text-gray-700'
                 )}
                 style={{
@@ -137,7 +137,7 @@ export function Select({
               >
                 <span>{option.label}</span>
                 {value === option.value && (
-                  <Check className="w-3 h-3 text-[#7C3AED]" />
+                  <Check className="w-3 h-3 text-[#0D9488]" />
                 )}
               </button>
             ))}

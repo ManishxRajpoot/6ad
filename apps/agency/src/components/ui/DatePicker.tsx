@@ -148,11 +148,11 @@ export function DatePicker({
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-1.5 h-[34px] px-3 rounded-lg border transition-all duration-200 ${
           isOpen
-            ? 'border-[#7C3AED] bg-[#7C3AED]/5'
+            ? 'border-[#0D9488] bg-[#0D9488]/5'
             : 'border-gray-200 bg-white hover:border-gray-300'
         }`}
       >
-        <Calendar className={`w-3.5 h-3.5 ${isOpen ? 'text-[#7C3AED]' : 'text-gray-400'}`} />
+        <Calendar className={`w-3.5 h-3.5 ${isOpen ? 'text-[#0D9488]' : 'text-gray-400'}`} />
         <span className="text-[12px] text-gray-700">
           {startDate || endDate ? (
             <>
@@ -212,7 +212,7 @@ export function DatePicker({
               onClick={() => setSelectingStart(true)}
               className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-xs font-medium ${
                 selectingStart
-                  ? 'bg-[#7C3AED] text-white shadow-sm'
+                  ? 'bg-[#0D9488] text-white shadow-sm'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}
             >
@@ -223,7 +223,7 @@ export function DatePicker({
               onClick={() => setSelectingStart(false)}
               className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-xs font-medium ${
                 !selectingStart
-                  ? 'bg-[#7C3AED] text-white shadow-sm'
+                  ? 'bg-[#0D9488] text-white shadow-sm'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
               }`}
             >
@@ -254,11 +254,11 @@ export function DatePicker({
                     className={`
                       w-9 h-9 flex items-center justify-center text-xs rounded-lg transition-all duration-150 font-medium
                       ${isStartDate(day) || isEndDate(day)
-                        ? 'bg-[#7C3AED] text-white shadow-sm'
+                        ? 'bg-[#0D9488] text-white shadow-sm'
                         : isDateInRange(day)
-                        ? 'bg-[#7C3AED]/15 text-[#7C3AED]'
+                        ? 'bg-[#0D9488]/15 text-[#0D9488]'
                         : isToday(day)
-                        ? 'bg-gray-100 text-gray-800 ring-1 ring-[#7C3AED]/30'
+                        ? 'bg-gray-100 text-gray-800 ring-1 ring-[#0D9488]/30'
                         : 'text-gray-700 hover:bg-gray-100'
                       }
                     `}

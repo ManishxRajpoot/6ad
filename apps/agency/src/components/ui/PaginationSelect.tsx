@@ -47,8 +47,8 @@ export function PaginationSelect({
         className={cn(
           'flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-[11px] font-medium text-gray-700',
           'transition-all duration-200',
-          'hover:border-[#7C3AED]/50 hover:bg-gray-50',
-          isOpen && 'border-[#7C3AED] ring-2 ring-[#7C3AED]/20'
+          'hover:border-[#0D9488]/50 hover:bg-gray-50',
+          isOpen && 'border-[#0D9488] ring-2 ring-[#0D9488]/20'
         )}
       >
         <span>{selectedOption?.label || value}</span>
@@ -72,15 +72,15 @@ export function PaginationSelect({
                 className={cn(
                   'w-full px-3 py-1.5 text-[11px] text-left flex items-center justify-between gap-2',
                   'transition-all duration-150',
-                  'hover:bg-[#7C3AED]/10',
+                  'hover:bg-[#0D9488]/10',
                   value === option.value
-                    ? 'bg-[#7C3AED]/10 text-[#7C3AED] font-semibold'
+                    ? 'bg-[#0D9488]/10 text-[#0D9488] font-semibold'
                     : 'text-gray-700'
                 )}
               >
                 <span>{option.label}</span>
                 {value === option.value && (
-                  <Check className="w-3 h-3 text-[#7C3AED]" />
+                  <Check className="w-3 h-3 text-[#0D9488]" />
                 )}
               </button>
             ))}

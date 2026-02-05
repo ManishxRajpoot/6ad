@@ -81,7 +81,7 @@ export function SuccessPopup({
     success: { color: '#10b981', bg: '#ecfdf5', icon: CheckCircle, defaultTitle: 'Success!' },
     error: { color: '#ef4444', bg: '#fef2f2', icon: XCircle, defaultTitle: 'Error!' },
     warning: { color: '#f59e0b', bg: '#fffbeb', icon: AlertCircle, defaultTitle: 'Warning!' },
-    info: { color: '#7C3AED', bg: '#f5f3ff', icon: Info, defaultTitle: 'Info' },
+    info: { color: '#0D9488', bg: '#f5f3ff', icon: Info, defaultTitle: 'Info' },
   }
 
   const { color, bg, icon: Icon, defaultTitle } = config[type]

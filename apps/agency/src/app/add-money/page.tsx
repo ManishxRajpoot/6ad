@@ -32,7 +32,10 @@ import {
   Wallet,
   RefreshCw,
   Send,
-  Users
+  Users,
+  CheckCircle,
+  XCircle,
+  Clock
 } from 'lucide-react'
 
 type Tab = 'add-money' | 'pay-link' | 'wallet-flow'
@@ -587,29 +590,31 @@ export default function AddMoneyPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    const baseClasses = "px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 transition-all duration-300"
+    const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     switch (status) {
       case 'APPROVED':
         return (
-          <span className={`${baseClasses} bg-[#52B788] text-white`}>
-            <Check className="w-3 h-3" />
+          <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
+            <CheckCircle className="w-3 h-3" />
             Approved
           </span>
         )
       case 'PENDING':
         return (
-          <span className={`${baseClasses} bg-[#F59E0B] text-white`}>
+          <span className={`${baseClasses} bg-amber-50 border border-amber-200 text-amber-700`}>
+            <Clock className="w-3 h-3" />
             Pending
           </span>
         )
       case 'REJECTED':
         return (
-          <span className={`${baseClasses} bg-[#EF4444] text-white`}>
+          <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700`}>
+            <XCircle className="w-3 h-3" />
             Rejected
           </span>
         )
       default:
-        return <span className={`${baseClasses} bg-gray-100 text-gray-600`}>{status}</span>
+        return <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-600`}>{status}</span>
     }
   }
 
@@ -731,13 +736,13 @@ export default function AddMoneyPage() {
           <div className="flex items-center justify-between gap-3">
             {/* Search */}
             <div className="relative flex-1 max-w-[240px] group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#7C3AED]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#0D9488]" />
               <input
                 type="text"
                 placeholder="Search transactions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-[12px] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] hover:border-gray-300"
+                className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-[12px] transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] hover:border-gray-300"
               />
             </div>
 
@@ -781,7 +786,7 @@ export default function AddMoneyPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="border-[#7C3AED] text-[#7C3AED] rounded-lg hover:bg-[#7C3AED]/10 transition-all duration-200 text-[12px] px-3 py-2"
+                className="border-[#0D9488] text-[#0D9488] rounded-lg hover:bg-[#0D9488]/10 transition-all duration-200 text-[12px] px-3 py-2"
                 onClick={() => setShowDistributeModal(true)}
               >
                 <Send className="w-3.5 h-3.5 mr-1.5" />
@@ -792,7 +797,7 @@ export default function AddMoneyPage() {
                 payLinkEnabled && (
                   <Button
                     size="sm"
-                    className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-lg shadow-md shadow-purple-200/50 hover:shadow-purple-300/50 transition-all duration-300 text-[12px] px-3 py-2"
+                    className="bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg shadow-md shadow-teal-200/50 hover:shadow-teal-400/50 transition-all duration-300 text-[12px] px-3 py-2"
                     onClick={() => setShowPayLinkModal(true)}
                   >
                     <Plus className="w-3.5 h-3.5 mr-1.5" />
@@ -802,7 +807,7 @@ export default function AddMoneyPage() {
               ) : (
                 <Button
                   size="sm"
-                  className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-lg shadow-md shadow-purple-200/50 hover:shadow-purple-300/50 transition-all duration-300 text-[12px] px-3 py-2"
+                  className="bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg shadow-md shadow-teal-200/50 hover:shadow-teal-400/50 transition-all duration-300 text-[12px] px-3 py-2"
                   onClick={() => setShowDepositModal(true)}
                 >
                   <Plus className="w-3.5 h-3.5 mr-1.5" />
@@ -822,12 +827,12 @@ export default function AddMoneyPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-5 py-2.5 text-[12px] font-medium rounded-t-lg transition-all duration-300 relative overflow-hidden ${
                   activeTab === tab.id
-                    ? 'bg-[#7C3AED] text-white shadow-md shadow-purple-200/40'
+                    ? 'bg-[#0D9488] text-white shadow-md shadow-teal-200/40'
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 {activeTab === tab.id && (
-                  <span className="absolute inset-0 bg-gradient-to-r from-[#7C3AED] to-[#9333EA]" />
+                  <span className="absolute inset-0 bg-gradient-to-r from-[#0D9488] to-[#9333EA]" />
                 )}
                 <span className="relative">{tab.label}</span>
               </button>
@@ -838,7 +843,7 @@ export default function AddMoneyPage() {
               <span className="text-gray-500">
                 {activeTab === 'wallet-flow' ? 'Total Transactions' : activeTab === 'pay-link' ? 'Pending Requests' : 'Pending Applications'}
               </span>
-              <span className="px-2.5 py-1 bg-[#7C3AED] text-white rounded-full font-semibold text-[11px] shadow-sm shadow-purple-200/50">
+              <span className="px-2.5 py-1 bg-[#0D9488] text-white rounded-full font-semibold text-[11px] shadow-sm shadow-teal-200/50">
                 {activeTab === 'wallet-flow' ? walletFlows.length : activeTab === 'pay-link' ? pendingPayLinkCount : pendingCount}
               </span>
             </div>
@@ -852,7 +857,7 @@ export default function AddMoneyPage() {
                 <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
                   <th className="text-left py-3 px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">#</th>
                   <th className="text-left py-3 px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">Apply ID</th>
-                  <th className="text-left py-3 px-3 text-[11px] font-semibold text-[#7C3AED] uppercase tracking-wider bg-gray-50">Charge Amount</th>
+                  <th className="text-left py-3 px-3 text-[11px] font-semibold text-[#0D9488] uppercase tracking-wider bg-gray-50">Charge Amount</th>
                   <th className="text-left py-3 px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider max-w-[180px] bg-gray-50">Transaction</th>
                   <th className="text-left py-3 px-3 text-[11px] font-semibold text-[#3B82F6] uppercase tracking-wider bg-gray-50">Image</th>
                   <th className="text-left py-3 px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">Payway</th>
@@ -866,7 +871,7 @@ export default function AddMoneyPage() {
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-gray-500">
                       <div className="flex flex-col items-center justify-center">
-                        <div className="w-8 h-8 border-2 border-[#7C3AED] border-t-transparent rounded-full animate-spin mb-3"></div>
+                        <div className="w-8 h-8 border-2 border-[#0D9488] border-t-transparent rounded-full animate-spin mb-3"></div>
                         <span>Loading deposits...</span>
                       </div>
                     </td>
@@ -877,19 +882,19 @@ export default function AddMoneyPage() {
                       <div className="flex flex-col items-center justify-center">
                         {/* Empty State SVG */}
                         <svg className="w-32 h-32 mb-4" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <circle cx="100" cy="100" r="80" fill="#F3E8FF" stroke="#7C3AED" strokeWidth="2" strokeDasharray="8 4"/>
-                          <rect x="60" y="70" width="80" height="60" rx="8" fill="white" stroke="#7C3AED" strokeWidth="2"/>
-                          <path d="M60 85 L100 105 L140 85" stroke="#7C3AED" strokeWidth="2" fill="none"/>
-                          <circle cx="100" cy="55" r="15" fill="#7C3AED" fillOpacity="0.2" stroke="#7C3AED" strokeWidth="2"/>
-                          <path d="M95 55 L100 60 L108 50" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M75 145 L85 135 M125 145 L115 135" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
-                          <circle cx="100" cy="150" r="3" fill="#7C3AED" opacity="0.5"/>
+                          <circle cx="100" cy="100" r="80" fill="#F3E8FF" stroke="#0D9488" strokeWidth="2" strokeDasharray="8 4"/>
+                          <rect x="60" y="70" width="80" height="60" rx="8" fill="white" stroke="#0D9488" strokeWidth="2"/>
+                          <path d="M60 85 L100 105 L140 85" stroke="#0D9488" strokeWidth="2" fill="none"/>
+                          <circle cx="100" cy="55" r="15" fill="#0D9488" fillOpacity="0.2" stroke="#0D9488" strokeWidth="2"/>
+                          <path d="M95 55 L100 60 L108 50" stroke="#0D9488" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M75 145 L85 135 M125 145 L115 135" stroke="#0D9488" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
+                          <circle cx="100" cy="150" r="3" fill="#0D9488" opacity="0.5"/>
                         </svg>
                         <h3 className="text-lg font-semibold text-gray-700 mb-1">No Deposits Yet</h3>
                         <p className="text-sm text-gray-500 mb-4">Click "+ Add Deposit" to create your first deposit request</p>
                         <button
                           onClick={() => setShowDepositModal(true)}
-                          className="px-4 py-2 bg-[#7C3AED] text-white text-sm font-medium rounded-lg hover:bg-[#6D28D9] transition-colors flex items-center gap-2"
+                          className="px-4 py-2 bg-[#0D9488] text-white text-sm font-medium rounded-lg hover:bg-[#0F766E] transition-colors flex items-center gap-2"
                         >
                           <Plus className="w-4 h-4" />
                           Add Deposit
@@ -928,7 +933,7 @@ export default function AddMoneyPage() {
                       style={{ opacity: 0 }}
                     >
                       <td className="py-2.5 px-3">
-                        <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-[11px] font-medium text-gray-600 group-hover:bg-[#7C3AED]/10 group-hover:text-[#7C3AED] transition-all duration-300">
+                        <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-[11px] font-medium text-gray-600 group-hover:bg-[#0D9488]/10 group-hover:text-[#0D9488] transition-all duration-300">
                           {(currentPage - 1) * itemsPerPage + index + 1}
                         </span>
                       </td>
@@ -983,7 +988,7 @@ export default function AddMoneyPage() {
                             onClick={() => setSelectedImage(item.paymentProof!)}
                             className="relative group/img flex items-center gap-1 transition-all duration-300"
                           >
-                            <div className="relative w-7 h-7 rounded-md overflow-hidden border border-gray-200 group-hover/img:border-[#7C3AED] transition-all duration-300 shadow-sm">
+                            <div className="relative w-7 h-7 rounded-md overflow-hidden border border-gray-200 group-hover/img:border-[#0D9488] transition-all duration-300 shadow-sm">
                               <img
                                 src={item.paymentProof}
                                 alt="Payment proof"
@@ -993,7 +998,7 @@ export default function AddMoneyPage() {
                                 <ZoomIn className="w-3 h-3 text-white opacity-0 group-hover/img:opacity-100 transition-all duration-300" />
                               </div>
                             </div>
-                            <span className="text-[10px] text-[#3B82F6] font-medium group-hover/img:text-[#7C3AED] transition-colors">View</span>
+                            <span className="text-[10px] text-[#3B82F6] font-medium group-hover/img:text-[#0D9488] transition-colors">View</span>
                           </button>
                         ) : (
                           <span className="text-[11px] text-gray-400">---</span>
@@ -1058,7 +1063,7 @@ export default function AddMoneyPage() {
                   className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
                     currentPage === 1
                       ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
+                      : 'text-gray-600 hover:bg-[#0D9488]/10 hover:text-[#0D9488]'
                   }`}
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -1087,8 +1092,8 @@ export default function AddMoneyPage() {
                         onClick={() => setCurrentPage(page)}
                         className={`min-w-[28px] h-7 px-2 rounded-lg text-[11px] font-medium transition-all ${
                           currentPage === page
-                            ? 'bg-[#7C3AED] text-white shadow-sm'
-                            : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
+                            ? 'bg-[#0D9488] text-white shadow-sm'
+                            : 'text-gray-600 hover:bg-[#0D9488]/10 hover:text-[#0D9488]'
                         }`}
                       >
                         {page}
@@ -1105,7 +1110,7 @@ export default function AddMoneyPage() {
                   className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
                     currentPage >= Math.ceil(filteredDeposits.length / itemsPerPage)
                       ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
+                      : 'text-gray-600 hover:bg-[#0D9488]/10 hover:text-[#0D9488]'
                   }`}
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -1140,7 +1145,7 @@ export default function AddMoneyPage() {
                   <tr>
                     <td colSpan={9} className="py-16 text-center text-gray-500">
                       <div className="flex flex-col items-center justify-center">
-                        <div className="w-8 h-8 border-2 border-[#7C3AED] border-t-transparent rounded-full animate-spin mb-3"></div>
+                        <div className="w-8 h-8 border-2 border-[#0D9488] border-t-transparent rounded-full animate-spin mb-3"></div>
                         <span>Loading pay link requests...</span>
                       </div>
                     </td>
@@ -1151,18 +1156,18 @@ export default function AddMoneyPage() {
                       <div className="flex flex-col items-center justify-center">
                         {/* Empty State SVG for Pay Link */}
                         <svg className="w-32 h-32 mb-4" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <circle cx="100" cy="100" r="80" fill="#F3E8FF" stroke="#7C3AED" strokeWidth="2" strokeDasharray="8 4"/>
-                          <rect x="50" y="80" width="100" height="40" rx="8" fill="white" stroke="#7C3AED" strokeWidth="2"/>
-                          <circle cx="70" cy="100" r="10" fill="#7C3AED" fillOpacity="0.3"/>
-                          <path d="M85 95 H130 M85 105 H120" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round"/>
-                          <path d="M100 60 L100 70 M100 130 L100 140" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
+                          <circle cx="100" cy="100" r="80" fill="#F3E8FF" stroke="#0D9488" strokeWidth="2" strokeDasharray="8 4"/>
+                          <rect x="50" y="80" width="100" height="40" rx="8" fill="white" stroke="#0D9488" strokeWidth="2"/>
+                          <circle cx="70" cy="100" r="10" fill="#0D9488" fillOpacity="0.3"/>
+                          <path d="M85 95 H130 M85 105 H120" stroke="#0D9488" strokeWidth="2" strokeLinecap="round"/>
+                          <path d="M100 60 L100 70 M100 130 L100 140" stroke="#0D9488" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
                         </svg>
                         <h3 className="text-lg font-semibold text-gray-700 mb-1">No Pay Links Yet</h3>
                         <p className="text-sm text-gray-500 mb-4">Apply for a Pay Link to receive payments</p>
                         {payLinkEnabled ? (
                           <button
                             onClick={() => setShowPayLinkModal(true)}
-                            className="px-4 py-2 bg-[#7C3AED] text-white text-sm font-medium rounded-lg hover:bg-[#6D28D9] transition-colors flex items-center gap-2"
+                            className="px-4 py-2 bg-[#0D9488] text-white text-sm font-medium rounded-lg hover:bg-[#0F766E] transition-colors flex items-center gap-2"
                           >
                             <Plus className="w-4 h-4" />
                             Apply Pay Link
@@ -1180,7 +1185,7 @@ export default function AddMoneyPage() {
                       style={{ opacity: 0 }}
                     >
                       <td className="py-2.5 px-3">
-                        <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-[11px] font-medium text-gray-600 group-hover:bg-[#7C3AED]/10 group-hover:text-[#7C3AED] transition-all duration-300">
+                        <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-[11px] font-medium text-gray-600 group-hover:bg-[#0D9488]/10 group-hover:text-[#0D9488] transition-all duration-300">
                           {index + 1}
                         </span>
                       </td>
@@ -1191,7 +1196,7 @@ export default function AddMoneyPage() {
                       </td>
                       <td className="py-2.5 px-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium ${
-                          request.type === 'INDIVIDUAL' ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'
+                          request.type === 'INDIVIDUAL' ? 'bg-blue-50 text-blue-700' : 'bg-teal-50 text-teal-700'
                         }`}>
                           {request.type === 'INDIVIDUAL' ? <User className="w-3 h-3" /> : <Building2 className="w-3 h-3" />}
                           {request.type === 'INDIVIDUAL' ? 'Individual' : 'Company'}
@@ -1257,24 +1262,26 @@ export default function AddMoneyPage() {
                       </td>
                       <td className="py-2.5 px-3">
                         {request.status === 'PENDING' && (
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 bg-[#F59E0B] text-white">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-amber-50 border border-amber-200 text-amber-700">
+                            <Clock className="w-3 h-3" />
                             Pending
                           </span>
                         )}
                         {request.status === 'LINK_CREATED' && (
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 bg-[#3B82F6] text-white">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-blue-50 border border-blue-200 text-blue-700">
                             <LinkIcon className="w-3 h-3" />
                             Link Ready
                           </span>
                         )}
                         {request.status === 'COMPLETED' && (
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 bg-[#52B788] text-white">
-                            <Check className="w-3 h-3" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-emerald-50 border border-emerald-200 text-emerald-700">
+                            <CheckCircle className="w-3 h-3" />
                             Completed
                           </span>
                         )}
                         {request.status === 'REJECTED' && (
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 bg-[#EF4444] text-white">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-red-50 border border-red-200 text-red-700">
+                            <XCircle className="w-3 h-3" />
                             Rejected
                           </span>
                         )}
@@ -1305,7 +1312,7 @@ export default function AddMoneyPage() {
                   <tr>
                     <td colSpan={8} className="py-16 text-center text-gray-500">
                       <div className="flex flex-col items-center justify-center">
-                        <div className="w-8 h-8 border-2 border-[#7C3AED] border-t-transparent rounded-full animate-spin mb-3"></div>
+                        <div className="w-8 h-8 border-2 border-[#0D9488] border-t-transparent rounded-full animate-spin mb-3"></div>
                         <span>Loading wallet flow...</span>
                       </div>
                     </td>
@@ -1316,12 +1323,12 @@ export default function AddMoneyPage() {
                       <div className="flex flex-col items-center justify-center">
                         {/* Empty State SVG for Wallet Flow */}
                         <svg className="w-32 h-32 mb-4" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <circle cx="100" cy="100" r="80" fill="#F3E8FF" stroke="#7C3AED" strokeWidth="2" strokeDasharray="8 4"/>
-                          <rect x="55" y="70" width="90" height="60" rx="8" fill="white" stroke="#7C3AED" strokeWidth="2"/>
-                          <path d="M55 90 H145" stroke="#7C3AED" strokeWidth="2"/>
-                          <circle cx="75" cy="110" r="8" fill="#7C3AED" fillOpacity="0.3" stroke="#7C3AED" strokeWidth="1"/>
-                          <path d="M90 105 H130 M90 115 H120" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
-                          <path d="M100 50 L100 60 M80 55 L90 60 M120 55 L110 60" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" opacity="0.3"/>
+                          <circle cx="100" cy="100" r="80" fill="#F3E8FF" stroke="#0D9488" strokeWidth="2" strokeDasharray="8 4"/>
+                          <rect x="55" y="70" width="90" height="60" rx="8" fill="white" stroke="#0D9488" strokeWidth="2"/>
+                          <path d="M55 90 H145" stroke="#0D9488" strokeWidth="2"/>
+                          <circle cx="75" cy="110" r="8" fill="#0D9488" fillOpacity="0.3" stroke="#0D9488" strokeWidth="1"/>
+                          <path d="M90 105 H130 M90 115 H120" stroke="#0D9488" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
+                          <path d="M100 50 L100 60 M80 55 L90 60 M120 55 L110 60" stroke="#0D9488" strokeWidth="2" strokeLinecap="round" opacity="0.3"/>
                         </svg>
                         <h3 className="text-lg font-semibold text-gray-700 mb-1">No Transactions Yet</h3>
                         <p className="text-sm text-gray-500">Your wallet transaction history will appear here</p>
@@ -1342,7 +1349,7 @@ export default function AddMoneyPage() {
                         style={{ opacity: 0 }}
                       >
                         <td className="py-2.5 px-3">
-                          <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-[11px] font-medium text-gray-600 group-hover:bg-[#7C3AED]/10 group-hover:text-[#7C3AED] transition-all duration-300">
+                          <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-[11px] font-medium text-gray-600 group-hover:bg-[#0D9488]/10 group-hover:text-[#0D9488] transition-all duration-300">
                             {startIndex + index + 1}
                           </span>
                         </td>
@@ -1387,8 +1394,8 @@ export default function AddMoneyPage() {
                               flow.referenceType === 'deposit' ? 'bg-green-100 text-green-600' :
                               flow.referenceType === 'withdrawal' ? 'bg-orange-100 text-orange-600' :
                               flow.referenceType === 'refund' ? 'bg-blue-100 text-blue-600' :
-                              flow.referenceType === 'ad_account_recharge' ? 'bg-purple-100 text-purple-600' :
-                              flow.referenceType === 'ad_account_apply' ? 'bg-indigo-100 text-indigo-600' :
+                              flow.referenceType === 'ad_account_recharge' ? 'bg-teal-100 text-teal-600' :
+                              flow.referenceType === 'ad_account_apply' ? 'bg-teal-100 text-teal-700' :
                               'bg-gray-100 text-gray-600'
                             }`}>
                               {flow.referenceType === 'deposit' ? <ArrowDownLeft className="w-3.5 h-3.5" /> :
@@ -1466,7 +1473,7 @@ export default function AddMoneyPage() {
                   className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
                     walletFlowPage === 1
                       ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
+                      : 'text-gray-600 hover:bg-[#0D9488]/10 hover:text-[#0D9488]'
                   }`}
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -1492,8 +1499,8 @@ export default function AddMoneyPage() {
                         onClick={() => setWalletFlowPage(page)}
                         className={`min-w-[28px] h-7 px-2 rounded-lg text-[11px] font-medium transition-all ${
                           walletFlowPage === page
-                            ? 'bg-[#7C3AED] text-white shadow-sm'
-                            : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
+                            ? 'bg-[#0D9488] text-white shadow-sm'
+                            : 'text-gray-600 hover:bg-[#0D9488]/10 hover:text-[#0D9488]'
                         }`}
                       >
                         {page}
@@ -1510,7 +1517,7 @@ export default function AddMoneyPage() {
                   className={`px-3 py-1.5 text-[11px] font-medium rounded-lg transition-all ${
                     walletFlowPage === totalPages
                       ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-600 hover:bg-[#7C3AED]/10 hover:text-[#7C3AED]'
+                      : 'text-gray-600 hover:bg-[#0D9488]/10 hover:text-[#0D9488]'
                   }`}
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -1563,7 +1570,7 @@ export default function AddMoneyPage() {
                 placeholder="Enter unique Transaction ID"
                 value={depositForm.transactionId}
                 onChange={(e) => setDepositForm({...depositForm, transactionId: e.target.value})}
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[12px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[12px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
               />
             </div>
           </div>
@@ -1573,10 +1580,10 @@ export default function AddMoneyPage() {
             const selectedMethod = paymentMethods.find(pm => pm.id === depositForm.payway)
             if (!selectedMethod?.description) return null
             return (
-              <div className="bg-[#7C3AED]/10 border border-[#7C3AED]/30 rounded-lg p-3">
+              <div className="bg-[#0D9488]/10 border border-[#0D9488]/30 rounded-lg p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1">
-                    <p className="text-[10px] text-[#7C3AED] font-medium mb-0.5">Payment Address / Details</p>
+                    <p className="text-[10px] text-[#0D9488] font-medium mb-0.5">Payment Address / Details</p>
                     <p className="text-[11px] text-gray-800 font-mono break-all">{selectedMethod.description}</p>
                   </div>
                   <button
@@ -1586,7 +1593,7 @@ export default function AddMoneyPage() {
                       setCopiedId(-1)
                       setTimeout(() => setCopiedId(null), 2000)
                     }}
-                    className="flex-shrink-0 p-1.5 rounded-lg bg-[#7C3AED] text-white hover:bg-[#6D28D9] transition-colors"
+                    className="flex-shrink-0 p-1.5 rounded-lg bg-[#0D9488] text-white hover:bg-[#0F766E] transition-colors"
                     title="Copy to clipboard"
                   >
                     {copiedId === -1 ? (
@@ -1608,7 +1615,7 @@ export default function AddMoneyPage() {
               placeholder="e.g. 500 (USD)"
               value={depositForm.chargeAmount}
               onChange={(e) => setDepositForm({...depositForm, chargeAmount: e.target.value})}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[12px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[12px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
             />
           </div>
 
@@ -1620,7 +1627,7 @@ export default function AddMoneyPage() {
               placeholder="Remarks (optional)"
               value={depositForm.remarks}
               onChange={(e) => setDepositForm({...depositForm, remarks: e.target.value})}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[12px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[12px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
             />
           </div>
 
@@ -1641,10 +1648,10 @@ export default function AddMoneyPage() {
 
             {filePreview ? (
               // Show preview when file is uploaded - Compact
-              <div className="relative border-2 border-[#7C3AED] rounded-lg p-2 bg-purple-50/30">
+              <div className="relative border-2 border-[#0D9488] rounded-lg p-2 bg-teal-50/30">
                 <div className="flex items-center gap-3">
                   {/* Image preview */}
-                  <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#7C3AED]/30">
+                  <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#0D9488]/30">
                     <img
                       src={filePreview}
                       alt="Preview"
@@ -1679,12 +1686,12 @@ export default function AddMoneyPage() {
                 onClick={() => fileInputRef.current?.click()}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
-                className="border-2 border-dashed border-[#7C3AED] rounded-lg p-4 text-center bg-purple-50/30 hover:bg-purple-50/50 transition-all cursor-pointer"
+                className="border-2 border-dashed border-[#0D9488] rounded-lg p-4 text-center bg-teal-50/30 hover:bg-teal-50/50 transition-all cursor-pointer"
               >
                 <div className="flex flex-col items-center gap-1">
-                  <Upload className="w-5 h-5 text-[#7C3AED]" />
+                  <Upload className="w-5 h-5 text-[#0D9488]" />
                   <div className="text-[11px]">
-                    <span className="text-[#7C3AED] font-medium">Click to upload</span>
+                    <span className="text-[#0D9488] font-medium">Click to upload</span>
                     <span className="text-gray-500"> or drag and drop</span>
                   </div>
                   <p className="text-[10px] text-gray-400">SVG, PNG, JPG, GIF or WebP (max. 5MB)</p>
@@ -1703,7 +1710,7 @@ export default function AddMoneyPage() {
               Cancel
             </Button>
             <Button
-              className="flex-1 bg-[#7C3AED] hover:bg-[#6D28D9] rounded-lg py-2 text-[12px]"
+              className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] rounded-lg py-2 text-[12px]"
               onClick={handleSubmitDeposit}
               disabled={submittingDeposit}
             >
@@ -1741,7 +1748,7 @@ export default function AddMoneyPage() {
               onClick={() => setPayLinkType('company')}
               className={`flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition-all duration-300 ${
                 payLinkType === 'company'
-                  ? 'bg-[#7C3AED] text-white shadow-sm'
+                  ? 'bg-[#0D9488] text-white shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -1762,7 +1769,7 @@ export default function AddMoneyPage() {
                       placeholder="Full Name"
                       value={payLinkForm.fullName}
                       onChange={(e) => setPayLinkForm({...payLinkForm, fullName: e.target.value})}
-                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1772,7 +1779,7 @@ export default function AddMoneyPage() {
                       placeholder="Email ID"
                       value={payLinkForm.email}
                       onChange={(e) => setPayLinkForm({...payLinkForm, email: e.target.value})}
-                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                     />
                   </div>
                 </div>
@@ -1786,7 +1793,7 @@ export default function AddMoneyPage() {
                       placeholder="Country"
                       value={payLinkForm.country}
                       onChange={(e) => setPayLinkForm({...payLinkForm, country: e.target.value})}
-                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1796,7 +1803,7 @@ export default function AddMoneyPage() {
                       placeholder="Amount"
                       value={payLinkForm.amount}
                       onChange={(e) => setPayLinkForm({...payLinkForm, amount: e.target.value})}
-                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                     />
                   </div>
                 </div>
@@ -1819,7 +1826,7 @@ export default function AddMoneyPage() {
                       placeholder="Full Name"
                       value={payLinkForm.fullName}
                       onChange={(e) => setPayLinkForm({...payLinkForm, fullName: e.target.value})}
-                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1829,7 +1836,7 @@ export default function AddMoneyPage() {
                       placeholder="Email ID"
                       value={payLinkForm.email}
                       onChange={(e) => setPayLinkForm({...payLinkForm, email: e.target.value})}
-                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                     />
                   </div>
                 </div>
@@ -1843,7 +1850,7 @@ export default function AddMoneyPage() {
                       placeholder="Company Name"
                       value={payLinkForm.companyName}
                       onChange={(e) => setPayLinkForm({...payLinkForm, companyName: e.target.value})}
-                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1853,7 +1860,7 @@ export default function AddMoneyPage() {
                       placeholder="Website Address"
                       value={payLinkForm.website}
                       onChange={(e) => setPayLinkForm({...payLinkForm, website: e.target.value})}
-                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                     />
                   </div>
                 </div>
@@ -1867,7 +1874,7 @@ export default function AddMoneyPage() {
                       placeholder="Country"
                       value={payLinkForm.country}
                       onChange={(e) => setPayLinkForm({...payLinkForm, country: e.target.value})}
-                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                     />
                   </div>
                   <div className="space-y-1">
@@ -1877,7 +1884,7 @@ export default function AddMoneyPage() {
                       placeholder="Amount"
                       value={payLinkForm.amount}
                       onChange={(e) => setPayLinkForm({...payLinkForm, amount: e.target.value})}
-                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                      className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                     />
                   </div>
                 </div>
@@ -1902,7 +1909,7 @@ export default function AddMoneyPage() {
               Cancel
             </Button>
             <Button
-              className="flex-1 bg-[#7C3AED] hover:bg-[#6D28D9] rounded-lg py-2 text-xs"
+              className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] rounded-lg py-2 text-xs"
               onClick={handleSubmitPayLink}
               disabled={submittingPayLink}
             >
@@ -1931,7 +1938,7 @@ export default function AddMoneyPage() {
           {/* Left Column - User Selection */}
           <div className="space-y-2.5">
             {/* Agent's Balance Display - Compact */}
-            <div className="p-2.5 bg-gradient-to-r from-[#7C3AED] to-[#9333EA] rounded-lg text-white">
+            <div className="p-2.5 bg-gradient-to-r from-[#0D9488] to-[#9333EA] rounded-lg text-white">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
                   <Wallet className="w-4 h-4" />
@@ -1954,7 +1961,7 @@ export default function AddMoneyPage() {
                 <div
                   className={`flex items-center gap-1.5 px-2.5 py-2 bg-gray-50 border rounded-lg cursor-pointer transition-all duration-200 ${
                     showUserDropdown
-                      ? 'border-[#7C3AED] ring-2 ring-[#7C3AED]/20 bg-white'
+                      ? 'border-[#0D9488] ring-2 ring-[#0D9488]/20 bg-white'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                   onClick={() => setShowUserDropdown(true)}
@@ -1989,7 +1996,7 @@ export default function AddMoneyPage() {
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
                     {loadingUsers ? (
                       <div className="flex items-center justify-center py-4">
-                        <div className="w-4 h-4 border-2 border-[#7C3AED] border-t-transparent rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-[#0D9488] border-t-transparent rounded-full animate-spin"></div>
                         <span className="ml-2 text-xs text-gray-500">Loading...</span>
                       </div>
                     ) : (
@@ -2004,7 +2011,7 @@ export default function AddMoneyPage() {
                               key={userItem.id}
                               className={`flex items-center gap-2 px-2.5 py-2 cursor-pointer transition-colors ${
                                 distributeForm.userId === userItem.id
-                                  ? 'bg-[#7C3AED]/10'
+                                  ? 'bg-[#0D9488]/10'
                                   : 'hover:bg-gray-50'
                               }`}
                               onClick={() => {
@@ -2014,13 +2021,13 @@ export default function AddMoneyPage() {
                               }}
                             >
                               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white font-medium text-xs ${
-                                distributeForm.userId === userItem.id ? 'bg-[#7C3AED]' : 'bg-gray-400'
+                                distributeForm.userId === userItem.id ? 'bg-[#0D9488]' : 'bg-gray-400'
                               }`}>
                                 {userItem.username?.charAt(0).toUpperCase() || 'U'}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className={`text-xs font-medium truncate ${
-                                  distributeForm.userId === userItem.id ? 'text-[#7C3AED]' : 'text-gray-800'
+                                  distributeForm.userId === userItem.id ? 'text-[#0D9488]' : 'text-gray-800'
                                 }`}>
                                   {userItem.username || 'No username'}
                                 </p>
@@ -2028,13 +2035,13 @@ export default function AddMoneyPage() {
                               </div>
                               <div className="text-right shrink-0">
                                 <p className={`text-xs font-semibold ${
-                                  distributeForm.userId === userItem.id ? 'text-[#7C3AED]' : 'text-gray-700'
+                                  distributeForm.userId === userItem.id ? 'text-[#0D9488]' : 'text-gray-700'
                                 }`}>
                                   ${Number(userItem.walletBalance || 0).toFixed(2)}
                                 </p>
                               </div>
                               {distributeForm.userId === userItem.id && (
-                                <Check className="w-3.5 h-3.5 text-[#7C3AED] shrink-0" />
+                                <Check className="w-3.5 h-3.5 text-[#0D9488] shrink-0" />
                               )}
                             </div>
                           ))
@@ -2059,9 +2066,9 @@ export default function AddMoneyPage() {
               const selectedUser = usersList.find(u => u.id === distributeForm.userId)
               if (!selectedUser) return null
               return (
-                <div className="bg-[#7C3AED]/5 border border-[#7C3AED]/20 rounded-lg p-2.5">
+                <div className="bg-[#0D9488]/5 border border-[#0D9488]/20 rounded-lg p-2.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-full bg-[#7C3AED] flex items-center justify-center text-white font-semibold text-sm">
+                    <div className="w-9 h-9 rounded-full bg-[#0D9488] flex items-center justify-center text-white font-semibold text-sm">
                       {selectedUser.username?.charAt(0).toUpperCase() || 'U'}
                     </div>
                     <div className="flex-1">
@@ -2069,9 +2076,9 @@ export default function AddMoneyPage() {
                       <p className="text-[10px] text-gray-500">{selectedUser.email}</p>
                     </div>
                   </div>
-                  <div className="mt-2 pt-2 border-t border-[#7C3AED]/20 flex items-center justify-between">
+                  <div className="mt-2 pt-2 border-t border-[#0D9488]/20 flex items-center justify-between">
                     <span className="text-[10px] text-gray-500">Current Balance</span>
-                    <span className="text-sm font-bold text-[#7C3AED]">${Number(selectedUser.walletBalance || 0).toFixed(2)}</span>
+                    <span className="text-sm font-bold text-[#0D9488]">${Number(selectedUser.walletBalance || 0).toFixed(2)}</span>
                   </div>
                 </div>
               )
@@ -2092,7 +2099,7 @@ export default function AddMoneyPage() {
                   placeholder="0.00"
                   value={distributeForm.amount}
                   onChange={(e) => setDistributeForm({...distributeForm, amount: e.target.value})}
-                  className="w-full pl-6 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white"
+                  className="w-full pl-6 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white"
                 />
               </div>
               {distributeForm.amount && Number(distributeForm.amount) > Number(user?.walletBalance || 0) && (
@@ -2110,7 +2117,7 @@ export default function AddMoneyPage() {
                 value={distributeForm.remarks}
                 onChange={(e) => setDistributeForm({...distributeForm, remarks: e.target.value})}
                 rows={2}
-                className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white resize-none"
+                className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white resize-none"
               />
             </div>
 
@@ -2139,7 +2146,7 @@ export default function AddMoneyPage() {
                     return (
                       <div className="flex items-center justify-between text-xs pt-1.5 border-t border-gray-200">
                         <span className="text-gray-500">User's Balance After</span>
-                        <span className="font-semibold text-[#7C3AED]">
+                        <span className="font-semibold text-[#0D9488]">
                           ${(Number(selectedUser.walletBalance || 0) + Number(distributeForm.amount || 0)).toFixed(2)}
                         </span>
                       </div>
@@ -2173,7 +2180,7 @@ export default function AddMoneyPage() {
             Cancel
           </Button>
           <Button
-            className="flex-1 bg-[#7C3AED] hover:bg-[#6D28D9] rounded-lg py-2 text-xs"
+            className="flex-1 bg-[#0D9488] hover:bg-[#0F766E] rounded-lg py-2 text-xs"
             onClick={handleSubmitDistribute}
             disabled={
               submittingDistribute ||
@@ -2222,7 +2229,7 @@ export default function AddMoneyPage() {
             {/* Receipt Card Frame */}
             <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
               {/* Header */}
-              <div className="bg-gradient-to-r from-[#7C3AED] to-[#9333EA] px-6 py-4 flex items-center justify-between">
+              <div className="bg-gradient-to-r from-[#0D9488] to-[#9333EA] px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                     <ImageIcon className="w-5 h-5 text-white" />
@@ -2269,12 +2276,12 @@ export default function AddMoneyPage() {
           <div
             className={`flex flex-col items-center gap-3 px-8 py-6 rounded-2xl shadow-2xl transform transition-all duration-300 ease-out animate-toastPop ${
               toast.type === 'success'
-                ? 'bg-white border-2 border-[#7C3AED]'
+                ? 'bg-white border-2 border-[#0D9488]'
                 : 'bg-white border-2 border-red-500'
             }`}
           >
             <div className={`w-16 h-16 rounded-full flex items-center justify-center animate-checkBounce ${
-              toast.type === 'success' ? 'bg-[#7C3AED]' : 'bg-red-500'
+              toast.type === 'success' ? 'bg-[#0D9488]' : 'bg-red-500'
             }`}>
               {toast.type === 'success' ? (
                 <Check className="w-8 h-8 text-white" strokeWidth={3} />
@@ -2283,7 +2290,7 @@ export default function AddMoneyPage() {
               )}
             </div>
             <span className={`text-lg font-semibold ${
-              toast.type === 'success' ? 'text-[#7C3AED]' : 'text-red-500'
+              toast.type === 'success' ? 'text-[#0D9488]' : 'text-red-500'
             }`}>
               {toast.type === 'success' ? 'Success!' : 'Error!'}
             </span>

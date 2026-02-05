@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, Clock, XCircle } from 'lucide-react'
 
 const withdrawals = [
   { id: 'WTH001', amount: 2500, method: 'USDT (TRC20)', status: 'COMPLETED', date: '2024-01-15' },
@@ -27,15 +27,22 @@ export default function WithdrawalsPage() {
   const balance = 4300 // Mock balance in USD
 
   const getStatusBadge = (status: string) => {
+    const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     switch (status) {
       case 'COMPLETED':
-        return <Badge variant="success">Completed</Badge>
+        return <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
+          <CheckCircle className="w-3 h-3" /> Completed
+        </span>
       case 'PENDING':
-        return <Badge variant="warning">Pending</Badge>
+        return <span className={`${baseClasses} bg-amber-50 border border-amber-200 text-amber-700`}>
+          <Clock className="w-3 h-3" /> Pending
+        </span>
       case 'REJECTED':
-        return <Badge variant="danger">Rejected</Badge>
+        return <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700`}>
+          <XCircle className="w-3 h-3" /> Rejected
+        </span>
       default:
-        return <Badge variant="default">{status}</Badge>
+        return <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-600`}>{status}</span>
     }
   }
 

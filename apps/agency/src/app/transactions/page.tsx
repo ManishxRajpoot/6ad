@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
-import { Loader2, Search, ChevronLeft, ChevronRight, Download, X, Eye, ChevronDown, Calendar, Wallet, CreditCard, FileText, Copy, ImageIcon } from 'lucide-react'
+import { Loader2, Search, ChevronLeft, ChevronRight, Download, X, Eye, ChevronDown, Calendar, Wallet, CreditCard, FileText, Copy, ImageIcon, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { transactionsApi, applicationsApi, usersApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import * as XLSX from 'xlsx'
@@ -395,15 +395,22 @@ export default function TransactionsPage() {
 
   const getStatusBadge = (status: string) => {
     const normalizedStatus = status?.toUpperCase()
+    const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     switch (normalizedStatus) {
       case 'APPROVED':
-        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#52B788] text-white">Approved</span>
+        return <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
+          <CheckCircle className="w-3 h-3" /> Approved
+        </span>
       case 'PENDING':
-        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#F59E0B] text-white">Pending</span>
+        return <span className={`${baseClasses} bg-amber-50 border border-amber-200 text-amber-700`}>
+          <Clock className="w-3 h-3" /> Pending
+        </span>
       case 'REJECTED':
-        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#EF4444] text-white">Rejected</span>
+        return <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700`}>
+          <XCircle className="w-3 h-3" /> Rejected
+        </span>
       default:
-        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-gray-100 text-gray-600">{status}</span>
+        return <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-600`}>{status}</span>
     }
   }
 
@@ -593,13 +600,13 @@ export default function TransactionsPage() {
           <div className="flex items-center gap-3 flex-wrap">
             {/* Search */}
             <div className="relative flex-1 min-w-[180px] lg:flex-none group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#7C3AED]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#0D9488]" />
               <input
                 type="text"
                 placeholder="Search users, ID, amount..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-[12px] w-full lg:w-[220px] focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] bg-white transition-all"
+                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-[12px] w-full lg:w-[220px] focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] bg-white transition-all"
               />
             </div>
 
@@ -624,7 +631,7 @@ export default function TransactionsPage() {
                   <button
                     key={option.value}
                     onClick={() => { setDateFilter(option.value); setShowDateDropdown(false) }}
-                    className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${dateFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                    className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${dateFilter === option.value ? 'text-[#0D9488] bg-[#0D9488]/5 font-medium' : 'text-gray-600'}`}
                     style={{ transitionDelay: showDateDropdown ? `${index * 30}ms` : '0ms' }}
                   >
                     {option.label}
@@ -654,7 +661,7 @@ export default function TransactionsPage() {
                   <button
                     key={option.value}
                     onClick={() => { setStatusFilter(option.value); setShowStatusDropdown(false) }}
-                    className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${statusFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                    className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${statusFilter === option.value ? 'text-[#0D9488] bg-[#0D9488]/5 font-medium' : 'text-gray-600'}`}
                     style={{ transitionDelay: showStatusDropdown ? `${index * 30}ms` : '0ms' }}
                   >
                     {option.label}
@@ -687,7 +694,7 @@ export default function TransactionsPage() {
                     <button
                       key={option.value}
                       onClick={() => { setPlatformFilter(option.value); setShowPlatformDropdown(false) }}
-                      className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${platformFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                      className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${platformFilter === option.value ? 'text-[#0D9488] bg-[#0D9488]/5 font-medium' : 'text-gray-600'}`}
                       style={{ transitionDelay: showPlatformDropdown ? `${index * 30}ms` : '0ms' }}
                     >
                       {option.label}
@@ -717,9 +724,9 @@ export default function TransactionsPage() {
                 <span className="text-[11px] text-gray-500">{getTabLabel()}</span>
                 <p className="text-xl font-bold text-gray-800">{stats.totalDeposits.toLocaleString()}</p>
               </div>
-              <span className="px-2 py-0.5 bg-[#7C3AED] text-white text-[10px] font-medium rounded">Total</span>
+              <span className="px-2 py-0.5 bg-[#0D9488] text-white text-[10px] font-medium rounded">Total</span>
             </div>
-            <StatsChart value={stats.totalDeposits} color="#7C3AED" filterId="glowPurpleTx" gradientId="fadePurpleTx" clipId="clipPurpleTx" />
+            <StatsChart value={stats.totalDeposits} color="#0D9488" filterId="glowPurpleTx" gradientId="fadePurpleTx" clipId="clipPurpleTx" />
           </Card>
 
           {/* Approved - Green */}
@@ -768,7 +775,7 @@ export default function TransactionsPage() {
                 ref={walletTabRef}
                 onClick={() => { setActiveTab('wallet'); setCurrentPage(1); setPlatformFilter('all') }}
                 className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 flex items-center gap-2 ${
-                  activeTab === 'wallet' ? 'text-[#7C3AED]' : 'text-gray-500 hover:text-gray-700'
+                  activeTab === 'wallet' ? 'text-[#0D9488]' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
                 <Wallet className="w-4 h-4" />
@@ -778,7 +785,7 @@ export default function TransactionsPage() {
                 ref={adAccountTabRef}
                 onClick={() => { setActiveTab('adAccount'); setCurrentPage(1) }}
                 className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 flex items-center gap-2 ${
-                  activeTab === 'adAccount' ? 'text-[#7C3AED]' : 'text-gray-500 hover:text-gray-700'
+                  activeTab === 'adAccount' ? 'text-[#0D9488]' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
                 <CreditCard className="w-4 h-4" />
@@ -788,14 +795,14 @@ export default function TransactionsPage() {
                 ref={adOpeningTabRef}
                 onClick={() => { setActiveTab('adOpening'); setCurrentPage(1) }}
                 className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 flex items-center gap-2 ${
-                  activeTab === 'adOpening' ? 'text-[#7C3AED]' : 'text-gray-500 hover:text-gray-700'
+                  activeTab === 'adOpening' ? 'text-[#0D9488]' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
                 <FileText className="w-4 h-4" />
                 Ad Account Opening
               </button>
               <div
-                className="absolute bottom-0 h-0.5 bg-[#7C3AED] transition-all duration-300 ease-out"
+                className="absolute bottom-0 h-0.5 bg-[#0D9488] transition-all duration-300 ease-out"
                 style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
               />
             </div>
@@ -841,7 +848,7 @@ export default function TransactionsPage() {
                   <tr>
                     <td colSpan={8} className="py-6 text-center">
                       <div className="flex flex-col items-center">
-                        <Loader2 className="w-5 h-5 text-[#7C3AED] animate-spin mb-1" />
+                        <Loader2 className="w-5 h-5 text-[#0D9488] animate-spin mb-1" />
                         <span className="text-[11px] text-gray-500">Loading...</span>
                       </div>
                     </td>
@@ -857,9 +864,9 @@ export default function TransactionsPage() {
                     <tr key={deposit.id} className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate" style={{ animationDelay: `${index * 20}ms` }}>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-1">
-                          <code className="font-mono text-[#7C3AED] bg-[#7C3AED]/10 px-1.5 py-0.5 rounded font-semibold text-[11px]">{deposit.applyId || '---'}</code>
+                          <code className="font-mono text-[#0D9488] bg-[#0D9488]/10 px-1.5 py-0.5 rounded font-semibold text-[11px]">{deposit.applyId || '---'}</code>
                           {deposit.applyId && (
-                            <button onClick={() => copyToClipboard(deposit.applyId || '')} className="p-1 rounded text-gray-400 hover:text-[#7C3AED] hover:bg-gray-100 transition-colors">
+                            <button onClick={() => copyToClipboard(deposit.applyId || '')} className="p-1 rounded text-gray-400 hover:text-[#0D9488] hover:bg-gray-100 transition-colors">
                               <Copy className="w-3 h-3" />
                             </button>
                           )}
@@ -878,7 +885,7 @@ export default function TransactionsPage() {
                             {deposit.transactionId ? `${deposit.transactionId.slice(0, 10)}...` : '---'}
                           </code>
                           {deposit.transactionId && (
-                            <button onClick={() => copyToClipboard(deposit.transactionId || '')} className="p-1 rounded text-gray-400 hover:text-[#7C3AED] hover:bg-gray-100 transition-colors">
+                            <button onClick={() => copyToClipboard(deposit.transactionId || '')} className="p-1 rounded text-gray-400 hover:text-[#0D9488] hover:bg-gray-100 transition-colors">
                               <Copy className="w-3 h-3" />
                             </button>
                           )}
@@ -889,7 +896,7 @@ export default function TransactionsPage() {
                           {deposit.paymentProof ? (
                             <button
                               onClick={() => setPreviewImage(deposit.paymentProof || null)}
-                              className="w-7 h-7 rounded overflow-hidden border border-gray-200 hover:border-[#7C3AED] transition-all"
+                              className="w-7 h-7 rounded overflow-hidden border border-gray-200 hover:border-[#0D9488] transition-all"
                             >
                               <img src={deposit.paymentProof} alt="Proof" className="w-full h-full object-cover" />
                             </button>
@@ -907,9 +914,9 @@ export default function TransactionsPage() {
                     <tr key={deposit.id} className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate" style={{ animationDelay: `${index * 20}ms` }}>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-1">
-                          <code className="font-mono text-[#7C3AED] bg-[#7C3AED]/10 px-1.5 py-0.5 rounded font-semibold text-[11px]">{deposit.applyId || '---'}</code>
+                          <code className="font-mono text-[#0D9488] bg-[#0D9488]/10 px-1.5 py-0.5 rounded font-semibold text-[11px]">{deposit.applyId || '---'}</code>
                           {deposit.applyId && (
-                            <button onClick={() => copyToClipboard(deposit.applyId || '')} className="p-1 rounded text-gray-400 hover:text-[#7C3AED] hover:bg-gray-100 transition-colors">
+                            <button onClick={() => copyToClipboard(deposit.applyId || '')} className="p-1 rounded text-gray-400 hover:text-[#0D9488] hover:bg-gray-100 transition-colors">
                               <Copy className="w-3 h-3" />
                             </button>
                           )}
@@ -936,8 +943,8 @@ export default function TransactionsPage() {
                     <tr key={app.id} className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate" style={{ animationDelay: `${index * 20}ms` }}>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-1">
-                          <code className="font-mono text-[#7C3AED] bg-[#7C3AED]/10 px-1.5 py-0.5 rounded font-semibold text-[11px]">{app.applyId}</code>
-                          <button onClick={() => copyToClipboard(app.applyId)} className="p-1 rounded text-gray-400 hover:text-[#7C3AED] hover:bg-gray-100 transition-colors">
+                          <code className="font-mono text-[#0D9488] bg-[#0D9488]/10 px-1.5 py-0.5 rounded font-semibold text-[11px]">{app.applyId}</code>
+                          <button onClick={() => copyToClipboard(app.applyId)} className="p-1 rounded text-gray-400 hover:text-[#0D9488] hover:bg-gray-100 transition-colors">
                             <Copy className="w-3 h-3" />
                           </button>
                         </div>
@@ -951,7 +958,7 @@ export default function TransactionsPage() {
                           <span className="w-6 h-6 rounded bg-gray-100 text-gray-700 font-semibold flex items-center justify-center">{app.adAccountQty}</span>
                         </div>
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-[#7C3AED] text-[13px]">{formatCurrency(app.openingFee)}</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-[#0D9488] text-[13px]">{formatCurrency(app.openingFee)}</td>
                       <td className="py-2.5 px-3 text-right font-bold text-orange-600 text-[13px]">{formatCurrency(app.totalCost)}</td>
                       <td className="py-2.5 px-3 text-center">{getStatusBadge(app.status)}</td>
                       <td className="py-2.5 px-3 text-gray-500 text-center">{formatDate(app.createdAt)}</td>
@@ -996,7 +1003,7 @@ export default function TransactionsPage() {
                       onClick={() => setCurrentPage(page)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === page
-                          ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -1009,7 +1016,7 @@ export default function TransactionsPage() {
                       onClick={() => setCurrentPage(1)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === 1
-                          ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -1018,7 +1025,7 @@ export default function TransactionsPage() {
                     {currentPage > 3 && <span className="w-4 text-center text-gray-400">...</span>}
                     {currentPage > 2 && currentPage < totalPages - 1 && (
                       <button
-                        className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm"
+                        className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm"
                       >
                         {currentPage}
                       </button>
@@ -1028,7 +1035,7 @@ export default function TransactionsPage() {
                       onClick={() => setCurrentPage(totalPages)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === totalPages
-                          ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -1107,7 +1114,7 @@ export default function TransactionsPage() {
                       key={option.value}
                       onClick={() => setExportPlatform(option.value)}
                       className={`px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
-                        exportPlatform === option.value ? 'bg-[#7C3AED] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        exportPlatform === option.value ? 'bg-[#0D9488] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
                       {option.label}
@@ -1131,7 +1138,7 @@ export default function TransactionsPage() {
                     key={option.value}
                     onClick={() => setExportStatus(option.value)}
                     className={`px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
-                      exportStatus === option.value ? 'bg-[#7C3AED] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      exportStatus === option.value ? 'bg-[#0D9488] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
                     {option.label}
@@ -1146,7 +1153,7 @@ export default function TransactionsPage() {
               <button
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
                 className={`w-full flex items-center justify-between px-3 py-2 border rounded-md text-[11px] text-left transition-all ${
-                  showUserDropdown ? 'border-[#7C3AED] ring-1 ring-[#7C3AED]/20' : 'border-gray-200 hover:border-gray-300'
+                  showUserDropdown ? 'border-[#0D9488] ring-1 ring-[#0D9488]/20' : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 <span className={exportSelectedUsers.length > 0 ? 'text-gray-700' : 'text-gray-400'}>
@@ -1166,7 +1173,7 @@ export default function TransactionsPage() {
                       placeholder="Search users..."
                       value={exportUserSearch}
                       onChange={(e) => setExportUserSearch(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-md text-[11px] focus:outline-none focus:border-[#7C3AED]"
+                      className="w-full pl-8 pr-3 py-1.5 border border-gray-200 rounded-md text-[11px] focus:outline-none focus:border-[#0D9488]"
                     />
                   </div>
                 </div>
@@ -1176,7 +1183,7 @@ export default function TransactionsPage() {
                       {exportSelectedUsers.map(userId => {
                         const user = getUserById(userId)
                         return (
-                          <span key={userId} className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#7C3AED] text-white text-[10px] font-medium rounded">
+                          <span key={userId} className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#0D9488] text-white text-[10px] font-medium rounded">
                             {user?.username || userId}
                             <button onClick={() => removeSelectedUser(userId)} className="hover:bg-white/20 rounded"><X className="w-2.5 h-2.5" /></button>
                           </span>
@@ -1192,7 +1199,7 @@ export default function TransactionsPage() {
                         key={user.id}
                         onClick={() => toggleUserSelection(user.id)}
                         className={`w-full px-3 py-2 text-left text-[11px] hover:bg-gray-50 flex items-center justify-between transition-colors border-b border-gray-50 last:border-0 ${
-                          exportSelectedUsers.includes(user.id) ? 'bg-[#7C3AED]/5' : ''
+                          exportSelectedUsers.includes(user.id) ? 'bg-[#0D9488]/5' : ''
                         }`}
                       >
                         <div className="flex flex-col">
@@ -1200,7 +1207,7 @@ export default function TransactionsPage() {
                           <span className="text-gray-400 text-[10px]">{user.email}</span>
                         </div>
                         {exportSelectedUsers.includes(user.id) && (
-                          <div className="w-4 h-4 bg-[#7C3AED] rounded-full flex items-center justify-center">
+                          <div className="w-4 h-4 bg-[#0D9488] rounded-full flex items-center justify-center">
                             <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
@@ -1222,7 +1229,7 @@ export default function TransactionsPage() {
                 <button
                   onClick={() => { setShowFromCalendar(!showFromCalendar); setShowToCalendar(false); setCalendarMonth(exportDateFrom || new Date()) }}
                   className={`w-full flex items-center gap-1.5 px-2.5 py-2 border rounded-md text-[11px] text-left transition-all ${
-                    showFromCalendar ? 'border-[#7C3AED] ring-1 ring-[#7C3AED]/20' : 'border-gray-200 hover:border-gray-300'
+                    showFromCalendar ? 'border-[#0D9488] ring-1 ring-[#0D9488]/20' : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -1233,7 +1240,7 @@ export default function TransactionsPage() {
                 <button
                   onClick={() => { setShowToCalendar(!showToCalendar); setShowFromCalendar(false); setCalendarMonth(exportDateTo || new Date()) }}
                   className={`w-full flex items-center gap-1.5 px-2.5 py-2 border rounded-md text-[11px] text-left transition-all ${
-                    showToCalendar ? 'border-[#7C3AED] ring-1 ring-[#7C3AED]/20' : 'border-gray-200 hover:border-gray-300'
+                    showToCalendar ? 'border-[#0D9488] ring-1 ring-[#0D9488]/20' : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -1255,7 +1262,7 @@ export default function TransactionsPage() {
                     </button>
                   </div>
                   <div className="text-center mb-2">
-                    <span className="text-[10px] text-[#7C3AED] font-medium bg-[#7C3AED]/10 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] text-[#0D9488] font-medium bg-[#0D9488]/10 px-2 py-0.5 rounded-full">
                       {showFromCalendar ? 'Select start date' : 'Select end date'}
                     </span>
                   </div>
@@ -1284,7 +1291,7 @@ export default function TransactionsPage() {
                               else { setExportDateTo(date); setShowToCalendar(false) }
                             }}
                             className={`py-1.5 text-[11px] rounded transition-colors ${
-                              isSelectedFrom || isSelectedTo ? 'bg-[#7C3AED] text-white font-medium' : isToday ? 'bg-gray-100 text-gray-800 font-medium' : 'text-gray-700 hover:bg-gray-100'
+                              isSelectedFrom || isSelectedTo ? 'bg-[#0D9488] text-white font-medium' : isToday ? 'bg-gray-100 text-gray-800 font-medium' : 'text-gray-700 hover:bg-gray-100'
                             }`}
                           >
                             {day}

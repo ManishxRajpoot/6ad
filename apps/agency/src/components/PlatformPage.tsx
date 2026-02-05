@@ -61,7 +61,7 @@ export function PlatformPage({ platform, platformColor }: PlatformPageProps) {
           title="Monthly Spend"
           value="$2,89,000"
           icon={TrendingUp}
-          iconBgColor="bg-purple-100"
+          iconBgColor="bg-teal-100"
         />
         <StatCard
           title="Active Campaigns"

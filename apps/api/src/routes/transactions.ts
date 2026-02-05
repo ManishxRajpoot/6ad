@@ -235,7 +235,7 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
 
     const deposit = await prisma.deposit.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { select: { id: true, username: true, email: true, role: true, brandLogo: true }, include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
     })
 
     if (!deposit) {
@@ -293,19 +293,49 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
       await processDepositReferralReward(deposit.userId, deposit.amount, tx)
     })
 
-    // Send approval email to user
-    const approvedDomainLogoApprove = deposit.user.agent?.customDomains?.[0]?.brandLogo
-    const agentLogoApprove = approvedDomainLogoApprove || deposit.user.agent?.brandLogo || null
-    const agentBrandNameApprove = deposit.user.agent?.username || null
-    const userEmailTemplate = getWalletDepositApprovedTemplate({
-      username: deposit.user.username,
-      applyId: deposit.applyId,
-      amount: Number(deposit.amount),
-      newBalance,
-      agentLogo: agentLogoApprove,
-      agentBrandName: agentBrandNameApprove
-    })
-    sendEmail({ to: deposit.user.email, ...userEmailTemplate, senderName: deposit.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(deposit.user.agent) }).catch(console.error)
+    // Check if user is an agent (has role AGENT) - if so, use their own branding
+    const isAgent = deposit.user.role === 'AGENT'
+
+    if (isAgent) {
+      // Agent deposit - use agent's own branding
+      const agentOwnLogo = deposit.user.brandLogo || null
+      const userEmailTemplate = getWalletDepositApprovedTemplate({
+        username: deposit.user.username,
+        applyId: deposit.applyId,
+        amount: Number(deposit.amount),
+        newBalance,
+        agentLogo: agentOwnLogo,
+        agentBrandName: deposit.user.username
+      })
+      sendEmail({ to: deposit.user.email, ...userEmailTemplate }).catch(console.error)
+    } else {
+      // Regular user deposit - use their agent's branding
+      const approvedDomainLogoApprove = deposit.user.agent?.customDomains?.[0]?.brandLogo
+      const agentLogoApprove = approvedDomainLogoApprove || deposit.user.agent?.brandLogo || null
+      const agentBrandNameApprove = deposit.user.agent?.username || null
+      const userEmailTemplate = getWalletDepositApprovedTemplate({
+        username: deposit.user.username,
+        applyId: deposit.applyId,
+        amount: Number(deposit.amount),
+        newBalance,
+        agentLogo: agentLogoApprove,
+        agentBrandName: agentBrandNameApprove
+      })
+      sendEmail({ to: deposit.user.email, ...userEmailTemplate, senderName: deposit.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(deposit.user.agent) }).catch(console.error)
+
+      // Also notify the agent if user has one
+      if (deposit.user.agent?.email) {
+        const agentNotification = getWalletDepositApprovedTemplate({
+          username: deposit.user.username,
+          applyId: deposit.applyId,
+          amount: Number(deposit.amount),
+          newBalance,
+          agentLogo: agentLogoApprove,
+          agentBrandName: agentBrandNameApprove
+        })
+        sendEmail({ to: deposit.user.agent.email, subject: `[User Deposit] ${agentNotification.subject}`, html: agentNotification.html }).catch(console.error)
+      }
+    }
 
     return c.json({ message: 'Deposit approved successfully' })
   } catch (error) {
@@ -559,6 +589,12 @@ transactions.post('/agent-deposits', requireAgent, async (c) => {
       return c.json({ error: 'Invalid amount' }, 400)
     }
 
+    // Get agent info for email
+    const agent = await prisma.user.findUnique({
+      where: { id: agentId },
+      select: { id: true, username: true, email: true, brandLogo: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } }
+    })
+
     // Use provided applyId or generate one with PWD prefix
     const finalApplyId = applyId || generateAgentDepositApplyId()
 
@@ -608,6 +644,34 @@ transactions.post('/agent-deposits', requireAgent, async (c) => {
         paymentMethod
       })
 
+      // Send email to agent
+      if (agent) {
+        const approvedDomainLogo = agent.customDomains?.[0]?.brandLogo
+        const agentLogo = approvedDomainLogo || agent.brandLogo || null
+        const agentEmailTemplate = getWalletDepositSubmittedTemplate({
+          username: agent.username,
+          applyId: finalApplyId,
+          amount,
+          paymentMethod,
+          txHash: transactionId,
+          agentLogo,
+          agentBrandName: agent.username
+        })
+        sendEmail({ to: agent.email, ...agentEmailTemplate, senderName: agent.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(agent) }).catch(console.error)
+
+        // Notify admins
+        const adminNotification = getAdminNotificationTemplate({
+          type: 'wallet_deposit',
+          applyId: finalApplyId,
+          username: agent.username,
+          userEmail: agent.email,
+          amount
+        })
+        getAdminEmails().then(emails => {
+          emails.forEach(email => sendEmail({ to: email, ...adminNotification }).catch(console.error))
+        })
+      }
+
       return c.json({
         message: 'Deposit submitted successfully! Verification in progress.',
         deposit,
@@ -627,6 +691,34 @@ transactions.post('/agent-deposits', requireAgent, async (c) => {
         userId: agentId,
       }
     })
+
+    // Send email to agent for deposit submission
+    if (agent) {
+      const approvedDomainLogo = agent.customDomains?.[0]?.brandLogo
+      const agentLogo = approvedDomainLogo || agent.brandLogo || null
+      const agentEmailTemplate = getWalletDepositSubmittedTemplate({
+        username: agent.username,
+        applyId: finalApplyId,
+        amount,
+        paymentMethod,
+        txHash: transactionId,
+        agentLogo,
+        agentBrandName: agent.username
+      })
+      sendEmail({ to: agent.email, ...agentEmailTemplate, senderName: agent.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(agent) }).catch(console.error)
+
+      // Notify admins about new agent deposit request
+      const adminNotification = getAdminNotificationTemplate({
+        type: 'wallet_deposit',
+        applyId: finalApplyId,
+        username: agent.username,
+        userEmail: agent.email,
+        amount
+      })
+      getAdminEmails().then(emails => {
+        emails.forEach(email => sendEmail({ to: email, ...adminNotification }).catch(console.error))
+      })
+    }
 
     return c.json({ message: 'Deposit request created', deposit }, 201)
   } catch (error) {

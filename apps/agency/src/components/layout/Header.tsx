@@ -63,7 +63,7 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
             <Menu className="w-5 h-5" />
           </button>
 
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#7C3AED] to-[#9333EA] flex items-center justify-center shadow-sm">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#0D9488] to-[#9333EA] flex items-center justify-center shadow-sm">
             <LayoutDashboard className="w-4.5 h-4.5 text-white" />
           </div>
           <div className="hidden sm:block">
@@ -81,7 +81,7 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
             <input
               type="text"
               placeholder={user?.email || 'Search users, accounts...'}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] transition-all"
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] transition-all"
             />
           </div>
         </div>
@@ -91,7 +91,7 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
           {/* Wallet Balance Card */}
           <div className="flex items-center gap-3 px-3 py-1.5 bg-gradient-to-r from-slate-50 to-slate-100/50 rounded-lg border border-slate-200/60">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-md bg-gradient-to-br from-[#7C3AED] to-[#9333EA] flex items-center justify-center">
+              <div className="w-8 h-8 rounded-md bg-gradient-to-br from-[#0D9488] to-[#9333EA] flex items-center justify-center">
                 <Wallet className="w-4 h-4 text-white" />
               </div>
               <div>
@@ -107,8 +107,8 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
           </div>
 
           {/* Notification Bell */}
-          <button className="relative p-2 hover:bg-[#7C3AED]/5 rounded-lg transition-all group">
-            <Bell className="w-5 h-5 text-slate-500 group-hover:text-[#7C3AED] transition-colors" />
+          <button className="relative p-2 hover:bg-[#0D9488]/5 rounded-lg transition-all group">
+            <Bell className="w-5 h-5 text-slate-500 group-hover:text-[#0D9488] transition-colors" />
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
           </button>
 
@@ -121,25 +121,25 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
               onClick={() => setShowDropdown(!showDropdown)}
               className="group"
             >
-              <div className="flex items-center gap-2.5 pl-1.5 pr-2 py-1 rounded-lg hover:bg-[#7C3AED]/5 transition-all duration-300">
+              <div className="flex items-center gap-2.5 pl-1.5 pr-2 py-1 rounded-lg hover:bg-[#0D9488]/5 transition-all duration-300">
                 <div className="relative">
                   {user?.profileImage ? (
                     <img
                       src={user.profileImage}
                       alt={user.username || 'Profile'}
-                      className="w-9 h-9 rounded-lg object-cover shadow-sm ring-1 ring-white group-hover:ring-[#7C3AED]/20 transition-all duration-300"
+                      className="w-9 h-9 rounded-lg object-cover shadow-sm ring-1 ring-white group-hover:ring-[#0D9488]/20 transition-all duration-300"
                     />
                   ) : (
-                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#7C3AED] to-[#9333EA] flex items-center justify-center shadow-sm ring-1 ring-white group-hover:ring-[#7C3AED]/20 transition-all duration-300">
+                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#0D9488] to-[#9333EA] flex items-center justify-center shadow-sm ring-1 ring-white group-hover:ring-[#0D9488]/20 transition-all duration-300">
                       <span className="text-white font-bold text-[13px]">
                         {user?.username?.charAt(0).toUpperCase() || 'P'}
                       </span>
                     </div>
                   )}
-                  <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#7C3AED] rounded-full border-2 border-white" />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#0D9488] rounded-full border-2 border-white" />
                 </div>
                 <div className="hidden sm:block text-left">
-                  <p className="text-[13px] font-semibold text-slate-700 group-hover:text-[#7C3AED] transition-colors leading-none">
+                  <p className="text-[13px] font-semibold text-slate-700 group-hover:text-[#0D9488] transition-colors leading-none">
                     {user?.username || 'Partner'}
                   </p>
                   <p className="text-[11px] text-slate-400">Partner</p>
@@ -157,7 +157,7 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
               }`}
             >
               {/* User Info */}
-              <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-[#7C3AED]/5 to-[#9333EA]/5">
+              <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-[#0D9488]/5 to-[#9333EA]/5">
                 <p className="text-base font-semibold text-slate-800">{user?.realName || user?.username || 'Partner'}</p>
                 <p className="text-sm text-slate-500 truncate">{user?.email}</p>
               </div>
@@ -167,10 +167,10 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
                 <Link
                   href="/settings"
                   onClick={() => setShowDropdown(false)}
-                  className="flex items-center gap-3 px-5 py-3 text-base text-slate-600 hover:bg-[#7C3AED]/5 hover:text-[#7C3AED] transition-all duration-200 group"
+                  className="flex items-center gap-3 px-5 py-3 text-base text-slate-600 hover:bg-[#0D9488]/5 hover:text-[#0D9488] transition-all duration-200 group"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-slate-100 group-hover:bg-[#7C3AED]/10 flex items-center justify-center transition-colors">
-                    <UserCircle className="w-5 h-5 text-slate-500 group-hover:text-[#7C3AED] transition-colors" />
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 group-hover:bg-[#0D9488]/10 flex items-center justify-center transition-colors">
+                    <UserCircle className="w-5 h-5 text-slate-500 group-hover:text-[#0D9488] transition-colors" />
                   </div>
                   <span>Profile Settings</span>
                 </Link>
@@ -178,10 +178,10 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
                 <Link
                   href="/settings"
                   onClick={() => setShowDropdown(false)}
-                  className="flex items-center gap-3 px-5 py-3 text-base text-slate-600 hover:bg-[#7C3AED]/5 hover:text-[#7C3AED] transition-all duration-200 group"
+                  className="flex items-center gap-3 px-5 py-3 text-base text-slate-600 hover:bg-[#0D9488]/5 hover:text-[#0D9488] transition-all duration-200 group"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-slate-100 group-hover:bg-[#7C3AED]/10 flex items-center justify-center transition-colors">
-                    <ShieldCheck className="w-5 h-5 text-slate-500 group-hover:text-[#7C3AED] transition-colors" />
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 group-hover:bg-[#0D9488]/10 flex items-center justify-center transition-colors">
+                    <ShieldCheck className="w-5 h-5 text-slate-500 group-hover:text-[#0D9488] transition-colors" />
                   </div>
                   <span>Security Settings</span>
                 </Link>

@@ -10,28 +10,28 @@ const config: Config = {
     extend: {
       colors: {
         primary: {
-          50: '#faf5ff',
-          100: '#f3e8ff',
-          200: '#e9d5ff',
-          300: '#d8b4fe',
-          400: '#c084fc',
-          500: '#7C3AED',
-          600: '#6D28D9',
-          700: '#5B21B6',
-          800: '#4C1D95',
-          900: '#3B0764',
+          50: '#F0FDFA',
+          100: '#CCFBF1',
+          200: '#99F6E4',
+          300: '#5EEAD4',
+          400: '#2DD4BF',
+          500: '#14B8A6',  // Professional teal
+          600: '#0D9488',
+          700: '#0F766E',
+          800: '#115E59',
+          900: '#134E4A',
         },
         sidebar: {
-          DEFAULT: '#1E1E2D',
-          hover: '#2D2D3F',
-          active: '#7C3AED',
+          DEFAULT: '#1E293B',  // Slate-800
+          hover: '#334155',    // Slate-700
+          active: '#0F766E',   // Teal-700
         },
-        background: '#F5F5F5',
+        background: '#F8FAFC',  // Slate-50
         card: '#FFFFFF',
-        success: '#52B788',
-        warning: '#F59E0B',
-        danger: '#EF4444',
-        info: '#3B82F6',
+        success: '#10B981',    // Emerald
+        warning: '#F59E0B',    // Amber
+        danger: '#EF4444',     // Red
+        info: '#0EA5E9',       // Sky
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

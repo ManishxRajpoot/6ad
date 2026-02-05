@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 
 interface StatsChartProps {
   value: number
-  color: string // hex color like "#7C3AED"
+  color: string // hex color like "#0D9488"
   filterId: string // unique ID for SVG filter
   gradientId: string // unique ID for gradient
   clipId: string // unique ID for clip path

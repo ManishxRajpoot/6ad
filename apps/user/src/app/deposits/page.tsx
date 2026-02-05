@@ -32,7 +32,10 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Wallet,
-  RefreshCw
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Clock
 } from 'lucide-react'
 
 type Tab = 'add-money' | 'pay-link' | 'wallet-flow'
@@ -491,29 +494,31 @@ export default function DepositsPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    const baseClasses = "px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 transition-all duration-300"
+    const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     switch (status) {
       case 'APPROVED':
         return (
-          <span className={`${baseClasses} bg-[#52B788] text-white`}>
-            <Check className="w-3 h-3" />
+          <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
+            <CheckCircle className="w-3 h-3" />
             Approved
           </span>
         )
       case 'PENDING':
         return (
-          <span className={`${baseClasses} bg-[#F59E0B] text-white`}>
+          <span className={`${baseClasses} bg-amber-50 border border-amber-200 text-amber-700`}>
+            <Clock className="w-3 h-3" />
             Pending
           </span>
         )
       case 'REJECTED':
         return (
-          <span className={`${baseClasses} bg-[#EF4444] text-white`}>
+          <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700`}>
+            <XCircle className="w-3 h-3" />
             Rejected
           </span>
         )
       default:
-        return <span className={`${baseClasses} bg-gray-100 text-gray-600`}>{status}</span>
+        return <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-600`}>{status}</span>
     }
   }
 
@@ -1077,24 +1082,26 @@ export default function DepositsPage() {
                       </td>
                       <td className="py-2.5 px-3">
                         {request.status === 'PENDING' && (
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 bg-[#F59E0B] text-white">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-amber-50 border border-amber-200 text-amber-700">
+                            <Clock className="w-3 h-3" />
                             Pending
                           </span>
                         )}
                         {request.status === 'LINK_CREATED' && (
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 bg-[#3B82F6] text-white">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-blue-50 border border-blue-200 text-blue-700">
                             <LinkIcon className="w-3 h-3" />
                             Link Ready
                           </span>
                         )}
                         {request.status === 'COMPLETED' && (
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 bg-[#52B788] text-white">
-                            <Check className="w-3 h-3" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-emerald-50 border border-emerald-200 text-emerald-700">
+                            <CheckCircle className="w-3 h-3" />
                             Completed
                           </span>
                         )}
                         {request.status === 'REJECTED' && (
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 bg-[#EF4444] text-white">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-red-50 border border-red-200 text-red-700">
+                            <XCircle className="w-3 h-3" />
                             Rejected
                           </span>
                         )}

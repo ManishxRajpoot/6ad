@@ -281,11 +281,11 @@ export default function LoginPage() {
         <svg viewBox="0 0 48 28" className={`${iconW} ${iconH}`} fill="none">
           <defs>
             <linearGradient id={id1} x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#6366F1"/>
-              <stop offset="100%" stopColor="#8B5CF6"/>
+              <stop offset="0%" stopColor="#0D9488"/>
+              <stop offset="100%" stopColor="#14B8A6"/>
             </linearGradient>
             <linearGradient id={id2} x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#8B5CF6"/>
+              <stop offset="0%" stopColor="#14B8A6"/>
               <stop offset="100%" stopColor="#EC4899"/>
             </linearGradient>
           </defs>
@@ -304,7 +304,7 @@ export default function LoginPage() {
         </svg>
         {/* Text - Modern Typography */}
         <div className="flex flex-col leading-none">
-          <span className={`${textSize} font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight`}>
+          <span className={`${textSize} font-bold bg-gradient-to-r from-teal-700 via-teal-600 to-pink-500 bg-clip-text text-transparent tracking-tight`}>
             SIXMEDIA
           </span>
           <span className={`${tagSize} font-semibold tracking-[0.25em] text-gray-400 mt-0.5`}>

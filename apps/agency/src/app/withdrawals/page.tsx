@@ -117,16 +117,22 @@ export default function WithdrawalsPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    const baseClasses = "px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold"
+    const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     switch (status) {
       case 'APPROVED':
-        return <span className={`${baseClasses} bg-[#52B788] text-white`}>Approved</span>
+        return <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
+          <CheckCircle className="w-3 h-3" /> Approved
+        </span>
       case 'PENDING':
-        return <span className={`${baseClasses} bg-[#F59E0B] text-white`}>Pending</span>
+        return <span className={`${baseClasses} bg-amber-50 border border-amber-200 text-amber-700`}>
+          <Loader2 className="w-3 h-3 animate-spin" /> Pending
+        </span>
       case 'REJECTED':
-        return <span className={`${baseClasses} bg-[#EF4444] text-white`}>Rejected</span>
+        return <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700`}>
+          <X className="w-3 h-3" /> Rejected
+        </span>
       default:
-        return <span className={`${baseClasses} bg-gray-100 text-gray-600`}>{status}</span>
+        return <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-600`}>{status}</span>
     }
   }
 
@@ -156,7 +162,7 @@ export default function WithdrawalsPage() {
                 <span>10.0%</span>
               </span>
             </div>
-            <div className="text-lg xl:text-xl font-bold text-[#7C3AED] mb-0.5">
+            <div className="text-lg xl:text-xl font-bold text-[#0D9488] mb-0.5">
               {loading ? '...' : formatCurrency(stats?.availableToWithdraw || 0)}
             </div>
             <div className="text-[9px] xl:text-[10px] text-gray-400">
@@ -177,7 +183,7 @@ export default function WithdrawalsPage() {
                 <span>3.0%</span>
               </span>
             </div>
-            <div className="text-lg xl:text-xl font-bold text-[#7C3AED] mb-0.5">
+            <div className="text-lg xl:text-xl font-bold text-[#0D9488] mb-0.5">
               {loading ? '...' : formatCurrency(stats?.todayRevenue || 0)}
             </div>
             <div className="text-[9px] xl:text-[10px] text-gray-400">
@@ -194,7 +200,7 @@ export default function WithdrawalsPage() {
                 <span>3.2%</span>
               </span>
             </div>
-            <div className="text-lg xl:text-xl font-bold text-[#7C3AED] mb-0.5">
+            <div className="text-lg xl:text-xl font-bold text-[#0D9488] mb-0.5">
               {loading ? '...' : (stats?.totalAdAccounts || 0).toLocaleString('en-US')}
             </div>
             <div className="text-[9px] xl:text-[10px] text-gray-400">
@@ -211,7 +217,7 @@ export default function WithdrawalsPage() {
                 <span>8.3%</span>
               </span>
             </div>
-            <div className="text-lg xl:text-xl font-bold text-[#7C3AED] mb-0.5">
+            <div className="text-lg xl:text-xl font-bold text-[#0D9488] mb-0.5">
               {loading ? '...' : formatCurrency(stats?.totalEarned || 0)}
             </div>
             <div className="text-[9px] xl:text-[10px] text-gray-400">
@@ -250,7 +256,7 @@ export default function WithdrawalsPage() {
                   placeholder="0.00"
                   step="0.01"
                   min="0"
-                  className="w-full pl-7 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7C3AED] focus:border-transparent h-[42px]"
+                  className="w-full pl-7 pr-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent h-[42px]"
                 />
               </div>
 
@@ -260,7 +266,7 @@ export default function WithdrawalsPage() {
                 className={`px-6 rounded-lg font-medium text-sm h-[42px] ${
                   stats && !stats.canWithdraw
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-[#7C3AED] hover:bg-[#6D28D9] text-white'
+                    : 'bg-[#0D9488] hover:bg-[#0F766E] text-white'
                 }`}
               >
                 {submitting ? (
@@ -305,7 +311,7 @@ export default function WithdrawalsPage() {
               <thead className="sticky top-0 z-10">
                 <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
                   <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">Create Date</th>
-                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-[#7C3AED] uppercase tracking-wider bg-gray-50">Requested</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-[#0D9488] uppercase tracking-wider bg-gray-50">Requested</th>
                   <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-[#166534] uppercase tracking-wider bg-gray-50">Approved</th>
                   <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">Clearence Date</th>
                   <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">Status</th>
@@ -333,7 +339,7 @@ export default function WithdrawalsPage() {
                       <td className="py-2.5 px-3 text-[11px] xl:text-[12px] text-gray-500">
                         {formatDate(withdrawal.createdAt)}
                       </td>
-                      <td className="py-2.5 px-3 text-[13px] font-bold text-[#7C3AED]">
+                      <td className="py-2.5 px-3 text-[13px] font-bold text-[#0D9488]">
                         ${withdrawal.amount.toLocaleString()}
                       </td>
                       <td className="py-2.5 px-3 text-[13px] font-bold text-[#166534]">
@@ -396,7 +402,7 @@ export default function WithdrawalsPage() {
             Your withdrawal request for
           </p>
 
-          <p className={`text-2xl font-bold text-[#7C3AED] mb-4 transition-all duration-300 delay-250 ${
+          <p className={`text-2xl font-bold text-[#0D9488] mb-4 transition-all duration-300 delay-250 ${
             showSuccessPopup ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
           }`}>
             ${submittedAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -410,7 +416,7 @@ export default function WithdrawalsPage() {
 
           <Button
             onClick={() => setShowSuccessPopup(false)}
-            className={`bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-8 py-2.5 rounded-lg font-medium transition-all duration-300 delay-350 ${
+            className={`bg-[#0D9488] hover:bg-[#0F766E] text-white px-8 py-2.5 rounded-lg font-medium transition-all duration-300 delay-350 ${
               showSuccessPopup ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
             }`}
           >

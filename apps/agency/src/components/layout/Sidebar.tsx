@@ -76,12 +76,12 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 <svg viewBox="0 0 48 28" className="w-12 h-7" fill="none">
                   <defs>
                     <linearGradient id="ribbonGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#6366F1"/>
-                      <stop offset="100%" stopColor="#8B5CF6"/>
+                      <stop offset="0%" stopColor="#0D9488"/>
+                      <stop offset="100%" stopColor="#14B8A6"/>
                     </linearGradient>
                     <linearGradient id="ribbonGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#8B5CF6"/>
-                      <stop offset="100%" stopColor="#EC4899"/>
+                      <stop offset="0%" stopColor="#14B8A6"/>
+                      <stop offset="100%" stopColor="#2DD4BF"/>
                     </linearGradient>
                   </defs>
                   {/* Left ribbon - continuous twisted band */}
@@ -99,7 +99,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 </svg>
                 {/* Text - Modern Typography */}
                 <div className="flex flex-col leading-none">
-                  <span className="text-[19px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
+                  <span className="text-[19px] font-bold bg-gradient-to-r from-teal-700 via-teal-600 to-teal-500 bg-clip-text text-transparent tracking-tight">
                     SIXMEDIA
                   </span>
                   <span className="text-[8px] font-semibold tracking-[0.2em] text-gray-400">
@@ -112,14 +112,14 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         </div>
 
         {/* Main Menu */}
-        <nav className="flex-1 px-4 overflow-y-auto">
+        <nav className="flex-1 px-4 overflow-y-auto pt-4">
           {/* Dashboard */}
           <Link
             href="/dashboard"
             className={cn(
               'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-200 mb-1.5',
               isActive('/dashboard')
-                ? 'bg-[#7C3AED] text-white'
+                ? 'bg-teal-600 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
           >
@@ -133,7 +133,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             className={cn(
               'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-200 mb-1.5',
               isActive('/add-money')
-                ? 'bg-[#7C3AED] text-white'
+                ? 'bg-teal-600 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
           >
@@ -147,7 +147,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             className={cn(
               'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-200 mb-1.5',
               isActive('/users')
-                ? 'bg-[#7C3AED] text-white'
+                ? 'bg-teal-600 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
           >
@@ -161,7 +161,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             className={cn(
               'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-200 mb-1.5',
               isActive('/ad-accounts')
-                ? 'bg-[#7C3AED] text-white'
+                ? 'bg-teal-600 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
           >
@@ -175,7 +175,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             className={cn(
               'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-200 mb-1.5',
               isActive('/transactions')
-                ? 'bg-[#7C3AED] text-white'
+                ? 'bg-teal-600 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
           >
@@ -189,7 +189,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             className={cn(
               'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-200 mb-1.5',
               isActive('/withdrawals')
-                ? 'bg-[#7C3AED] text-white'
+                ? 'bg-teal-600 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
           >
@@ -203,7 +203,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             className={cn(
               'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-200 mb-1.5',
               isActive('/bm-ad-request')
-                ? 'bg-[#7C3AED] text-white'
+                ? 'bg-teal-600 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
           >
@@ -217,7 +217,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             className={cn(
               'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-200 mb-1.5',
               isActive('/whitelabel')
-                ? 'bg-[#7C3AED] text-white'
+                ? 'bg-teal-600 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
           >
@@ -231,7 +231,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             className={cn(
               'flex items-center gap-3 px-4 py-2.5 rounded-lg text-[15px] font-medium transition-all duration-200 mb-1.5',
               isActive('/settings')
-                ? 'bg-[#7C3AED] text-white'
+                ? 'bg-teal-600 text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
           >
@@ -243,7 +243,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         {/* User Profile */}
         <div className="p-4 border-t border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-base font-medium">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white text-base font-medium">
               {user?.username?.charAt(0).toUpperCase() || 'A'}
             </div>
             <div className="flex-1 min-w-0">

@@ -16,6 +16,9 @@ import {
   Download,
   Copy,
   Check,
+  CheckCircle,
+  XCircle,
+  Clock,
 } from 'lucide-react'
 import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, PlatformStatus } from '@/lib/api'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon } from '@/components/icons/MenuIcons'
@@ -401,16 +404,31 @@ export default function SnapchatPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    const baseClasses = "px-3 py-1.5 rounded-full text-xs font-semibold"
+    const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     switch (status) {
       case 'APPROVED':
-        return <span className={`${baseClasses} bg-[#52B788] text-white`}>Approved</span>
+        return (
+          <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
+            <CheckCircle className="w-3 h-3" />
+            Approved
+          </span>
+        )
       case 'PENDING':
-        return <span className={`${baseClasses} bg-[#F59E0B] text-white`}>Pending</span>
+        return (
+          <span className={`${baseClasses} bg-amber-50 border border-amber-200 text-amber-700`}>
+            <Clock className="w-3 h-3" />
+            Pending
+          </span>
+        )
       case 'REJECTED':
-        return <span className={`${baseClasses} bg-[#EF4444] text-white`}>Rejected</span>
+        return (
+          <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700`}>
+            <XCircle className="w-3 h-3" />
+            Rejected
+          </span>
+        )
       default:
-        return <span className={`${baseClasses} bg-gray-100 text-gray-600`}>{status}</span>
+        return <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-600`}>{status}</span>
     }
   }
 

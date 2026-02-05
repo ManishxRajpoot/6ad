@@ -203,7 +203,7 @@ export default function DashboardPage() {
     ? platformAccounts.map((p: any) => ({
         name: p.name,
         value: Math.round((p.accounts / totalPlatformAccounts) * 100),
-        color: platformColors[p.name] || '#8B5CF6'
+        color: platformColors[p.name] || '#14B8A6'
       }))
     : [
         { name: 'Facebook', value: 25, color: '#3B82F6' },
@@ -272,10 +272,10 @@ export default function DashboardPage() {
             <div className="lg:col-span-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3">
               <StatCard icon={Users} value={activeUsers} label="Active Users" iconBg="bg-emerald-100" iconColor="text-emerald-600" labelColor="text-emerald-600" sparklineData={sparklines.green} sparklineColor="#52B788" sparklineFill="#52B788" />
               <StatCard icon={UserX} value={blockedUsers} label="Blocked Users" iconBg="bg-red-100" iconColor="text-red-500" labelColor="text-red-500" sparklineData={sparklines.red} sparklineColor="#EF4444" sparklineFill="#EF4444" />
-              <StatCard icon={CheckCircle} value={'$' + formatAmount(totalDeposits)} label="Total Deposits" iconBg="bg-purple-100" iconColor="text-purple-500" labelColor="text-emerald-600" sparklineData={sparklines.purple} sparklineColor="#8B5CF6" sparklineFill="#8B5CF6" />
+              <StatCard icon={CheckCircle} value={'$' + formatAmount(totalDeposits)} label="Total Deposits" iconBg="bg-teal-100" iconColor="text-teal-600" labelColor="text-emerald-600" sparklineData={sparklines.purple} sparklineColor="#14B8A6" sparklineFill="#14B8A6" />
               <StatCard icon={Clock} value={pendingApplications} label="Pending Applications" iconBg="bg-orange-100" iconColor="text-orange-500" labelColor="text-orange-500" sparklineData={sparklines.orange} sparklineColor="#F97316" sparklineFill="#F97316" />
               <StatCard icon={Briefcase} value={totalAccounts} label="Ads Accounts" iconBg="bg-blue-100" iconColor="text-blue-500" labelColor="text-blue-500" sparklineData={sparklines.blue} sparklineColor="#3B82F6" sparklineFill="#3B82F6" />
-              <StatCard icon={Ticket} value={availableCoupons} label="Available Coupons" iconBg="bg-violet-100" iconColor="text-violet-500" labelColor="text-violet-500" sparklineData={sparklines.purple} sparklineColor="#8B5CF6" sparklineFill="#8B5CF6" />
+              <StatCard icon={Ticket} value={availableCoupons} label="Available Coupons" iconBg="bg-teal-100" iconColor="text-teal-600" labelColor="text-teal-600" sparklineData={sparklines.purple} sparklineColor="#14B8A6" sparklineFill="#14B8A6" />
             </div>
 
             {/* Right: Balance Chart - Modern Design */}
@@ -558,7 +558,7 @@ export default function DashboardPage() {
                 </div>
               ) : topSpendersData.length > 0 ? topSpendersData.map((spender: any, i: number) => {
                 const maxSpend = Math.max(...topSpendersData.map((s: any) => s.totalSpend), 1)
-                const rankColors = ['#F59E0B', '#94A3B8', '#CD7F32', '#3B82F6', '#8B5CF6']
+                const rankColors = ['#F59E0B', '#94A3B8', '#CD7F32', '#3B82F6', '#14B8A6']
                 return (
                   <div key={spender.id} className="flex items-center gap-2">
                     <div
@@ -618,7 +618,7 @@ export default function DashboardPage() {
                     case 'application':
                       return <FileText className="w-3.5 h-3.5 text-blue-500" />
                     case 'recharge':
-                      return <CreditCard className="w-3.5 h-3.5 text-purple-500" />
+                      return <CreditCard className="w-3.5 h-3.5 text-teal-600" />
                     case 'wallet_deposit':
                       return <Wallet className="w-3.5 h-3.5 text-emerald-500" />
                     default:
@@ -631,7 +631,7 @@ export default function DashboardPage() {
                     case 'application':
                       return 'bg-blue-50'
                     case 'recharge':
-                      return 'bg-purple-50'
+                      return 'bg-teal-50'
                     case 'wallet_deposit':
                       return 'bg-emerald-50'
                     default:

@@ -162,42 +162,44 @@ export default function AdAccountsPage() {
 
   // Get account status badge
   const getAccountStatusBadge = (cheetahData: AdAccount['cheetahData']) => {
+    const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
+
     if (!cheetahData?.isCheetah) {
-      return <span className="px-2 py-1 rounded text-[10px] font-semibold bg-gray-100 text-gray-500">Manual</span>
+      return <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-600`}>Manual</span>
     }
 
     const status = cheetahData.status
     if (status === 1) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold bg-[#52B788]/10 text-[#52B788]">
+        <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
           <CheckCircle className="w-3 h-3" />
           Active
         </span>
       )
     } else if (status === 2) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold bg-[#EF4444]/10 text-[#EF4444]">
+        <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700`}>
           <XCircle className="w-3 h-3" />
           Banned
         </span>
       )
     } else if ([3, 7, 8, 9].includes(status || 0)) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold bg-[#F59E0B]/10 text-[#F59E0B]">
+        <span className={`${baseClasses} bg-amber-50 border border-amber-200 text-amber-700`}>
           <AlertCircle className="w-3 h-3" />
           Under Review
         </span>
       )
     } else if ([100, 101].includes(status || 0)) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold bg-gray-100 text-gray-600">
+        <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-600`}>
           <Clock className="w-3 h-3" />
           Closed
         </span>
       )
     }
     return (
-      <span className="px-2 py-1 rounded text-[10px] font-semibold bg-gray-100 text-gray-500">
+      <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-500`}>
         {cheetahData.statusText || 'Unknown'}
       </span>
     )
@@ -235,8 +237,8 @@ export default function AdAccountsPage() {
         )
       default:
         return (
-          <div className="w-8 h-8 rounded-lg bg-[#7C3AED]/10 flex items-center justify-center flex-shrink-0">
-            <CreditCard className="w-4 h-4 text-[#7C3AED]" />
+          <div className="w-8 h-8 rounded-lg bg-[#0D9488]/10 flex items-center justify-center flex-shrink-0">
+            <CreditCard className="w-4 h-4 text-[#0D9488]" />
           </div>
         )
     }
@@ -262,13 +264,13 @@ export default function AdAccountsPage() {
           <div className="flex items-center gap-3 flex-wrap">
             {/* Search */}
             <div className="relative flex-1 min-w-[180px] lg:flex-none group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#7C3AED]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#0D9488]" />
               <input
                 type="text"
                 placeholder="Search account, user..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-[12px] w-full lg:w-[220px] focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] bg-white transition-all"
+                className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-[12px] w-full lg:w-[220px] focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] bg-white transition-all"
               />
             </div>
 
@@ -299,7 +301,7 @@ export default function AdAccountsPage() {
                   <button
                     key={option.value}
                     onClick={() => { setPlatformFilter(option.value); setShowPlatformDropdown(false); setCurrentPage(1) }}
-                    className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${platformFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                    className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${platformFilter === option.value ? 'text-[#0D9488] bg-[#0D9488]/5 font-medium' : 'text-gray-600'}`}
                   >
                     {option.label}
                   </button>
@@ -312,7 +314,7 @@ export default function AdAccountsPage() {
           <button
             onClick={() => fetchAccounts(true)}
             disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-[#7C3AED] text-white rounded-lg text-[12px] font-medium hover:bg-[#6D28D9] transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-[#0D9488] text-white rounded-lg text-[12px] font-medium hover:bg-[#0F766E] transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh Status
@@ -328,9 +330,9 @@ export default function AdAccountsPage() {
                 <span className="text-[11px] text-gray-500">Total Accounts</span>
                 <p className="text-xl font-bold text-gray-800">{totalAccounts}</p>
               </div>
-              <span className="px-2 py-0.5 bg-[#7C3AED] text-white text-[10px] font-medium rounded">All</span>
+              <span className="px-2 py-0.5 bg-[#0D9488] text-white text-[10px] font-medium rounded">All</span>
             </div>
-            <StatsChart value={totalAccounts} color="#7C3AED" filterId="glowPurpleAcc" gradientId="fadePurpleAcc" clipId="clipPurpleAcc" />
+            <StatsChart value={totalAccounts} color="#0D9488" filterId="glowPurpleAcc" gradientId="fadePurpleAcc" clipId="clipPurpleAcc" />
           </Card>
 
           {/* Active Accounts */}
@@ -380,7 +382,7 @@ export default function AdAccountsPage() {
                 onClick={() => { setStatusFilter('all'); setCurrentPage(1) }}
                 className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                   statusFilter === 'all'
-                    ? 'text-[#7C3AED]'
+                    ? 'text-[#0D9488]'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -391,7 +393,7 @@ export default function AdAccountsPage() {
                 onClick={() => { setStatusFilter('active'); setCurrentPage(1) }}
                 className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                   statusFilter === 'active'
-                    ? 'text-[#7C3AED]'
+                    ? 'text-[#0D9488]'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -402,7 +404,7 @@ export default function AdAccountsPage() {
                 onClick={() => { setStatusFilter('disabled'); setCurrentPage(1) }}
                 className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                   statusFilter === 'disabled'
-                    ? 'text-[#7C3AED]'
+                    ? 'text-[#0D9488]'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -413,7 +415,7 @@ export default function AdAccountsPage() {
                 onClick={() => { setStatusFilter('review'); setCurrentPage(1) }}
                 className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                   statusFilter === 'review'
-                    ? 'text-[#7C3AED]'
+                    ? 'text-[#0D9488]'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -421,7 +423,7 @@ export default function AdAccountsPage() {
               </button>
               {/* Sliding indicator */}
               <div
-                className="absolute bottom-0 h-0.5 bg-[#7C3AED] transition-all duration-300 ease-out"
+                className="absolute bottom-0 h-0.5 bg-[#0D9488] transition-all duration-300 ease-out"
                 style={{
                   left: indicatorStyle.left,
                   width: indicatorStyle.width,
@@ -450,7 +452,7 @@ export default function AdAccountsPage() {
                   <tr>
                     <td colSpan={showBalance ? 6 : 5} className="py-6 text-center">
                       <div className="flex flex-col items-center">
-                        <Loader2 className="w-5 h-5 text-[#7C3AED] animate-spin mb-1" />
+                        <Loader2 className="w-5 h-5 text-[#0D9488] animate-spin mb-1" />
                         <span className="text-gray-500">Loading accounts...</span>
                       </div>
                     </td>
@@ -489,7 +491,7 @@ export default function AdAccountsPage() {
 
                       {/* Account ID */}
                       <td className="py-2.5 px-3 text-center">
-                        <code className="font-medium text-[#7C3AED] bg-[#7C3AED]/5 px-2 py-1 rounded text-[11px]">
+                        <code className="font-medium text-[#0D9488] bg-[#0D9488]/5 px-2 py-1 rounded text-[11px]">
                           {account.accountId}
                         </code>
                       </td>
@@ -550,7 +552,7 @@ export default function AdAccountsPage() {
                       onClick={() => setCurrentPage(page)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === page
-                          ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -563,7 +565,7 @@ export default function AdAccountsPage() {
                       onClick={() => setCurrentPage(1)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === 1
-                          ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -572,7 +574,7 @@ export default function AdAccountsPage() {
                     {currentPage > 3 && <span className="w-4 text-center text-gray-400">...</span>}
                     {currentPage > 2 && currentPage < totalPages - 1 && (
                       <button
-                        className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm"
+                        className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm"
                       >
                         {currentPage}
                       </button>
@@ -583,7 +585,7 @@ export default function AdAccountsPage() {
                         onClick={() => setCurrentPage(totalPages)}
                         className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                           currentPage === totalPages
-                            ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                            ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                             : 'text-gray-600 hover:bg-gray-100'
                         }`}
                       >

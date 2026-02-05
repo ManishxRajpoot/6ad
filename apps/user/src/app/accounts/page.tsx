@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Search, Plus, MoreVertical } from 'lucide-react'
+import { Search, Plus, MoreVertical, CheckCircle, Clock, XCircle } from 'lucide-react'
 
 const accounts = [
   { id: '1', name: 'Facebook Business Account', platform: 'Facebook', accountId: 'FB-123456', status: 'ACTIVE', balance: 25000, spend: 42000 },
@@ -15,15 +15,22 @@ const accounts = [
 
 export default function AccountsPage() {
   const getStatusBadge = (status: string) => {
+    const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     switch (status) {
       case 'ACTIVE':
-        return <Badge variant="success">Active</Badge>
+        return <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
+          <CheckCircle className="w-3 h-3" /> Active
+        </span>
       case 'PENDING':
-        return <Badge variant="warning">Pending</Badge>
+        return <span className={`${baseClasses} bg-amber-50 border border-amber-200 text-amber-700`}>
+          <Clock className="w-3 h-3" /> Pending
+        </span>
       case 'SUSPENDED':
-        return <Badge variant="danger">Suspended</Badge>
+        return <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700`}>
+          <XCircle className="w-3 h-3" /> Suspended
+        </span>
       default:
-        return <Badge variant="default">{status}</Badge>
+        return <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-600`}>{status}</span>
     }
   }
 

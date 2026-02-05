@@ -175,7 +175,7 @@ function FloatingCardPurple({
     success: { color: '#10b981', bg: '#ecfdf5', icon: CheckCircle },
     error: { color: '#ef4444', bg: '#fef2f2', icon: XCircle },
     warning: { color: '#f59e0b', bg: '#fffbeb', icon: AlertCircle },
-    info: { color: '#7C3AED', bg: '#f5f3ff', icon: InfoIcon },
+    info: { color: '#0D9488', bg: '#f5f3ff', icon: InfoIcon },
   }
 
   const { color, bg, icon: Icon } = config[type]
@@ -246,7 +246,7 @@ function GlassMinimal({
     success: { color: '#10b981', bg: '#ecfdf5', icon: Check },
     error: { color: '#ef4444', bg: '#fef2f2', icon: X },
     warning: { color: '#f59e0b', bg: '#fffbeb', icon: AlertTriangle },
-    info: { color: '#7C3AED', bg: '#f5f3ff', icon: Info },
+    info: { color: '#0D9488', bg: '#f5f3ff', icon: Info },
   }
 
   const { color, bg, icon: Icon } = config[type]
@@ -327,7 +327,7 @@ function FloatingRounded({
     success: { color: '#10b981', bg: '#10b981', icon: Check },
     error: { color: '#ef4444', bg: '#ef4444', icon: X },
     warning: { color: '#f59e0b', bg: '#f59e0b', icon: AlertTriangle },
-    info: { color: '#7C3AED', bg: '#7C3AED', icon: Info },
+    info: { color: '#0D9488', bg: '#0D9488', icon: Info },
   }
 
   const { color, bg, icon: Icon } = config[type]
@@ -397,7 +397,7 @@ function GlassIconRing({
     success: { color: '#10b981', lightBg: '#ecfdf5', icon: CheckCircle },
     error: { color: '#ef4444', lightBg: '#fef2f2', icon: XCircle },
     warning: { color: '#f59e0b', lightBg: '#fffbeb', icon: AlertCircle },
-    info: { color: '#7C3AED', lightBg: '#f5f3ff', icon: InfoIcon },
+    info: { color: '#0D9488', lightBg: '#f5f3ff', icon: InfoIcon },
   }
 
   const { color, lightBg, icon: Icon } = config[type]
@@ -478,7 +478,7 @@ function FloatingPurpleClose({
     success: { color: '#10b981', bg: '#ecfdf5', icon: CheckCircle },
     error: { color: '#ef4444', bg: '#fef2f2', icon: XCircle },
     warning: { color: '#f59e0b', bg: '#fffbeb', icon: AlertCircle },
-    info: { color: '#7C3AED', bg: '#f5f3ff', icon: InfoIcon },
+    info: { color: '#0D9488', bg: '#f5f3ff', icon: InfoIcon },
   }
 
   const { color, bg, icon: Icon } = config[type]
@@ -568,7 +568,7 @@ function GlassGradient({
     success: { color: '#10b981', gradient: 'linear-gradient(135deg, #10b981, #059669)', icon: Check },
     error: { color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', icon: X },
     warning: { color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', icon: AlertTriangle },
-    info: { color: '#7C3AED', gradient: 'linear-gradient(135deg, #7C3AED, #6D28D9)', icon: Info },
+    info: { color: '#0D9488', gradient: 'linear-gradient(135deg, #0D9488, #0F766E)', icon: Info },
   }
 
   const { color, gradient, icon: Icon } = config[type]
@@ -654,7 +654,7 @@ function FloatingSlim({
     success: { color: '#10b981', icon: CheckCircle },
     error: { color: '#ef4444', icon: XCircle },
     warning: { color: '#f59e0b', icon: AlertCircle },
-    info: { color: '#7C3AED', icon: InfoIcon },
+    info: { color: '#0D9488', icon: InfoIcon },
   }
 
   const { color, icon: Icon } = config[type]
@@ -714,7 +714,7 @@ function GlassSoft({
     success: { color: '#10b981', bg: '#10b981', icon: Check },
     error: { color: '#ef4444', bg: '#ef4444', icon: X },
     warning: { color: '#f59e0b', bg: '#f59e0b', icon: AlertTriangle },
-    info: { color: '#7C3AED', bg: '#7C3AED', icon: Info },
+    info: { color: '#0D9488', bg: '#0D9488', icon: Info },
   }
 
   const { color, bg, icon: Icon } = config[type]
@@ -812,7 +812,7 @@ export default function TestPopupPage() {
       <div style={{ maxWidth: '900px', margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1f2937', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <Sparkles style={{ width: '24px', height: '24px', color: '#7C3AED' }} />
+            <Sparkles style={{ width: '24px', height: '24px', color: '#0D9488' }} />
             Popup Designs
           </h1>
           <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>Floating Card & Compact Glass variations</p>
@@ -820,15 +820,15 @@ export default function TestPopupPage() {
 
         {/* Floating Card Variations */}
         <div style={{ marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#7C3AED', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #e9d5ff' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#0D9488', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #e9d5ff' }}>
             🎈 Floating Card Style (No Overlay)
           </h3>
 
           {floatingDesigns.map((design) => (
-            <div key={design.id} style={{ marginBottom: '16px', padding: '14px', background: design.highlight ? 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)' : 'white', borderRadius: '12px', border: design.highlight ? '2px solid #7C3AED' : '1px solid #e5e7eb' }}>
+            <div key={design.id} style={{ marginBottom: '16px', padding: '14px', background: design.highlight ? 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)' : 'white', borderRadius: '12px', border: design.highlight ? '2px solid #0D9488' : '1px solid #e5e7eb' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <div>
-                  <h4 style={{ fontSize: '13px', fontWeight: 600, color: design.highlight ? '#7C3AED' : '#374151', margin: 0 }}>{design.name}</h4>
+                  <h4 style={{ fontSize: '13px', fontWeight: 600, color: design.highlight ? '#0D9488' : '#374151', margin: 0 }}>{design.name}</h4>
                   <p style={{ fontSize: '11px', color: '#9ca3af', margin: '2px 0 0 0' }}>{design.desc}</p>
                 </div>
               </div>
@@ -841,7 +841,7 @@ export default function TestPopupPage() {
                       padding: '8px 16px',
                       borderRadius: '6px',
                       border: 'none',
-                      background: type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#7C3AED',
+                      background: type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#0D9488',
                       color: 'white',
                       fontSize: '11px',
                       fontWeight: 500,
@@ -859,7 +859,7 @@ export default function TestPopupPage() {
 
         {/* Glass Variations */}
         <div>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#7C3AED', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #e9d5ff' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#0D9488', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #e9d5ff' }}>
             🪟 Compact Glass Style (With Overlay)
           </h3>
 
@@ -880,7 +880,7 @@ export default function TestPopupPage() {
                       padding: '8px 16px',
                       borderRadius: '6px',
                       border: 'none',
-                      background: type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#7C3AED',
+                      background: type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#0D9488',
                       color: 'white',
                       fontSize: '11px',
                       fontWeight: 500,

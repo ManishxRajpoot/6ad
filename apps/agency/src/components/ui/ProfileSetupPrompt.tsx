@@ -107,7 +107,7 @@ export function ProfileSetupPrompt() {
           <div className="flex justify-center mb-6">
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="relative w-28 h-28 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#9333EA] flex items-center justify-center cursor-pointer hover:opacity-90 transition-all overflow-hidden group shadow-lg ring-4 ring-[#7C3AED]/10"
+              className="relative w-28 h-28 rounded-full bg-gradient-to-br from-[#0D9488] to-[#9333EA] flex items-center justify-center cursor-pointer hover:opacity-90 transition-all overflow-hidden group shadow-lg ring-4 ring-[#0D9488]/10"
             >
               {previewImage ? (
                 <>
@@ -128,7 +128,7 @@ export function ProfileSetupPrompt() {
               )}
               {/* Camera badge */}
               <div className="absolute -bottom-1 -right-1 w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-md border-2 border-gray-100">
-                <Camera className="w-4 h-4 text-[#7C3AED]" />
+                <Camera className="w-4 h-4 text-[#0D9488]" />
               </div>
             </div>
             <input
@@ -146,7 +146,7 @@ export function ProfileSetupPrompt() {
               <button
                 onClick={handleUpload}
                 disabled={uploading}
-                className="w-full flex items-center justify-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 bg-[#0D9488] hover:bg-[#0F766E] text-white py-2.5 rounded-xl text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {uploading ? (
                   <>
@@ -163,7 +163,7 @@ export function ProfileSetupPrompt() {
             ) : (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 bg-[#7C3AED] hover:bg-[#6D28D9] text-white py-2.5 rounded-xl text-sm font-medium transition-all"
+                className="w-full flex items-center justify-center gap-2 bg-[#0D9488] hover:bg-[#0F766E] text-white py-2.5 rounded-xl text-sm font-medium transition-all"
               >
                 <Upload className="w-4 h-4" />
                 Choose Photo

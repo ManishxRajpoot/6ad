@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { StatsChart } from '@/components/ui/StatsChart'
-import { Loader2, Search, ChevronLeft, ChevronRight, Download, X, Eye, ChevronDown, Calendar } from 'lucide-react'
+import { Loader2, Search, ChevronLeft, ChevronRight, Download, X, Eye, ChevronDown, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { bmAdRequestApi, usersApi } from '@/lib/api'
 import * as XLSX from 'xlsx'
 
@@ -301,15 +301,22 @@ export default function BMAdRequestPage() {
 
   const getStatusBadge = (status: string) => {
     const normalizedStatus = status?.toUpperCase()
+    const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     switch (normalizedStatus) {
       case 'APPROVED':
-        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#52B788] text-white">Approved</span>
+        return <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
+          <CheckCircle className="w-3 h-3" /> Approved
+        </span>
       case 'PENDING':
-        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#F59E0B] text-white">Pending</span>
+        return <span className={`${baseClasses} bg-amber-50 border border-amber-200 text-amber-700`}>
+          <Clock className="w-3 h-3" /> Pending
+        </span>
       case 'REJECTED':
-        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-[#EF4444] text-white">Rejected</span>
+        return <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700`}>
+          <XCircle className="w-3 h-3" /> Rejected
+        </span>
       default:
-        return <span className="px-2 py-1 rounded text-[10px] xl:text-[11px] font-semibold bg-gray-100 text-gray-600">{status}</span>
+        return <span className={`${baseClasses} bg-gray-50 border border-gray-200 text-gray-600`}>{status}</span>
     }
   }
 
@@ -635,13 +642,13 @@ export default function BMAdRequestPage() {
         <div className="flex items-center gap-3 flex-wrap">
           {/* Search */}
           <div className="relative flex-1 min-w-[180px] lg:flex-none group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#7C3AED]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-colors group-focus-within:text-[#0D9488]" />
             <input
               type="text"
               placeholder="Search users, ID, accounts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-[12px] w-full lg:w-[220px] focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] bg-white transition-all"
+              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-[12px] w-full lg:w-[220px] focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] bg-white transition-all"
             />
           </div>
 
@@ -668,7 +675,7 @@ export default function BMAdRequestPage() {
                 <button
                   key={option.value}
                   onClick={() => { setDateFilter(option.value); setShowDateDropdown(false); setCurrentPage(1) }}
-                  className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${dateFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                  className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${dateFilter === option.value ? 'text-[#0D9488] bg-[#0D9488]/5 font-medium' : 'text-gray-600'}`}
                   style={{ transitionDelay: showDateDropdown ? `${index * 30}ms` : '0ms' }}
                 >
                   {option.label}
@@ -700,7 +707,7 @@ export default function BMAdRequestPage() {
                 <button
                   key={option.value}
                   onClick={() => { setStatusFilter(option.value); setShowStatusDropdown(false); setCurrentPage(1) }}
-                  className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${statusFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                  className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${statusFilter === option.value ? 'text-[#0D9488] bg-[#0D9488]/5 font-medium' : 'text-gray-600'}`}
                   style={{ transitionDelay: showStatusDropdown ? `${index * 30}ms` : '0ms' }}
                 >
                   {option.label}
@@ -734,7 +741,7 @@ export default function BMAdRequestPage() {
                 <button
                   key={option.value}
                   onClick={() => { setPlatformFilter(option.value); setShowPlatformDropdown(false); setCurrentPage(1) }}
-                  className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${platformFilter === option.value ? 'text-[#7C3AED] bg-[#7C3AED]/5 font-medium' : 'text-gray-600'}`}
+                  className={`w-full px-3 py-2 text-left text-[12px] hover:bg-gray-50 transition-all duration-150 ${platformFilter === option.value ? 'text-[#0D9488] bg-[#0D9488]/5 font-medium' : 'text-gray-600'}`}
                   style={{ transitionDelay: showPlatformDropdown ? `${index * 30}ms` : '0ms' }}
                 >
                   {option.label}
@@ -763,9 +770,9 @@ export default function BMAdRequestPage() {
               <span className="text-[11px] text-gray-500">Total Applications</span>
               <p className="text-xl font-bold text-gray-800">{stats.totalApplications.toLocaleString()}</p>
             </div>
-            <span className="px-2 py-0.5 bg-[#7C3AED] text-white text-[10px] font-medium rounded">Total</span>
+            <span className="px-2 py-0.5 bg-[#0D9488] text-white text-[10px] font-medium rounded">Total</span>
           </div>
-          <StatsChart value={stats.totalApplications} color="#7C3AED" filterId="glowPurpleBm" gradientId="fadePurpleBm" clipId="clipPurpleBm" />
+          <StatsChart value={stats.totalApplications} color="#0D9488" filterId="glowPurpleBm" gradientId="fadePurpleBm" clipId="clipPurpleBm" />
         </Card>
 
         {/* Total Approved - Green */}
@@ -816,7 +823,7 @@ export default function BMAdRequestPage() {
               onClick={() => { setActiveTab('account'); setCurrentPage(1) }}
               className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                 activeTab === 'account'
-                  ? 'text-[#7C3AED]'
+                  ? 'text-[#0D9488]'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -827,7 +834,7 @@ export default function BMAdRequestPage() {
               onClick={() => { setActiveTab('bm'); setCurrentPage(1) }}
               className={`px-5 py-3 text-[13px] font-medium transition-all duration-300 ease-out relative z-10 ${
                 activeTab === 'bm'
-                  ? 'text-[#7C3AED]'
+                  ? 'text-[#0D9488]'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -835,7 +842,7 @@ export default function BMAdRequestPage() {
             </button>
             {/* Sliding indicator - dynamically positioned based on active tab */}
             <div
-              className="absolute bottom-0 h-0.5 bg-[#7C3AED] transition-all duration-300 ease-out"
+              className="absolute bottom-0 h-0.5 bg-[#0D9488] transition-all duration-300 ease-out"
               style={{
                 left: indicatorStyle.left,
                 width: indicatorStyle.width,
@@ -877,7 +884,7 @@ export default function BMAdRequestPage() {
                 <tr>
                   <td colSpan={8} className="py-6 text-center">
                     <div className="flex flex-col items-center">
-                      <Loader2 className="w-5 h-5 text-[#7C3AED] animate-spin mb-1" />
+                      <Loader2 className="w-5 h-5 text-[#0D9488] animate-spin mb-1" />
                       <span className="text-gray-500">Loading...</span>
                     </div>
                   </td>
@@ -911,7 +918,7 @@ export default function BMAdRequestPage() {
                                   </span>
                                   <span className="text-gray-400 text-[10px]">→</span>
                                   {detail.accountId ? (
-                                    <span className="px-1.5 py-0.5 bg-[#7C3AED]/10 text-[#7C3AED] text-[10px] font-mono font-medium rounded whitespace-nowrap">
+                                    <span className="px-1.5 py-0.5 bg-[#0D9488]/10 text-[#0D9488] text-[10px] font-mono font-medium rounded whitespace-nowrap">
                                       {detail.accountId}
                                     </span>
                                   ) : (
@@ -926,13 +933,13 @@ export default function BMAdRequestPage() {
                             </div>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 font-semibold text-[#7C3AED] whitespace-nowrap">{formatCurrency(app.openingFee)}</td>
+                        <td className="py-2.5 px-3 font-semibold text-[#0D9488] whitespace-nowrap">{formatCurrency(app.openingFee)}</td>
                         <td className="py-2.5 px-3 text-gray-500 whitespace-nowrap">{formatDate(app.createdAt)}</td>
                         <td className="py-2.5 px-3">{getStatusBadge(app.status)}</td>
                         <td className="py-2.5 px-3">
                           <button
                             onClick={() => handleViewDetails(app)}
-                            className="flex items-center gap-1 px-2 py-1 bg-[#7C3AED]/10 text-[#7C3AED] rounded font-medium hover:bg-[#7C3AED]/20 transition-colors whitespace-nowrap"
+                            className="flex items-center gap-1 px-2 py-1 bg-[#0D9488]/10 text-[#0D9488] rounded font-medium hover:bg-[#0D9488]/20 transition-colors whitespace-nowrap"
                           >
                             <Eye className="w-3 h-3" />
                             View
@@ -959,7 +966,7 @@ export default function BMAdRequestPage() {
                       <td className="py-2.5 px-3 text-gray-700 whitespace-nowrap">{share.user?.username || 'Unknown'}</td>
                       <td className="py-2.5 px-3">{getPlatformIcon(share.platform)}</td>
                       <td className="py-2.5 px-3 text-gray-600 font-mono">{share.applyId || '---'}</td>
-                      <td className="py-2.5 px-3 text-center text-[#7C3AED] font-mono whitespace-nowrap">{share.bmId || '---'}</td>
+                      <td className="py-2.5 px-3 text-center text-[#0D9488] font-mono whitespace-nowrap">{share.bmId || '---'}</td>
                       <td className="py-2.5 px-3 text-[#52B788] font-mono whitespace-nowrap">{share.adAccountId || '---'}</td>
                       <td className="py-2.5 px-3 text-gray-500 whitespace-nowrap">{formatDate(share.createdAt)}</td>
                       <td className="py-2.5 px-3 text-gray-500 whitespace-nowrap">{share.completedAt ? formatDate(share.completedAt) : '---'}</td>
@@ -991,7 +998,7 @@ export default function BMAdRequestPage() {
                   onClick={() => setCurrentPage(page)}
                   className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                     currentPage === page
-                      ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                      ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
@@ -1004,7 +1011,7 @@ export default function BMAdRequestPage() {
                   onClick={() => setCurrentPage(1)}
                   className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                     currentPage === 1
-                      ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                      ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
@@ -1013,7 +1020,7 @@ export default function BMAdRequestPage() {
                 {currentPage > 3 && <span className="w-4 text-center text-gray-400">...</span>}
                 {currentPage > 2 && currentPage < effectiveTotalPages - 1 && (
                   <button
-                    className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm"
+                    className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm"
                   >
                     {currentPage}
                   </button>
@@ -1023,7 +1030,7 @@ export default function BMAdRequestPage() {
                   onClick={() => setCurrentPage(effectiveTotalPages)}
                   className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                     currentPage === effectiveTotalPages
-                      ? 'bg-gradient-to-r from-[#7C3AED] to-[#9333EA] text-white shadow-sm'
+                      ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
                       : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
@@ -1070,7 +1077,7 @@ export default function BMAdRequestPage() {
 
           {loadingDetails ? (
             <div className="flex flex-col items-center py-6">
-              <Loader2 className="w-5 h-5 text-[#7C3AED] animate-spin mb-1" />
+              <Loader2 className="w-5 h-5 text-[#0D9488] animate-spin mb-1" />
               <span className="text-[11px] text-gray-500">Loading details...</span>
             </div>
           ) : selectedApplication ? (
@@ -1119,7 +1126,7 @@ export default function BMAdRequestPage() {
 
                 <div className="p-2 bg-gray-50 rounded-lg">
                   <span className="text-[9px] text-gray-500 uppercase tracking-wide">Opening Fee</span>
-                  <p className="text-[11px] font-bold text-[#7C3AED]">
+                  <p className="text-[11px] font-bold text-[#0D9488]">
                     {formatCurrency(selectedApplication.openingFee)}
                   </p>
                 </div>
@@ -1140,7 +1147,7 @@ export default function BMAdRequestPage() {
 
                 <div className="p-2 bg-gray-50 rounded-lg">
                   <span className="text-[9px] text-gray-500 uppercase tracking-wide">BM ID</span>
-                  <p className="text-[11px] font-mono font-semibold text-[#7C3AED] truncate">{selectedApplication.bmId || '---'}</p>
+                  <p className="text-[11px] font-mono font-semibold text-[#0D9488] truncate">{selectedApplication.bmId || '---'}</p>
                 </div>
 
                 <div className="p-2 bg-gray-50 rounded-lg">
@@ -1210,7 +1217,7 @@ export default function BMAdRequestPage() {
                         </span>
                         <span className="text-gray-400 text-[10px]">→</span>
                         {detail.accountId ? (
-                          <span className="px-1.5 py-0.5 bg-[#7C3AED]/10 text-[#7C3AED] text-[10px] font-mono font-medium rounded truncate">
+                          <span className="px-1.5 py-0.5 bg-[#0D9488]/10 text-[#0D9488] text-[10px] font-mono font-medium rounded truncate">
                             {detail.accountId}
                           </span>
                         ) : (
@@ -1269,7 +1276,7 @@ export default function BMAdRequestPage() {
               <div className="flex justify-end pt-2">
                 <button
                   onClick={() => setShowDetailsPopup(false)}
-                  className="px-4 py-1.5 bg-[#7C3AED] hover:bg-[#6D28D9] text-white rounded-lg text-[12px] font-medium transition-colors"
+                  className="px-4 py-1.5 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-[12px] font-medium transition-colors"
                 >
                   Close
                 </button>
@@ -1327,7 +1334,7 @@ export default function BMAdRequestPage() {
                     onClick={() => setExportPlatform(option.value)}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       exportPlatform === option.value
-                        ? 'bg-[#7C3AED] text-white'
+                        ? 'bg-[#0D9488] text-white'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -1352,7 +1359,7 @@ export default function BMAdRequestPage() {
                     onClick={() => setExportStatus(option.value)}
                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       exportStatus === option.value
-                        ? 'bg-[#7C3AED] text-white'
+                        ? 'bg-[#0D9488] text-white'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -1371,7 +1378,7 @@ export default function BMAdRequestPage() {
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
                 className={`w-full flex items-center justify-between px-4 py-2.5 border-2 rounded-xl text-sm text-left transition-all ${
                   showUserDropdown
-                    ? 'border-[#7C3AED] ring-2 ring-[#7C3AED]/20'
+                    ? 'border-[#0D9488] ring-2 ring-[#0D9488]/20'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
@@ -1384,7 +1391,7 @@ export default function BMAdRequestPage() {
               </button>
 
               {/* User Dropdown */}
-              <div className={`absolute top-full left-0 right-0 mt-2 bg-white border-2 border-[#7C3AED]/20 rounded-xl shadow-xl z-50 transition-all duration-200 overflow-hidden ${
+              <div className={`absolute top-full left-0 right-0 mt-2 bg-white border-2 border-[#0D9488]/20 rounded-xl shadow-xl z-50 transition-all duration-200 overflow-hidden ${
                 showUserDropdown
                   ? 'opacity-100 visible translate-y-0'
                   : 'opacity-0 invisible -translate-y-2 pointer-events-none'
@@ -1398,7 +1405,7 @@ export default function BMAdRequestPage() {
                       placeholder="Type to search (e.g., manish)"
                       value={exportUserSearch}
                       onChange={(e) => setExportUserSearch(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 border-2 border-[#7C3AED]/30 rounded-xl text-sm focus:outline-none focus:border-[#7C3AED] focus:ring-2 focus:ring-[#7C3AED]/20 transition-all"
+                      className="w-full pl-10 pr-4 py-2.5 border-2 border-[#0D9488]/30 rounded-xl text-sm focus:outline-none focus:border-[#0D9488] focus:ring-2 focus:ring-[#0D9488]/20 transition-all"
                     />
                   </div>
                 </div>
@@ -1410,7 +1417,7 @@ export default function BMAdRequestPage() {
                       {exportSelectedUsers.map(userId => {
                         const user = getUserById(userId)
                         return (
-                          <span key={userId} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#7C3AED] text-white text-xs font-medium rounded-lg">
+                          <span key={userId} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#0D9488] text-white text-xs font-medium rounded-lg">
                             {user?.username || userId}
                             <button onClick={() => removeSelectedUser(userId)} className="hover:bg-white/20 rounded">
                               <X className="w-3 h-3" />
@@ -1430,7 +1437,7 @@ export default function BMAdRequestPage() {
                         key={user.id}
                         onClick={() => toggleUserSelection(user.id)}
                         className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center justify-between transition-colors border-b border-gray-50 last:border-0 ${
-                          exportSelectedUsers.includes(user.id) ? 'bg-[#7C3AED]/5' : ''
+                          exportSelectedUsers.includes(user.id) ? 'bg-[#0D9488]/5' : ''
                         }`}
                       >
                         <div className="flex flex-col">
@@ -1438,7 +1445,7 @@ export default function BMAdRequestPage() {
                           <span className="text-gray-400 text-xs">{user.email}</span>
                         </div>
                         {exportSelectedUsers.includes(user.id) && (
-                          <div className="w-5 h-5 bg-[#7C3AED] rounded-full flex items-center justify-center">
+                          <div className="w-5 h-5 bg-[#0D9488] rounded-full flex items-center justify-center">
                             <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
@@ -1464,7 +1471,7 @@ export default function BMAdRequestPage() {
                   onClick={() => { setShowFromCalendar(!showFromCalendar); setShowToCalendar(false); setCalendarMonth(exportDateFrom || new Date()) }}
                   className={`w-full flex items-center gap-2 px-3 py-2.5 border-2 rounded-xl text-sm text-left transition-all ${
                     showFromCalendar
-                      ? 'border-[#7C3AED] ring-2 ring-[#7C3AED]/20'
+                      ? 'border-[#0D9488] ring-2 ring-[#0D9488]/20'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -1479,7 +1486,7 @@ export default function BMAdRequestPage() {
                   onClick={() => { setShowToCalendar(!showToCalendar); setShowFromCalendar(false); setCalendarMonth(exportDateTo || new Date()) }}
                   className={`w-full flex items-center gap-2 px-3 py-2.5 border-2 rounded-xl text-sm text-left transition-all ${
                     showToCalendar
-                      ? 'border-[#7C3AED] ring-2 ring-[#7C3AED]/20'
+                      ? 'border-[#0D9488] ring-2 ring-[#0D9488]/20'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -1492,7 +1499,7 @@ export default function BMAdRequestPage() {
 
               {/* Shared Calendar Popup - Opens below both buttons */}
               {(showFromCalendar || showToCalendar) && (
-              <div className="mt-2 bg-white border-2 border-[#7C3AED]/20 rounded-xl shadow-xl p-4">
+              <div className="mt-2 bg-white border-2 border-[#0D9488]/20 rounded-xl shadow-xl p-4">
                 {/* Calendar Header */}
                 <div className="flex items-center justify-between mb-4">
                   <button
@@ -1514,7 +1521,7 @@ export default function BMAdRequestPage() {
 
                 {/* Selecting indicator */}
                 <div className="text-center mb-3">
-                  <span className="text-xs text-[#7C3AED] font-medium bg-[#7C3AED]/10 px-3 py-1 rounded-full">
+                  <span className="text-xs text-[#0D9488] font-medium bg-[#0D9488]/10 px-3 py-1 rounded-full">
                     {showFromCalendar ? 'Select start date' : 'Select end date'}
                   </span>
                 </div>
@@ -1554,9 +1561,9 @@ export default function BMAdRequestPage() {
                           }}
                           className={`py-2 text-sm rounded-lg transition-colors ${
                             isSelectedFrom || isSelectedTo
-                              ? 'bg-[#7C3AED] text-white font-medium'
+                              ? 'bg-[#0D9488] text-white font-medium'
                               : isInRange
-                              ? 'bg-[#7C3AED]/10 text-[#7C3AED]'
+                              ? 'bg-[#0D9488]/10 text-[#0D9488]'
                               : isToday
                               ? 'bg-gray-100 text-gray-800 font-medium'
                               : 'text-gray-700 hover:bg-gray-100'
