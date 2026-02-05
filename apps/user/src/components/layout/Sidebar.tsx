@@ -126,14 +126,14 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {/* Logo */}
-        <div className="px-6 py-5">
-          <Link href="/dashboard" className="flex items-center gap-3">
+        <div className="px-4 py-5 border-b border-gray-100">
+          <Link href="/dashboard" className="flex items-center">
             {/* Show custom domain branding or agent's branding */}
             {displayBrandLogo ? (
               <img
                 src={displayBrandLogo}
                 alt={displayBrandName || 'Brand Logo'}
-                className="h-10 max-w-[200px] object-contain"
+                className="h-16 max-w-[210px] object-contain object-left"
               />
             ) : (
               <div className="flex items-center gap-3">
