@@ -1441,6 +1441,7 @@ export default function DepositsPage() {
                 onChange={(value) => setDepositForm({...depositForm, payway: value})}
                 placeholder={loadingPaymentMethods ? "Loading..." : "Select Pay method"}
                 disabled={loadingPaymentMethods}
+                size="modal"
               />
             </div>
 
