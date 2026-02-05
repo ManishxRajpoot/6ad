@@ -1,15 +1,17 @@
 import nodemailer from 'nodemailer'
 
-// Default SMTP configuration (Hostinger)
+// Default SMTP configuration from environment variables
 const DEFAULT_SMTP = {
-  host: 'smtp.hostinger.com',
-  port: 465,
-  secure: true,
-  user: 'info@6ad.in',
-  pass: 'Bigindia@555'
+  host: process.env.SMTP_HOST || 'smtp.hostinger.com',
+  port: parseInt(process.env.SMTP_PORT || '465'),
+  secure: process.env.SMTP_SECURE !== 'false', // default true
+  user: process.env.SMTP_USER || 'info@6ad.in',
+  pass: process.env.SMTP_PASS || '',
+  fromEmail: process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'info@6ad.in',
+  fromName: process.env.SMTP_FROM_NAME || 'Six Media'
 }
 
-// Create default transporter using Hostinger SMTP
+// Create default transporter using SMTP from env
 const defaultTransporter = nodemailer.createTransport({
   host: DEFAULT_SMTP.host,
   port: DEFAULT_SMTP.port,
@@ -26,6 +28,7 @@ defaultTransporter.verify((error, success) => {
     console.error('SMTP connection error:', error)
   } else {
     console.log('SMTP server is ready to send emails')
+    console.log('SMTP From:', DEFAULT_SMTP.fromEmail)
   }
 })
 
@@ -204,15 +207,16 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     }
 
     // Use default SMTP
+    const fromName = options.senderName || DEFAULT_SMTP.fromName
     const info = await defaultTransporter.sendMail({
-      from: `"${senderName}" <info@6ad.in>`,
+      from: `"${fromName}" <${DEFAULT_SMTP.fromEmail}>`,
       to: options.to,
       subject: options.subject,
       html: options.html,
       text: options.text || options.html.replace(/<[^>]*>/g, '')
     })
 
-    console.log('Email sent:', info.messageId)
+    console.log('Email sent:', info.messageId, 'to:', options.to)
     return true
   } catch (error) {
     console.error('Error sending email:', error)
