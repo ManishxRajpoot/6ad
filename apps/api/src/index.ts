@@ -24,6 +24,7 @@ import chatRoutes from './routes/chat.js'
 import cheetahRoutes from './routes/cheetah.js'
 import agentWithdrawalRoutes from './routes/agent-withdrawals.js'
 import bmAdRequestRoutes from './routes/bm-ad-request.js'
+import versionRoutes from './routes/version.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 
 const app = new Hono()
@@ -89,6 +90,7 @@ app.route('/chat', chatRoutes)
 app.route('/cheetah', cheetahRoutes)
 app.route('/agent-withdrawals', agentWithdrawalRoutes)
 app.route('/bm-ad-request', bmAdRequestRoutes)
+app.route('/version', versionRoutes)
 
 // Initialize BM configurations from database
 initializeBMConfigs().catch(console.error)

@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { ToastProvider } from '@/contexts/ToastContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import { UpdateChecker } from '@/components/UpdateChecker'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -25,6 +26,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <ToastProvider>
             {children}
+            <UpdateChecker />
           </ToastProvider>
         </ErrorBoundary>
       </body>

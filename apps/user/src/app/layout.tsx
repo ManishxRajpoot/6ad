@@ -5,6 +5,7 @@ import { DomainProvider } from '@/components/providers/DomainProvider'
 import { TitleProvider } from '@/components/providers/TitleProvider'
 import { ToastProvider } from '@/contexts/ToastContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import { UpdateChecker } from '@/components/UpdateChecker'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -29,6 +30,7 @@ export default function RootLayout({
             <DomainProvider>
               <TitleProvider>
                 {children}
+                <UpdateChecker />
               </TitleProvider>
             </DomainProvider>
           </ToastProvider>
