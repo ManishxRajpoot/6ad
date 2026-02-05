@@ -158,6 +158,51 @@ transactions.post('/deposits', requireUser, async (c) => {
         paymentMethod
       })
 
+      // Send email notifications for crypto deposits too
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } }
+      })
+
+      if (user) {
+        const approvedDomainLogo = user.agent?.customDomains?.[0]?.brandLogo
+        const agentLogo = approvedDomainLogo || user.agent?.brandLogo || null
+        const agentBrandName = user.agent?.username || null
+
+        // Send email to user
+        const userEmailTemplate = getWalletDepositSubmittedTemplate({
+          username: user.username,
+          applyId,
+          amount,
+          paymentMethod,
+          txHash: transactionId,
+          agentLogo,
+          agentBrandName
+        })
+        sendEmail({ to: user.email, ...userEmailTemplate, senderName: user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(user.agent) }).catch(err => console.error('[EMAIL] User email error:', err))
+
+        // Notify admins
+        const adminNotification = getAdminNotificationTemplate({
+          type: 'wallet_deposit',
+          applyId,
+          username: user.username,
+          userEmail: user.email,
+          amount,
+          details: `Crypto: ${paymentMethod} | TxHash: ${transactionId.slice(0, 20)}...`
+        })
+
+        getAdminEmails().then(emails => {
+          console.log('[EMAIL] Sending to admins:', emails)
+          emails.forEach(email => sendEmail({ to: email, ...adminNotification }).catch(err => console.error('[EMAIL] Admin email error:', err)))
+        })
+
+        // Notify agent
+        if (user.agent?.email) {
+          console.log('[EMAIL] Sending to agent:', user.agent.email)
+          sendEmail({ to: user.agent.email, ...adminNotification }).catch(err => console.error('[EMAIL] Agent email error:', err))
+        }
+      }
+
       // Return success immediately - user sees success popup
       return c.json({
         message: 'Deposit submitted successfully! Verification in progress.',

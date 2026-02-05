@@ -11,6 +11,16 @@ const DEFAULT_SMTP = {
   fromName: process.env.SMTP_FROM_NAME || 'Six Media'
 }
 
+// Log SMTP config on module load (hide password)
+console.log('[EMAIL] SMTP Config loaded:', {
+  host: DEFAULT_SMTP.host,
+  port: DEFAULT_SMTP.port,
+  secure: DEFAULT_SMTP.secure,
+  user: DEFAULT_SMTP.user,
+  fromEmail: DEFAULT_SMTP.fromEmail,
+  hasPassword: !!DEFAULT_SMTP.pass
+})
+
 // Create default transporter using SMTP from env
 const defaultTransporter = nodemailer.createTransport({
   host: DEFAULT_SMTP.host,
@@ -22,15 +32,16 @@ const defaultTransporter = nodemailer.createTransport({
   }
 })
 
-// Verify connection on startup
-defaultTransporter.verify((error, success) => {
-  if (error) {
-    console.error('SMTP connection error:', error)
-  } else {
-    console.log('SMTP server is ready to send emails')
-    console.log('SMTP From:', DEFAULT_SMTP.fromEmail)
+// Verify connection on startup (async to avoid blocking)
+;(async () => {
+  try {
+    await defaultTransporter.verify()
+    console.log('[EMAIL] SMTP server is ready to send emails')
+    console.log('[EMAIL] SMTP From:', DEFAULT_SMTP.fromEmail)
+  } catch (error) {
+    console.error('[EMAIL] SMTP connection error:', error)
   }
-})
+})()
 
 // SMTP Configuration interface for custom agency SMTP
 export interface SmtpConfig {
