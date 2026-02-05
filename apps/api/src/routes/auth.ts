@@ -743,4 +743,163 @@ auth.post('/email/verify', verifyToken, async (c) => {
   }
 })
 
+// POST /auth/email/send-change-code - Send code to new email for email change
+auth.post('/email/send-change-code', verifyToken, async (c) => {
+  try {
+    const userId = c.get('userId')
+    const { newEmail } = await c.req.json()
+
+    if (!newEmail || !newEmail.includes('@')) {
+      return c.json({ error: 'Please provide a valid email address' }, 400)
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        emailVerified: true,
+        username: true,
+        agentId: true,
+        agent: {
+          select: {
+            brandLogo: true,
+            username: true,
+            emailSenderNameApproved: true,
+            smtpEnabled: true,
+            smtpHost: true,
+            smtpPort: true,
+            smtpUsername: true,
+            smtpPassword: true,
+            smtpEncryption: true,
+            smtpFromEmail: true,
+            customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 }
+          }
+        }
+      }
+    })
+
+    if (!user) {
+      return c.json({ error: 'User not found' }, 404)
+    }
+
+    if (!user.emailVerified) {
+      return c.json({ error: 'Please verify your current email first' }, 400)
+    }
+
+    if (newEmail.toLowerCase() === user.email.toLowerCase()) {
+      return c.json({ error: 'New email must be different from current email' }, 400)
+    }
+
+    // Check if new email is already in use
+    const existingUser = await prisma.user.findUnique({
+      where: { email: newEmail.toLowerCase() }
+    })
+
+    if (existingUser) {
+      return c.json({ error: 'This email is already in use' }, 400)
+    }
+
+    // Generate 6-digit code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
+    const expiryTime = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+
+    // Store the pending email and code
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        pendingEmail: newEmail.toLowerCase(),
+        emailVerifyToken: verificationCode,
+        emailVerifyExpiry: expiryTime
+      }
+    })
+
+    // Get branding info
+    const approvedDomainLogo = user.agent?.customDomains?.[0]?.brandLogo
+    const agentLogo = approvedDomainLogo || user.agent?.brandLogo || null
+    const agentBrandName = user.agent?.username || null
+
+    // Send verification email to the NEW email
+    const { getVerificationEmailTemplate, sendEmail, buildSmtpConfig } = await import('../utils/email.js')
+    const emailTemplate = getVerificationEmailTemplate(verificationCode, user.username, agentLogo, agentBrandName)
+
+    await sendEmail({
+      to: newEmail,
+      subject: 'Verify Your New Email Address',
+      html: emailTemplate.html,
+      senderName: user.agent?.emailSenderNameApproved || undefined,
+      smtpConfig: buildSmtpConfig(user.agent)
+    })
+
+    return c.json({ message: 'Verification code sent to new email' })
+  } catch (error) {
+    console.error('Send email change code error:', error)
+    return c.json({ error: 'Failed to send verification code' }, 500)
+  }
+})
+
+// POST /auth/email/verify-change - Verify code and change email
+auth.post('/email/verify-change', verifyToken, async (c) => {
+  try {
+    const userId = c.get('userId')
+    const { newEmail, code } = await c.req.json()
+
+    if (!code || code.length !== 6) {
+      return c.json({ error: 'Please provide a valid 6-digit code' }, 400)
+    }
+
+    if (!newEmail) {
+      return c.json({ error: 'Please provide the new email address' }, 400)
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        pendingEmail: true,
+        emailVerifyToken: true,
+        emailVerifyExpiry: true
+      }
+    })
+
+    if (!user) {
+      return c.json({ error: 'User not found' }, 404)
+    }
+
+    if (!user.pendingEmail || !user.emailVerifyToken || !user.emailVerifyExpiry) {
+      return c.json({ error: 'Please request a verification code first' }, 400)
+    }
+
+    // Verify the pending email matches
+    if (user.pendingEmail.toLowerCase() !== newEmail.toLowerCase()) {
+      return c.json({ error: 'Email mismatch. Please request a new code.' }, 400)
+    }
+
+    // Check if code is expired
+    if (new Date() > user.emailVerifyExpiry) {
+      return c.json({ error: 'Verification code has expired. Please request a new one.' }, 400)
+    }
+
+    // Verify the code
+    if (code !== user.emailVerifyToken) {
+      return c.json({ error: 'Invalid verification code' }, 401)
+    }
+
+    // Update email
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: user.pendingEmail,
+        pendingEmail: null,
+        emailVerifyToken: null,
+        emailVerifyExpiry: null,
+        emailVerified: true // Keep verified status since they verified the new email
+      }
+    })
+
+    return c.json({ message: 'Email changed successfully' })
+  } catch (error) {
+    console.error('Verify email change error:', error)
+    return c.json({ error: 'Failed to change email' }, 500)
+  }
+})
+
 export default auth

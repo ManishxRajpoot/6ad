@@ -84,6 +84,29 @@ export const authApi = {
   login: (data: { email: string; password: string }) =>
     api.post<{ token: string; user: any }>('/auth/login', data),
   me: () => api.get<{ user: any }>('/auth/me'),
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.post<{ message: string }>('/auth/change-password', data),
+  // Email Verification
+  email: {
+    sendCode: () => api.post<{ message: string }>('/auth/email/send-code', {}),
+    verify: (code: string) => api.post<{ message: string }>('/auth/email/verify', { code }),
+    sendChangeCode: (newEmail: string) => api.post<{ message: string }>('/auth/email/send-change-code', { newEmail }),
+    verifyChange: (newEmail: string, code: string) => api.post<{ message: string }>('/auth/email/verify-change', { newEmail, code }),
+  },
+  // Two-Factor Authentication
+  twoFactor: {
+    setup: () => api.post<{ secret: string; otpauthUrl: string }>('/auth/2fa/setup', {}),
+    verify: (code: string) => api.post<{ message: string }>('/auth/2fa/verify', { code }),
+    disable: (data: { password: string }) => api.post<{ message: string }>('/auth/2fa/disable', data),
+  },
+}
+
+// Profile Settings API
+export const profileSettingsApi = {
+  update: (data: { realName?: string; phone?: string; phone2?: string }) =>
+    api.patch<{ message: string; user: any }>('/settings/profile', data),
+  updateAvatar: (profileImage: string) =>
+    api.patch<{ message: string; user: any }>('/settings/profile', { profileImage }),
 }
 
 // Dashboard API

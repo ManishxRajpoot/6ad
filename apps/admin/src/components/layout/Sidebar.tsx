@@ -26,6 +26,7 @@ import {
   TrendingUp,
   Shield,
   HelpCircle,
+  UserCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -126,7 +127,8 @@ const menuGroups: MenuGroup[] = [
       { name: 'Domain Requests', href: '/domain-requests', icon: Globe },
       { name: 'BM Config', href: '/bm-config', icon: Building2 },
       { name: 'User Settings', href: '/user-settings', icon: Settings2 },
-      { name: 'Settings', href: '/settings', icon: Settings },
+      { name: 'System Settings', href: '/settings', icon: Settings },
+      { name: 'My Account', href: '/account', icon: UserCircle },
     ]
   },
 ]

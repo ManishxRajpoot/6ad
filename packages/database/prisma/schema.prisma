@@ -141,6 +141,7 @@ model User {
   emailVerified     Boolean     @default(false)
   emailVerifyToken  String?
   emailVerifyExpiry DateTime?
+  pendingEmail      String?     // New email pending verification during email change
 
   // Remarks
   personalRemarks   String?
