@@ -180,37 +180,37 @@ export function DatePicker({
         </button>
       )}
 
-      {/* Calendar Dropdown - Compact */}
+      {/* Calendar Dropdown */}
       {isOpen && (
-        <div className="absolute top-full right-0 mt-1.5 bg-white rounded-lg shadow-lg border border-gray-200 p-2.5 z-[100]"
+        <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-4 z-[100] min-w-[280px]"
           style={{
             animation: 'fadeInUp 0.2s ease-out',
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <button
               onClick={goToPrevMonth}
-              className="p-1 rounded hover:bg-gray-100 text-gray-600 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
-            <h3 className="font-semibold text-gray-800 text-[11px]">
+            <h3 className="font-semibold text-gray-800 text-sm">
               {months[currentMonth.getMonth()]} {currentMonth.getFullYear()}
             </h3>
             <button
               onClick={goToNextMonth}
-              className="p-1 rounded hover:bg-gray-100 text-gray-600 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600 transition-colors"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
           {/* Selection indicator */}
-          <div className="flex items-center justify-center gap-1.5 mb-2">
+          <div className="flex items-center justify-center gap-2 mb-3">
             <button
               onClick={() => setSelectingStart(true)}
-              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded transition-all text-[10px] font-medium ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-xs font-medium ${
                 selectingStart
                   ? 'bg-[#7C3AED] text-white shadow-sm'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -221,7 +221,7 @@ export function DatePicker({
             </button>
             <button
               onClick={() => setSelectingStart(false)}
-              className={`flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded transition-all text-[10px] font-medium ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-xs font-medium ${
                 !selectingStart
                   ? 'bg-[#7C3AED] text-white shadow-sm'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
@@ -233,11 +233,11 @@ export function DatePicker({
           </div>
 
           {/* Days of week header */}
-          <div className="grid grid-cols-7 gap-0.5 mb-0.5">
+          <div className="grid grid-cols-7 gap-1 mb-1">
             {daysOfWeek.map((day) => (
               <div
                 key={day}
-                className="w-7 h-5 flex items-center justify-center text-[9px] font-semibold text-gray-400"
+                className="w-9 h-7 flex items-center justify-center text-[10px] font-semibold text-gray-400"
               >
                 {day}
               </div>
@@ -245,18 +245,18 @@ export function DatePicker({
           </div>
 
           {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-0.5">
+          <div className="grid grid-cols-7 gap-1">
             {days.map((day, index) => (
               <div key={index}>
                 {day ? (
                   <button
                     onClick={() => handleDateClick(day)}
                     className={`
-                      w-7 h-7 flex items-center justify-center text-[11px] rounded transition-all duration-150 font-medium
+                      w-9 h-9 flex items-center justify-center text-xs rounded-lg transition-all duration-150 font-medium
                       ${isStartDate(day) || isEndDate(day)
                         ? 'bg-[#7C3AED] text-white shadow-sm'
                         : isDateInRange(day)
-                        ? 'bg-[#7C3AED]/20 text-[#7C3AED]'
+                        ? 'bg-[#7C3AED]/15 text-[#7C3AED]'
                         : isToday(day)
                         ? 'bg-gray-100 text-gray-800 ring-1 ring-[#7C3AED]/30'
                         : 'text-gray-700 hover:bg-gray-100'
@@ -266,14 +266,14 @@ export function DatePicker({
                     {day}
                   </button>
                 ) : (
-                  <div className="w-7 h-7" />
+                  <div className="w-9 h-9" />
                 )}
               </div>
             ))}
           </div>
 
           {/* Quick select buttons */}
-          <div className="mt-2 pt-2 border-t border-gray-100 grid grid-cols-4 gap-1">
+          <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-1.5">
             <button
               onClick={() => {
                 const today = new Date()
@@ -282,7 +282,7 @@ export function DatePicker({
                 onEndDateChange(dateStr)
                 setIsOpen(false)
               }}
-              className="px-1.5 py-1 text-[9px] font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100 transition-colors"
+              className="px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100"
             >
               Today
             </button>
@@ -294,9 +294,9 @@ export function DatePicker({
                 onEndDateChange(formatDateForInput(today))
                 setIsOpen(false)
               }}
-              className="px-1.5 py-1 text-[9px] font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100 transition-colors"
+              className="px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100"
             >
-              7 days
+              Last 7 days
             </button>
             <button
               onClick={() => {
@@ -306,9 +306,9 @@ export function DatePicker({
                 onEndDateChange(formatDateForInput(today))
                 setIsOpen(false)
               }}
-              className="px-1.5 py-1 text-[9px] font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100 transition-colors"
+              className="px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100"
             >
-              30 days
+              Last 30 days
             </button>
             <button
               onClick={() => {
@@ -318,9 +318,9 @@ export function DatePicker({
                 onEndDateChange(formatDateForInput(today))
                 setIsOpen(false)
               }}
-              className="px-1.5 py-1 text-[9px] font-medium text-gray-600 bg-gray-50 rounded hover:bg-gray-100 transition-colors"
+              className="px-2.5 py-1.5 text-[11px] font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border border-gray-100"
             >
-              Month
+              This month
             </button>
           </div>
         </div>

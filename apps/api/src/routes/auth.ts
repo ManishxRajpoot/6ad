@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 import * as OTPAuth from 'otpauth'
-import { sendEmail, getVerificationEmailTemplate, get2FADisabledEmailTemplate } from '../utils/email.js'
+import { sendEmail, getVerificationEmailTemplate, get2FADisabledEmailTemplate, buildSmtpConfig } from '../utils/email.js'
 
 const prisma = new PrismaClient()
 import { z } from 'zod'
@@ -621,6 +621,13 @@ auth.post('/email/send-code', verifyToken, async (c) => {
             brandLogo: true,
             username: true,
             emailSenderNameApproved: true,
+            smtpEnabled: true,
+            smtpHost: true,
+            smtpPort: true,
+            smtpUsername: true,
+            smtpPassword: true,
+            smtpEncryption: true,
+            smtpFromEmail: true,
             customDomains: {
               where: { status: 'APPROVED' },
               select: { brandLogo: true },
@@ -657,11 +664,13 @@ auth.post('/email/send-code', verifyToken, async (c) => {
     const agentLogo = approvedDomainLogo || user.agent?.brandLogo || null
     const agentBrandName = user.agent?.username || null
     const emailTemplate = getVerificationEmailTemplate(code, user.username, agentLogo, agentBrandName)
+
     const emailSent = await sendEmail({
       to: user.email,
       subject: emailTemplate.subject,
       html: emailTemplate.html,
-      senderName: user.agent?.emailSenderNameApproved || undefined
+      senderName: user.agent?.emailSenderNameApproved || undefined,
+      smtpConfig: buildSmtpConfig(user.agent)
     })
 
     if (!emailSent) {

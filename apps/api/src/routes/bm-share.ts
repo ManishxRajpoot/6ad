@@ -6,6 +6,7 @@ import { cheetahApi } from '../services/cheetah-api.js'
 import { facebookBMApi } from '../services/facebook-bm-api.js'
 import {
   sendEmail,
+  buildSmtpConfig,
   getBMShareSubmittedTemplate,
   getBMShareApprovedTemplate,
   getBMShareRejectedTemplate,
@@ -198,7 +199,7 @@ bmShare.post('/', requireUser, async (c) => {
     // Get user with agent info for email
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } }
+      include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } }
     })
 
     // Create request with PROCESSING status immediately
@@ -235,7 +236,7 @@ bmShare.post('/', requireUser, async (c) => {
         agentLogo,
         agentBrandName
       })
-      sendEmail({ to: user.email, ...userEmailTemplate, senderName: user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
+      sendEmail({ to: user.email, ...userEmailTemplate, senderName: user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(user.agent) }).catch(console.error)
 
       // Notify admins and agent
       const adminNotification = getAdminNotificationTemplate({
@@ -408,7 +409,7 @@ bmShare.post('/:id/approve', requireAdmin, async (c) => {
 
     const request = await prisma.bmShareRequest.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
     })
 
     if (!request) {
@@ -464,7 +465,7 @@ bmShare.post('/:id/approve', requireAdmin, async (c) => {
       agentLogo: agentLogoApprove,
       agentBrandName: agentBrandNameApprove
     })
-    sendEmail({ to: request.user.email, ...userEmailTemplate, senderName: request.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
+    sendEmail({ to: request.user.email, ...userEmailTemplate, senderName: request.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(request.user.agent) }).catch(console.error)
 
     return c.json({ message: 'BM share request approved.' + apiMessage })
   } catch (error) {
@@ -481,7 +482,7 @@ bmShare.post('/:id/reject', requireAdmin, async (c) => {
 
     const request = await prisma.bmShareRequest.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
     })
 
     if (!request) {
@@ -515,7 +516,7 @@ bmShare.post('/:id/reject', requireAdmin, async (c) => {
       agentLogo: agentLogoReject,
       agentBrandName: agentBrandNameReject
     })
-    sendEmail({ to: request.user.email, ...userEmailTemplate, senderName: request.user.agent?.emailSenderNameApproved || undefined }).catch(console.error)
+    sendEmail({ to: request.user.email, ...userEmailTemplate, senderName: request.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(request.user.agent) }).catch(console.error)
 
     return c.json({ message: 'BM share request rejected' })
   } catch (error) {
