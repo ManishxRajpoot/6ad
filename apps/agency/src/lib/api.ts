@@ -37,12 +37,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
     // Handle specific HTTP status codes
     if (response.status === 401) {
-      // Check if this is a login attempt (has error message from API)
-      if (errorData.error) {
+      const errorMessage = (errorData.error || errorData.message || '').toLowerCase()
+      // Check if this is a login attempt failure (wrong password, etc.)
+      const isLoginAttempt = endpoint.includes('/auth/login') || endpoint.includes('/auth/verify')
+
+      if (isLoginAttempt && errorData.error) {
         // Login failure - throw the actual API error message
         throw new Error(errorData.error)
       }
-      // Session expired - clear token and redirect to login
+
+      // Token invalid/expired - auto logout
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token')
         localStorage.removeItem('user')

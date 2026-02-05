@@ -6,6 +6,16 @@ type RequestOptions = {
   headers?: Record<string, string>
 }
 
+// Auto logout function - clears token and redirects to login
+function handleAutoLogout() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    // Redirect to login page
+    window.location.href = '/login'
+  }
+}
+
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {} } = options
 
@@ -29,6 +39,23 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Request failed' }))
+
+      // Check for authentication errors - auto logout
+      if (response.status === 401) {
+        const errorMessage = (errorData.message || errorData.error || '').toLowerCase()
+        // Check for token-related errors
+        if (
+          errorMessage.includes('invalid') ||
+          errorMessage.includes('expired') ||
+          errorMessage.includes('token') ||
+          errorMessage.includes('unauthorized') ||
+          errorMessage.includes('authentication')
+        ) {
+          handleAutoLogout()
+          return Promise.reject(new Error('Session expired. Please login again.'))
+        }
+      }
+
       const error: any = new Error(errorData.message || errorData.error || 'Request failed')
       error.response = { data: errorData, status: response.status }
       throw error
