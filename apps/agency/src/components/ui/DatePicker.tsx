@@ -146,14 +146,14 @@ export function DatePicker({
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-4 py-3 rounded-lg border transition-all duration-200 ${
+        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-all duration-200 ${
           isOpen
             ? 'border-[#7C3AED] bg-[#7C3AED]/5 shadow-sm'
             : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
         }`}
       >
-        <Calendar className={`w-4 h-4 ${isOpen ? 'text-[#7C3AED]' : 'text-gray-400'}`} />
-        <span className="text-[14px] text-gray-600">
+        <Calendar className={`w-3.5 h-3.5 ${isOpen ? 'text-[#7C3AED]' : 'text-gray-400'}`} />
+        <span className="text-[12px] text-gray-600">
           {startDate || endDate ? (
             <>
               <span className="font-medium text-gray-800">

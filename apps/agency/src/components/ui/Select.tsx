@@ -70,13 +70,13 @@ export function Select({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          'w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-[14px] text-left',
+          'w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[12px] text-left',
           'flex items-center justify-between gap-1.5',
           'transition-all duration-200',
-          'focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED] focus:bg-white',
+          'focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED]',
           'hover:border-gray-300',
           disabled && 'opacity-50 cursor-not-allowed',
-          isOpen && 'border-[#7C3AED] ring-2 ring-[#7C3AED]/20 bg-white'
+          isOpen && 'border-[#7C3AED] ring-2 ring-[#7C3AED]/20'
         )}
         disabled={disabled}
       >
@@ -124,7 +124,7 @@ export function Select({
                   setIsOpen(false)
                 }}
                 className={cn(
-                  'w-full px-4 py-3 text-[14px] text-left flex items-center justify-between gap-2',
+                  'w-full px-3 py-2 text-[12px] text-left flex items-center justify-between gap-2',
                   'transition-all duration-150',
                   'hover:bg-[#7C3AED]/10',
                   value === option.value
