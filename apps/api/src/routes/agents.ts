@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 import { z } from 'zod'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
+import { testSmtpConnection, sendTestEmail, SmtpConfig } from '../utils/email.js'
 
 // Generate unique referral code for user
 function generateReferralCode(username: string): string {
@@ -205,6 +206,165 @@ agents.patch('/branding', async (c) => {
   } catch (error) {
     console.error('Update branding error:', error)
     return c.json({ error: 'Failed to update branding' }, 500)
+  }
+})
+
+// ==================== SMTP CONFIGURATION ====================
+
+// GET /agents/smtp - Get own SMTP settings (Agent only)
+agents.get('/smtp', async (c) => {
+  try {
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+
+    if (userRole !== 'AGENT') {
+      return c.json({ error: 'Only agents can access SMTP settings' }, 403)
+    }
+
+    // Fetch the full agent document (SMTP fields may not exist yet if schema not migrated)
+    const agent = await prisma.user.findUnique({
+      where: { id: userId }
+    }) as any
+
+    if (!agent) {
+      return c.json({ error: 'Agent not found' }, 404)
+    }
+
+    // Return SMTP settings with defaults if fields don't exist
+    return c.json({
+      smtp: {
+        smtpEnabled: agent.smtpEnabled ?? false,
+        smtpHost: agent.smtpHost ?? null,
+        smtpPort: agent.smtpPort ?? null,
+        smtpUsername: agent.smtpUsername ?? null,
+        smtpPassword: agent.smtpPassword ? '••••••••' : null,
+        smtpEncryption: agent.smtpEncryption ?? null,
+        smtpFromEmail: agent.smtpFromEmail ?? null,
+      }
+    })
+  } catch (error) {
+    console.error('Get SMTP settings error:', error)
+    return c.json({ error: 'Failed to get SMTP settings' }, 500)
+  }
+})
+
+// PATCH /agents/smtp - Update SMTP settings (Agent only)
+agents.patch('/smtp', async (c) => {
+  try {
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+
+    if (userRole !== 'AGENT') {
+      return c.json({ error: 'Only agents can update SMTP settings' }, 403)
+    }
+
+    const body = await c.req.json()
+    const { smtpEnabled, smtpHost, smtpPort, smtpUsername, smtpPassword, smtpEncryption, smtpFromEmail } = body
+
+    // Build update data
+    const updateData: any = {}
+
+    if (smtpEnabled !== undefined) updateData.smtpEnabled = smtpEnabled
+
+    if (smtpEnabled) {
+      if (smtpHost) updateData.smtpHost = smtpHost
+      if (smtpPort) updateData.smtpPort = parseInt(smtpPort)
+      if (smtpUsername) updateData.smtpUsername = smtpUsername
+      // Only update password if a new one is provided (not masked)
+      if (smtpPassword && !smtpPassword.includes('•')) {
+        updateData.smtpPassword = smtpPassword
+      }
+      if (smtpEncryption) updateData.smtpEncryption = smtpEncryption
+      if (smtpFromEmail) updateData.smtpFromEmail = smtpFromEmail
+    } else {
+      // If disabling SMTP, clear all settings
+      updateData.smtpHost = null
+      updateData.smtpPort = null
+      updateData.smtpUsername = null
+      updateData.smtpPassword = null
+      updateData.smtpEncryption = null
+      updateData.smtpFromEmail = null
+    }
+
+    const agent = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        smtpEnabled: true,
+        smtpHost: true,
+        smtpPort: true,
+        smtpUsername: true,
+        smtpEncryption: true,
+        smtpFromEmail: true,
+      }
+    })
+
+    return c.json({ message: 'SMTP settings updated successfully', smtp: agent })
+  } catch (error) {
+    console.error('Update SMTP settings error:', error)
+    return c.json({ error: 'Failed to update SMTP settings' }, 500)
+  }
+})
+
+// POST /agents/smtp/test - Test SMTP connection (Agent only)
+agents.post('/smtp/test', async (c) => {
+  try {
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+
+    if (userRole !== 'AGENT') {
+      return c.json({ error: 'Only agents can test SMTP settings' }, 403)
+    }
+
+    const body = await c.req.json()
+    const { smtpHost, smtpPort, smtpUsername, smtpPassword, smtpEncryption, smtpFromEmail, testEmail } = body
+
+    if (!smtpHost || !smtpPort || !smtpUsername || !smtpFromEmail) {
+      return c.json({ error: 'Missing required SMTP fields' }, 400)
+    }
+
+    // If password is masked, fetch the actual password from DB
+    let actualPassword = smtpPassword
+    if (smtpPassword && smtpPassword.includes('•')) {
+      const agent = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { smtpPassword: true }
+      })
+      actualPassword = agent?.smtpPassword
+    }
+
+    if (!actualPassword) {
+      return c.json({ error: 'SMTP password is required' }, 400)
+    }
+
+    const config: SmtpConfig = {
+      host: smtpHost,
+      port: parseInt(smtpPort),
+      username: smtpUsername,
+      password: actualPassword,
+      encryption: smtpEncryption || 'TLS',
+      fromEmail: smtpFromEmail,
+    }
+
+    // First test connection
+    const connectionResult = await testSmtpConnection(config)
+    if (!connectionResult.success) {
+      return c.json({ success: false, error: connectionResult.error }, 400)
+    }
+
+    // If test email provided, send test email
+    if (testEmail) {
+      const emailResult = await sendTestEmail(config, testEmail)
+      if (!emailResult.success) {
+        return c.json({ success: false, error: emailResult.error }, 400)
+      }
+      return c.json({ success: true, message: `Test email sent to ${testEmail}` })
+    }
+
+    return c.json({ success: true, message: 'SMTP connection successful' })
+  } catch (error: any) {
+    console.error('Test SMTP error:', error)
+    return c.json({ success: false, error: error.message || 'SMTP test failed' }, 500)
   }
 })
 

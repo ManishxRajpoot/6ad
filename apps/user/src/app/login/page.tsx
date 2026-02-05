@@ -802,7 +802,7 @@ export default function LoginPage() {
           {/* Mobile/Tablet Logo */}
           <div className="xl:hidden flex items-center justify-center gap-2 mb-6 sm:mb-8">
             {isUsingCustomBranding && branding.brandLogo ? (
-              <img src={branding.brandLogo} alt="Logo" className="h-10 sm:h-12 max-w-[200px] sm:max-w-[220px] object-contain" />
+              <img src={branding.brandLogo} alt="Logo" className="h-12 sm:h-14 max-w-[240px] sm:max-w-[280px] object-contain" />
             ) : (
               <SixMediaLogo size="small" />
             )}
@@ -936,7 +936,7 @@ export default function LoginPage() {
           {/* Logo Section */}
           <div className="flex items-center gap-3">
             {isUsingCustomBranding && branding.brandLogo ? (
-              <img src={branding.brandLogo} alt="Logo" className="h-14 max-w-[280px] object-contain" />
+              <img src={branding.brandLogo} alt="Logo" className="h-16 max-w-[320px] object-contain" />
             ) : (
               <SixMediaLogo size="large" />
             )}

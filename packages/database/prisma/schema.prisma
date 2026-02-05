@@ -153,6 +153,15 @@ model User {
   emailSenderNameApproved   String?   // Approved email sender name (used in actual emails)
   emailSenderNameStatus     String?   @default("PENDING") // PENDING, APPROVED, REJECTED
 
+  // SMTP Configuration (for whitelabel email)
+  smtpEnabled       Boolean   @default(false)
+  smtpHost          String?   // e.g., smtp.gmail.com
+  smtpPort          Int?      // e.g., 587, 465
+  smtpUsername      String?   // SMTP auth username
+  smtpPassword      String?   // SMTP auth password
+  smtpEncryption    String?   // "TLS", "SSL", "NONE"
+  smtpFromEmail     String?   // e.g., noreply@agency.com
+
   // Relations
   agentId           String?     @db.ObjectId
   agent             User?       @relation("AgentUsers", fields: [agentId], references: [id], onDelete: NoAction, onUpdate: NoAction)

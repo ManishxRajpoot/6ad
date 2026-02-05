@@ -133,12 +133,12 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               <img
                 src={displayBrandLogo}
                 alt={displayBrandName || 'Brand Logo'}
-                className="h-8 max-w-[200px] object-contain"
+                className="h-10 max-w-[200px] object-contain"
               />
             ) : (
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-3">
                 {/* Six Media - Twisted Ribbon Infinity (Meta-style) */}
-                <svg viewBox="0 0 48 28" className="w-12 h-7" fill="none">
+                <svg viewBox="0 0 48 28" className="w-14 h-9" fill="none">
                   <defs>
                     <linearGradient id="userRibbonGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
                       <stop offset="0%" stopColor="#6366F1"/>
@@ -164,10 +164,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 </svg>
                 {/* Text - Modern Typography */}
                 <div className="flex flex-col leading-none">
-                  <span className="text-[17px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
+                  <span className="text-[20px] font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">
                     SIXMEDIA
                   </span>
-                  <span className="text-[8px] font-semibold tracking-[0.2em] text-gray-400 mt-0.5">
+                  <span className="text-[9px] font-semibold tracking-[0.2em] text-gray-400 mt-0.5">
                     ADVERTISING
                   </span>
                 </div>

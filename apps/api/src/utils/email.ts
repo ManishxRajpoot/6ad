@@ -1,18 +1,27 @@
 import nodemailer from 'nodemailer'
 
-// Create reusable transporter using Hostinger SMTP
-const transporter = nodemailer.createTransport({
+// Default SMTP configuration (Hostinger)
+const DEFAULT_SMTP = {
   host: 'smtp.hostinger.com',
   port: 465,
-  secure: true, // use SSL
+  secure: true,
+  user: 'info@6ad.in',
+  pass: 'Bigindia@555'
+}
+
+// Create default transporter using Hostinger SMTP
+const defaultTransporter = nodemailer.createTransport({
+  host: DEFAULT_SMTP.host,
+  port: DEFAULT_SMTP.port,
+  secure: DEFAULT_SMTP.secure,
   auth: {
-    user: 'info@6ad.in',
-    pass: 'Bigindia@555'
+    user: DEFAULT_SMTP.user,
+    pass: DEFAULT_SMTP.pass
   }
 })
 
 // Verify connection on startup
-transporter.verify((error, success) => {
+defaultTransporter.verify((error, success) => {
   if (error) {
     console.error('SMTP connection error:', error)
   } else {
@@ -20,18 +29,131 @@ transporter.verify((error, success) => {
   }
 })
 
+// SMTP Configuration interface for custom agency SMTP
+export interface SmtpConfig {
+  host: string
+  port: number
+  username: string
+  password: string
+  encryption: 'TLS' | 'SSL' | 'NONE'
+  fromEmail: string
+  fromName?: string
+}
+
+// Create transporter with custom SMTP config
+function createCustomTransporter(config: SmtpConfig) {
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.encryption === 'SSL', // SSL uses secure, TLS uses STARTTLS
+    auth: {
+      user: config.username,
+      pass: config.password
+    },
+    ...(config.encryption === 'TLS' && { requireTLS: true })
+  })
+}
+
+// Test SMTP connection
+export async function testSmtpConnection(config: SmtpConfig): Promise<{ success: boolean; error?: string }> {
+  try {
+    const transporter = createCustomTransporter(config)
+    await transporter.verify()
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Connection failed' }
+  }
+}
+
+// Send test email with custom SMTP
+export async function sendTestEmail(config: SmtpConfig, testEmail: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const transporter = createCustomTransporter(config)
+    const senderName = config.fromName || 'SMTP Test'
+
+    await transporter.sendMail({
+      from: `"${senderName}" <${config.fromEmail}>`,
+      to: testEmail,
+      subject: 'SMTP Configuration Test - Success!',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto;">
+          <h2 style="color: #7C3AED;">SMTP Test Successful!</h2>
+          <p>Your SMTP configuration is working correctly.</p>
+          <div style="background: #F3F4F6; padding: 15px; border-radius: 8px; margin-top: 15px;">
+            <p style="margin: 5px 0;"><strong>Host:</strong> ${config.host}</p>
+            <p style="margin: 5px 0;"><strong>Port:</strong> ${config.port}</p>
+            <p style="margin: 5px 0;"><strong>Encryption:</strong> ${config.encryption}</p>
+            <p style="margin: 5px 0;"><strong>From:</strong> ${config.fromEmail}</p>
+          </div>
+          <p style="margin-top: 15px; color: #6B7280; font-size: 12px;">This is a test email from 6AD Platform.</p>
+        </div>
+      `
+    })
+
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to send test email' }
+  }
+}
+
 interface EmailOptions {
   to: string
   subject: string
   html: string
   text?: string
   senderName?: string  // Custom sender name for whitelabel agencies
+  smtpConfig?: SmtpConfig  // Custom SMTP configuration
+}
+
+// Helper to build SMTP config from agent data
+export function buildSmtpConfig(agent: {
+  smtpEnabled?: boolean
+  smtpHost?: string | null
+  smtpPort?: number | null
+  smtpUsername?: string | null
+  smtpPassword?: string | null
+  smtpEncryption?: string | null
+  smtpFromEmail?: string | null
+  emailSenderNameApproved?: string | null
+  username?: string | null
+} | null | undefined): SmtpConfig | undefined {
+  if (!agent?.smtpEnabled || !agent.smtpHost || !agent.smtpFromEmail) {
+    return undefined
+  }
+  return {
+    host: agent.smtpHost,
+    port: agent.smtpPort || 587,
+    username: agent.smtpUsername || '',
+    password: agent.smtpPassword || '',
+    encryption: (agent.smtpEncryption as 'TLS' | 'SSL' | 'NONE') || 'TLS',
+    fromEmail: agent.smtpFromEmail,
+    fromName: agent.emailSenderNameApproved || agent.username || undefined
+  }
 }
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
     const senderName = options.senderName || 'Six Media'
-    const info = await transporter.sendMail({
+
+    // Use custom SMTP if provided, otherwise use default
+    if (options.smtpConfig) {
+      const customTransporter = createCustomTransporter(options.smtpConfig)
+      const fromName = options.smtpConfig.fromName || senderName
+
+      const info = await customTransporter.sendMail({
+        from: `"${fromName}" <${options.smtpConfig.fromEmail}>`,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text || options.html.replace(/<[^>]*>/g, '')
+      })
+
+      console.log('Email sent via custom SMTP:', info.messageId)
+      return true
+    }
+
+    // Use default SMTP
+    const info = await defaultTransporter.sendMail({
       from: `"${senderName}" <info@6ad.in>`,
       to: options.to,
       subject: options.subject,

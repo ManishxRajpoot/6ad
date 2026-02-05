@@ -220,6 +220,37 @@ export const brandingApi = {
     api.patch<{ message: string; agent: any }>('/agents/branding', data),
 }
 
+// SMTP Configuration API
+export const smtpApi = {
+  get: () => api.get<{ smtp: {
+    smtpEnabled: boolean;
+    smtpHost: string | null;
+    smtpPort: number | null;
+    smtpUsername: string | null;
+    smtpPassword: string | null;
+    smtpEncryption: string | null;
+    smtpFromEmail: string | null;
+  } }>('/agents/smtp'),
+  update: (data: {
+    smtpEnabled: boolean;
+    smtpHost?: string;
+    smtpPort?: number;
+    smtpUsername?: string;
+    smtpPassword?: string;
+    smtpEncryption?: string;
+    smtpFromEmail?: string;
+  }) => api.patch<{ message: string; smtp: any }>('/agents/smtp', data),
+  test: (data: {
+    smtpHost: string;
+    smtpPort: number;
+    smtpUsername: string;
+    smtpPassword: string;
+    smtpEncryption: string;
+    smtpFromEmail: string;
+    testEmail?: string;
+  }) => api.post<{ success: boolean; message?: string; error?: string }>('/agents/smtp/test', data),
+}
+
 // Agent Withdrawals API
 export const agentWithdrawalsApi = {
   getStats: () => api.get<{
