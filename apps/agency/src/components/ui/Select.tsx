@@ -70,8 +70,8 @@ export function Select({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          'w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[12px] text-left',
-          'flex items-center justify-between gap-1.5',
+          'w-full h-[34px] px-3 bg-white border border-gray-200 rounded-lg text-[12px] text-left',
+          'flex items-center justify-between gap-1',
           'transition-all duration-200',
           'focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/20 focus:border-[#7C3AED]',
           'hover:border-gray-300',
@@ -81,13 +81,13 @@ export function Select({
         disabled={disabled}
       >
         <span className={cn(
-          selectedOption ? 'text-gray-900' : 'text-gray-500'
+          selectedOption ? 'text-gray-700' : 'text-gray-500'
         )}>
           {selectedOption?.label || placeholder}
         </span>
         <ChevronDown
           className={cn(
-            'w-4 h-4 text-gray-400 transition-transform duration-200',
+            'w-3.5 h-3.5 text-gray-400 transition-transform duration-200',
             isOpen && 'transform rotate-180'
           )}
         />
@@ -114,7 +114,7 @@ export function Select({
             }
           `}</style>
 
-          <div className="py-1 max-h-60 overflow-auto">
+          <div className="py-0.5 max-h-60 overflow-auto">
             {options.map((option, index) => (
               <button
                 key={option.value}
@@ -124,7 +124,7 @@ export function Select({
                   setIsOpen(false)
                 }}
                 className={cn(
-                  'w-full px-3 py-2 text-[12px] text-left flex items-center justify-between gap-2',
+                  'w-full px-3 py-1.5 text-[11px] text-left flex items-center justify-between gap-2',
                   'transition-all duration-150',
                   'hover:bg-[#7C3AED]/10',
                   value === option.value
@@ -137,7 +137,7 @@ export function Select({
               >
                 <span>{option.label}</span>
                 {value === option.value && (
-                  <Check className="w-4 h-4 text-[#7C3AED]" />
+                  <Check className="w-3 h-3 text-[#7C3AED]" />
                 )}
               </button>
             ))}

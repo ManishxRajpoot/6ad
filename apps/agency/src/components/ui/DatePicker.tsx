@@ -146,26 +146,26 @@ export function DatePicker({
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-all duration-200 ${
+        className={`flex items-center gap-1.5 h-[34px] px-3 rounded-lg border transition-all duration-200 ${
           isOpen
-            ? 'border-[#7C3AED] bg-[#7C3AED]/5 shadow-sm'
-            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+            ? 'border-[#7C3AED] bg-[#7C3AED]/5'
+            : 'border-gray-200 bg-white hover:border-gray-300'
         }`}
       >
         <Calendar className={`w-3.5 h-3.5 ${isOpen ? 'text-[#7C3AED]' : 'text-gray-400'}`} />
-        <span className="text-[12px] text-gray-600">
+        <span className="text-[12px] text-gray-700">
           {startDate || endDate ? (
             <>
-              <span className="font-medium text-gray-800">
+              <span className="font-medium">
                 {startDate ? formatDate(startDate) : 'Start'}
               </span>
               <span className="mx-1 text-gray-400">-</span>
-              <span className="font-medium text-gray-800">
+              <span className="font-medium">
                 {endDate ? formatDate(endDate) : 'End'}
               </span>
             </>
           ) : (
-            <span className="text-gray-400">Select date range</span>
+            <span className="text-gray-500">Select date range</span>
           )}
         </span>
       </button>
