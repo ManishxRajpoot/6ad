@@ -117,10 +117,19 @@ export function buildSmtpConfig(agent: {
   emailSenderNameApproved?: string | null
   username?: string | null
 } | null | undefined): SmtpConfig | undefined {
+  console.log('[SMTP] Building config from agent:', agent ? {
+    smtpEnabled: agent.smtpEnabled,
+    smtpHost: agent.smtpHost,
+    smtpFromEmail: agent.smtpFromEmail,
+    hasPassword: !!agent.smtpPassword
+  } : 'null/undefined')
+
   if (!agent?.smtpEnabled || !agent.smtpHost || !agent.smtpFromEmail) {
+    console.log('[SMTP] Returning undefined - missing required fields')
     return undefined
   }
-  return {
+
+  const config = {
     host: agent.smtpHost,
     port: agent.smtpPort || 587,
     username: agent.smtpUsername || '',
@@ -129,6 +138,8 @@ export function buildSmtpConfig(agent: {
     fromEmail: agent.smtpFromEmail,
     fromName: agent.emailSenderNameApproved || agent.username || undefined
   }
+  console.log('[SMTP] Returning config:', { ...config, password: '***' })
+  return config
 }
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
