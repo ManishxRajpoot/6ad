@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Check, X, AlertTriangle, Info, WifiOff, ShieldX, Clock, ServerCrash } from 'lucide-react'
+import { CheckCircle, XCircle, AlertCircle, Info, X, WifiOff, ShieldX, Clock, ServerCrash } from 'lucide-react'
 
 type ToastType = 'success' | 'error' | 'warning' | 'info' | 'network' | 'auth' | 'timeout' | 'server'
 
@@ -41,6 +41,16 @@ export function Toast({
     timersRef.current = []
   }, [])
 
+  const handleClose = useCallback(() => {
+    clearAllTimers()
+    setIsAnimating(false)
+    const timer = setTimeout(() => {
+      setIsVisible(false)
+      onCloseRef.current()
+    }, 200)
+    timersRef.current.push(timer)
+  }, [clearAllTimers])
+
   useEffect(() => {
     clearAllTimers()
 
@@ -54,12 +64,7 @@ export function Toast({
 
       if (duration > 0) {
         const closeTimer = setTimeout(() => {
-          setIsAnimating(false)
-          const fadeTimer = setTimeout(() => {
-            setIsVisible(false)
-            onCloseRef.current()
-          }, 200)
-          timersRef.current.push(fadeTimer)
+          handleClose()
         }, duration)
         timersRef.current.push(closeTimer)
       }
@@ -73,127 +78,100 @@ export function Toast({
       timersRef.current.push(timer)
       return clearAllTimers
     }
-  }, [isOpen, duration, clearAllTimers])
+  }, [isOpen, duration, clearAllTimers, handleClose])
 
   if (!isVisible) return null
 
   const config = {
-    success: { bg: '#10b981', bgLight: '#ecfdf5', border: '#a7f3d0', text: '#065f46', icon: Check, defaultTitle: 'Success!' },
-    error: { bg: '#ef4444', bgLight: '#fef2f2', border: '#fecaca', text: '#991b1b', icon: X, defaultTitle: 'Error' },
-    warning: { bg: '#f59e0b', bgLight: '#fffbeb', border: '#fde68a', text: '#92400e', icon: AlertTriangle, defaultTitle: 'Warning' },
-    info: { bg: '#3b82f6', bgLight: '#eff6ff', border: '#bfdbfe', text: '#1e40af', icon: Info, defaultTitle: 'Info' },
-    network: { bg: '#6b7280', bgLight: '#f9fafb', border: '#d1d5db', text: '#374151', icon: WifiOff, defaultTitle: 'Connection Error' },
-    auth: { bg: '#f97316', bgLight: '#fff7ed', border: '#fed7aa', text: '#9a3412', icon: ShieldX, defaultTitle: 'Authentication Error' },
-    timeout: { bg: '#8b5cf6', bgLight: '#f5f3ff', border: '#c4b5fd', text: '#5b21b6', icon: Clock, defaultTitle: 'Request Timeout' },
-    server: { bg: '#e11d48', bgLight: '#fff1f2', border: '#fecdd3', text: '#9f1239', icon: ServerCrash, defaultTitle: 'Server Error' }
+    success: { color: '#10b981', bg: '#ecfdf5', icon: CheckCircle, defaultTitle: 'Success!' },
+    error: { color: '#ef4444', bg: '#fef2f2', icon: XCircle, defaultTitle: 'Error!' },
+    warning: { color: '#f59e0b', bg: '#fffbeb', icon: AlertCircle, defaultTitle: 'Warning!' },
+    info: { color: '#7C3AED', bg: '#f5f3ff', icon: Info, defaultTitle: 'Info' },
+    network: { color: '#6b7280', bg: '#f9fafb', icon: WifiOff, defaultTitle: 'Connection Error' },
+    auth: { color: '#f97316', bg: '#fff7ed', icon: ShieldX, defaultTitle: 'Authentication Error' },
+    timeout: { color: '#8b5cf6', bg: '#f5f3ff', icon: Clock, defaultTitle: 'Request Timeout' },
+    server: { color: '#e11d48', bg: '#fff1f2', icon: ServerCrash, defaultTitle: 'Server Error' },
   }
 
-  const { bg, bgLight, border, text, icon: Icon, defaultTitle } = config[type]
-
-  const handleClose = () => {
-    setIsAnimating(false)
-    setTimeout(() => {
-      setIsVisible(false)
-      onClose()
-    }, 200)
-  }
+  const { color, bg, icon: Icon, defaultTitle } = config[type]
 
   return (
-    <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 99999 }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
       <div
         style={{
-          backgroundColor: bgLight,
-          borderColor: border,
-          borderWidth: '1px',
-          borderStyle: 'solid',
-          borderRadius: '12px',
-          minWidth: '340px',
-          maxWidth: '400px',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-          overflow: 'hidden',
-          transform: isAnimating ? 'translateX(0)' : 'translateX(100%)',
+          pointerEvents: 'auto',
+          background: 'white',
+          borderRadius: '14px',
+          padding: '14px 18px',
+          minWidth: '240px',
+          maxWidth: '380px',
+          boxShadow: '0 16px 40px rgba(124, 58, 237, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          border: '1px solid rgba(124, 58, 237, 0.12)',
+          transform: isAnimating ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(8px)',
           opacity: isAnimating ? 1 : 0,
-          transition: 'transform 0.2s ease-out, opacity 0.2s ease-out',
+          transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease-out',
           willChange: 'transform, opacity',
         }}
       >
-        <div style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-            {/* Icon */}
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: bg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}>
-              <Icon style={{ width: '20px', height: '20px', color: 'white' }} strokeWidth={2.5} />
-            </div>
+        <div style={{
+          width: '38px',
+          height: '38px',
+          borderRadius: '10px',
+          background: bg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <Icon style={{ width: '20px', height: '20px', color: color }} strokeWidth={2} />
+        </div>
 
-            {/* Content */}
-            <div style={{ flex: 1, minWidth: 0, paddingTop: '2px' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: 600, color: text, margin: 0 }}>
-                {title || defaultTitle}
-              </h4>
-              <p style={{ fontSize: '12px', marginTop: '4px', color: text, opacity: 0.8, lineHeight: 1.5, margin: '4px 0 0 0' }}>
-                {message}
-              </p>
-
-              {action && (
-                <button
-                  onClick={action.onClick}
-                  style={{
-                    marginTop: '8px',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    color: text,
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                  }}
-                >
-                  {action.label}
-                </button>
-              )}
-            </div>
-
-            {/* Close Button */}
+        <div style={{ flex: 1 }}>
+          <h2 style={{ color: '#1f2937', fontSize: '13px', fontWeight: 600, margin: '0 0 2px 0' }}>{title || defaultTitle}</h2>
+          <p style={{ color: '#6b7280', fontSize: '11px', margin: 0, lineHeight: 1.4 }}>{message}</p>
+          {action && (
             <button
-              onClick={handleClose}
+              onClick={action.onClick}
               style={{
-                color: text,
-                opacity: 0.6,
+                marginTop: '6px',
+                fontSize: '11px',
+                fontWeight: 500,
+                color: color,
                 background: 'none',
                 border: 'none',
-                cursor: 'pointer',
                 padding: 0,
-                flexShrink: 0,
-                transition: 'opacity 0.15s',
+                cursor: 'pointer',
+                textDecoration: 'underline',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '0.6'}
             >
-              <X style={{ width: '16px', height: '16px' }} />
+              {action.label}
             </button>
-          </div>
+          )}
         </div>
 
-        {/* Progress Bar */}
-        <div style={{ height: '3px', backgroundColor: border }}>
-          <div
-            style={{
-              height: '100%',
-              backgroundColor: bg,
-              width: isAnimating ? '0%' : '100%',
-              transition: isAnimating ? `width ${duration}ms linear` : 'none',
-            }}
-          />
-        </div>
+        <button
+          onClick={handleClose}
+          style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '6px',
+            background: '#f3f4f6',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#e5e7eb'}
+          onMouseLeave={(e) => e.currentTarget.style.background = '#f3f4f6'}
+        >
+          <X style={{ width: '14px', height: '14px', color: '#6b7280' }} />
+        </button>
       </div>
     </div>
   )

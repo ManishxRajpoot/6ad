@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Check, X, AlertTriangle, Info } from 'lucide-react'
+import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react'
 
 type PopupType = 'success' | 'error' | 'warning' | 'info'
 
@@ -20,7 +20,7 @@ export function SuccessPopup({
   title,
   message,
   onClose,
-  duration = 2000
+  duration = 3000
 }: SuccessPopupProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
@@ -36,27 +36,33 @@ export function SuccessPopup({
     timersRef.current = []
   }, [])
 
+  const handleClose = useCallback(() => {
+    clearAllTimers()
+    setIsAnimating(false)
+    const timer = setTimeout(() => {
+      setIsVisible(false)
+      onCloseRef.current()
+    }, 200)
+    timersRef.current.push(timer)
+  }, [clearAllTimers])
+
   useEffect(() => {
     clearAllTimers()
 
     if (isOpen) {
       setIsVisible(true)
-      // Use requestAnimationFrame for smoother animation start
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setIsAnimating(true)
         })
       })
 
-      const closeTimer = setTimeout(() => {
-        setIsAnimating(false)
-        const fadeTimer = setTimeout(() => {
-          setIsVisible(false)
-          onCloseRef.current()
-        }, 200)
-        timersRef.current.push(fadeTimer)
-      }, duration)
-      timersRef.current.push(closeTimer)
+      if (duration > 0) {
+        const closeTimer = setTimeout(() => {
+          handleClose()
+        }, duration)
+        timersRef.current.push(closeTimer)
+      }
 
       return clearAllTimers
     } else {
@@ -67,111 +73,79 @@ export function SuccessPopup({
       timersRef.current.push(timer)
       return clearAllTimers
     }
-  }, [isOpen, duration, clearAllTimers])
+  }, [isOpen, duration, clearAllTimers, handleClose])
 
   if (!isVisible) return null
 
   const config = {
-    success: {
-      bg: '#10b981',
-      border: '#10b981',
-      text: '#10b981',
-      icon: Check,
-      defaultTitle: 'Success!'
-    },
-    error: {
-      bg: '#ef4444',
-      border: '#ef4444',
-      text: '#ef4444',
-      icon: X,
-      defaultTitle: 'Error!'
-    },
-    warning: {
-      bg: '#f59e0b',
-      border: '#f59e0b',
-      text: '#f59e0b',
-      icon: AlertTriangle,
-      defaultTitle: 'Warning!'
-    },
-    info: {
-      bg: '#3b82f6',
-      border: '#3b82f6',
-      text: '#3b82f6',
-      icon: Info,
-      defaultTitle: 'Info'
-    }
+    success: { color: '#10b981', bg: '#ecfdf5', icon: CheckCircle, defaultTitle: 'Success!' },
+    error: { color: '#ef4444', bg: '#fef2f2', icon: XCircle, defaultTitle: 'Error!' },
+    warning: { color: '#f59e0b', bg: '#fffbeb', icon: AlertCircle, defaultTitle: 'Warning!' },
+    info: { color: '#7C3AED', bg: '#f5f3ff', icon: Info, defaultTitle: 'Info' },
   }
 
-  const { bg, border, text, icon: Icon, defaultTitle } = config[type]
+  const { color, bg, icon: Icon, defaultTitle } = config[type]
 
   return (
-    <>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
       <div
-        className="fixed inset-0 z-[99999] flex items-center justify-center pointer-events-none"
-        style={{ perspective: '1000px' }}
+        style={{
+          pointerEvents: 'auto',
+          background: 'white',
+          borderRadius: '14px',
+          padding: '14px 18px',
+          minWidth: '240px',
+          maxWidth: '340px',
+          boxShadow: '0 16px 40px rgba(124, 58, 237, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          border: '1px solid rgba(124, 58, 237, 0.12)',
+          transform: isAnimating ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(8px)',
+          opacity: isAnimating ? 1 : 0,
+          transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease-out',
+          willChange: 'transform, opacity',
+        }}
       >
-        <div
-          style={{
-            backgroundColor: 'white',
-            borderColor: border,
-            borderWidth: '2px',
-            borderStyle: 'solid',
-            borderRadius: '16px',
-            padding: '24px 32px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '12px',
-            transform: isAnimating ? 'scale(1)' : 'scale(0.8)',
-            opacity: isAnimating ? 1 : 0,
-            transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease-out',
-            willChange: 'transform, opacity',
-          }}
-        >
-          {/* Icon Circle */}
-          <div
-            style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              backgroundColor: bg,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transform: isAnimating ? 'scale(1)' : 'scale(0.5)',
-              transition: 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s',
-              willChange: 'transform',
-            }}
-          >
-            <Icon style={{ width: '32px', height: '32px', color: 'white' }} strokeWidth={3} />
-          </div>
-
-          {/* Title */}
-          <span style={{
-            fontSize: '18px',
-            fontWeight: 600,
-            color: text,
-            opacity: isAnimating ? 1 : 0,
-            transform: isAnimating ? 'translateY(0)' : 'translateY(10px)',
-            transition: 'opacity 0.2s ease-out 0.1s, transform 0.2s ease-out 0.1s',
-          }}>
-            {title || defaultTitle}
-          </span>
-
-          {/* Message */}
-          <span style={{
-            fontSize: '14px',
-            color: '#4b5563',
-            textAlign: 'center',
-            maxWidth: '280px',
-            opacity: isAnimating ? 1 : 0,
-            transition: 'opacity 0.2s ease-out 0.15s',
-          }}>
-            {message}
-          </span>
+        <div style={{
+          width: '38px',
+          height: '38px',
+          borderRadius: '10px',
+          background: bg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <Icon style={{ width: '20px', height: '20px', color: color }} strokeWidth={2} />
         </div>
+
+        <div style={{ flex: 1 }}>
+          <h2 style={{ color: '#1f2937', fontSize: '13px', fontWeight: 600, margin: '0 0 2px 0' }}>{title || defaultTitle}</h2>
+          <p style={{ color: '#6b7280', fontSize: '11px', margin: 0, lineHeight: 1.4 }}>{message}</p>
+        </div>
+
+        <button
+          onClick={handleClose}
+          style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '6px',
+            background: '#f3f4f6',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#e5e7eb'}
+          onMouseLeave={(e) => e.currentTarget.style.background = '#f3f4f6'}
+        >
+          <X style={{ width: '14px', height: '14px', color: '#6b7280' }} />
+        </button>
       </div>
-    </>
+    </div>
   )
 }

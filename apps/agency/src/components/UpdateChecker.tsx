@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { RefreshCw, X, Sparkles } from 'lucide-react'
+import { RefreshCw, X, ArrowUpCircle } from 'lucide-react'
 
 const CHECK_INTERVAL = 30000 // Check every 30 seconds
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.6ad.in'
@@ -10,6 +10,7 @@ export function UpdateChecker() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [currentVersion, setCurrentVersion] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState(false)
+  const [isAnimating, setIsAnimating] = useState(false)
 
   const checkForUpdates = useCallback(async () => {
     try {
@@ -24,37 +25,33 @@ export function UpdateChecker() {
       const serverVersion = data.version
 
       if (!currentVersion) {
-        // First load - store the current version
         setCurrentVersion(serverVersion)
         localStorage.setItem('app_version', serverVersion)
       } else if (serverVersion !== currentVersion) {
-        // Version changed - update available!
         setUpdateAvailable(true)
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setIsAnimating(true)
+          })
+        })
       }
     } catch (error) {
-      // Silently fail - don't show errors for version check
       console.debug('[UpdateChecker] Failed to check for updates')
     }
   }, [currentVersion])
 
   useEffect(() => {
-    // Get stored version on mount
     const storedVersion = localStorage.getItem('app_version')
     if (storedVersion) {
       setCurrentVersion(storedVersion)
     }
 
-    // Initial check
     checkForUpdates()
-
-    // Set up interval
     const interval = setInterval(checkForUpdates, CHECK_INTERVAL)
-
     return () => clearInterval(interval)
   }, [checkForUpdates])
 
   const handleRefresh = () => {
-    // Clear cache and reload
     if ('caches' in window) {
       caches.keys().then((names) => {
         names.forEach((name) => {
@@ -66,68 +63,118 @@ export function UpdateChecker() {
   }
 
   const handleDismiss = () => {
-    setDismissed(true)
-    // Auto-show again after 5 minutes if still not refreshed
-    setTimeout(() => setDismissed(false), 300000)
+    setIsAnimating(false)
+    setTimeout(() => {
+      setDismissed(true)
+      setTimeout(() => setDismissed(false), 300000)
+    }, 200)
   }
 
   if (!updateAvailable || dismissed) return null
 
   return (
-    <div className="fixed bottom-4 right-4 z-[99999] animate-slide-up">
-      <div className="bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-2xl shadow-2xl p-4 max-w-sm">
-        <div className="flex items-start gap-3">
-          <div className="bg-white/20 rounded-full p-2 flex-shrink-0">
-            <Sparkles className="w-5 h-5" />
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-sm">New Update Available!</h4>
-            <p className="text-xs text-white/80 mt-1">
-              A new version is ready. Refresh to get the latest features and improvements.
-            </p>
-
-            <div className="flex items-center gap-2 mt-3">
-              <button
-                onClick={handleRefresh}
-                className="flex items-center gap-1.5 bg-white text-purple-600 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-white/90 transition-colors"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Refresh Now
-              </button>
-              <button
-                onClick={handleDismiss}
-                className="text-xs text-white/70 hover:text-white transition-colors"
-              >
-                Later
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={handleDismiss}
-            className="text-white/60 hover:text-white transition-colors flex-shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <div
+        style={{
+          pointerEvents: 'auto',
+          background: 'white',
+          borderRadius: '14px',
+          padding: '14px 18px',
+          minWidth: '260px',
+          maxWidth: '320px',
+          boxShadow: '0 16px 40px rgba(124, 58, 237, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          border: '1px solid rgba(124, 58, 237, 0.12)',
+          transform: isAnimating ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(8px)',
+          opacity: isAnimating ? 1 : 0,
+          transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease-out',
+          willChange: 'transform, opacity',
+        }}
+      >
+        <div style={{
+          width: '38px',
+          height: '38px',
+          borderRadius: '10px',
+          background: '#f5f3ff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <ArrowUpCircle style={{ width: '20px', height: '20px', color: '#7C3AED' }} strokeWidth={2} />
         </div>
-      </div>
 
-      <style jsx>{`
-        @keyframes slide-up {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
-        }
-      `}</style>
+        <div style={{ flex: 1 }}>
+          <h2 style={{ color: '#1f2937', fontSize: '13px', fontWeight: 600, margin: '0 0 2px 0' }}>Update Available</h2>
+          <p style={{ color: '#6b7280', fontSize: '11px', margin: '0 0 8px 0', lineHeight: 1.4 }}>
+            Refresh to get the latest features.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={handleRefresh}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: '#7C3AED',
+                color: 'white',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                fontSize: '11px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#6D28D9'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#7C3AED'}
+            >
+              <RefreshCw style={{ width: '12px', height: '12px' }} />
+              Refresh
+            </button>
+            <button
+              onClick={handleDismiss}
+              style={{
+                color: '#9ca3af',
+                fontSize: '11px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '6px 8px',
+                transition: 'color 0.15s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#6b7280'}
+              onMouseLeave={(e) => e.currentTarget.style.color = '#9ca3af'}
+            >
+              Later
+            </button>
+          </div>
+        </div>
+
+        <button
+          onClick={handleDismiss}
+          style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '6px',
+            background: '#f3f4f6',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'background 0.15s',
+            alignSelf: 'flex-start',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#e5e7eb'}
+          onMouseLeave={(e) => e.currentTarget.style.background = '#f3f4f6'}
+        >
+          <X style={{ width: '14px', height: '14px', color: '#6b7280' }} />
+        </button>
+      </div>
     </div>
   )
 }

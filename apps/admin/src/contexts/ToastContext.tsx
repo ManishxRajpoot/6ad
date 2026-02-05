@@ -151,22 +151,24 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     }}>
       {children}
 
-      {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
-        <div className="flex flex-col gap-2 pointer-events-auto">
-          {toasts.map((toast) => (
-            <Toast
-              key={toast.id}
-              id={toast.id}
-              type={toast.type}
-              title={toast.title}
-              message={toast.message}
-              duration={toast.duration}
-              onClose={removeToast}
-            />
-          ))}
+      {/* Toast Container - Centered */}
+      {toasts.length > 0 && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <div style={{ pointerEvents: 'auto' }}>
+            {toasts.slice(-1).map((toast) => (
+              <Toast
+                key={toast.id}
+                id={toast.id}
+                type={toast.type}
+                title={toast.title}
+                message={toast.message}
+                duration={toast.duration}
+                onClose={removeToast}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </ToastContext.Provider>
   )
 }

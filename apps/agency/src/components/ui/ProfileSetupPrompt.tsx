@@ -21,11 +21,11 @@ export function ProfileSetupPrompt() {
     const has2FAEnabled = user.twoFactorEnabled === true
     const hasProfileImage = !!user.profileImage
 
-    // Check if user has already dismissed this prompt in this session
-    const sessionDismissed = sessionStorage.getItem('agencyProfileSetupDismissed')
+    // Check if user has already dismissed this prompt permanently
+    const permanentlyDismissed = localStorage.getItem('agencyProfileSetupDismissed')
 
     // Show prompt only if email verified AND 2FA enabled AND no profile image AND not dismissed
-    if (hasEmailVerified && has2FAEnabled && !hasProfileImage && !sessionDismissed) {
+    if (hasEmailVerified && has2FAEnabled && !hasProfileImage && !permanentlyDismissed) {
       // Small delay to let the page load first
       const timer = setTimeout(() => {
         setShowPrompt(true)
@@ -70,13 +70,13 @@ export function ProfileSetupPrompt() {
   }
 
   const handleSkip = () => {
-    sessionStorage.setItem('agencyProfileSetupDismissed', 'true')
+    localStorage.setItem('agencyProfileSetupDismissed', 'true')
     setDismissed(true)
     setShowPrompt(false)
   }
 
   const handleClose = () => {
-    sessionStorage.setItem('agencyProfileSetupDismissed', 'true')
+    localStorage.setItem('agencyProfileSetupDismissed', 'true')
     setShowPrompt(false)
   }
 
