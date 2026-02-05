@@ -98,6 +98,22 @@ function AccountSettingsContent() {
 
   // Toast states
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Fetch fresh user data on page load
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const { user: freshUser } = await authApi.me()
+        updateUser(freshUser)
+      } catch (error) {
+        console.error('Failed to fetch user:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchUser()
+  }, [updateUser])
 
   // Update state when user changes
   useEffect(() => {
