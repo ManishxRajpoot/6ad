@@ -197,10 +197,10 @@ export function NotificationBell() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="dropdown-animate absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-[99999]" style={{ isolation: 'isolate' }}>
+        <div className="dropdown-animate absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden z-[99999]" style={{ isolation: 'isolate' }}>
           {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-            <h3 className="font-semibold text-gray-900">Notifications</h3>
+          <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+            <h3 className="font-semibold text-gray-900 text-sm">Notifications</h3>
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllAsRead}
@@ -212,61 +212,51 @@ export function NotificationBell() {
           </div>
 
           {/* Notifications List */}
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-72 overflow-y-auto">
             {isLoading ? (
-              <div className="p-4 text-center text-gray-500">
-                <div className="animate-spin w-6 h-6 border-2 border-[#8B5CF6] border-t-transparent rounded-full mx-auto mb-2" />
+              <div className="p-3 text-center text-gray-500 text-sm">
+                <div className="animate-spin w-5 h-5 border-2 border-[#8B5CF6] border-t-transparent rounded-full mx-auto mb-1" />
                 Loading...
               </div>
             ) : notifications.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <div className="p-6 text-center text-gray-500">
+                <svg className="w-8 h-8 mx-auto mb-2 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                   <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                 </svg>
-                <p>No notifications yet</p>
+                <p className="text-sm">No notifications yet</p>
               </div>
             ) : (
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors ${
+                  className={`px-3 py-2 border-b border-gray-50 hover:bg-gray-50 transition-colors ${
                     !notification.isRead ? 'bg-[#8B5CF6]/5' : ''
                   }`}
                 >
-                  <div className="flex gap-3">
-                    <span className="text-xl flex-shrink-0">
+                  <div className="flex gap-2">
+                    <span className="text-base flex-shrink-0">
                       {getNotificationIcon(notification.type)}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm ${!notification.isRead ? 'font-semibold' : 'font-medium'} text-gray-900`}>
+                      <p className={`text-xs ${!notification.isRead ? 'font-semibold' : 'font-medium'} text-gray-900 leading-tight`}>
                         {notification.title}
                       </p>
-                      <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">
                         {notification.message}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-gray-400">
-                          {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-                        </span>
-                        {notification.link && (
-                          <a
-                            href={notification.link}
-                            className="text-xs text-[#8B5CF6] hover:underline flex items-center gap-0.5"
-                          >
-                            View <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
-                      </div>
+                      <span className="text-[10px] text-gray-400">
+                        {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                      </span>
                     </div>
-                    <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-0.5">
                       {!notification.isRead && (
                         <button
                           onClick={() => handleMarkAsRead(notification.id)}
                           className="p-1 text-gray-400 hover:text-green-500 hover:bg-green-50 rounded transition-colors"
                           title="Mark as read"
                         >
-                          <Check className="w-4 h-4" />
+                          <Check className="w-3.5 h-3.5" />
                         </button>
                       )}
                       <button
@@ -274,7 +264,7 @@ export function NotificationBell() {
                         className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                         title="Delete"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -285,10 +275,10 @@ export function NotificationBell() {
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
+            <div className="px-3 py-1.5 border-t border-gray-100 bg-gray-50">
               <a
                 href="/notifications"
-                className="text-sm text-[#8B5CF6] hover:text-[#7C3AED] font-medium block text-center"
+                className="text-xs text-[#8B5CF6] hover:text-[#7C3AED] font-medium block text-center"
               >
                 View all notifications
               </a>
