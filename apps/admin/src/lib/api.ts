@@ -75,6 +75,7 @@ export const agentsApi = {
   unblock: (id: string) => api.post<{ message: string }>(`/agents/${id}/unblock`, {}),
   addCoupons: (agentId: string, amount: number) => api.post<{ message: string; agent: any }>(`/agents/${agentId}/add-coupons`, { amount }),
   removeCoupons: (agentId: string, amount: number) => api.post<{ message: string; agent: any }>(`/agents/${agentId}/remove-coupons`, { amount }),
+  reset2FA: (agentId: string) => api.post<{ message: string }>(`/agents/${agentId}/reset-2fa`, {}),
   // Email Sender Name Approvals
   emailSettings: {
     getPending: () => api.get<{ requests: any[] }>('/agents/email-settings/pending'),
@@ -92,6 +93,7 @@ export const usersApi = {
   delete: (id: string) => api.delete<{ message: string }>(`/users/${id}`),
   addCoupons: (userId: string, amount: number) => api.post<{ message: string; user: any }>(`/users/${userId}/coupons`, { amount }),
   removeCoupons: (userId: string, amount: number) => api.post<{ message: string; user: any }>(`/users/${userId}/remove-coupons`, { amount }),
+  reset2FA: (userId: string) => api.post<{ message: string }>(`/users/${userId}/reset-2fa`, {}),
 }
 
 // Transactions API

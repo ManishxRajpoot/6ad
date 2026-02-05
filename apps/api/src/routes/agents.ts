@@ -785,6 +785,38 @@ agents.delete('/:id', requireAdmin, async (c) => {
   }
 })
 
+// POST /agents/:id/reset-2fa - Admin resets 2FA for an agent
+agents.post('/:id/reset-2fa', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+
+    // Get the agent
+    const agent = await prisma.user.findUnique({
+      where: { id, role: 'AGENT' }
+    })
+
+    if (!agent) {
+      return c.json({ error: 'Agent not found' }, 404)
+    }
+
+    // Reset 2FA - clear secret and disable
+    await prisma.user.update({
+      where: { id },
+      data: {
+        twoFactorEnabled: false,
+        twoFactorSecret: null
+      }
+    })
+
+    return c.json({
+      message: `2FA has been reset for ${agent.username}. They will be prompted to set up 2FA on next login.`
+    })
+  } catch (error) {
+    console.error('Reset 2FA error:', error)
+    return c.json({ error: 'Failed to reset 2FA' }, 500)
+  }
+})
+
 // POST /agents/:id/remove-coupons - Admin removes coupons from agent (does not return to anyone)
 agents.post('/:id/remove-coupons', requireAdmin, async (c) => {
   try {

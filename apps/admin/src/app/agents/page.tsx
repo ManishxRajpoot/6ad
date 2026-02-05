@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/Modal'
 import { agentsApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { useToast } from '@/contexts/ToastContext'
-import { Plus, Search, MoreVertical, Filter, Download, Grid, List, Eye, Edit, Ban, Trash2, DollarSign, Users as UsersIcon, ChevronDown, Shield, Copy, Check } from 'lucide-react'
+import { Plus, Search, MoreVertical, Filter, Download, Grid, List, Eye, Edit, Ban, Trash2, DollarSign, Users as UsersIcon, ChevronDown, Shield, Copy, Check, RefreshCw } from 'lucide-react'
 
 type Agent = {
   id: string
@@ -87,6 +87,29 @@ export default function AgentsPage() {
     navigator.clipboard.writeText(secret)
     setCopied2FAKey(true)
     setTimeout(() => setCopied2FAKey(false), 2000)
+  }
+
+  const [resetting2FA, setResetting2FA] = useState(false)
+
+  const handleReset2FA = async (agent: Agent) => {
+    if (!confirm(`Are you sure you want to reset 2FA for ${agent.username}? They will need to set up 2FA again on next login.`)) {
+      return
+    }
+
+    setResetting2FA(true)
+    try {
+      const response = await agentsApi.reset2FA(agent.id)
+      toast.success('2FA Reset', response.message)
+      // Update the local agent state to reflect 2FA is now disabled
+      if (selectedAgent?.id === agent.id) {
+        setSelectedAgent({ ...selectedAgent, twoFactorEnabled: false, twoFactorSecret: undefined })
+      }
+      fetchAgents()
+    } catch (error: any) {
+      toast.error('Failed to reset 2FA', error.message || 'An error occurred')
+    } finally {
+      setResetting2FA(false)
+    }
   }
 
   const fetchAgents = async () => {
@@ -1014,6 +1037,20 @@ export default function AgentsPage() {
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1.5">
                       This key can be used to recover the authenticator app setup
+                    </p>
+                  </div>
+                  {/* Reset 2FA Button */}
+                  <div className="mt-4 pt-3 border-t border-teal-200">
+                    <button
+                      onClick={() => handleReset2FA(selectedAgent)}
+                      disabled={resetting2FA}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${resetting2FA ? 'animate-spin' : ''}`} />
+                      {resetting2FA ? 'Resetting...' : 'Reset 2FA'}
+                    </button>
+                    <p className="text-[10px] text-gray-500 mt-2 text-center">
+                      Agent will be prompted to set up 2FA again on next login
                     </p>
                   </div>
                 </div>
