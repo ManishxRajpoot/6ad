@@ -3,18 +3,22 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
 import { Toast } from '@/components/ui/Toast'
 
-type ToastType = 'success' | 'error' | 'warning' | 'info'
+type ToastType = 'success' | 'error' | 'warning' | 'info' | 'network' | 'auth' | 'timeout' | 'server'
 
 type ToastData = {
   id: string
   type: ToastType
-  title: string
-  message?: string
+  title?: string
+  message: string
   duration?: number
+  action?: {
+    label: string
+    onClick: () => void
+  }
 }
 
 type ToastContextType = {
-  showToast: (type: ToastType, title: string, message?: string, duration?: number) => void
+  showToast: (type: ToastType, title: string, message?: string, duration?: number, action?: { label: string; onClick: () => void }) => void
   success: (title: string, message?: string) => void
   error: (title: string, message?: string) => void
   warning: (title: string, message?: string) => void
@@ -22,43 +26,44 @@ type ToastContextType = {
   networkError: (message?: string) => void
   authError: (message?: string) => void
   serverError: (message?: string) => void
+  timeoutError: (message?: string) => void
   handleApiError: (error: any, fallbackMessage?: string) => void
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined)
 
 // Error message mappings for user-friendly messages
-const ERROR_MESSAGES: Record<string, { title: string; message: string }> = {
+const ERROR_MESSAGES: Record<string, { title: string; message: string; type: ToastType }> = {
   // Network Errors
-  'Failed to fetch': { title: 'Connection Error', message: 'Unable to connect to the server. Please check your internet connection.' },
-  'Network Error': { title: 'Network Error', message: 'Unable to reach the server. Please try again.' },
-  'Unable to connect': { title: 'Connection Failed', message: 'Cannot connect to the server. Please check your internet connection.' },
+  'Failed to fetch': { title: 'Connection Error', message: 'Unable to connect to the server. Please check your internet connection.', type: 'network' },
+  'Network Error': { title: 'Network Error', message: 'Unable to reach the server. Please try again.', type: 'network' },
+  'Unable to connect': { title: 'Connection Failed', message: 'Cannot connect to the server. Please check your internet connection.', type: 'network' },
 
   // Auth Errors
-  'Session expired': { title: 'Session Expired', message: 'Your session has expired. Please login again.' },
-  'Unauthorized': { title: 'Access Denied', message: 'You are not authorized to perform this action.' },
-  'Invalid token': { title: 'Session Invalid', message: 'Your session is invalid. Please login again.' },
+  'Session expired': { title: 'Session Expired', message: 'Your session has expired. Please login again.', type: 'auth' },
+  'Unauthorized': { title: 'Access Denied', message: 'You are not authorized to perform this action.', type: 'auth' },
+  'Invalid token': { title: 'Session Invalid', message: 'Your session is invalid. Please login again.', type: 'auth' },
 
   // Server Errors
-  'Internal Server Error': { title: 'Server Error', message: 'Something went wrong on our end. Please try again later.' },
-  'Service Unavailable': { title: 'Service Unavailable', message: 'The service is temporarily unavailable. Please try again later.' },
+  'Internal Server Error': { title: 'Server Error', message: 'Something went wrong on our end. Please try again later.', type: 'server' },
+  'Service Unavailable': { title: 'Service Unavailable', message: 'The service is temporarily unavailable. Please try again later.', type: 'server' },
 
   // Timeout Errors
-  'timeout': { title: 'Request Timeout', message: 'The request took too long. Please try again.' },
-  'ETIMEDOUT': { title: 'Connection Timeout', message: 'Connection timed out. Please try again.' },
+  'timeout': { title: 'Request Timeout', message: 'The request took too long. Please try again.', type: 'timeout' },
+  'ETIMEDOUT': { title: 'Connection Timeout', message: 'Connection timed out. Please try again.', type: 'timeout' },
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<ToastData[]>([])
+  const [toast, setToast] = useState<ToastData | null>(null)
 
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id))
+  const closeToast = useCallback(() => {
+    setToast(null)
   }, [])
 
   const showToast = useCallback(
-    (type: ToastType, title: string, message?: string, duration = 5000) => {
+    (type: ToastType, title: string, message?: string, duration = 4000, action?: { label: string; onClick: () => void }) => {
       const id = Math.random().toString(36).substring(2, 9)
-      setToasts((prev) => [...prev, { id, type, title, message, duration }])
+      setToast({ id, type, title, message: message || title, duration, action })
     },
     []
   )
@@ -80,15 +85,28 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [showToast])
 
   const networkError = useCallback((message?: string) => {
-    showToast('error', 'Connection Error', message || 'Unable to connect to the server. Please check your internet connection.', 6000)
+    showToast('network', 'Connection Error', message || 'Unable to connect to the server. Please check your internet connection.', 6000, {
+      label: 'Retry',
+      onClick: () => window.location.reload()
+    })
   }, [showToast])
 
   const authError = useCallback((message?: string) => {
-    showToast('error', 'Authentication Error', message || 'Please login again to continue.', 5000)
+    showToast('auth', 'Authentication Error', message || 'Please login again to continue.', 5000, {
+      label: 'Login',
+      onClick: () => window.location.href = '/login'
+    })
   }, [showToast])
 
   const serverError = useCallback((message?: string) => {
-    showToast('error', 'Server Error', message || 'Something went wrong on our end. Please try again later.', 6000)
+    showToast('server', 'Server Error', message || 'Something went wrong on our end. Please try again later.', 6000)
+  }, [showToast])
+
+  const timeoutError = useCallback((message?: string) => {
+    showToast('timeout', 'Request Timeout', message || 'The request took too long. Please try again.', 5000, {
+      label: 'Retry',
+      onClick: () => window.location.reload()
+    })
   }, [showToast])
 
   // Smart error handler that detects error type and shows appropriate toast
@@ -98,7 +116,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     // Check for known error patterns
     for (const [pattern, config] of Object.entries(ERROR_MESSAGES)) {
       if (errorMessage.toLowerCase().includes(pattern.toLowerCase())) {
-        showToast('error', config.title, config.message, 5000)
+        showToast(config.type, config.title, config.message, 5000)
         return
       }
     }
@@ -120,7 +138,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           showToast('error', 'Not Found', 'The requested resource was not found.', 5000)
           return
         case 408:
-          showToast('error', 'Request Timeout', 'The request took too long. Please try again.', 5000)
+          timeoutError()
           return
         case 429:
           showToast('warning', 'Too Many Requests', 'You are making too many requests. Please slow down.', 6000)
@@ -135,7 +153,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
     // Default error
     showToast('error', 'Error', fallbackMessage || errorMessage || 'An unexpected error occurred. Please try again.', 5000)
-  }, [showToast, authError, serverError])
+  }, [showToast, authError, serverError, timeoutError])
 
   return (
     <ToastContext.Provider value={{
@@ -147,26 +165,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       networkError,
       authError,
       serverError,
+      timeoutError,
       handleApiError
     }}>
       {children}
 
-      {/* Toast Container */}
-      <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
-        <div className="flex flex-col gap-2 pointer-events-auto">
-          {toasts.map((toast) => (
-            <Toast
-              key={toast.id}
-              id={toast.id}
-              type={toast.type}
-              title={toast.title}
-              message={toast.message}
-              duration={toast.duration}
-              onClose={removeToast}
-            />
-          ))}
-        </div>
-      </div>
+      {toast && (
+        <Toast
+          key={toast.id}
+          isOpen={true}
+          type={toast.type}
+          title={toast.title}
+          message={toast.message}
+          duration={toast.duration}
+          action={toast.action}
+          onClose={closeToast}
+        />
+      )}
     </ToastContext.Provider>
   )
 }
