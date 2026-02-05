@@ -2109,6 +2109,23 @@ export default function FacebookPage() {
                       const cheetahData = cheetahBalances[item.accountId]
                       const isCheetahAccount = cheetahData?.isCheetah
                       const remainingBalance = cheetahData?.remainingBalance
+                      const accountStatus = cheetahData?.status
+                      const accountStatusText = cheetahData?.statusText
+
+                      // Get status badge based on Cheetah account status
+                      const getCheetahStatusBadge = (status: number, statusText: string) => {
+                        if (status === 1) {
+                          return <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#52B788]/10 text-[#52B788]">Active</span>
+                        } else if (status === 2) {
+                          return <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#EF4444]/10 text-[#EF4444]">Banned</span>
+                        } else if (status === 3 || status === 7 || status === 8 || status === 9) {
+                          return <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#F59E0B]/10 text-[#F59E0B]">Under Review</span>
+                        } else if (status === 100 || status === 101) {
+                          return <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600">Closed</span>
+                        } else {
+                          return <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-600">{statusText || 'Unknown'}</span>
+                        }
+                      }
 
                       return (
                       <div
@@ -2128,11 +2145,7 @@ export default function FacebookPage() {
                             <div className="space-y-0.5 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h4 className="text-sm font-semibold text-gray-800 truncate">{item.accountName || item.adsAccountName || 'Unknown'}</h4>
-                                {isCheetahAccount && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#52B788]/10 text-[#52B788]">
-                                    ${remainingBalance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
-                                  </span>
-                                )}
+                                {isCheetahAccount && getCheetahStatusBadge(accountStatus, accountStatusText)}
                               </div>
                               <div className="flex items-center gap-2 text-xs">
                                 <span className="text-gray-400">License:</span>
