@@ -79,17 +79,35 @@ dashboard.get('/admin', requireAdmin, async (c) => {
       }
     })
 
-    // Monthly revenue (last 12 months)
-    const monthlyRevenue = await prisma.$queryRaw`
-      SELECT
-        DATE_TRUNC('month', "approvedAt") as month,
-        SUM(amount) as total
-      FROM deposits
-      WHERE status = 'APPROVED'
-        AND "approvedAt" >= NOW() - INTERVAL '12 months'
-      GROUP BY DATE_TRUNC('month', "approvedAt")
-      ORDER BY month ASC
-    `
+    // Monthly revenue (last 12 months) - MongoDB compatible
+    const twelveMonthsAgo = new Date()
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
+
+    const approvedDepositsForRevenue = await prisma.deposit.findMany({
+      where: {
+        status: 'APPROVED',
+        approvedAt: { gte: twelveMonthsAgo }
+      },
+      select: {
+        amount: true,
+        approvedAt: true
+      }
+    })
+
+    // Group by month manually
+    const monthlyRevenueMap = new Map<string, number>()
+    approvedDepositsForRevenue.forEach(deposit => {
+      if (deposit.approvedAt) {
+        const monthKey = `${deposit.approvedAt.getFullYear()}-${String(deposit.approvedAt.getMonth() + 1).padStart(2, '0')}`
+        const current = monthlyRevenueMap.get(monthKey) || 0
+        monthlyRevenueMap.set(monthKey, current + Number(deposit.amount || 0))
+      }
+    })
+
+    // Convert to sorted array
+    const monthlyRevenue = Array.from(monthlyRevenueMap.entries())
+      .map(([month, total]) => ({ month, total }))
+      .sort((a, b) => a.month.localeCompare(b.month))
 
     return c.json({
       stats: {
