@@ -280,7 +280,28 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
 
     const deposit = await prisma.deposit.findUnique({
       where: { id },
-      include: { user: { select: { id: true, username: true, email: true, role: true, brandLogo: true }, include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: {
+        user: {
+          include: {
+            agent: {
+              select: {
+                email: true,
+                brandLogo: true,
+                username: true,
+                emailSenderNameApproved: true,
+                smtpEnabled: true,
+                smtpHost: true,
+                smtpPort: true,
+                smtpUsername: true,
+                smtpPassword: true,
+                smtpEncryption: true,
+                smtpFromEmail: true,
+                customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 }
+              }
+            }
+          }
+        }
+      }
     })
 
     if (!deposit) {
