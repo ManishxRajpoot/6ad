@@ -383,9 +383,11 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
     }
 
     return c.json({ message: 'Deposit approved successfully' })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Approve deposit error:', error)
-    return c.json({ error: 'Failed to approve deposit' }, 500)
+    console.error('Error stack:', error?.stack)
+    console.error('Error message:', error?.message)
+    return c.json({ error: 'Failed to approve deposit', details: error?.message || 'Unknown error' }, 500)
   }
 })
 
