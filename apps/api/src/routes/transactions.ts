@@ -385,8 +385,10 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
     return c.json({ message: 'Deposit approved successfully' })
   } catch (error: any) {
     console.error('Approve deposit error:', error)
-    console.error('Error stack:', error?.stack)
-    console.error('Error message:', error?.message)
+    // Write error to file for debugging
+    const fs = await import('fs')
+    const errorLog = `[${new Date().toISOString()}] Approve deposit error:\n${error?.message}\n${error?.stack}\n\n`
+    fs.appendFileSync('/tmp/deposit-errors.log', errorLog)
     return c.json({ error: 'Failed to approve deposit', details: error?.message || 'Unknown error' }, 500)
   }
 })
