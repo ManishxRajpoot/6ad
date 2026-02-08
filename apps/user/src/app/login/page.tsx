@@ -936,7 +936,7 @@ export default function LoginPage() {
           {/* Logo Section */}
           <div className="flex items-center gap-3 py-2 mb-6">
             {isUsingCustomBranding && branding.brandLogo ? (
-              <img src={branding.brandLogo} alt="Logo" className="h-14 max-w-[280px] object-contain" />
+              <img src={branding.brandLogo} alt="Logo" className="h-16 max-w-[320px] object-contain" />
             ) : (
               <SixMediaLogo size="large" />
             )}
