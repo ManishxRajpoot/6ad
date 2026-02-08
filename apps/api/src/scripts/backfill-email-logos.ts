@@ -6,14 +6,13 @@ const prisma = new PrismaClient()
 async function backfillEmailLogos() {
   console.log('[BACKFILL] Starting email logo backfill...')
 
-  // Backfill User.emailLogo
-  const usersWithLogo = await prisma.user.findMany({
-    where: {
-      brandLogo: { not: null },
-      emailLogo: null,
-    },
-    select: { id: true, brandLogo: true, username: true },
+  // Backfill User.emailLogo - fetch all with brandLogo, filter in code
+  // (MongoDB may not match `emailLogo: null` for docs where the field doesn't exist)
+  const allUsersWithLogo = await prisma.user.findMany({
+    where: { brandLogo: { not: null } },
+    select: { id: true, brandLogo: true, emailLogo: true, username: true },
   })
+  const usersWithLogo = allUsersWithLogo.filter(u => !u.emailLogo)
 
   console.log(`[BACKFILL] Found ${usersWithLogo.length} users with brandLogo but no emailLogo`)
 
@@ -40,14 +39,12 @@ async function backfillEmailLogos() {
   }
   console.log(`[BACKFILL] Users: ${userSuccess} success, ${userFailed} failed`)
 
-  // Backfill CustomDomain.emailLogo
-  const domainsWithLogo = await prisma.customDomain.findMany({
-    where: {
-      brandLogo: { not: null },
-      emailLogo: null,
-    },
-    select: { id: true, domain: true, brandLogo: true },
+  // Backfill CustomDomain.emailLogo - fetch all with brandLogo, filter in code
+  const allDomainsWithLogo = await prisma.customDomain.findMany({
+    where: { brandLogo: { not: null } },
+    select: { id: true, domain: true, brandLogo: true, emailLogo: true },
   })
+  const domainsWithLogo = allDomainsWithLogo.filter(d => !d.emailLogo)
 
   console.log(`[BACKFILL] Found ${domainsWithLogo.length} domains with brandLogo but no emailLogo`)
 
