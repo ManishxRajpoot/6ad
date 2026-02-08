@@ -390,7 +390,7 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
       })
       sendEmail({ to: deposit.user.email, ...userEmailTemplate, senderName: deposit.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(deposit.user.agent) }).catch(console.error)
 
-      // Also notify the agent if user has one
+      // Also notify the agent if user has one - use agent's own SMTP
       if (deposit.user.agent?.email) {
         const agentNotification = getAgentDepositApprovedNotificationTemplate({
           username: deposit.user.username,
@@ -401,7 +401,12 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
           agentLogo: agentLogoApprove,
           agentBrandName: agentBrandNameApprove
         })
-        sendEmail({ to: deposit.user.agent.email, ...agentNotification }).catch(console.error)
+        sendEmail({
+          to: deposit.user.agent.email,
+          ...agentNotification,
+          senderName: deposit.user.agent.emailSenderNameApproved || undefined,
+          smtpConfig: buildSmtpConfig(deposit.user.agent)
+        }).catch(console.error)
       }
     }
 
