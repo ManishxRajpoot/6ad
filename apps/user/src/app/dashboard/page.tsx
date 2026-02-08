@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Plus, ChevronLeft, ChevronRight, Play, Loader2 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { dashboardApi, accountsApi } from '@/lib/api'
 
 // Platform color and icon mapping
@@ -59,6 +60,7 @@ const BingLogo = () => (
 )
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [loading, setLoading] = useState(true)
   const [dashboardData, setDashboardData] = useState<any>(null)
@@ -357,7 +359,7 @@ export default function DashboardPage() {
             <p className="text-white/85 text-[11px] lg:text-xs leading-relaxed mb-3 lg:mb-4">
               Ready to scale? Get access to top-tier ad accounts built for serious marketers.
             </p>
-            <button className="group flex items-center gap-2 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-all duration-300 hover:scale-105">
+            <button onClick={() => router.push('/guide')} className="group flex items-center gap-2 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-all duration-300 hover:scale-105">
               <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">
                 <Play className="w-2.5 h-2.5 text-white fill-white ml-0.5" />
               </div>
