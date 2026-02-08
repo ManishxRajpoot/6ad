@@ -799,20 +799,11 @@ export default function LoginPage() {
     return (
       <div className="w-full max-w-[440px] px-2 sm:px-0">
         <div className="bg-white border border-gray-200 rounded-2xl sm:rounded-3xl p-6 sm:p-8 xl:p-10 shadow-xl shadow-gray-200/50">
-          {/* Mobile/Tablet Logo */}
-          <div className="xl:hidden flex items-center justify-center gap-2 mb-6 sm:mb-8">
-            {isUsingCustomBranding && branding.brandLogo ? (
-              <img src={branding.brandLogo} alt="Logo" className="h-12 sm:h-14 max-w-[240px] sm:max-w-[280px] object-contain" />
-            ) : (
-              <SixMediaLogo size="small" />
-            )}
-          </div>
-
           <h1 className="text-xl sm:text-2xl xl:text-3xl font-bold text-gray-900 mb-2 text-center xl:text-left">
-            Welcome back
+            Welcome back!
           </h1>
           <p className="text-gray-500 mb-6 sm:mb-8 text-sm sm:text-base text-center xl:text-left">
-            Sign in to manage your ad accounts
+            Sign in to access your account
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -914,9 +905,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-white to-purple-50 relative overflow-hidden">
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-white to-purple-50 relative overflow-x-hidden xl:overflow-hidden">
       {/* Subtle Background Elements */}
-      <div className="absolute inset-0">
+      <div className="hidden xl:block absolute inset-0">
         {/* Soft gradient orbs */}
         <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-purple-200/30 rounded-full blur-[150px]" />
         <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-emerald-200/20 rounded-full blur-[130px]" />
@@ -1030,8 +1021,109 @@ export default function LoginPage() {
           </div>
         </div>
 
+        {/* Mobile Hero Section - visible below xl only */}
+        <div className="xl:hidden w-full flex flex-col">
+          {/* Logo Pill - overlapping onto hero */}
+          <div className="relative z-20 flex justify-center -mb-6">
+            <div className="bg-white rounded-full px-5 py-2.5 shadow-lg border border-gray-100">
+              {isUsingCustomBranding && branding?.brandLogo ? (
+                <img src={branding.brandLogo} alt="Logo" className="h-8 sm:h-10 max-w-[180px] object-contain" />
+              ) : (
+                <SixMediaLogo size="small" />
+              )}
+            </div>
+          </div>
+
+          {/* Gradient Hero */}
+          <div className={`relative bg-gradient-to-br from-purple-700 via-purple-600 to-indigo-600 overflow-hidden ${
+            displayStep === 'login' ? 'px-6 pt-12 pb-16' : 'pt-10 pb-8'
+          }`}>
+            {/* Floating Particles */}
+            {displayStep === 'login' && (
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="mobile-particle mobile-particle-1" />
+                <div className="mobile-particle mobile-particle-2" />
+                <div className="mobile-particle mobile-particle-3" />
+                <div className="mobile-particle mobile-particle-4" />
+                <div className="mobile-particle mobile-particle-5" />
+                <div className="mobile-particle mobile-particle-6" />
+                <div className="mobile-particle mobile-particle-7" />
+                <div className="mobile-particle mobile-particle-8" />
+              </div>
+            )}
+
+            {/* Radar/Orbit Rings */}
+            {displayStep === 'login' && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-[200px] h-[200px] sm:w-[260px] sm:h-[260px] rounded-full border border-white/10 animate-pulse-slow" />
+                <div className="absolute w-[300px] h-[300px] sm:w-[380px] sm:h-[380px] rounded-full border border-white/5" />
+              </div>
+            )}
+
+            {/* Hero Content */}
+            <div className="relative z-10 text-center">
+              <h2 className={`font-bold text-white mb-1 ${
+                displayStep === 'login' ? 'text-2xl sm:text-3xl' : 'text-lg sm:text-xl'
+              }`}>
+                {isUsingCustomBranding && branding?.brandName ? branding.brandName : 'SIXMEDIA'}
+              </h2>
+              <p className="text-purple-200 text-sm sm:text-base">
+                Premium Ad Accounts Platform
+              </p>
+
+              {/* Extended content only on login step */}
+              {displayStep === 'login' && (
+                <>
+                  {/* Stat Badges */}
+                  <div className="flex justify-center gap-2 sm:gap-3 mt-5 mb-5">
+                    <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 border border-white/20">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-300" />
+                        <span className="text-white font-bold text-sm sm:text-base">$2.5M+</span>
+                      </div>
+                      <p className="text-purple-200 text-[10px] sm:text-xs">Ad Spend</p>
+                    </div>
+                    <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 border border-white/20">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <Users className="w-3.5 h-3.5 text-blue-300" />
+                        <span className="text-white font-bold text-sm sm:text-base">10K+</span>
+                      </div>
+                      <p className="text-purple-200 text-[10px] sm:text-xs">Advertisers</p>
+                    </div>
+                    <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 border border-white/20">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <Award className="w-3.5 h-3.5 text-yellow-300" />
+                        <span className="text-white font-bold text-sm sm:text-base">500+</span>
+                      </div>
+                      <p className="text-purple-200 text-[10px] sm:text-xs">FB Accounts</p>
+                    </div>
+                  </div>
+
+                  {/* Platform Icons Carousel */}
+                  <div className="flex justify-center">
+                    <div className="overflow-hidden" style={{ maxWidth: '280px' }}>
+                      <div className="flex items-center gap-2.5 animate-slide-mobile">
+                        {[...platforms, ...platforms].map((platform, index) => (
+                          <div
+                            key={index}
+                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 backdrop-blur-sm border border-white/20 flex items-center justify-center flex-shrink-0"
+                          >
+                            <div className="brightness-0 invert opacity-90">
+                              {platform.icon}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Right Section - Dynamic Content */}
-        <div className="w-full xl:w-[45%] min-h-screen flex items-center justify-center p-4 sm:p-6 xl:p-12 overflow-hidden perspective-1000">
+        <div className="w-full xl:w-[45%] xl:min-h-screen flex items-center justify-center p-4 sm:p-6 xl:p-12 overflow-hidden perspective-1000 -mt-8 xl:mt-0 relative z-10">
           <div className={`w-full max-w-[440px] flex items-center justify-center transform-style-3d ${animationClass}`}>
             {renderRightContent()}
           </div>
@@ -1085,6 +1177,54 @@ export default function LoginPage() {
         }
         .animate-flip-in {
           animation: flipIn 0.5s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+        }
+
+        /* Mobile floating particles */
+        .mobile-particle {
+          position: absolute;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.2);
+          animation: float-particle linear infinite;
+        }
+        .mobile-particle-1 { width: 6px; height: 6px; top: 15%; left: 8%; animation-duration: 6s; animation-delay: 0s; }
+        .mobile-particle-2 { width: 4px; height: 4px; top: 55%; left: 88%; animation-duration: 8s; animation-delay: 1s; }
+        .mobile-particle-3 { width: 8px; height: 8px; top: 35%; left: 45%; animation-duration: 7s; animation-delay: 2s; }
+        .mobile-particle-4 { width: 5px; height: 5px; top: 70%; left: 20%; animation-duration: 9s; animation-delay: 0.5s; }
+        .mobile-particle-5 { width: 3px; height: 3px; top: 10%; left: 65%; animation-duration: 5s; animation-delay: 3s; }
+        .mobile-particle-6 { width: 7px; height: 7px; top: 50%; left: 30%; animation-duration: 10s; animation-delay: 1.5s; }
+        .mobile-particle-7 { width: 4px; height: 4px; top: 25%; left: 85%; animation-duration: 6.5s; animation-delay: 2.5s; }
+        .mobile-particle-8 { width: 5px; height: 5px; top: 80%; left: 55%; animation-duration: 7.5s; animation-delay: 0.8s; }
+
+        @keyframes float-particle {
+          0% {
+            transform: translateY(0px) translateX(0px) scale(0);
+            opacity: 0;
+          }
+          15% {
+            opacity: 1;
+            transform: translateY(-5px) translateX(3px) scale(1);
+          }
+          85% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-50px) translateX(25px) scale(0.5);
+            opacity: 0;
+          }
+        }
+
+        /* Mobile platform carousel */
+        .animate-slide-mobile {
+          animation: slide 12s linear infinite;
+        }
+
+        /* Slow pulse for radar rings */
+        .animate-pulse-slow {
+          animation: pulse-slow 3s ease-in-out infinite;
+        }
+        @keyframes pulse-slow {
+          0%, 100% { opacity: 0.3; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(1.05); }
         }
       `}</style>
     </div>
