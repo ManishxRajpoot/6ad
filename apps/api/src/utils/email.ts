@@ -262,18 +262,31 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
   }
 }
 
-// Six Media Logo SVG (inline for email) - Modern design
+// Six Media Logo SVG (inline for email) - Twisted Ribbon Infinity design matching app sidebar
 const SIX_MEDIA_LOGO_SVG = `
-<svg viewBox="0 0 40 40" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 48 28" width="48" height="28" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#7C3AED"/>
-      <stop offset="50%" stop-color="#A855F7"/>
+    <linearGradient id="emailRibbonGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="emailRibbonGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
       <stop offset="100%" stop-color="#EC4899"/>
     </linearGradient>
   </defs>
-  <rect x="0" y="0" width="40" height="40" rx="10" fill="url(#g1)"/>
-  <text x="20" y="27" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="18" font-weight="bold">6</text>
+  <path d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14" fill="url(#emailRibbonGrad1)"/>
+  <path d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14" fill="url(#emailRibbonGrad2)"/>
+  <ellipse cx="24" cy="14" rx="4" ry="5" fill="white" opacity="0.15"/>
+</svg>
+`
+
+// White version of the ribbon logo for use on colored gradient headers
+const SIX_MEDIA_LOGO_WHITE_SVG = `
+<svg viewBox="0 0 48 28" width="44" height="26" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14" fill="white" opacity="0.9"/>
+  <path d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14" fill="white" opacity="0.7"/>
+  <ellipse cx="24" cy="14" rx="4" ry="5" fill="white" opacity="0.15"/>
 </svg>
 `
 
@@ -388,11 +401,13 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
                               <span style="font-size: 12px; color: rgba(255,255,255,0.85);">Advertising Platform</span>
                             </td>
                             ` : `
-                            <!-- Default Logo Box -->
+                            <!-- Default Logo - Twisted Ribbon -->
                             <td style="padding-right: 12px; vertical-align: middle;">
+                              ${agentBrandName ? `
                               <div style="width: 44px; height: 44px; background-color: rgba(255,255,255,0.25); border-radius: 10px; text-align: center; line-height: 44px;">
-                                <span style="color: #ffffff; font-size: 20px; font-weight: 700;">${agentBrandName ? agentBrandName.charAt(0).toUpperCase() : '6'}</span>
+                                <span style="color: #ffffff; font-size: 20px; font-weight: 700;">${agentBrandName.charAt(0).toUpperCase()}</span>
                               </div>
+                              ` : SIX_MEDIA_LOGO_WHITE_SVG}
                             </td>
                             <td style="vertical-align: middle;">
                               <span style="font-size: 18px; font-weight: 700; color: #ffffff;">${platformName}</span>
