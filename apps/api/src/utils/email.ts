@@ -159,6 +159,28 @@ interface EmailOptions {
   smtpConfig?: SmtpConfig  // Custom SMTP configuration
 }
 
+// Extract base64 images from HTML and convert to CID attachments
+// Gmail strips inline base64 images, so we must use CID attachments instead
+function extractBase64Images(html: string): { html: string; attachments: Array<{ filename: string; content: Buffer; cid: string; contentType: string }> } {
+  const attachments: Array<{ filename: string; content: Buffer; cid: string; contentType: string }> = []
+  let counter = 0
+
+  const processedHtml = html.replace(/src="data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,([^"]+)"/g, (_match, mimeType, base64Data) => {
+    counter++
+    const cid = `logo${counter}@6ad.in`
+    const ext = mimeType === 'svg+xml' ? 'svg' : mimeType === 'jpeg' ? 'jpg' : mimeType
+    attachments.push({
+      filename: `logo${counter}.${ext}`,
+      content: Buffer.from(base64Data, 'base64'),
+      cid,
+      contentType: `image/${mimeType}`
+    })
+    return `src="cid:${cid}"`
+  })
+
+  return { html: processedHtml, attachments }
+}
+
 // Helper to build SMTP config from agent data
 export function buildSmtpConfig(agent: {
   smtpEnabled?: boolean
@@ -200,6 +222,9 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
     const senderName = options.senderName || 'Six Media'
 
+    // Convert inline base64 images to CID attachments (Gmail strips base64 images)
+    const { html: processedHtml, attachments } = extractBase64Images(options.html)
+
     // Use custom SMTP if provided, otherwise use default
     if (options.smtpConfig) {
       const customTransporter = createCustomTransporter(options.smtpConfig)
@@ -209,11 +234,12 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
         from: `"${fromName}" <${options.smtpConfig.fromEmail}>`,
         to: options.to,
         subject: options.subject,
-        html: options.html,
-        text: options.text || options.html.replace(/<[^>]*>/g, '')
+        html: processedHtml,
+        text: options.text || options.html.replace(/<[^>]*>/g, ''),
+        ...(attachments.length > 0 && { attachments })
       })
 
-      console.log('Email sent via custom SMTP:', info.messageId)
+      console.log('Email sent via custom SMTP:', info.messageId, attachments.length > 0 ? `(${attachments.length} embedded images)` : '')
       return true
     }
 
@@ -223,11 +249,12 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
       from: `"${fromName}" <${DEFAULT_SMTP.fromEmail}>`,
       to: options.to,
       subject: options.subject,
-      html: options.html,
-      text: options.text || options.html.replace(/<[^>]*>/g, '')
+      html: processedHtml,
+      text: options.text || options.html.replace(/<[^>]*>/g, ''),
+      ...(attachments.length > 0 && { attachments })
     })
 
-    console.log('Email sent:', info.messageId, 'to:', options.to)
+    console.log('Email sent:', info.messageId, 'to:', options.to, attachments.length > 0 ? `(${attachments.length} embedded images)` : '')
     return true
   } catch (error) {
     console.error('Error sending email:', error)
