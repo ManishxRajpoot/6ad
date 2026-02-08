@@ -425,7 +425,7 @@ function createTableRow(label: string, value: string, isCode = false, isLast = f
         ${label}
       </td>
       <td style="padding: 14px 20px; ${!isLast ? 'border-bottom: 1px solid #f3f4f6;' : ''} color: #111827; font-size: 14px; font-weight: 600; ${isCode ? 'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;' : ''}">
-        ${isCode ? `<span style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 6px 12px; border-radius: 6px; font-size: 12px; border: 1px solid #e2e8f0;">${value}</span>` : value}
+        ${isCode ? `<span style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 6px 12px; border-radius: 6px; font-size: 12px; border: 1px solid #e2e8f0; color: #374151;">${value}</span>` : value}
       </td>
     </tr>
   `

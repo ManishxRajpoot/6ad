@@ -384,6 +384,11 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
       const approvedDomain = deposit.user.agent?.customDomains?.[0]
       const agentLogoApprove = approvedDomain?.brandLogo || deposit.user.agent?.brandLogo || null
       const agentBrandNameApprove = deposit.user.agent?.username || null
+
+      // Debug logging for logo issue
+      console.log('[EMAIL DEBUG] Agent customDomains count:', deposit.user.agent?.customDomains?.length)
+      console.log('[EMAIL DEBUG] approvedDomain:', approvedDomain ? { hasLogo: !!approvedDomain.brandLogo, logoLength: approvedDomain.brandLogo?.length } : 'null')
+      console.log('[EMAIL DEBUG] agentLogoApprove starts with:', agentLogoApprove?.substring(0, 50))
       const userEmailTemplate = getWalletDepositApprovedTemplate({
         username: deposit.user.username,
         applyId: deposit.applyId,
