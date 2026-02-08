@@ -267,9 +267,13 @@ transactions.post('/deposits', requireUser, async (c) => {
     }
 
     return c.json({ message: 'Deposit request created', deposit }, 201)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create deposit error:', error)
-    return c.json({ error: 'Failed to create deposit' }, 500)
+    // Log detailed error to file
+    const fs = await import('fs')
+    const errorLog = `[${new Date().toISOString()}] Create deposit error:\n${error?.message}\n${error?.stack}\n\n`
+    fs.appendFileSync('/tmp/deposit-create-errors.log', errorLog)
+    return c.json({ error: 'Failed to create deposit', details: error?.message || 'Unknown error' }, 500)
   }
 })
 
