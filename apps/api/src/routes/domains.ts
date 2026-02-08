@@ -7,6 +7,7 @@ import { promisify } from 'util'
 import { exec } from 'child_process'
 import path from 'path'
 import { verifyToken } from '../middleware/auth.js'
+import { generateEmailLogo } from '../utils/image.js'
 
 const resolveTxt = promisify(dns.resolveTxt)
 const resolve4 = promisify(dns.resolve4)
@@ -366,6 +367,9 @@ domains.post('/', async (c) => {
     // Generate verification token
     const verificationToken = generateVerificationToken()
 
+    // Auto-generate optimized email logo
+    const emailLogo = brandLogo ? await generateEmailLogo(brandLogo) : null
+
     // Create domain request with branding
     const customDomain = await prisma.customDomain.create({
       data: {
@@ -374,6 +378,7 @@ domains.post('/', async (c) => {
         verificationToken,
         status: 'PENDING',
         brandLogo: brandLogo || null,
+        emailLogo,
       },
     })
 
@@ -421,11 +426,15 @@ domains.patch('/:id', async (c) => {
       return c.json({ error: 'Domain not found' }, 404)
     }
 
+    // Auto-generate optimized email logo
+    const emailLogo = brandLogo ? await generateEmailLogo(brandLogo) : null
+
     // Update branding and reset status to PENDING for re-approval
     const updatedDomain = await prisma.customDomain.update({
       where: { id },
       data: {
         brandLogo: brandLogo || null,
+        emailLogo,
         status: 'PENDING', // Reset to pending when branding is updated
         approvedAt: null,
         rejectedAt: null,

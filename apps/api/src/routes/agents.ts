@@ -6,6 +6,7 @@ const prisma = new PrismaClient()
 import { z } from 'zod'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import { testSmtpConnection, sendTestEmail, SmtpConfig } from '../utils/email.js'
+import { generateEmailLogo } from '../utils/image.js'
 
 // Generate unique referral code for user
 function generateReferralCode(username: string): string {
@@ -174,6 +175,14 @@ agents.patch('/branding', async (c) => {
     const updateData: any = {
       brandLogo: brandLogo || null,
       brandName: brandName || null,
+    }
+
+    // Auto-generate optimized email logo
+    if (brandLogo) {
+      const emailLogo = await generateEmailLogo(brandLogo)
+      updateData.emailLogo = emailLogo
+    } else {
+      updateData.emailLogo = null
     }
 
     // Handle email sender name with approval workflow

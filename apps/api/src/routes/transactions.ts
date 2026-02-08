@@ -162,12 +162,12 @@ transactions.post('/deposits', requireUser, async (c) => {
       // Send email notifications for crypto deposits too
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } }
+        include: { agent: { select: { email: true, brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } }
       })
 
       if (user) {
         const approvedDomain = user.agent?.customDomains?.[0]
-        const agentLogo = approvedDomain?.brandLogo || user.agent?.brandLogo || null
+        const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || user.agent?.emailLogo || user.agent?.brandLogo || null
         const agentBrandName = user.agent?.username || null
 
         // Send email to user
@@ -216,7 +216,7 @@ transactions.post('/deposits', requireUser, async (c) => {
     // Get user for email
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } }
+      include: { agent: { select: { email: true, brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } }
     })
 
     // Regular (non-crypto) deposit - create as pending
@@ -235,7 +235,7 @@ transactions.post('/deposits', requireUser, async (c) => {
     // Send email to user
     if (user) {
       const approvedDomain = user.agent?.customDomains?.[0]
-      const agentLogo = approvedDomain?.brandLogo || user.agent?.brandLogo || null
+      const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || user.agent?.emailLogo || user.agent?.brandLogo || null
       const agentBrandName = user.agent?.username || null
       const userEmailTemplate = getWalletDepositSubmittedTemplate({
         username: user.username,
@@ -292,6 +292,7 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
               select: {
                 email: true,
                 brandLogo: true,
+                emailLogo: true,
                 username: true,
                 emailSenderNameApproved: true,
                 smtpEnabled: true,
@@ -301,7 +302,7 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
                 smtpPassword: true,
                 smtpEncryption: true,
                 smtpFromEmail: true,
-                customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 }
+                customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 }
               }
             }
           }
@@ -369,7 +370,7 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
 
     if (isAgent) {
       // Agent deposit - use agent's own branding
-      const agentOwnLogo = deposit.user.brandLogo || null
+      const agentOwnLogo = deposit.user.emailLogo || deposit.user.brandLogo || null
       const userEmailTemplate = getWalletDepositApprovedTemplate({
         username: deposit.user.username,
         applyId: deposit.applyId,
@@ -382,7 +383,7 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
     } else {
       // Regular user deposit - use their agent's branding (prefer whitelabel/custom domain settings)
       const approvedDomain = deposit.user.agent?.customDomains?.[0]
-      const agentLogoApprove = approvedDomain?.brandLogo || deposit.user.agent?.brandLogo || null
+      const agentLogoApprove = approvedDomain?.emailLogo || approvedDomain?.brandLogo || deposit.user.agent?.emailLogo || deposit.user.agent?.brandLogo || null
       const agentBrandNameApprove = deposit.user.agent?.username || null
 
       // Debug logging for logo issue
@@ -438,7 +439,7 @@ transactions.post('/deposits/:id/reject', requireAdmin, async (c) => {
 
     const deposit = await prisma.deposit.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } } } }
     })
 
     if (!deposit) {
@@ -460,7 +461,7 @@ transactions.post('/deposits/:id/reject', requireAdmin, async (c) => {
 
     // Send rejection email to user (prefer whitelabel/custom domain settings)
     const approvedDomainReject = deposit.user.agent?.customDomains?.[0]
-    const agentLogoReject = approvedDomainReject?.brandLogo || deposit.user.agent?.brandLogo || null
+    const agentLogoReject = approvedDomainReject?.emailLogo || approvedDomainReject?.brandLogo || deposit.user.agent?.emailLogo || deposit.user.agent?.brandLogo || null
     const agentBrandNameReject = deposit.user.agent?.username || null
     const userEmailTemplate = getWalletDepositRejectedTemplate({
       username: deposit.user.username,
@@ -678,7 +679,7 @@ transactions.post('/agent-deposits', requireAgent, async (c) => {
     // Get agent info for email
     const agent = await prisma.user.findUnique({
       where: { id: agentId },
-      select: { id: true, username: true, email: true, brandLogo: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } }
+      select: { id: true, username: true, email: true, brandLogo: true, emailLogo: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } }
     })
 
     // Use provided applyId or generate one with PWD prefix
@@ -733,7 +734,7 @@ transactions.post('/agent-deposits', requireAgent, async (c) => {
       // Send email to agent
       if (agent) {
         const approvedDomain = agent.customDomains?.[0]
-        const agentLogo = approvedDomain?.brandLogo || agent.brandLogo || null
+        const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agent.emailLogo || agent.brandLogo || null
         const agentBrandName = agent.username
         const agentEmailTemplate = getWalletDepositSubmittedTemplate({
           username: agent.username,
@@ -782,7 +783,7 @@ transactions.post('/agent-deposits', requireAgent, async (c) => {
     // Send email to agent for deposit submission
     if (agent) {
       const approvedDomain = agent.customDomains?.[0]
-      const agentLogo = approvedDomain?.brandLogo || agent.brandLogo || null
+      const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agent.emailLogo || agent.brandLogo || null
       const agentBrandName = agent.username
       const agentEmailTemplate = getWalletDepositSubmittedTemplate({
         username: agent.username,

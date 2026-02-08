@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --external:@prisma/client --external:@hono/node-server --external:hono --external:bcryptjs --external:dotenv --external:jsonwebtoken --external:nodemailer --external:otpauth --external:zod --external:bs58check",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --external:@prisma/client --external:@hono/node-server --external:hono --external:bcryptjs --external:dotenv --external:jsonwebtoken --external:nodemailer --external:otpauth --external:zod --external:bs58check --external:sharp",
     "start": "node dist/index.js"
   },
   "dependencies": {
@@ -17,6 +17,7 @@
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^7.0.13",
     "otpauth": "^9.4.1",
+    "sharp": "^0.33.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

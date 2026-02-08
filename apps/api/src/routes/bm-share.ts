@@ -199,7 +199,7 @@ bmShare.post('/', requireUser, async (c) => {
     // Get user with agent info for email
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } }
+      include: { agent: { select: { email: true, brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } }
     })
 
     // Create request with PROCESSING status immediately
@@ -224,8 +224,8 @@ bmShare.post('/', requireUser, async (c) => {
 
     // Send email to user
     if (user) {
-      const approvedDomainLogo = user.agent?.customDomains?.[0]?.brandLogo
-      const agentLogo = approvedDomainLogo || user.agent?.brandLogo || null
+      const approvedDomain = user.agent?.customDomains?.[0]
+      const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || user.agent?.emailLogo || user.agent?.brandLogo || null
       const agentBrandName = user.agent?.username || null
       const userEmailTemplate = getBMShareSubmittedTemplate({
         username: user.username,
@@ -409,7 +409,7 @@ bmShare.post('/:id/approve', requireAdmin, async (c) => {
 
     const request = await prisma.bmShareRequest.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } } } }
     })
 
     if (!request) {
@@ -452,8 +452,8 @@ bmShare.post('/:id/approve', requireAdmin, async (c) => {
     })
 
     // Send approval email to user
-    const approvedDomainLogoApprove = request.user.agent?.customDomains?.[0]?.brandLogo
-    const agentLogoApprove = approvedDomainLogoApprove || request.user.agent?.brandLogo || null
+    const approvedDomainApprove = request.user.agent?.customDomains?.[0]
+    const agentLogoApprove = approvedDomainApprove?.emailLogo || approvedDomainApprove?.brandLogo || request.user.agent?.emailLogo || request.user.agent?.brandLogo || null
     const agentBrandNameApprove = request.user.agent?.username || null
     const userEmailTemplate = getBMShareApprovedTemplate({
       username: request.user.username,
@@ -482,7 +482,7 @@ bmShare.post('/:id/reject', requireAdmin, async (c) => {
 
     const request = await prisma.bmShareRequest.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } } } }
     })
 
     if (!request) {
@@ -503,8 +503,8 @@ bmShare.post('/:id/reject', requireAdmin, async (c) => {
     })
 
     // Send rejection email to user
-    const approvedDomainLogoReject = request.user.agent?.customDomains?.[0]?.brandLogo
-    const agentLogoReject = approvedDomainLogoReject || request.user.agent?.brandLogo || null
+    const approvedDomainReject = request.user.agent?.customDomains?.[0]
+    const agentLogoReject = approvedDomainReject?.emailLogo || approvedDomainReject?.brandLogo || request.user.agent?.emailLogo || request.user.agent?.brandLogo || null
     const agentBrandNameReject = request.user.agent?.username || null
     const userEmailTemplate = getBMShareRejectedTemplate({
       username: request.user.username,

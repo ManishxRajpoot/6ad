@@ -817,6 +817,7 @@ accounts.post('/', requireUser, async (c) => {
           select: {
             email: true,
             brandLogo: true,
+            emailLogo: true,
             username: true,
             emailSenderNameApproved: true,
             smtpEnabled: true,
@@ -828,7 +829,7 @@ accounts.post('/', requireUser, async (c) => {
             smtpFromEmail: true,
             customDomains: {
               where: { status: 'APPROVED' },
-              select: { brandLogo: true },
+              select: { brandLogo: true, emailLogo: true },
               take: 1
             }
           }
@@ -852,8 +853,9 @@ accounts.post('/', requireUser, async (c) => {
     // Send email to user
     if (user) {
       // Use approved domain logo if available, otherwise fall back to agent's brand logo
-      const approvedDomainLogo = user.agent?.customDomains?.[0]?.brandLogo
-      const agentLogo = approvedDomainLogo || user.agent?.brandLogo || null
+      const approvedDomain = user.agent?.customDomains?.[0]
+      const agent = user.agent
+      const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agent?.emailLogo || agent?.brandLogo || null
       const agentBrandName = user.agent?.username || null
       const userEmail = getAdAccountSubmittedTemplate({
         username: user.username,
@@ -902,7 +904,7 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { email: true, brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } } } }
     })
 
     if (!account) {
@@ -922,8 +924,9 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
     })
 
     // Send approval email to user
-    const approvedDomainLogo = account.user.agent?.customDomains?.[0]?.brandLogo
-    const agentLogo = approvedDomainLogo || account.user.agent?.brandLogo || null
+    const approvedDomain = account.user.agent?.customDomains?.[0]
+    const agent = account.user.agent
+    const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agent?.emailLogo || agent?.brandLogo || null
     const agentBrandName = account.user.agent?.username || null
     const userEmail = getAdAccountApprovedTemplate({
       username: account.user.username,
@@ -968,7 +971,7 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { email: true, brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } } } }
     })
 
     if (!account) {
@@ -984,8 +987,9 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
     })
 
     // Send rejection email to user
-    const approvedDomainLogo = account.user.agent?.customDomains?.[0]?.brandLogo
-    const agentLogo = approvedDomainLogo || account.user.agent?.brandLogo || null
+    const approvedDomain = account.user.agent?.customDomains?.[0]
+    const agent = account.user.agent
+    const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agent?.emailLogo || agent?.brandLogo || null
     const agentBrandName = account.user.agent?.username || null
     const userEmail = getAdAccountRejectedTemplate({
       username: account.user.username,
@@ -1033,7 +1037,7 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, username: true, email: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { brandLogo: true, emailLogo: true, username: true, email: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } } } }
     })
 
     if (!account) {
@@ -1119,8 +1123,9 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
     })
 
     // Send email to user
-    const approvedDomainLogo = account.user.agent?.customDomains?.[0]?.brandLogo
-    const agentLogo = approvedDomainLogo || account.user.agent?.brandLogo || null
+    const approvedDomain = account.user.agent?.customDomains?.[0]
+    const agent = account.user.agent
+    const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agent?.emailLogo || agent?.brandLogo || null
     const agentBrandName = account.user.agent?.username || null
     const userEmailTemplate = getAccountRechargeSubmittedTemplate({
       username: account.user.username,
@@ -1175,7 +1180,7 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       where: { id },
       include: {
         adAccount: {
-          include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+          include: { user: { include: { agent: { select: { brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } } } }
         }
       }
     })
@@ -1219,8 +1224,9 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
     })
 
     // Send approval email to user
-    const approvedDomainLogoDeposit = deposit.adAccount.user.agent?.customDomains?.[0]?.brandLogo
-    const agentLogoDeposit = approvedDomainLogoDeposit || deposit.adAccount.user.agent?.brandLogo || null
+    const approvedDomainDeposit = deposit.adAccount.user.agent?.customDomains?.[0]
+    const agentDeposit = deposit.adAccount.user.agent
+    const agentLogoDeposit = approvedDomainDeposit?.emailLogo || approvedDomainDeposit?.brandLogo || agentDeposit?.emailLogo || agentDeposit?.brandLogo || null
     const agentBrandNameDeposit = deposit.adAccount.user.agent?.username || null
     const userEmailTemplate = getAccountRechargeApprovedTemplate({
       username: deposit.adAccount.user.username,
@@ -1259,7 +1265,7 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       where: { id },
       include: {
         adAccount: {
-          include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+          include: { user: { include: { agent: { select: { brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } } } }
         }
       }
     })
@@ -1311,8 +1317,9 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
     })
 
     // Send rejection email to user with refund info
-    const approvedDomainLogoReject = deposit.adAccount.user.agent?.customDomains?.[0]?.brandLogo
-    const agentLogoReject = approvedDomainLogoReject || deposit.adAccount.user.agent?.brandLogo || null
+    const approvedDomainReject = deposit.adAccount.user.agent?.customDomains?.[0]
+    const agentReject = deposit.adAccount.user.agent
+    const agentLogoReject = approvedDomainReject?.emailLogo || approvedDomainReject?.brandLogo || agentReject?.emailLogo || agentReject?.brandLogo || null
     const agentBrandNameReject = deposit.adAccount.user.agent?.username || null
     const userEmailTemplate = getAccountRechargeRejectedTemplate({
       username: deposit.adAccount.user.username,
@@ -1376,6 +1383,7 @@ accounts.post('/:id/refund', requireUser, async (c) => {
               select: {
                 email: true,
                 brandLogo: true,
+                emailLogo: true,
                 username: true,
                 emailSenderNameApproved: true,
                 smtpEnabled: true,
@@ -1385,7 +1393,7 @@ accounts.post('/:id/refund', requireUser, async (c) => {
                 smtpPassword: true,
                 smtpEncryption: true,
                 smtpFromEmail: true,
-                customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 }
+                customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 }
               }
             }
           }
@@ -1415,7 +1423,9 @@ accounts.post('/:id/refund', requireUser, async (c) => {
     })
 
     // Get agent branding
-    const agentLogo = account.user.agent?.customDomains?.[0]?.brandLogo || account.user.agent?.brandLogo || null
+    const approvedDomain = account.user.agent?.customDomains?.[0]
+    const agentRef = account.user.agent
+    const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agentRef?.emailLogo || agentRef?.brandLogo || null
     const agentBrandName = account.user.agent?.username || null
 
     // Send confirmation email to user
@@ -1477,6 +1487,7 @@ accounts.post('/refunds/:id/approve', requireAdmin, async (c) => {
                   select: {
                     email: true,
                     brandLogo: true,
+                    emailLogo: true,
                     username: true,
                     emailSenderNameApproved: true,
                     smtpEnabled: true,
@@ -1486,7 +1497,7 @@ accounts.post('/refunds/:id/approve', requireAdmin, async (c) => {
                     smtpPassword: true,
                     smtpEncryption: true,
                     smtpFromEmail: true,
-                    customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 }
+                    customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 }
                   }
                 }
               }
@@ -1551,7 +1562,9 @@ accounts.post('/refunds/:id/approve', requireAdmin, async (c) => {
     })
 
     // Get agent branding
-    const agentLogo = refund.adAccount.user.agent?.customDomains?.[0]?.brandLogo || refund.adAccount.user.agent?.brandLogo || null
+    const approvedDomain = refund.adAccount.user.agent?.customDomains?.[0]
+    const agentRef = refund.adAccount.user.agent
+    const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agentRef?.emailLogo || agentRef?.brandLogo || null
     const agentBrandName = refund.adAccount.user.agent?.username || null
 
     // Send approval email to user
@@ -1648,6 +1661,7 @@ accounts.post('/refunds/:id/reject', requireAdmin, async (c) => {
                   select: {
                     email: true,
                     brandLogo: true,
+                    emailLogo: true,
                     username: true,
                     emailSenderNameApproved: true,
                     smtpEnabled: true,
@@ -1657,7 +1671,7 @@ accounts.post('/refunds/:id/reject', requireAdmin, async (c) => {
                     smtpPassword: true,
                     smtpEncryption: true,
                     smtpFromEmail: true,
-                    customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 }
+                    customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 }
                   }
                 }
               }
@@ -1684,7 +1698,9 @@ accounts.post('/refunds/:id/reject', requireAdmin, async (c) => {
     })
 
     // Get agent branding
-    const agentLogo = refund.adAccount.user.agent?.customDomains?.[0]?.brandLogo || refund.adAccount.user.agent?.brandLogo || null
+    const approvedDomain = refund.adAccount.user.agent?.customDomains?.[0]
+    const agentRef = refund.adAccount.user.agent
+    const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agentRef?.emailLogo || agentRef?.brandLogo || null
     const agentBrandName = refund.adAccount.user.agent?.username || null
 
     // Send rejection email to user

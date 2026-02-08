@@ -304,12 +304,12 @@ auth.post('/register', async (c) => {
     const passwordResetToken = generatePasswordResetToken()
 
     // Get agent info for branding and custom domain if user has an agent
-    let agentBrandInfo: { brandLogo?: string | null; username?: string | null } = {}
+    let agentBrandInfo: { brandLogo?: string | null; emailLogo?: string | null; username?: string | null } = {}
     let agentCustomDomain: string | null = null
     if (agentId) {
       const agentData = await prisma.user.findUnique({
         where: { id: agentId },
-        select: { brandLogo: true, username: true }
+        select: { brandLogo: true, emailLogo: true, username: true }
       })
       if (agentData) {
         agentBrandInfo = agentData
@@ -369,7 +369,7 @@ auth.post('/register', async (c) => {
       username,
       email: normalizedEmail,
       passwordResetLink,
-      agentLogo: agentBrandInfo.brandLogo,
+      agentLogo: agentBrandInfo.emailLogo || agentBrandInfo.brandLogo,
       agentBrandName: agentBrandInfo.username
     })
     sendEmail({ to: normalizedEmail, ...welcomeEmail }).catch(console.error)
@@ -687,6 +687,7 @@ auth.post('/email/send-code', verifyToken, async (c) => {
         agent: {
           select: {
             brandLogo: true,
+            emailLogo: true,
             username: true,
             emailSenderNameApproved: true,
             smtpEnabled: true,
@@ -698,7 +699,7 @@ auth.post('/email/send-code', verifyToken, async (c) => {
             smtpFromEmail: true,
             customDomains: {
               where: { status: 'APPROVED' },
-              select: { brandLogo: true },
+              select: { brandLogo: true, emailLogo: true },
               take: 1
             }
           }
@@ -729,7 +730,7 @@ auth.post('/email/send-code', verifyToken, async (c) => {
 
     // Send verification email - Use approved domain logo if available
     const approvedDomainLogo = user.agent?.customDomains?.[0]?.brandLogo
-    const agentLogo = approvedDomainLogo || user.agent?.brandLogo || null
+    const agentLogo = user.agent?.customDomains?.[0]?.emailLogo || approvedDomainLogo || user.agent?.emailLogo || user.agent?.brandLogo || null
     const agentBrandName = user.agent?.username || null
     const emailTemplate = getVerificationEmailTemplate(code, user.username, agentLogo, agentBrandName)
 
@@ -831,6 +832,7 @@ auth.post('/email/send-change-code', verifyToken, async (c) => {
         agent: {
           select: {
             brandLogo: true,
+            emailLogo: true,
             username: true,
             emailSenderNameApproved: true,
             smtpEnabled: true,
@@ -840,7 +842,7 @@ auth.post('/email/send-change-code', verifyToken, async (c) => {
             smtpPassword: true,
             smtpEncryption: true,
             smtpFromEmail: true,
-            customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 }
+            customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 }
           }
         }
       }
@@ -883,7 +885,7 @@ auth.post('/email/send-change-code', verifyToken, async (c) => {
 
     // Get branding info
     const approvedDomainLogo = user.agent?.customDomains?.[0]?.brandLogo
-    const agentLogo = approvedDomainLogo || user.agent?.brandLogo || null
+    const agentLogo = user.agent?.customDomains?.[0]?.emailLogo || approvedDomainLogo || user.agent?.emailLogo || user.agent?.brandLogo || null
     const agentBrandName = user.agent?.username || null
 
     // Send verification email to the NEW email
@@ -987,7 +989,7 @@ auth.post('/password/forgot', async (c) => {
       where: { email: email.toLowerCase() },
       include: {
         agent: {
-          select: { id: true, brandLogo: true, username: true }
+          select: { id: true, brandLogo: true, emailLogo: true, username: true }
         }
       }
     })
@@ -1017,7 +1019,7 @@ auth.post('/password/forgot', async (c) => {
     const resetEmail = getPasswordResetEmailTemplate({
       username: user.username,
       passwordResetLink,
-      agentLogo: user.agent?.brandLogo,
+      agentLogo: user.agent?.emailLogo || user.agent?.brandLogo,
       agentBrandName: user.agent?.username
     })
     sendEmail({ to: user.email, ...resetEmail }).catch(console.error)
