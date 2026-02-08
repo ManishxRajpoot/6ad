@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3003",
     "dev:clean": "rm -rf .next && next dev -p 3003",
+    "prebuild": "node -e \"const fs=require('fs');fs.writeFileSync('public/version.json',JSON.stringify({version:Date.now().toString(),buildTime:new Date().toISOString()},null,2))\"",
     "build": "next build",
     "build:clean": "rm -rf .next && next build",
     "start": "next start -p 3003",

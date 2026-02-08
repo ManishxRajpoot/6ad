@@ -3,20 +3,23 @@
 import { useEffect, useState, useCallback } from 'react'
 import { RefreshCw, X, ArrowUpCircle } from 'lucide-react'
 
-const CHECK_INTERVAL = 30000 // Check every 30 seconds
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.6ad.in'
+const CHECK_INTERVAL = 10000 // Check every 10 seconds
 
 export function UpdateChecker() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null)
+  const [initialVersion, setInitialVersion] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
 
   const checkForUpdates = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/version`, {
+      // Fetch version.json from the same origin with cache busting
+      const response = await fetch(`/version.json?t=${Date.now()}`, {
         cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
       })
 
       if (!response.ok) return
@@ -24,10 +27,12 @@ export function UpdateChecker() {
       const data = await response.json()
       const serverVersion = data.version
 
-      if (!currentVersion) {
-        setCurrentVersion(serverVersion)
-        localStorage.setItem('app_version', serverVersion)
-      } else if (serverVersion !== currentVersion) {
+      if (!initialVersion) {
+        // First load - store the initial version
+        setInitialVersion(serverVersion)
+      } else if (serverVersion !== initialVersion) {
+        // Version changed - new deployment detected!
+        console.log('[UpdateChecker] New version detected:', serverVersion, 'Current:', initialVersion)
         setUpdateAvailable(true)
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -38,50 +43,43 @@ export function UpdateChecker() {
     } catch (error) {
       console.debug('[UpdateChecker] Failed to check for updates')
     }
-  }, [currentVersion])
+  }, [initialVersion])
 
   useEffect(() => {
-    const storedVersion = localStorage.getItem('app_version')
-    if (storedVersion) {
-      setCurrentVersion(storedVersion)
-    }
-
+    // Initial check
     checkForUpdates()
+
+    // Set up interval for continuous checking
     const interval = setInterval(checkForUpdates, CHECK_INTERVAL)
     return () => clearInterval(interval)
   }, [checkForUpdates])
 
   const handleRefresh = async () => {
     try {
-      // Fetch the new version first
-      const response = await fetch(`${API_URL}/version`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
-      })
+      // Clear all caches
+      if ('caches' in window) {
+        const names = await caches.keys()
+        await Promise.all(names.map(name => caches.delete(name)))
+      }
 
-      if (response.ok) {
-        const data = await response.json()
-        // Save the new version to localStorage BEFORE reloading
-        localStorage.setItem('app_version', data.version)
+      // Clear service worker caches
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(registrations.map(r => r.unregister()))
       }
     } catch (error) {
-      console.debug('[UpdateChecker] Failed to fetch version before refresh')
+      console.debug('[UpdateChecker] Failed to clear caches')
     }
 
-    // Clear caches
-    if ('caches' in window) {
-      const names = await caches.keys()
-      await Promise.all(names.map(name => caches.delete(name)))
-    }
-
-    // Force hard reload
-    window.location.reload()
+    // Force hard reload - bypass cache completely
+    window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now()
   }
 
   const handleDismiss = () => {
     setIsAnimating(false)
     setTimeout(() => {
       setDismissed(true)
+      // Re-show after 5 minutes if still not refreshed
       setTimeout(() => setDismissed(false), 300000)
     }, 200)
   }
@@ -96,13 +94,13 @@ export function UpdateChecker() {
           background: 'white',
           borderRadius: '14px',
           padding: '14px 18px',
-          minWidth: '260px',
-          maxWidth: '320px',
-          boxShadow: '0 16px 40px rgba(124, 58, 237, 0.15)',
+          minWidth: '280px',
+          maxWidth: '340px',
+          boxShadow: '0 16px 40px rgba(124, 58, 237, 0.2), 0 0 0 1px rgba(124, 58, 237, 0.1)',
           display: 'flex',
           alignItems: 'center',
           gap: '12px',
-          border: '1px solid rgba(124, 58, 237, 0.12)',
+          border: '1px solid rgba(124, 58, 237, 0.15)',
           transform: isAnimating ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(8px)',
           opacity: isAnimating ? 1 : 0,
           transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease-out',
@@ -110,22 +108,22 @@ export function UpdateChecker() {
         }}
       >
         <div style={{
-          width: '38px',
-          height: '38px',
+          width: '42px',
+          height: '42px',
           borderRadius: '10px',
-          background: '#f5f3ff',
+          background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
         }}>
-          <ArrowUpCircle style={{ width: '20px', height: '20px', color: '#7C3AED' }} strokeWidth={2} />
+          <ArrowUpCircle style={{ width: '22px', height: '22px', color: '#7C3AED' }} strokeWidth={2} />
         </div>
 
         <div style={{ flex: 1 }}>
-          <h2 style={{ color: '#1f2937', fontSize: '13px', fontWeight: 600, margin: '0 0 2px 0' }}>Update Available</h2>
-          <p style={{ color: '#6b7280', fontSize: '11px', margin: '0 0 8px 0', lineHeight: 1.4 }}>
-            Refresh to get the latest features.
+          <h2 style={{ color: '#1f2937', fontSize: '14px', fontWeight: 600, margin: '0 0 3px 0' }}>New Update Available!</h2>
+          <p style={{ color: '#6b7280', fontSize: '12px', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+            A new version has been deployed. Refresh to get the latest changes.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
@@ -133,32 +131,39 @@ export function UpdateChecker() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
-                background: '#7C3AED',
+                gap: '5px',
+                background: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
                 color: 'white',
-                padding: '6px 12px',
-                borderRadius: '6px',
+                padding: '8px 14px',
+                borderRadius: '8px',
                 border: 'none',
-                fontSize: '11px',
-                fontWeight: 500,
+                fontSize: '12px',
+                fontWeight: 600,
                 cursor: 'pointer',
-                transition: 'background 0.15s',
+                transition: 'all 0.15s',
+                boxShadow: '0 2px 4px rgba(124, 58, 237, 0.3)',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = '#6D28D9'}
-              onMouseLeave={(e) => e.currentTarget.style.background = '#7C3AED'}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)'
+                e.currentTarget.style.boxShadow = '0 4px 8px rgba(124, 58, 237, 0.4)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(124, 58, 237, 0.3)'
+              }}
             >
-              <RefreshCw style={{ width: '12px', height: '12px' }} />
-              Refresh
+              <RefreshCw style={{ width: '13px', height: '13px' }} />
+              Refresh Now
             </button>
             <button
               onClick={handleDismiss}
               style={{
                 color: '#9ca3af',
-                fontSize: '11px',
+                fontSize: '12px',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                padding: '6px 8px',
+                padding: '8px 10px',
                 transition: 'color 0.15s',
               }}
               onMouseEnter={(e) => e.currentTarget.style.color = '#6b7280'}
@@ -172,8 +177,8 @@ export function UpdateChecker() {
         <button
           onClick={handleDismiss}
           style={{
-            width: '24px',
-            height: '24px',
+            width: '26px',
+            height: '26px',
             borderRadius: '6px',
             background: '#f3f4f6',
             border: 'none',

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
+    "prebuild": "node -e \"const fs=require('fs');fs.writeFileSync('public/version.json',JSON.stringify({version:Date.now().toString(),buildTime:new Date().toISOString()},null,2))\"",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint"
