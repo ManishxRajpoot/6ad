@@ -1,6 +1,7 @@
 import { PrismaClient, CryptoNetwork } from '@prisma/client'
 import { verifyTransaction } from './blockchain-verifier.js'
 import { processDepositReferralReward } from '../referral-rewards.js'
+import { sendEmail, getWalletDepositApprovedTemplate, getAgentDepositApprovedNotificationTemplate, buildSmtpConfig } from '../../utils/email.js'
 
 const prisma = new PrismaClient()
 
@@ -288,6 +289,100 @@ async function approveDeposit(
 
       console.log(`[BackgroundVerifier] Deposit ${deposit.id} approved. Balance: ${balanceBefore} -> ${balanceAfter}`)
     })
+
+    // Send email notifications after successful auto-approval
+    try {
+      const depositRecord = await prisma.deposit.findUnique({
+        where: { id: deposit.id },
+        include: {
+          user: {
+            include: {
+              agent: {
+                select: {
+                  email: true,
+                  brandLogo: true,
+                  emailLogo: true,
+                  username: true,
+                  emailSenderNameApproved: true,
+                  smtpEnabled: true,
+                  smtpHost: true,
+                  smtpPort: true,
+                  smtpUsername: true,
+                  smtpPassword: true,
+                  smtpEncryption: true,
+                  smtpFromEmail: true,
+                  customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 }
+                }
+              }
+            }
+          }
+        }
+      })
+
+      if (depositRecord) {
+        const user = await prisma.user.findUnique({ where: { id: deposit.userId } })
+        const newBalance = Number(user?.walletBalance || 0)
+        const isAgent = depositRecord.user.role === 'AGENT'
+
+        if (isAgent) {
+          // Agent deposit - use agent's own branding
+          const agentOwnLogo = depositRecord.user.emailLogo || depositRecord.user.brandLogo || null
+          const userEmailTemplate = getWalletDepositApprovedTemplate({
+            username: depositRecord.user.username,
+            applyId: depositRecord.applyId,
+            amount: Number(depositRecord.amount),
+            newBalance,
+            agentLogo: agentOwnLogo,
+            agentBrandName: depositRecord.user.username
+          })
+          sendEmail({ to: depositRecord.user.email, ...userEmailTemplate }).catch(console.error)
+        } else {
+          // Regular user - use their agent's branding
+          const approvedDomain = depositRecord.user.agent?.customDomains?.[0]
+          const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || depositRecord.user.agent?.emailLogo || depositRecord.user.agent?.brandLogo || null
+          const agentBrandName = depositRecord.user.agent?.username || null
+
+          const userEmailTemplate = getWalletDepositApprovedTemplate({
+            username: depositRecord.user.username,
+            applyId: depositRecord.applyId,
+            amount: Number(depositRecord.amount),
+            newBalance,
+            agentLogo,
+            agentBrandName
+          })
+          sendEmail({
+            to: depositRecord.user.email,
+            ...userEmailTemplate,
+            senderName: depositRecord.user.agent?.emailSenderNameApproved || undefined,
+            smtpConfig: buildSmtpConfig(depositRecord.user.agent)
+          }).catch(console.error)
+
+          // Notify the agent
+          if (depositRecord.user.agent?.email) {
+            const agentNotification = getAgentDepositApprovedNotificationTemplate({
+              username: depositRecord.user.username,
+              userEmail: depositRecord.user.email,
+              applyId: depositRecord.applyId,
+              amount: Number(depositRecord.amount),
+              newBalance,
+              agentLogo,
+              agentBrandName
+            })
+            sendEmail({
+              to: depositRecord.user.agent.email,
+              ...agentNotification,
+              senderName: depositRecord.user.agent.emailSenderNameApproved || undefined,
+              smtpConfig: buildSmtpConfig(depositRecord.user.agent)
+            }).catch(console.error)
+          }
+        }
+
+        console.log(`[BackgroundVerifier] Approval emails sent for deposit ${deposit.id}`)
+      }
+    } catch (emailError) {
+      console.error(`[BackgroundVerifier] Failed to send approval emails for ${deposit.id}:`, emailError)
+      // Don't fail the approval if emails fail - deposit is already approved
+    }
   } catch (error) {
     console.error(`[BackgroundVerifier] Error approving deposit ${deposit.id}:`, error)
     await markForManualReview(deposit.id, `Auto-approval failed: ${error}`)
