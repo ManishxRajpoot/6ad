@@ -10,7 +10,8 @@ import {
   getWalletDepositSubmittedTemplate,
   getWalletDepositApprovedTemplate,
   getWalletDepositRejectedTemplate,
-  getAdminNotificationTemplate
+  getAdminNotificationTemplate,
+  getAgentDepositApprovedNotificationTemplate
 } from '../utils/email.js'
 
 const prisma = new PrismaClient()
@@ -391,15 +392,16 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
 
       // Also notify the agent if user has one
       if (deposit.user.agent?.email) {
-        const agentNotification = getWalletDepositApprovedTemplate({
+        const agentNotification = getAgentDepositApprovedNotificationTemplate({
           username: deposit.user.username,
+          userEmail: deposit.user.email,
           applyId: deposit.applyId,
           amount: Number(deposit.amount),
           newBalance,
           agentLogo: agentLogoApprove,
           agentBrandName: agentBrandNameApprove
         })
-        sendEmail({ to: deposit.user.agent.email, subject: `[User Deposit] ${agentNotification.subject}`, html: agentNotification.html }).catch(console.error)
+        sendEmail({ to: deposit.user.agent.email, ...agentNotification }).catch(console.error)
       }
     }
 

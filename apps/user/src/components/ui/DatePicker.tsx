@@ -143,40 +143,48 @@ export function DatePicker({
 
   return (
     <div className="relative" ref={containerRef}>
-      {/* Trigger Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all duration-200 ${
-          isOpen
-            ? 'border-[#52B788] bg-[#52B788]/5 shadow-sm'
-            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-        }`}
-      >
-        <Calendar className={`w-4 h-4 ${isOpen ? 'text-[#52B788]' : 'text-gray-400'}`} />
-        <span className="text-sm text-gray-600">
-          {startDate || endDate ? (
-            <>
-              <span className="font-medium text-gray-800">
-                {startDate ? formatDate(startDate) : 'Start'}
-              </span>
-              <span className="mx-1 text-gray-400">-</span>
-              <span className="font-medium text-gray-800">
-                {endDate ? formatDate(endDate) : 'End'}
-              </span>
-            </>
-          ) : (
-            <span className="text-gray-400">Select date range</span>
-          )}
-        </span>
+      {/* Trigger Button with Clear */}
+      <div className="flex items-center gap-0">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`flex items-center gap-1.5 px-3 py-2 border transition-all duration-200 ${
+            (startDate || endDate) ? 'rounded-l-lg border-r-0' : 'rounded-lg'
+          } ${
+            isOpen
+              ? 'border-[#52B788] bg-[#52B788]/5 shadow-sm'
+              : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white'
+          }`}
+        >
+          <Calendar className={`w-3.5 h-3.5 ${isOpen ? 'text-[#52B788]' : 'text-gray-400'}`} />
+          <span className="text-[12px] text-gray-600">
+            {startDate || endDate ? (
+              <>
+                <span className="font-medium text-gray-800 text-[12px]">
+                  {startDate ? formatDate(startDate) : 'Start'}
+                </span>
+                <span className="mx-1 text-gray-400 text-[12px]">-</span>
+                <span className="font-medium text-gray-800 text-[12px]">
+                  {endDate ? formatDate(endDate) : 'End'}
+                </span>
+              </>
+            ) : (
+              <span className="text-gray-500 text-[12px]">Select date range</span>
+            )}
+          </span>
+        </button>
         {(startDate || endDate) && (
           <button
             onClick={handleClear}
-            className="ml-1 p-0.5 rounded-full hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors"
+            className={`px-2 py-2 rounded-r-lg border border-l-0 transition-all duration-200 ${
+              isOpen
+                ? 'border-[#52B788] bg-[#52B788]/5'
+                : 'border-gray-200 bg-gray-50 hover:bg-red-50'
+            }`}
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5 text-gray-400 hover:text-red-500 transition-colors" />
           </button>
         )}
-      </button>
+      </div>
 
       {/* Calendar Dropdown */}
       {isOpen && (

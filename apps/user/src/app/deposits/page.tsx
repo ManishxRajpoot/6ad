@@ -12,6 +12,7 @@ import { DatePicker } from '@/components/ui/DatePicker'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
 import { paymentMethodsApi, transactionsApi, authApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { useToast } from '@/contexts/ToastContext'
 import {
   Search,
   Copy,
@@ -114,14 +115,73 @@ export default function DepositsPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
 
-  // Toast notification state
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  // Use global toast
+  const toast = useToast()
 
-
-  // Show toast notification
+  // Show toast notification helper (for backward compatibility)
   const showToast = (message: string, type: 'success' | 'error') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 1500)
+    // Use showToast with custom duration (2 seconds for success, 3 seconds for error)
+    if (type === 'success') {
+      toast.showToast('success', 'Success', message, 2000)
+    } else {
+      toast.showToast('error', 'Error', message, 3000)
+    }
+  }
+
+  // Export deposits to Excel
+  const exportToExcel = () => {
+    if (filteredDeposits.length === 0) {
+      showToast('No data to export', 'error')
+      return
+    }
+
+    // Prepare data for export
+    const exportData = filteredDeposits.map((deposit, index) => ({
+      '#': index + 1,
+      'Apply ID': deposit.applyId || '-',
+      'Amount (USD)': deposit.amount,
+      'Transaction ID': deposit.transactionId || '-',
+      'Payment Method': deposit.paymentMethod || '-',
+      'Remarks': deposit.remarks || '-',
+      'Status': deposit.status,
+      'Request Date': new Date(deposit.createdAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    }))
+
+    // Convert to CSV format
+    const headers = Object.keys(exportData[0])
+    const csvContent = [
+      headers.join(','),
+      ...exportData.map(row =>
+        headers.map(header => {
+          const value = row[header as keyof typeof row]
+          // Escape commas and quotes in values
+          const stringValue = String(value)
+          if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+            return `"${stringValue.replace(/"/g, '""')}"`
+          }
+          return stringValue
+        }).join(',')
+      )
+    ].join('\n')
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `deposits_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    showToast('Export successful!', 'success')
   }
 
   const { updateUser, isAuthenticated, isHydrated } = useAuthStore()
@@ -525,6 +585,7 @@ export default function DepositsPage() {
   const copyToClipboard = (text: string, id: string | number) => {
     navigator.clipboard.writeText(text)
     setCopiedId(id)
+    showToast('Copied to clipboard!', 'success')
     setTimeout(() => setCopiedId(null), 2000)
   }
 
@@ -678,7 +739,8 @@ export default function DepositsPage() {
                 value={actionFilter}
                 onChange={setActionFilter}
                 placeholder="Action"
-                className="w-32"
+                className="w-28"
+                size="modal"
               />
 
               {/* Date Range Picker */}
@@ -697,6 +759,7 @@ export default function DepositsPage() {
                 variant="outline"
                 size="sm"
                 className="border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 text-[12px] px-3 py-2"
+                onClick={exportToExcel}
               >
                 <Download className="w-3.5 h-3.5 mr-1.5" />
                 Export
@@ -1475,6 +1538,7 @@ export default function DepositsPage() {
                     onClick={() => {
                       navigator.clipboard.writeText(selectedMethod.description || '')
                       setCopiedId(-1)
+                      showToast('Copied to clipboard!', 'success')
                       setTimeout(() => setCopiedId(null), 2000)
                     }}
                     className="flex-shrink-0 p-1.5 rounded-lg bg-[#7C3AED] text-white hover:bg-[#6D28D9] transition-colors"
@@ -1871,34 +1935,6 @@ export default function DepositsPage() {
         </div>
       )}
 
-      {/* Toast Notification - Centered with smooth animation */}
-      {toast && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
-          <div
-            className={`flex flex-col items-center gap-3 px-8 py-6 rounded-2xl shadow-2xl transform transition-all duration-300 ease-out animate-toastPop ${
-              toast.type === 'success'
-                ? 'bg-white border-2 border-[#52B788]'
-                : 'bg-white border-2 border-red-500'
-            }`}
-          >
-            <div className={`w-16 h-16 rounded-full flex items-center justify-center animate-checkBounce ${
-              toast.type === 'success' ? 'bg-[#52B788]' : 'bg-red-500'
-            }`}>
-              {toast.type === 'success' ? (
-                <Check className="w-8 h-8 text-white" strokeWidth={3} />
-              ) : (
-                <X className="w-8 h-8 text-white" strokeWidth={3} />
-              )}
-            </div>
-            <span className={`text-lg font-semibold ${
-              toast.type === 'success' ? 'text-[#52B788]' : 'text-red-500'
-            }`}>
-              {toast.type === 'success' ? 'Success!' : 'Error!'}
-            </span>
-            <span className="text-gray-600 text-sm">{toast.message}</span>
-          </div>
-        </div>
-      )}
     </DashboardLayout>
   )
 }

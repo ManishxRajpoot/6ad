@@ -28,7 +28,7 @@ export function Toast({
   action
 }: ToastProps) {
   const [isVisible, setIsVisible] = useState(false)
-  const [isAnimating, setIsAnimating] = useState(false)
+  const [animationState, setAnimationState] = useState<'entering' | 'visible' | 'exiting' | 'hidden'>('hidden')
   const timersRef = useRef<NodeJS.Timeout[]>([])
   const onCloseRef = useRef(onClose)
 
@@ -43,11 +43,12 @@ export function Toast({
 
   const handleClose = useCallback(() => {
     clearAllTimers()
-    setIsAnimating(false)
+    setAnimationState('exiting')
     const timer = setTimeout(() => {
       setIsVisible(false)
+      setAnimationState('hidden')
       onCloseRef.current()
-    }, 200)
+    }, 300)
     timersRef.current.push(timer)
   }, [clearAllTimers])
 
@@ -56,11 +57,13 @@ export function Toast({
 
     if (isOpen) {
       setIsVisible(true)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setIsAnimating(true)
-        })
-      })
+      setAnimationState('entering')
+
+      // Small delay to ensure CSS transition kicks in
+      const enterTimer = setTimeout(() => {
+        setAnimationState('visible')
+      }, 50)
+      timersRef.current.push(enterTimer)
 
       if (duration > 0) {
         const closeTimer = setTimeout(() => {
@@ -71,10 +74,11 @@ export function Toast({
 
       return clearAllTimers
     } else {
-      setIsAnimating(false)
+      setAnimationState('exiting')
       const timer = setTimeout(() => {
         setIsVisible(false)
-      }, 200)
+        setAnimationState('hidden')
+      }, 300)
       timersRef.current.push(timer)
       return clearAllTimers
     }
@@ -95,9 +99,43 @@ export function Toast({
 
   const { color, bg, icon: Icon, defaultTitle } = config[type]
 
+  const isAnimating = animationState === 'visible'
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+      <style>{`
+        @keyframes toastEnter {
+          0% {
+            opacity: 0;
+            transform: scale(0.8) translateY(20px);
+          }
+          50% {
+            transform: scale(1.02) translateY(-2px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        @keyframes toastExit {
+          0% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+          100% {
+            opacity: 0;
+            transform: scale(0.9) translateY(10px);
+          }
+        }
+        .toast-entering {
+          animation: toastEnter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        .toast-exiting {
+          animation: toastExit 0.25s ease-out forwards;
+        }
+      `}</style>
       <div
+        className={animationState === 'entering' || animationState === 'visible' ? 'toast-entering' : animationState === 'exiting' ? 'toast-exiting' : ''}
         style={{
           pointerEvents: 'auto',
           background: 'white',
@@ -110,10 +148,6 @@ export function Toast({
           alignItems: 'center',
           gap: '12px',
           border: '1px solid rgba(124, 58, 237, 0.12)',
-          transform: isAnimating ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(8px)',
-          opacity: isAnimating ? 1 : 0,
-          transition: 'transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s ease-out',
-          willChange: 'transform, opacity',
         }}
       >
         <div style={{
