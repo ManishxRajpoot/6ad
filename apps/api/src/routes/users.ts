@@ -282,9 +282,12 @@ users.post('/', requireAgent, async (c) => {
     const creatorId = c.get('userId')
     const creatorRole = c.get('userRole')
 
-    // Check if email exists
-    const existing = await prisma.user.findUnique({
-      where: { email: data.email }
+    // Normalize email to lowercase
+    const normalizedEmail = data.email.toLowerCase().trim()
+
+    // Check if email exists (case-insensitive)
+    const existing = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } }
     })
 
     if (existing) {
@@ -402,7 +405,7 @@ users.post('/', requireAgent, async (c) => {
       try {
         user = await prisma.user.create({
           data: {
-            email: data.email,
+            email: normalizedEmail,
             password: hashedPassword,
             plaintextPassword: data.password,
             username: data.username,
@@ -646,12 +649,27 @@ users.patch('/:id', requireAgent, async (c) => {
     console.log('User ID:', id)
     console.log('Request body:', JSON.stringify(body, null, 2))
 
+    // If email is being changed, check if new email is already in use by another user
+    if (body.email !== undefined) {
+      const normalizedNewEmail = body.email.toLowerCase().trim()
+      const existingWithEmail = await prisma.user.findFirst({
+        where: {
+          email: { equals: normalizedNewEmail, mode: 'insensitive' },
+          id: { not: id } // Exclude current user
+        }
+      })
+
+      if (existingWithEmail) {
+        return c.json({ error: 'Email already in use by another user' }, 409)
+      }
+    }
+
     // Build update data explicitly to avoid passing unwanted fields
     const updateData: any = {}
 
     // Basic fields
     if (body.username !== undefined) updateData.username = body.username
-    if (body.email !== undefined) updateData.email = body.email
+    if (body.email !== undefined) updateData.email = body.email.toLowerCase().trim()
     if (body.phone !== undefined) updateData.phone = body.phone
     if (body.phone2 !== undefined) updateData.phone2 = body.phone2
     if (body.realName !== undefined) updateData.realName = body.realName

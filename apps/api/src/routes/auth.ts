@@ -2,7 +2,8 @@ import { Hono } from 'hono'
 import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 import * as OTPAuth from 'otpauth'
-import { sendEmail, getVerificationEmailTemplate, get2FADisabledEmailTemplate, buildSmtpConfig } from '../utils/email.js'
+import { sendEmail, getVerificationEmailTemplate, get2FADisabledEmailTemplate, buildSmtpConfig, getWelcomeEmailTemplate, getPasswordResetEmailTemplate } from '../utils/email.js'
+import crypto from 'crypto'
 
 const prisma = new PrismaClient()
 import { z } from 'zod'
@@ -32,6 +33,39 @@ function verifyTOTP(token: string, secret: string, email: string): boolean {
   const delta = totp.validate({ token, window: 2 })
   console.log(`TOTP verify: token=${token}, delta=${delta}`)
   return delta !== null
+}
+
+// Generate secure password reset token
+function generatePasswordResetToken(): string {
+  return crypto.randomBytes(32).toString('hex')
+}
+
+// Get frontend URL for password reset (supports whitelabel domains)
+function getPasswordResetUrl(token: string, customDomain?: string | null): string {
+  // If agent has a custom whitelabel domain, use it
+  if (customDomain) {
+    // Ensure domain has https:// prefix
+    const domain = customDomain.startsWith('http') ? customDomain : `https://${customDomain}`
+    return `${domain}/reset-password?token=${token}`
+  }
+  // Default to main platform URL
+  const baseUrl = process.env.FRONTEND_URL || 'https://6ad.in'
+  return `${baseUrl}/reset-password?token=${token}`
+}
+
+// Helper to get agent's approved custom domain
+async function getAgentCustomDomain(agentId: string | null): Promise<string | null> {
+  if (!agentId) return null
+
+  const customDomain = await prisma.customDomain.findFirst({
+    where: {
+      agentId,
+      status: 'APPROVED'
+    },
+    select: { domain: true }
+  })
+
+  return customDomain?.domain || null
 }
 
 const auth = new Hono()
@@ -226,9 +260,12 @@ auth.post('/register', async (c) => {
     const body = await c.req.json()
     const { email, password, username, phone, referralCode } = registerSchema.parse(body)
 
-    // Check if email exists
-    const existingEmail = await prisma.user.findUnique({
-      where: { email }
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase().trim()
+
+    // Check if email exists (case-insensitive)
+    const existingEmail = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } }
     })
 
     if (existingEmail) {
@@ -263,17 +300,37 @@ auth.post('/register', async (c) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
+    // Generate password reset token for welcome email
+    const passwordResetToken = generatePasswordResetToken()
+
+    // Get agent info for branding and custom domain if user has an agent
+    let agentBrandInfo: { brandLogo?: string | null; username?: string | null } = {}
+    let agentCustomDomain: string | null = null
+    if (agentId) {
+      const agentData = await prisma.user.findUnique({
+        where: { id: agentId },
+        select: { brandLogo: true, username: true }
+      })
+      if (agentData) {
+        agentBrandInfo = agentData
+      }
+      // Get agent's whitelabel domain
+      agentCustomDomain = await getAgentCustomDomain(agentId)
+    }
+
     // Create user with referral info
     // If referred, give $50 opening balance and 5% deposit fee for all platforms
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         username,
         phone,
         role: 'USER',
         referredBy: referrerId,
         agentId: agentId,
+        passwordResetToken,
+        requirePasswordChange: true, // Force password change on first login
         // Referral benefits: $50 opening balance and 5% deposit fee for all platforms
         ...(referrerId ? {
           walletBalance: 50,
@@ -305,6 +362,17 @@ auth.post('/register', async (c) => {
         }
       })
     }
+
+    // Send welcome email with password reset link (uses agent's whitelabel domain if available)
+    const passwordResetLink = getPasswordResetUrl(passwordResetToken, agentCustomDomain)
+    const welcomeEmail = getWelcomeEmailTemplate({
+      username,
+      email: normalizedEmail,
+      passwordResetLink,
+      agentLogo: agentBrandInfo.brandLogo,
+      agentBrandName: agentBrandInfo.username
+    })
+    sendEmail({ to: normalizedEmail, ...welcomeEmail }).catch(console.error)
 
     // Generate token
     const token = generateToken({ id: user.id, email: user.email, role: user.role })
@@ -899,6 +967,184 @@ auth.post('/email/verify-change', verifyToken, async (c) => {
   } catch (error) {
     console.error('Verify email change error:', error)
     return c.json({ error: 'Failed to change email' }, 500)
+  }
+})
+
+// =====================================================
+// PASSWORD RESET ENDPOINTS
+// =====================================================
+
+// POST /auth/password/forgot - Request password reset email
+auth.post('/password/forgot', async (c) => {
+  try {
+    const { email } = await c.req.json()
+
+    if (!email) {
+      return c.json({ error: 'Email is required' }, 400)
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      include: {
+        agent: {
+          select: { id: true, brandLogo: true, username: true }
+        }
+      }
+    })
+
+    if (!user) {
+      // Return success even if user doesn't exist (security best practice)
+      return c.json({ message: 'If this email exists, a password reset link has been sent' })
+    }
+
+    // Generate password reset token
+    const passwordResetToken = generatePasswordResetToken()
+
+    // Update user with reset token (no expiry - expires on first use)
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken,
+        passwordResetExpiry: null // No expiry, invalidated on use
+      }
+    })
+
+    // Get agent's whitelabel domain if user has an agent
+    const agentCustomDomain = await getAgentCustomDomain(user.agentId)
+
+    // Send password reset email (uses agent's whitelabel domain if available)
+    const passwordResetLink = getPasswordResetUrl(passwordResetToken, agentCustomDomain)
+    const resetEmail = getPasswordResetEmailTemplate({
+      username: user.username,
+      passwordResetLink,
+      agentLogo: user.agent?.brandLogo,
+      agentBrandName: user.agent?.username
+    })
+    sendEmail({ to: user.email, ...resetEmail }).catch(console.error)
+
+    return c.json({ message: 'If this email exists, a password reset link has been sent' })
+  } catch (error) {
+    console.error('Forgot password error:', error)
+    return c.json({ error: 'Failed to process request' }, 500)
+  }
+})
+
+// GET /auth/password/verify-token - Verify password reset token is valid
+auth.get('/password/verify-token', async (c) => {
+  try {
+    const { token } = c.req.query()
+
+    if (!token) {
+      return c.json({ valid: false, error: 'Token is required' }, 400)
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { passwordResetToken: token },
+      select: { id: true, username: true, email: true }
+    })
+
+    if (!user) {
+      return c.json({ valid: false, error: 'Invalid or expired token' }, 400)
+    }
+
+    return c.json({ valid: true, username: user.username })
+  } catch (error) {
+    console.error('Verify token error:', error)
+    return c.json({ valid: false, error: 'Failed to verify token' }, 500)
+  }
+})
+
+// POST /auth/password/reset - Reset password using token
+auth.post('/password/reset', async (c) => {
+  try {
+    const { token, newPassword } = await c.req.json()
+
+    if (!token) {
+      return c.json({ error: 'Token is required' }, 400)
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      return c.json({ error: 'Password must be at least 8 characters' }, 400)
+    }
+
+    // Find user with this token
+    const user = await prisma.user.findFirst({
+      where: { passwordResetToken: token }
+    })
+
+    if (!user) {
+      return c.json({ error: 'Invalid or expired token. Please request a new password reset link.' }, 400)
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10)
+
+    // Update password and clear the token (one-time use)
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null, // Invalidate token after use
+        passwordResetExpiry: null,
+        requirePasswordChange: false // User has set their password
+      }
+    })
+
+    return c.json({ message: 'Password reset successful. You can now log in with your new password.' })
+  } catch (error) {
+    console.error('Reset password error:', error)
+    return c.json({ error: 'Failed to reset password' }, 500)
+  }
+})
+
+// POST /auth/password/change - Change password (for logged in users who need to set strong password)
+auth.post('/password/change', verifyToken, async (c) => {
+  try {
+    const userId = c.get('userId')
+    const { currentPassword, newPassword } = await c.req.json()
+
+    if (!newPassword || newPassword.length < 8) {
+      return c.json({ error: 'New password must be at least 8 characters' }, 400)
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    })
+
+    if (!user) {
+      return c.json({ error: 'User not found' }, 404)
+    }
+
+    // If user has requirePasswordChange flag, they don't need to provide current password
+    if (!user.requirePasswordChange) {
+      if (!currentPassword) {
+        return c.json({ error: 'Current password is required' }, 400)
+      }
+
+      const isValidPassword = await bcrypt.compare(currentPassword, user.password)
+      if (!isValidPassword) {
+        return c.json({ error: 'Current password is incorrect' }, 401)
+      }
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10)
+
+    // Update password
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+        requirePasswordChange: false // User has set their password
+      }
+    })
+
+    return c.json({ message: 'Password changed successfully' })
+  } catch (error) {
+    console.error('Change password error:', error)
+    return c.json({ error: 'Failed to change password' }, 500)
   }
 })
 
