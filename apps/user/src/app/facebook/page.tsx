@@ -1932,6 +1932,7 @@ export default function FacebookPage() {
                               onChange={(value) => updateAdAccount(index, 'timezone', value)}
                               placeholder="Timezone"
                               searchPlaceholder="Search timezone"
+                              size="sm"
                             />
                             <Select
                               options={depositOptions}

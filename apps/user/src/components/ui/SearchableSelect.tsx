@@ -18,6 +18,7 @@ interface SearchableSelectProps {
   label?: string
   className?: string
   disabled?: boolean
+  size?: 'default' | 'sm'
 }
 
 export function SearchableSelect({
@@ -28,7 +29,8 @@ export function SearchableSelect({
   searchPlaceholder = 'Search...',
   label,
   className,
-  disabled = false
+  disabled = false,
+  size = 'default'
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -88,24 +90,27 @@ export function SearchableSelect({
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         className={cn(
-          'w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-left',
+          'w-full bg-gray-50 border border-gray-200 text-left',
           'flex items-center justify-between gap-2',
           'transition-all duration-200',
           'focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white',
           'hover:border-gray-300',
           disabled && 'opacity-50 cursor-not-allowed',
+          size === 'sm' ? 'px-2.5 py-1.5 rounded-lg text-xs' : 'px-4 py-3 rounded-xl text-sm',
           isOpen && 'border-[#8B5CF6] ring-2 ring-[#8B5CF6]/20 bg-white'
         )}
         disabled={disabled}
       >
         <span className={cn(
+          'truncate',
           selectedOption ? 'text-gray-900' : 'text-gray-500'
         )}>
           {selectedOption?.label || placeholder}
         </span>
         <ChevronDown
           className={cn(
-            'w-4 h-4 text-gray-400 transition-transform duration-200',
+            'text-gray-400 transition-transform duration-200 flex-shrink-0',
+            size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4',
             isOpen && 'transform rotate-180'
           )}
         />
