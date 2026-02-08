@@ -934,7 +934,7 @@ export default function LoginPage() {
         {/* Left Section - Branding & Features (hidden on mobile and tablet) */}
         <div className="hidden xl:flex w-full xl:w-[55%] p-6 xl:p-10 2xl:p-16 flex-col justify-between">
           {/* Logo Section */}
-          <div className="flex items-center gap-3 py-2">
+          <div className="flex items-center gap-3 py-2 mb-6">
             {isUsingCustomBranding && branding.brandLogo ? (
               <img src={branding.brandLogo} alt="Logo" className="h-14 max-w-[280px] object-contain" />
             ) : (
@@ -943,7 +943,7 @@ export default function LoginPage() {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 flex flex-col justify-center py-12 xl:py-0">
+          <div className="flex-1 flex flex-col justify-center">
             <div className="max-w-xl">
               {/* Badge */}
               <div className="inline-flex items-center gap-2 bg-purple-100 border border-purple-200 rounded-full px-3 py-1.5 xl:px-4 xl:py-2 mb-4 xl:mb-6">
