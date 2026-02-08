@@ -934,9 +934,9 @@ export default function LoginPage() {
         {/* Left Section - Branding & Features (hidden on mobile and tablet) */}
         <div className="hidden xl:flex w-full xl:w-[55%] p-6 xl:p-10 2xl:p-16 flex-col justify-between">
           {/* Logo Section */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 py-2">
             {isUsingCustomBranding && branding.brandLogo ? (
-              <img src={branding.brandLogo} alt="Logo" className="h-16 max-w-[320px] object-contain" />
+              <img src={branding.brandLogo} alt="Logo" className="h-14 max-w-[280px] object-contain" />
             ) : (
               <SixMediaLogo size="large" />
             )}
