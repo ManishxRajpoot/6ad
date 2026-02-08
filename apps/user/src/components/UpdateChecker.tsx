@@ -51,14 +51,30 @@ export function UpdateChecker() {
     return () => clearInterval(interval)
   }, [checkForUpdates])
 
-  const handleRefresh = () => {
-    if ('caches' in window) {
-      caches.keys().then((names) => {
-        names.forEach((name) => {
-          caches.delete(name)
-        })
+  const handleRefresh = async () => {
+    try {
+      // Fetch the new version first
+      const response = await fetch(`${API_URL}/version`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
       })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Save the new version to localStorage BEFORE reloading
+        localStorage.setItem('app_version', data.version)
+      }
+    } catch (error) {
+      console.debug('[UpdateChecker] Failed to fetch version before refresh')
     }
+
+    // Clear caches
+    if ('caches' in window) {
+      const names = await caches.keys()
+      await Promise.all(names.map(name => caches.delete(name)))
+    }
+
+    // Force hard reload
     window.location.reload()
   }
 

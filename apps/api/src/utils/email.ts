@@ -235,22 +235,18 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
   }
 }
 
-// Six Media Logo SVG (inline for email)
+// Six Media Logo SVG (inline for email) - Modern design
 const SIX_MEDIA_LOGO_SVG = `
-<svg viewBox="0 0 48 28" width="48" height="28" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 40 40" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#6366F1"/>
-      <stop offset="100%" stop-color="#8B5CF6"/>
-    </linearGradient>
-    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#8B5CF6"/>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="50%" stop-color="#A855F7"/>
       <stop offset="100%" stop-color="#EC4899"/>
     </linearGradient>
   </defs>
-  <path d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14" fill="url(#g1)"/>
-  <path d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14" fill="url(#g2)"/>
-  <ellipse cx="24" cy="14" rx="4" ry="5" fill="white" opacity="0.15"/>
+  <rect x="0" y="0" width="40" height="40" rx="10" fill="url(#g1)"/>
+  <text x="20" y="27" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="18" font-weight="bold">6</text>
 </svg>
 `
 
@@ -260,36 +256,42 @@ function getLogoHtml(agentLogo?: string | null, agentBrandName?: string | null):
   if (agentLogo && (agentLogo.startsWith('data:image') || agentLogo.startsWith('http'))) {
     return `<img src="${agentLogo}" alt="Logo" style="height: 40px; max-width: 180px; object-fit: contain;" />`
   }
-  // If agent has brand name but no logo, show brand name text
+  // If agent has brand name but no logo, show brand name text with modern styling
   if (agentBrandName) {
     return `
-      <span style="font-size: 20px; font-weight: 700; color: #ffffff;">${agentBrandName}</span>
+      <table cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td>
+            <span style="font-size: 22px; font-weight: 700; color: #111827; letter-spacing: -0.5px;">${agentBrandName}</span>
+          </td>
+        </tr>
+      </table>
     `
   }
-  // Default Six Media logo
+  // Default Six Media logo - Clean modern design
   return `
     <table cellpadding="0" cellspacing="0" border="0">
       <tr>
-        <td style="padding-right: 10px;">${SIX_MEDIA_LOGO_SVG}</td>
-        <td>
-          <span style="font-size: 18px; font-weight: 700; background: linear-gradient(to right, #6366F1, #8B5CF6, #EC4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">SIXMEDIA</span>
+        <td style="padding-right: 12px; vertical-align: middle;">${SIX_MEDIA_LOGO_SVG}</td>
+        <td style="vertical-align: middle;">
+          <span style="font-size: 20px; font-weight: 700; color: #111827; letter-spacing: -0.5px;">Six Media</span>
           <br/>
-          <span style="font-size: 9px; font-weight: 600; letter-spacing: 2px; color: #9CA3AF;">ADVERTISING</span>
+          <span style="font-size: 10px; font-weight: 600; letter-spacing: 1.5px; color: #9CA3AF; text-transform: uppercase;">Advertising</span>
         </td>
       </tr>
     </table>
   `
 }
 
-// Status badge colors
+// Status badge colors - Modern pill design
 const STATUS_COLORS = {
-  pending: { bg: '#FEF3C7', text: '#D97706', border: '#FCD34D' },
-  approved: { bg: '#D1FAE5', text: '#059669', border: '#6EE7B7' },
-  rejected: { bg: '#FEE2E2', text: '#DC2626', border: '#FCA5A5' },
-  info: { bg: '#DBEAFE', text: '#2563EB', border: '#93C5FD' }
+  pending: { bg: '#FEF3C7', text: '#B45309', border: '#FCD34D', icon: '&#9679;' },
+  approved: { bg: '#DCFCE7', text: '#166534', border: '#86EFAC', icon: '&#10003;' },
+  rejected: { bg: '#FEE2E2', text: '#B91C1C', border: '#FECACA', icon: '&#10005;' },
+  info: { bg: '#DBEAFE', text: '#1E40AF', border: '#93C5FD', icon: '&#9432;' }
 }
 
-// Base email template wrapper
+// Base email template wrapper - Professional design (no gradients)
 interface BaseTemplateOptions {
   title: string
   subtitle?: string
@@ -306,12 +308,24 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
   // Use agent brand name in footer if available
   const platformName = agentBrandName || 'Six Media'
 
+  // Gradient backgrounds for different status types
   const gradients = {
-    purple: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #EC4899 100%)',
-    green: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-    red: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
-    amber: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)'
+    purple: 'linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #EC4899 100%)',
+    green: 'linear-gradient(135deg, #059669 0%, #10B981 50%, #34D399 100%)',
+    red: 'linear-gradient(135deg, #DC2626 0%, #EF4444 50%, #F87171 100%)',
+    amber: 'linear-gradient(135deg, #D97706 0%, #F59E0B 50%, #FBBF24 100%)'
   }
+
+  // Fallback solid colors for email clients that don't support gradients
+  const solidColors = {
+    purple: '#7C3AED',
+    green: '#059669',
+    red: '#DC2626',
+    amber: '#D97706'
+  }
+
+  const gradient = gradients[headerColor]
+  const solidColor = solidColors[headerColor]
 
   return `
     <!DOCTYPE html>
@@ -321,22 +335,46 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>${title}</title>
     </head>
-    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f5;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6; -webkit-font-smoothing: antialiased;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
         <tr>
           <td align="center">
-            <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; background-color: #ffffff; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);">
-              <!-- Header -->
+            <!-- Main Container -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
+
+              <!-- Header with gradient -->
               <tr>
-                <td style="padding: 28px 32px 24px; background: ${gradients[headerColor]}; border-radius: 16px 16px 0 0;">
+                <td style="background: ${gradient}; background-color: ${solidColor}; padding: 24px 28px;">
                   <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                      <td>${getLogoHtml(agentLogo, agentBrandName)}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding-top: 20px;">
-                        <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 700;">${title}</h1>
-                        ${subtitle ? `<p style="margin: 6px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">${subtitle}</p>` : ''}
+                      <td>
+                        <table cellpadding="0" cellspacing="0">
+                          <tr>
+                            ${agentLogo && (agentLogo.startsWith('data:image') || agentLogo.startsWith('http')) ? `
+                            <!-- Agent Logo Image -->
+                            <td style="padding-right: 12px; vertical-align: middle;">
+                              <img src="${agentLogo}" alt="${platformName}" style="height: 44px; max-width: 120px; object-fit: contain; border-radius: 8px;" />
+                            </td>
+                            <td style="vertical-align: middle;">
+                              <span style="font-size: 18px; font-weight: 700; color: #ffffff;">${platformName}</span>
+                              <br/>
+                              <span style="font-size: 12px; color: rgba(255,255,255,0.85);">Advertising Platform</span>
+                            </td>
+                            ` : `
+                            <!-- Default Logo Box -->
+                            <td style="padding-right: 12px; vertical-align: middle;">
+                              <div style="width: 44px; height: 44px; background-color: rgba(255,255,255,0.25); border-radius: 10px; text-align: center; line-height: 44px;">
+                                <span style="color: #ffffff; font-size: 20px; font-weight: 700;">${agentBrandName ? agentBrandName.charAt(0).toUpperCase() : '6'}</span>
+                              </div>
+                            </td>
+                            <td style="vertical-align: middle;">
+                              <span style="font-size: 18px; font-weight: 700; color: #ffffff;">${platformName}</span>
+                              <br/>
+                              <span style="font-size: 12px; color: rgba(255,255,255,0.85);">Advertising Platform</span>
+                            </td>
+                            `}
+                          </tr>
+                        </table>
                       </td>
                     </tr>
                   </table>
@@ -345,17 +383,29 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
 
               <!-- Content -->
               <tr>
-                <td style="padding: 28px 32px;">
+                <td style="padding: 28px;">
+                  <!-- Title -->
+                  <h1 style="margin: 0 0 20px; color: #111827; font-size: 22px; font-weight: 700;">${title}</h1>
+
                   ${content}
                 </td>
               </tr>
 
               <!-- Footer -->
               <tr>
-                <td style="padding: 20px 32px; background-color: #f9fafb; border-radius: 0 0 16px 16px; border-top: 1px solid #e5e7eb;">
-                  <p style="margin: 0; color: #9ca3af; font-size: 12px; text-align: center; line-height: 1.6;">
-                    ${footerText || `This is an automated message from ${platformName} Platform.<br>Please do not reply to this email.`}
-                  </p>
+                <td style="padding: 20px 28px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center">
+                        <p style="margin: 0 0 4px; color: #6b7280; font-size: 12px;">
+                          © 2026 ${platformName}. All rights reserved.
+                        </p>
+                        <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+                          ${footerText || 'This is an automated message. Please do not reply directly.'}
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
             </table>
@@ -367,25 +417,52 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
   `
 }
 
-// Helper to create info row
-function createInfoRow(label: string, value: string, isCode = false): string {
+// Helper to create Excel-style table row with modern styling
+function createTableRow(label: string, value: string, isCode = false, isLast = false): string {
   return `
     <tr>
-      <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
-        <span style="color: #6b7280; font-size: 13px;">${label}</span>
+      <td style="padding: 14px 20px; ${!isLast ? 'border-bottom: 1px solid #f3f4f6;' : ''} color: #6b7280; font-size: 13px; font-weight: 500; width: 40%;">
+        ${label}
       </td>
-      <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; text-align: right;">
-        <span style="color: #111827; font-size: 14px; font-weight: 600; ${isCode ? 'font-family: monospace; background: #f3f4f6; padding: 2px 8px; border-radius: 4px;' : ''}">${value}</span>
+      <td style="padding: 14px 20px; ${!isLast ? 'border-bottom: 1px solid #f3f4f6;' : ''} color: #111827; font-size: 14px; font-weight: 600; ${isCode ? 'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;' : ''}">
+        ${isCode ? `<span style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 6px 12px; border-radius: 6px; font-size: 12px; border: 1px solid #e2e8f0;">${value}</span>` : value}
       </td>
     </tr>
   `
 }
 
-// Helper to create status badge
+// Helper to create Excel-style table with header - Modern design
+function createExcelTable(rows: Array<{ label: string; value: string; isCode?: boolean }>, headerColor = '#f9fafb'): string {
+  // Determine header text color based on background
+  const isLightHeader = ['#f9fafb', '#f3f4f6', '#FEF3C7'].includes(headerColor)
+  const headerTextColor = isLightHeader ? '#374151' : '#374151'
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background: #ffffff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);">
+      <thead>
+        <tr style="background: ${headerColor};">
+          <th style="padding: 14px 20px; text-align: left; font-size: 11px; font-weight: 700; color: ${headerTextColor}; border-bottom: 2px solid rgba(0,0,0,0.06); text-transform: uppercase; letter-spacing: 0.8px; width: 40%;">Field</th>
+          <th style="padding: 14px 20px; text-align: left; font-size: 11px; font-weight: 700; color: ${headerTextColor}; border-bottom: 2px solid rgba(0,0,0,0.06); text-transform: uppercase; letter-spacing: 0.8px;">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((row, index) => createTableRow(row.label, row.value, row.isCode, index === rows.length - 1)).join('')}
+      </tbody>
+    </table>
+  `
+}
+
+// Legacy helper for backward compatibility
+function createInfoRow(label: string, value: string, isCode = false): string {
+  return createTableRow(label, value, isCode, false)
+}
+
+// Helper to create status badge - Modern pill design with icon
 function createStatusBadge(status: 'pending' | 'approved' | 'rejected'): string {
   const colors = STATUS_COLORS[status]
   const labels = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }
-  return `<span style="display: inline-block; padding: 4px 12px; background: ${colors.bg}; color: ${colors.text}; font-size: 12px; font-weight: 600; border-radius: 20px; border: 1px solid ${colors.border};">${labels[status]}</span>`
+  const icons = { pending: '&#8987;', approved: '&#10003;', rejected: '&#10005;' }
+  return `<span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: ${colors.bg}; color: ${colors.text}; font-size: 12px; font-weight: 600; border-radius: 100px; border: 1px solid ${colors.border};"><span style="font-size: 11px;">${icons[status]}</span>${labels[status]}</span>`
 }
 
 // =====================================================
@@ -404,25 +481,27 @@ interface AdAccountEmailData {
 }
 
 export function getAdAccountSubmittedTemplate(data: AdAccountEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Application ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Status', value: createStatusBadge('pending') },
+    { label: 'Submitted', value: new Date().toLocaleDateString('en-US', { dateStyle: 'medium' }) }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Your ad account opening request has been submitted successfully. Our team will review your request and get back to you shortly.
+      Your ad account opening request has been submitted successfully. Please find the details below.
     </p>
 
-    <div style="background: #f9fafb; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Application ID', data.applyId, true)}
-        ${createInfoRow('Platform', data.platform)}
-        ${createInfoRow('Status', createStatusBadge('pending'))}
-        ${createInfoRow('Submitted', new Date().toLocaleDateString('en-US', { dateStyle: 'medium' }))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
-    <p style="margin: 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">
-      You will receive an email notification once your request is processed.
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
     </p>
   `
 
@@ -440,22 +519,24 @@ export function getAdAccountSubmittedTemplate(data: AdAccountEmailData): { subje
 }
 
 export function getAdAccountApprovedTemplate(data: AdAccountEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Application ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    ...(data.accountId ? [{ label: 'Account ID', value: data.accountId, isCode: true }] : []),
+    ...(data.accountName ? [{ label: 'Account Name', value: data.accountName }] : []),
+    { label: 'Status', value: createStatusBadge('approved') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Great news! Your ad account request has been <strong style="color: #059669;">approved</strong>. Your account is now ready to use.
+      We are pleased to inform you that your request has been processed successfully. Please find the details below.
     </p>
 
-    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.08) 100%); border: 1px solid #D1FAE5; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Application ID', data.applyId, true)}
-        ${createInfoRow('Platform', data.platform)}
-        ${data.accountId ? createInfoRow('Account ID', data.accountId, true) : ''}
-        ${data.accountName ? createInfoRow('Account Name', data.accountName) : ''}
-        ${createInfoRow('Status', createStatusBadge('approved'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
     ${data.adminRemarks ? `
@@ -464,13 +545,13 @@ export function getAdAccountApprovedTemplate(data: AdAccountEmailData): { subjec
     </div>
     ` : ''}
 
-    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.5;">
-      You can now start using your ad account. Log in to your dashboard to manage your campaigns.
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
     </p>
   `
 
   return {
-    subject: `Ad Account Approved - ${data.applyId}`,
+    subject: `Congratulations ${data.username} your Ad Account Approved - ${data.applyId}`,
     html: getBaseEmailTemplate({
       title: 'Request Approved',
       subtitle: 'Ad Account Opening',
@@ -482,21 +563,71 @@ export function getAdAccountApprovedTemplate(data: AdAccountEmailData): { subjec
   }
 }
 
-export function getAdAccountRejectedTemplate(data: AdAccountEmailData): { subject: string; html: string } {
+// Agent notification for ad account approval
+export function getAgentAdAccountApprovedNotificationTemplate(data: AdAccountEmailData & { userEmail?: string }): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'User', value: data.username },
+    ...(data.userEmail ? [{ label: 'User Email', value: data.userEmail }] : []),
+    { label: 'Application ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    ...(data.accountId ? [{ label: 'Account ID', value: data.accountId, isCode: true }] : []),
+    ...(data.accountName ? [{ label: 'Account Name', value: data.accountName }] : []),
+    { label: 'Status', value: createStatusBadge('approved') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear Agent,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      We regret to inform you that your ad account request has been <strong style="color: #DC2626;">rejected</strong>.
+      We are pleased to inform you that a user's ad account request has been approved. Please find the details below.
     </p>
 
-    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.08) 100%); border: 1px solid #FEE2E2; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Application ID', data.applyId, true)}
-        ${createInfoRow('Platform', data.platform)}
-        ${createInfoRow('Status', createStatusBadge('rejected'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
+    </div>
+
+    ${data.adminRemarks ? `
+    <div style="background: #f0fdf4; border-left: 4px solid #10B981; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #065f46; font-size: 13px;"><strong>Remarks:</strong> ${data.adminRemarks}</p>
+    </div>
+    ` : ''}
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
+    </p>
+  `
+
+  return {
+    subject: `Congratulations ${data.username} your Ad Account Approved - ${data.applyId}`,
+    html: getBaseEmailTemplate({
+      title: 'User Ad Account Approved',
+      subtitle: 'Agent Notification',
+      headerColor: 'green',
+      agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
+      content
+    })
+  }
+}
+
+export function getAdAccountRejectedTemplate(data: AdAccountEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Application ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Status', value: createStatusBadge('rejected') }
+  ]
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      We regret to inform you that your request has been rejected. Please find the details below.
+    </p>
+
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
     ${data.adminRemarks ? `
@@ -506,7 +637,7 @@ export function getAdAccountRejectedTemplate(data: AdAccountEmailData): { subjec
     ` : ''}
 
     <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
-      If you have questions, please contact support for more information.
+      If you have any questions, please contact our support team.
     </p>
   `
 
@@ -515,6 +646,52 @@ export function getAdAccountRejectedTemplate(data: AdAccountEmailData): { subjec
     html: getBaseEmailTemplate({
       title: 'Request Rejected',
       subtitle: 'Ad Account Opening',
+      headerColor: 'red',
+      agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
+      content
+    })
+  }
+}
+
+// Agent notification for ad account rejection
+export function getAgentAdAccountRejectedNotificationTemplate(data: AdAccountEmailData & { userEmail?: string }): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'User', value: data.username },
+    ...(data.userEmail ? [{ label: 'User Email', value: data.userEmail }] : []),
+    { label: 'Application ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Status', value: createStatusBadge('rejected') }
+  ]
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear Agent,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      We regret to inform you that a user's ad account request has been rejected. Please find the details below.
+    </p>
+
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
+    </div>
+
+    ${data.adminRemarks ? `
+    <div style="background: #fef2f2; border-left: 4px solid #EF4444; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #991b1b; font-size: 13px;"><strong>Reason:</strong> ${data.adminRemarks}</p>
+    </div>
+    ` : ''}
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
+    </p>
+  `
+
+  return {
+    subject: `Ad Account Request Rejected - ${data.applyId}`,
+    html: getBaseEmailTemplate({
+      title: 'User Ad Account Rejected',
+      subtitle: 'Agent Notification',
       headerColor: 'red',
       agentLogo: data.agentLogo,
       agentBrandName: data.agentBrandName,
@@ -540,31 +717,33 @@ interface WalletDepositEmailData {
 }
 
 export function getWalletDepositSubmittedTemplate(data: WalletDepositEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'Amount', value: `$${data.amount.toLocaleString()}` },
+    ...(data.paymentMethod ? [{ label: 'Payment Method', value: data.paymentMethod }] : []),
+    ...(data.txHash ? [{ label: 'Transaction Hash', value: data.txHash.slice(0, 20) + '...', isCode: true }] : []),
+    { label: 'Status', value: createStatusBadge('pending') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Your wallet deposit request has been submitted successfully. Our team will verify your payment and credit your account.
+      Your wallet deposit request has been submitted successfully. Please find the details below.
     </p>
 
-    <div style="background: #f9fafb; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Reference ID', data.applyId, true)}
-        ${createInfoRow('Amount', `$${data.amount.toLocaleString()}`)}
-        ${data.paymentMethod ? createInfoRow('Payment Method', data.paymentMethod) : ''}
-        ${data.txHash ? createInfoRow('Transaction Hash', data.txHash.slice(0, 20) + '...') : ''}
-        ${createInfoRow('Status', createStatusBadge('pending'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
-    <p style="margin: 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">
-      You will receive a confirmation email once your deposit is processed.
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
     </p>
   `
 
   return {
-    subject: `Wallet Deposit Submitted - ${data.applyId}`,
+    subject: `${data.username} submitted wallet $${data.amount.toLocaleString()}`,
     html: getBaseEmailTemplate({
       title: 'Deposit Submitted',
       subtitle: 'Wallet Top-up',
@@ -577,30 +756,32 @@ export function getWalletDepositSubmittedTemplate(data: WalletDepositEmailData):
 }
 
 export function getWalletDepositApprovedTemplate(data: WalletDepositEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'Amount Credited', value: `$${data.amount.toLocaleString()}` },
+    ...(data.newBalance !== undefined ? [{ label: 'New Balance', value: `$${data.newBalance.toLocaleString()}` }] : []),
+    { label: 'Status', value: createStatusBadge('approved') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Your wallet deposit has been <strong style="color: #059669;">approved</strong> and credited to your account.
+      We are pleased to inform you that your deposit has been processed successfully. Please find the details below.
     </p>
 
-    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.08) 100%); border: 1px solid #D1FAE5; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Reference ID', data.applyId, true)}
-        ${createInfoRow('Amount Credited', `$${data.amount.toLocaleString()}`)}
-        ${data.newBalance !== undefined ? createInfoRow('New Balance', `$${data.newBalance.toLocaleString()}`) : ''}
-        ${createInfoRow('Status', createStatusBadge('approved'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
-    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.5;">
-      Your funds are now available for use. Thank you for your deposit!
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
     </p>
   `
 
   return {
-    subject: `Wallet Deposit Approved - $${data.amount}`,
+    subject: `Congrats! Your deposit of $${data.amount.toLocaleString()} is approved`,
     html: getBaseEmailTemplate({
       title: 'Deposit Approved',
       subtitle: 'Wallet Top-up',
@@ -612,21 +793,64 @@ export function getWalletDepositApprovedTemplate(data: WalletDepositEmailData): 
   }
 }
 
-export function getWalletDepositRejectedTemplate(data: WalletDepositEmailData): { subject: string; html: string } {
+// Agent notification for user deposit approval
+export function getAgentDepositApprovedNotificationTemplate(data: WalletDepositEmailData & { userEmail?: string }): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'User', value: data.username },
+    ...(data.userEmail ? [{ label: 'User Email', value: data.userEmail }] : []),
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'Amount Credited', value: `$${data.amount.toLocaleString()}` },
+    ...(data.newBalance !== undefined ? [{ label: 'New Balance', value: `$${data.newBalance.toLocaleString()}` }] : []),
+    { label: 'Status', value: createStatusBadge('approved') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear Agent,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Your wallet deposit request has been <strong style="color: #DC2626;">rejected</strong>.
+      We are pleased to inform you that a user deposit has been processed successfully. Please find the details below.
     </p>
 
-    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.08) 100%); border: 1px solid #FEE2E2; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Reference ID', data.applyId, true)}
-        ${createInfoRow('Amount', `$${data.amount.toLocaleString()}`)}
-        ${createInfoRow('Status', createStatusBadge('rejected'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
+    </div>
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
+    </p>
+  `
+
+  return {
+    subject: `Congrats! ${data.username}'s deposit of $${data.amount.toLocaleString()} is approved`,
+    html: getBaseEmailTemplate({
+      title: 'User Deposit Approved',
+      subtitle: 'Agent Notification',
+      headerColor: 'green',
+      agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
+      content
+    })
+  }
+}
+
+export function getWalletDepositRejectedTemplate(data: WalletDepositEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'Amount', value: `$${data.amount.toLocaleString()}` },
+    { label: 'Status', value: createStatusBadge('rejected') }
+  ]
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      We regret to inform you that your deposit request has been rejected. Please find the details below.
+    </p>
+
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
     ${data.adminRemarks ? `
@@ -636,12 +860,12 @@ export function getWalletDepositRejectedTemplate(data: WalletDepositEmailData): 
     ` : ''}
 
     <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
-      Please contact support if you believe this is an error.
+      If you have any questions, please contact our support team.
     </p>
   `
 
   return {
-    subject: `Wallet Deposit Rejected - ${data.applyId}`,
+    subject: `$${data.amount.toLocaleString()} Wallet Deposit Rejected - ${data.applyId}`,
     html: getBaseEmailTemplate({
       title: 'Deposit Rejected',
       subtitle: 'Wallet Top-up',
@@ -673,28 +897,30 @@ interface AccountRechargeEmailData {
 }
 
 export function getAccountRechargeSubmittedTemplate(data: AccountRechargeEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Account ID', value: data.accountId, isCode: true },
+    { label: 'Recharge Amount', value: `$${data.amount.toLocaleString()}` },
+    { label: 'Commission', value: `$${data.commission.toLocaleString()}` },
+    { label: 'Total Deducted', value: `$${data.totalCost.toLocaleString()}` },
+    { label: 'Status', value: createStatusBadge('pending') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Your ad account recharge request has been submitted. The amount has been deducted from your wallet and is pending processing.
+      Your ad account recharge request has been submitted successfully. Please find the details below.
     </p>
 
-    <div style="background: #f9fafb; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Reference ID', data.applyId, true)}
-        ${createInfoRow('Platform', data.platform)}
-        ${createInfoRow('Account ID', data.accountId, true)}
-        ${createInfoRow('Recharge Amount', `$${data.amount.toLocaleString()}`)}
-        ${createInfoRow('Commission', `$${data.commission.toLocaleString()}`)}
-        ${createInfoRow('Total Deducted', `$${data.totalCost.toLocaleString()}`)}
-        ${createInfoRow('Status', createStatusBadge('pending'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
-    <p style="margin: 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">
-      You will receive a confirmation once your recharge is processed.
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
     </p>
   `
 
@@ -712,27 +938,29 @@ export function getAccountRechargeSubmittedTemplate(data: AccountRechargeEmailDa
 }
 
 export function getAccountRechargeApprovedTemplate(data: AccountRechargeEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Account ID', value: data.accountId, isCode: true },
+    { label: 'Amount Added', value: `$${data.amount.toLocaleString()}` },
+    ...(data.newBalance !== undefined ? [{ label: 'Account Balance', value: `$${data.newBalance.toLocaleString()}` }] : []),
+    { label: 'Status', value: createStatusBadge('approved') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Your ad account recharge has been <strong style="color: #059669;">approved</strong> and processed successfully.
+      We are pleased to inform you that your recharge has been processed successfully. Please find the details below.
     </p>
 
-    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.08) 100%); border: 1px solid #D1FAE5; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Reference ID', data.applyId, true)}
-        ${createInfoRow('Platform', data.platform)}
-        ${createInfoRow('Account ID', data.accountId, true)}
-        ${createInfoRow('Amount Added', `$${data.amount.toLocaleString()}`)}
-        ${data.newBalance !== undefined ? createInfoRow('Account Balance', `$${data.newBalance.toLocaleString()}`) : ''}
-        ${createInfoRow('Status', createStatusBadge('approved'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
-    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.5;">
-      Your ad account has been topped up and is ready for use.
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
     </p>
   `
 
@@ -750,22 +978,24 @@ export function getAccountRechargeApprovedTemplate(data: AccountRechargeEmailDat
 }
 
 export function getAccountRechargeRejectedTemplate(data: AccountRechargeEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Account ID', value: data.accountId, isCode: true },
+    { label: 'Amount Refunded', value: `$${data.totalCost.toLocaleString()}` },
+    { label: 'Status', value: createStatusBadge('rejected') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Your ad account recharge request has been <strong style="color: #DC2626;">rejected</strong>. The amount has been refunded to your wallet.
+      We regret to inform you that your recharge request has been rejected. Please find the details below.
     </p>
 
-    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.08) 100%); border: 1px solid #FEE2E2; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Reference ID', data.applyId, true)}
-        ${createInfoRow('Platform', data.platform)}
-        ${createInfoRow('Account ID', data.accountId, true)}
-        ${createInfoRow('Amount Refunded', `$${data.totalCost.toLocaleString()}`)}
-        ${createInfoRow('Status', createStatusBadge('rejected'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
     ${data.adminRemarks ? `
@@ -777,6 +1007,10 @@ export function getAccountRechargeRejectedTemplate(data: AccountRechargeEmailDat
     <div style="background: #f0fdf4; border-left: 4px solid #10B981; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
       <p style="margin: 0; color: #065f46; font-size: 13px;"><strong>Refund:</strong> $${data.totalCost.toLocaleString()} has been credited back to your wallet.</p>
     </div>
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
+    </p>
   `
 
   return {
@@ -808,26 +1042,28 @@ interface BMShareEmailData {
 }
 
 export function getBMShareSubmittedTemplate(data: BMShareEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Ad Account ID', value: data.adAccountId, isCode: true },
+    { label: 'BM ID', value: data.bmId, isCode: true },
+    { label: 'Status', value: createStatusBadge('pending') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Your Business Manager share request has been submitted successfully.
+      Your Business Manager share request has been submitted successfully. Please find the details below.
     </p>
 
-    <div style="background: #f9fafb; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Reference ID', data.applyId, true)}
-        ${createInfoRow('Platform', data.platform)}
-        ${createInfoRow('Ad Account ID', data.adAccountId, true)}
-        ${createInfoRow('BM ID', data.bmId, true)}
-        ${createInfoRow('Status', createStatusBadge('pending'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
-    <p style="margin: 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">
-      You will receive a notification once your request is processed.
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
     </p>
   `
 
@@ -845,22 +1081,24 @@ export function getBMShareSubmittedTemplate(data: BMShareEmailData): { subject: 
 }
 
 export function getBMShareApprovedTemplate(data: BMShareEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Ad Account ID', value: data.adAccountId, isCode: true },
+    { label: 'BM ID', value: data.bmId, isCode: true },
+    { label: 'Status', value: createStatusBadge('approved') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Your Business Manager share request has been <strong style="color: #059669;">approved</strong>.
+      We are pleased to inform you that your request has been processed successfully. Please find the details below.
     </p>
 
-    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.08) 100%); border: 1px solid #D1FAE5; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Reference ID', data.applyId, true)}
-        ${createInfoRow('Platform', data.platform)}
-        ${createInfoRow('Ad Account ID', data.adAccountId, true)}
-        ${createInfoRow('BM ID', data.bmId, true)}
-        ${createInfoRow('Status', createStatusBadge('approved'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
     ${data.adminRemarks ? `
@@ -869,8 +1107,8 @@ export function getBMShareApprovedTemplate(data: BMShareEmailData): { subject: s
     </div>
     ` : ''}
 
-    <p style="margin: 0; color: #374151; font-size: 14px; line-height: 1.5;">
-      Your ad account has been shared to the Business Manager successfully.
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
     </p>
   `
 
@@ -888,22 +1126,24 @@ export function getBMShareApprovedTemplate(data: BMShareEmailData): { subject: s
 }
 
 export function getBMShareRejectedTemplate(data: BMShareEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Ad Account ID', value: data.adAccountId, isCode: true },
+    { label: 'BM ID', value: data.bmId, isCode: true },
+    { label: 'Status', value: createStatusBadge('rejected') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${data.username}</strong>,
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Your Business Manager share request has been <strong style="color: #DC2626;">rejected</strong>.
+      We regret to inform you that your request has been rejected. Please find the details below.
     </p>
 
-    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.08) 100%); border: 1px solid #FEE2E2; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Reference ID', data.applyId, true)}
-        ${createInfoRow('Platform', data.platform)}
-        ${createInfoRow('Ad Account ID', data.adAccountId, true)}
-        ${createInfoRow('BM ID', data.bmId, true)}
-        ${createInfoRow('Status', createStatusBadge('rejected'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
     ${data.adminRemarks ? `
@@ -913,7 +1153,7 @@ export function getBMShareRejectedTemplate(data: BMShareEmailData): { subject: s
     ` : ''}
 
     <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
-      Please verify your BM ID and try again, or contact support for assistance.
+      If you have any questions, please contact our support team.
     </p>
   `
 
@@ -935,7 +1175,7 @@ export function getBMShareRejectedTemplate(data: BMShareEmailData): { subject: s
 // =====================================================
 
 interface AdminNotificationData {
-  type: 'ad_account' | 'wallet_deposit' | 'account_recharge' | 'bm_share'
+  type: 'ad_account' | 'wallet_deposit' | 'account_recharge' | 'bm_share' | 'account_refund'
   applyId: string
   username: string
   userEmail: string
@@ -949,25 +1189,31 @@ export function getAdminNotificationTemplate(data: AdminNotificationData): { sub
     ad_account: 'New Ad Account Request',
     wallet_deposit: 'New Wallet Deposit',
     account_recharge: 'New Account Recharge',
-    bm_share: 'New BM Share Request'
+    bm_share: 'New BM Share Request',
+    account_refund: 'New Account Refund Request'
   }
 
+  const tableRows = [
+    { label: 'Request Type', value: typeLabels[data.type] },
+    { label: 'Reference ID', value: data.applyId, isCode: true },
+    { label: 'User', value: data.username },
+    { label: 'Email', value: data.userEmail },
+    ...(data.platform ? [{ label: 'Platform', value: data.platform }] : []),
+    ...(data.amount ? [{ label: 'Amount', value: `$${data.amount.toLocaleString()}` }] : []),
+    ...(data.details ? [{ label: 'Details', value: data.details }] : []),
+    { label: 'Status', value: createStatusBadge('pending') }
+  ]
+
   const content = `
-    <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-      A new request requires your attention.
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear Admin,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      A new request requires your attention. Please find the details below.
     </p>
 
-    <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%); border: 1px solid #E0E7FF; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${createInfoRow('Request Type', typeLabels[data.type])}
-        ${createInfoRow('Reference ID', data.applyId, true)}
-        ${createInfoRow('User', data.username)}
-        ${createInfoRow('Email', data.userEmail)}
-        ${data.platform ? createInfoRow('Platform', data.platform) : ''}
-        ${data.amount ? createInfoRow('Amount', `$${data.amount.toLocaleString()}`) : ''}
-        ${data.details ? createInfoRow('Details', data.details) : ''}
-        ${createInfoRow('Status', createStatusBadge('pending'))}
-      </table>
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
     </div>
 
     <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
@@ -1006,7 +1252,7 @@ export function getAdminNotificationTemplate(data: AdminNotificationData): { sub
 export function getVerificationEmailTemplate(code: string, username: string, agentLogo?: string | null, agentBrandName?: string | null): { subject: string; html: string } {
   const content = `
     <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${username}</strong>,
+      Dear <strong>${username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
       Use the verification code below to verify your email address. This code will expire in 10 minutes.
@@ -1018,8 +1264,8 @@ export function getVerificationEmailTemplate(code: string, username: string, age
       <p style="margin: 0; color: #111827; font-size: 36px; font-weight: 700; letter-spacing: 8px; font-family: monospace;">${code}</p>
     </div>
 
-    <p style="margin: 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">
-      If you didn't request this verification, please ignore this email or contact support if you have concerns.
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
     </p>
   `
 
@@ -1028,7 +1274,7 @@ export function getVerificationEmailTemplate(code: string, username: string, age
     html: getBaseEmailTemplate({
       title: 'Email Verification',
       subtitle: 'Verify your email address',
-      headerColor: 'green',
+      headerColor: 'purple',
       agentLogo,
       agentBrandName,
       content
@@ -1039,10 +1285,10 @@ export function getVerificationEmailTemplate(code: string, username: string, age
 export function get2FADisabledEmailTemplate(username: string, agentLogo?: string | null, agentBrandName?: string | null): { subject: string; html: string } {
   const content = `
     <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
-      Hello <strong>${username}</strong>,
+      Dear <strong>${username}</strong>,
     </p>
     <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-      Two-factor authentication has been <strong style="color: #DC2626;">disabled</strong> on your account.
+      Two-factor authentication has been disabled on your account.
     </p>
 
     <div style="background: #fef2f2; border-left: 4px solid #EF4444; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
@@ -1052,7 +1298,7 @@ export function get2FADisabledEmailTemplate(username: string, agentLogo?: string
     </div>
 
     <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
-      We recommend re-enabling two-factor authentication to keep your account secure.
+      If you have any questions, please contact our support team.
     </p>
   `
 
@@ -1064,6 +1310,389 @@ export function get2FADisabledEmailTemplate(username: string, agentLogo?: string
       headerColor: 'red',
       agentLogo,
       agentBrandName,
+      content
+    })
+  }
+}
+
+// =====================================================
+// WELCOME & PASSWORD RESET EMAIL TEMPLATES
+// =====================================================
+
+interface WelcomeEmailData {
+  username: string
+  email: string
+  passwordResetLink: string
+  agentLogo?: string | null
+  agentBrandName?: string | null
+}
+
+export function getWelcomeEmailTemplate(data: WelcomeEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Username', value: data.username },
+    { label: 'Email', value: data.email },
+    { label: 'Account Created', value: new Date().toLocaleDateString('en-US', { dateStyle: 'medium' }) }
+  ]
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      Welcome to ${data.agentBrandName || 'Six Media'}! Your account has been created successfully. Please find your account details below.
+    </p>
+
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
+    </div>
+
+    <div style="background: #fef3c7; border-left: 4px solid #F59E0B; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #92400e; font-size: 13px;">
+        <strong>Important:</strong> For security reasons, please set a strong password (minimum 8 characters) using the button below. This link will expire after first use.
+      </p>
+    </div>
+
+    <!-- Password Reset Button -->
+    <div style="text-align: center; margin-bottom: 24px;">
+      <a href="${data.passwordResetLink}" style="display: inline-block; background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #EC4899 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 6px rgba(124, 58, 237, 0.25);">
+        Set Your Password
+      </a>
+    </div>
+
+    <p style="margin: 0 0 16px; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      Or copy and paste this link into your browser:
+    </p>
+    <p style="margin: 0 0 24px; color: #7C3AED; font-size: 12px; word-break: break-all; background: #f9fafb; padding: 12px; border-radius: 6px;">
+      ${data.passwordResetLink}
+    </p>
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
+    </p>
+  `
+
+  return {
+    subject: `Welcome to ${data.agentBrandName || 'Six Media'} - Set Your Password`,
+    html: getBaseEmailTemplate({
+      title: 'Welcome!',
+      subtitle: 'Your account is ready',
+      headerColor: 'purple',
+      agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
+      content
+    })
+  }
+}
+
+interface PasswordResetEmailData {
+  username: string
+  passwordResetLink: string
+  agentLogo?: string | null
+  agentBrandName?: string | null
+}
+
+export function getPasswordResetEmailTemplate(data: PasswordResetEmailData): { subject: string; html: string } {
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      We received a request to reset your password. Click the button below to set a new password.
+    </p>
+
+    <div style="background: #fef3c7; border-left: 4px solid #F59E0B; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #92400e; font-size: 13px;">
+        <strong>Note:</strong> This link will expire after first use. Please set a strong password (minimum 8 characters).
+      </p>
+    </div>
+
+    <!-- Password Reset Button -->
+    <div style="text-align: center; margin-bottom: 24px;">
+      <a href="${data.passwordResetLink}" style="display: inline-block; background: linear-gradient(135deg, #7C3AED 0%, #A855F7 50%, #EC4899 100%); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 6px rgba(124, 58, 237, 0.25);">
+        Reset Password
+      </a>
+    </div>
+
+    <p style="margin: 0 0 16px; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      Or copy and paste this link into your browser:
+    </p>
+    <p style="margin: 0 0 24px; color: #7C3AED; font-size: 12px; word-break: break-all; background: #f9fafb; padding: 12px; border-radius: 6px;">
+      ${data.passwordResetLink}
+    </p>
+
+    <p style="margin: 0 0 16px; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you didn't request this password reset, please ignore this email or contact support if you have concerns.
+    </p>
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
+    </p>
+  `
+
+  return {
+    subject: 'Password Reset Request',
+    html: getBaseEmailTemplate({
+      title: 'Reset Password',
+      subtitle: 'Security Request',
+      headerColor: 'amber',
+      agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
+      content
+    })
+  }
+}
+
+// =====================================================
+// ACCOUNT REFUND EMAIL TEMPLATES
+// =====================================================
+
+interface AccountRefundEmailData {
+  username: string
+  refundId: string
+  amount: number
+  platform: string
+  accountId: string
+  reason?: string
+  adminRemarks?: string
+  newBalance?: number
+  agentLogo?: string | null
+  agentBrandName?: string | null
+}
+
+// User: Refund request submitted
+export function getAccountRefundSubmittedTemplate(data: AccountRefundEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Refund ID', value: data.refundId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Account ID', value: data.accountId, isCode: true },
+    { label: 'Refund Amount', value: `$${data.amount.toLocaleString()}` },
+    { label: 'Status', value: createStatusBadge('pending') }
+  ]
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      Your refund request has been submitted successfully and is pending review. Please find the details below.
+    </p>
+
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#FEF3C7')}
+    </div>
+
+    ${data.reason ? `
+    <div style="background: #f9fafb; border-left: 4px solid #6B7280; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #374151; font-size: 13px;"><strong>Reason:</strong> ${data.reason}</p>
+    </div>
+    ` : ''}
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      We will notify you once your refund request has been processed. If you have any questions, please contact our support team.
+    </p>
+  `
+
+  return {
+    subject: `Refund Request Submitted - ${data.refundId}`,
+    html: getBaseEmailTemplate({
+      title: 'Refund Request Submitted',
+      subtitle: 'Pending Review',
+      headerColor: 'amber',
+      agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
+      content
+    })
+  }
+}
+
+// User: Refund approved
+export function getAccountRefundApprovedTemplate(data: AccountRefundEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Refund ID', value: data.refundId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Account ID', value: data.accountId, isCode: true },
+    { label: 'Refund Amount', value: `$${data.amount.toLocaleString()}` },
+    ...(data.newBalance !== undefined ? [{ label: 'New Wallet Balance', value: `$${data.newBalance.toLocaleString()}` }] : []),
+    { label: 'Status', value: createStatusBadge('approved') }
+  ]
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      Great news! Your refund request has been approved. The amount has been credited to your wallet.
+    </p>
+
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#D1FAE5')}
+    </div>
+
+    <div style="background: #f0fdf4; border-left: 4px solid #10B981; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #065f46; font-size: 13px;"><strong>💰 $${data.amount.toLocaleString()}</strong> has been added to your dashboard wallet balance.</p>
+    </div>
+
+    ${data.adminRemarks ? `
+    <div style="background: #f9fafb; border-left: 4px solid #6B7280; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #374151; font-size: 13px;"><strong>Remarks:</strong> ${data.adminRemarks}</p>
+    </div>
+    ` : ''}
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
+    </p>
+  `
+
+  return {
+    subject: `Congratulations ${data.username} your Refund Request Approved - ${data.refundId}`,
+    html: getBaseEmailTemplate({
+      title: 'Refund Approved',
+      subtitle: 'Amount Credited',
+      headerColor: 'green',
+      agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
+      content
+    })
+  }
+}
+
+// User: Refund rejected
+export function getAccountRefundRejectedTemplate(data: AccountRefundEmailData): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'Refund ID', value: data.refundId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Account ID', value: data.accountId, isCode: true },
+    { label: 'Refund Amount', value: `$${data.amount.toLocaleString()}` },
+    { label: 'Status', value: createStatusBadge('rejected') }
+  ]
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear <strong>${data.username}</strong>,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      We regret to inform you that your refund request has been rejected. Please find the details below.
+    </p>
+
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#FEE2E2')}
+    </div>
+
+    ${data.adminRemarks ? `
+    <div style="background: #fef2f2; border-left: 4px solid #EF4444; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #991b1b; font-size: 13px;"><strong>Reason:</strong> ${data.adminRemarks}</p>
+    </div>
+    ` : ''}
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions or believe this was an error, please contact our support team.
+    </p>
+  `
+
+  return {
+    subject: `Refund Request Rejected - ${data.refundId}`,
+    html: getBaseEmailTemplate({
+      title: 'Refund Rejected',
+      subtitle: 'Request Declined',
+      headerColor: 'red',
+      agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
+      content
+    })
+  }
+}
+
+// Agent: Refund approved notification
+export function getAgentRefundApprovedNotificationTemplate(data: AccountRefundEmailData & { userEmail?: string }): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'User', value: data.username },
+    ...(data.userEmail ? [{ label: 'User Email', value: data.userEmail }] : []),
+    { label: 'Refund ID', value: data.refundId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Account ID', value: data.accountId, isCode: true },
+    { label: 'Refund Amount', value: `$${data.amount.toLocaleString()}` },
+    { label: 'Status', value: createStatusBadge('approved') }
+  ]
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear Agent,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      A user's refund request has been approved. Please find the details below.
+    </p>
+
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
+    </div>
+
+    ${data.adminRemarks ? `
+    <div style="background: #f0fdf4; border-left: 4px solid #10B981; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #065f46; font-size: 13px;"><strong>Remarks:</strong> ${data.adminRemarks}</p>
+    </div>
+    ` : ''}
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
+    </p>
+  `
+
+  return {
+    subject: `Congratulations ${data.username} your Refund Request Approved - ${data.refundId}`,
+    html: getBaseEmailTemplate({
+      title: 'User Refund Approved',
+      subtitle: 'Agent Notification',
+      headerColor: 'green',
+      agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
+      content
+    })
+  }
+}
+
+// Agent: Refund rejected notification
+export function getAgentRefundRejectedNotificationTemplate(data: AccountRefundEmailData & { userEmail?: string }): { subject: string; html: string } {
+  const tableRows = [
+    { label: 'User', value: data.username },
+    ...(data.userEmail ? [{ label: 'User Email', value: data.userEmail }] : []),
+    { label: 'Refund ID', value: data.refundId, isCode: true },
+    { label: 'Platform', value: data.platform },
+    { label: 'Account ID', value: data.accountId, isCode: true },
+    { label: 'Refund Amount', value: `$${data.amount.toLocaleString()}` },
+    { label: 'Status', value: createStatusBadge('rejected') }
+  ]
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Dear Agent,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      A user's refund request has been rejected. Please find the details below.
+    </p>
+
+    <div style="margin-bottom: 24px;">
+      ${createExcelTable(tableRows, '#f9fafb')}
+    </div>
+
+    ${data.adminRemarks ? `
+    <div style="background: #fef2f2; border-left: 4px solid #EF4444; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #991b1b; font-size: 13px;"><strong>Reason:</strong> ${data.adminRemarks}</p>
+    </div>
+    ` : ''}
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      If you have any questions, please contact our support team.
+    </p>
+  `
+
+  return {
+    subject: `Refund Request Rejected - ${data.refundId}`,
+    html: getBaseEmailTemplate({
+      title: 'User Refund Rejected',
+      subtitle: 'Agent Notification',
+      headerColor: 'red',
+      agentLogo: data.agentLogo,
+      agentBrandName: data.agentBrandName,
       content
     })
   }

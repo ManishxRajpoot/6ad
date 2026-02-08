@@ -8,10 +8,17 @@ import {
   getAdAccountSubmittedTemplate,
   getAdAccountApprovedTemplate,
   getAdAccountRejectedTemplate,
+  getAgentAdAccountApprovedNotificationTemplate,
+  getAgentAdAccountRejectedNotificationTemplate,
   getAccountRechargeSubmittedTemplate,
   getAccountRechargeApprovedTemplate,
   getAccountRechargeRejectedTemplate,
-  getAdminNotificationTemplate
+  getAdminNotificationTemplate,
+  getAccountRefundSubmittedTemplate,
+  getAccountRefundApprovedTemplate,
+  getAccountRefundRejectedTemplate,
+  getAgentRefundApprovedNotificationTemplate,
+  getAgentRefundRejectedNotificationTemplate
 } from '../utils/email.js'
 
 const prisma = new PrismaClient()
@@ -895,7 +902,7 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
     })
 
     if (!account) {
@@ -930,6 +937,22 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
     })
     sendEmail({ to: account.user.email, ...userEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(account.user.agent) }).catch(console.error)
 
+    // Send approval notification to agent
+    if (account.user.agent?.email) {
+      const agentEmail = getAgentAdAccountApprovedNotificationTemplate({
+        username: account.user.username,
+        userEmail: account.user.email,
+        applyId: id.slice(-8).toUpperCase(),
+        platform: account.platform,
+        accountId: account.accountId,
+        accountName: account.accountName || undefined,
+        adminRemarks,
+        agentLogo,
+        agentBrandName
+      })
+      sendEmail({ to: account.user.agent.email, ...agentEmail }).catch(console.error)
+    }
+
     return c.json({ message: 'Account approved successfully' })
   } catch (error) {
     console.error('Approve account error:', error)
@@ -945,7 +968,7 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: { include: { agent: { select: { brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
+      include: { user: { include: { agent: { select: { email: true, brandLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 } } } } } }
     })
 
     if (!account) {
@@ -973,6 +996,20 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
       agentBrandName
     })
     sendEmail({ to: account.user.email, ...userEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(account.user.agent) }).catch(console.error)
+
+    // Send rejection notification to agent
+    if (account.user.agent?.email) {
+      const agentEmail = getAgentAdAccountRejectedNotificationTemplate({
+        username: account.user.username,
+        userEmail: account.user.email,
+        applyId: id.slice(-8).toUpperCase(),
+        platform: account.platform,
+        adminRemarks,
+        agentLogo,
+        agentBrandName
+      })
+      sendEmail({ to: account.user.agent.email, ...agentEmail }).catch(console.error)
+    }
 
     return c.json({ message: 'Account rejected' })
   } catch (error) {
@@ -1332,7 +1369,28 @@ accounts.post('/:id/refund', requireUser, async (c) => {
 
     const account = await prisma.adAccount.findUnique({
       where: { id },
-      include: { user: true }
+      include: {
+        user: {
+          include: {
+            agent: {
+              select: {
+                email: true,
+                brandLogo: true,
+                username: true,
+                emailSenderNameApproved: true,
+                smtpEnabled: true,
+                smtpHost: true,
+                smtpPort: true,
+                smtpUsername: true,
+                smtpPassword: true,
+                smtpEncryption: true,
+                smtpFromEmail: true,
+                customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 }
+              }
+            }
+          }
+        }
+      }
     })
 
     if (!account) {
@@ -1356,6 +1414,45 @@ accounts.post('/:id/refund', requireUser, async (c) => {
       }
     })
 
+    // Get agent branding
+    const agentLogo = account.user.agent?.customDomains?.[0]?.brandLogo || account.user.agent?.brandLogo || null
+    const agentBrandName = account.user.agent?.username || null
+
+    // Send confirmation email to user
+    const userEmail = getAccountRefundSubmittedTemplate({
+      username: account.user.username,
+      refundId: accountRefund.id.slice(-8).toUpperCase(),
+      amount: Number(amount),
+      platform: account.platform,
+      accountId: account.accountId,
+      reason,
+      agentLogo,
+      agentBrandName
+    })
+    sendEmail({
+      to: account.user.email,
+      ...userEmail,
+      senderName: account.user.agent?.emailSenderNameApproved || undefined,
+      smtpConfig: buildSmtpConfig(account.user.agent)
+    }).catch(console.error)
+
+    // Send notification to admin
+    const adminEmails = await getAdminEmails()
+    if (adminEmails.length > 0) {
+      const adminNotification = getAdminNotificationTemplate({
+        type: 'account_refund',
+        applyId: accountRefund.id.slice(-8).toUpperCase(),
+        username: account.user.username,
+        userEmail: account.user.email,
+        platform: account.platform,
+        amount: Number(amount),
+        details: reason ? `Account: ${account.accountId}. Reason: ${reason}` : `Account: ${account.accountId}`
+      })
+      for (const adminEmail of adminEmails) {
+        sendEmail({ to: adminEmail, ...adminNotification }).catch(console.error)
+      }
+    }
+
     return c.json({ message: 'Refund request created', refund: accountRefund }, 201)
   } catch (error: any) {
     console.error('Account refund error:', error)
@@ -1373,7 +1470,28 @@ accounts.post('/refunds/:id/approve', requireAdmin, async (c) => {
       where: { id },
       include: {
         adAccount: {
-          include: { user: true }
+          include: {
+            user: {
+              include: {
+                agent: {
+                  select: {
+                    email: true,
+                    brandLogo: true,
+                    username: true,
+                    emailSenderNameApproved: true,
+                    smtpEnabled: true,
+                    smtpHost: true,
+                    smtpPort: true,
+                    smtpUsername: true,
+                    smtpPassword: true,
+                    smtpEncryption: true,
+                    smtpFromEmail: true,
+                    customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     })
@@ -1385,6 +1503,11 @@ accounts.post('/refunds/:id/approve', requireAdmin, async (c) => {
     if (refund.status !== 'PENDING') {
       return c.json({ error: 'Refund already processed' }, 400)
     }
+
+    // Get current user wallet balance for wallet flow record
+    const balanceBefore = Number(refund.adAccount.user.walletBalance)
+    const refundAmount = Number(refund.amount)
+    const balanceAfter = balanceBefore + refundAmount
 
     await prisma.$transaction(async (tx) => {
       // Update refund status
@@ -1406,11 +1529,6 @@ accounts.post('/refunds/:id/approve', requireAdmin, async (c) => {
         }
       })
 
-      // Get current user wallet balance for wallet flow record
-      const balanceBefore = Number(refund.adAccount.user.walletBalance)
-      const refundAmount = Number(refund.amount)
-      const balanceAfter = balanceBefore + refundAmount
-
       // Add to user wallet using increment
       await tx.user.update({
         where: { id: refund.adAccount.userId },
@@ -1431,6 +1549,45 @@ accounts.post('/refunds/:id/approve', requireAdmin, async (c) => {
         }
       })
     })
+
+    // Get agent branding
+    const agentLogo = refund.adAccount.user.agent?.customDomains?.[0]?.brandLogo || refund.adAccount.user.agent?.brandLogo || null
+    const agentBrandName = refund.adAccount.user.agent?.username || null
+
+    // Send approval email to user
+    const userEmailTemplate = getAccountRefundApprovedTemplate({
+      username: refund.adAccount.user.username,
+      refundId: id.slice(-8).toUpperCase(),
+      amount: refundAmount,
+      platform: refund.adAccount.platform,
+      accountId: refund.adAccount.accountId,
+      adminRemarks,
+      newBalance: balanceAfter,
+      agentLogo,
+      agentBrandName
+    })
+    sendEmail({
+      to: refund.adAccount.user.email,
+      ...userEmailTemplate,
+      senderName: refund.adAccount.user.agent?.emailSenderNameApproved || undefined,
+      smtpConfig: buildSmtpConfig(refund.adAccount.user.agent)
+    }).catch(console.error)
+
+    // Send notification to agent
+    if (refund.adAccount.user.agent?.email) {
+      const agentNotification = getAgentRefundApprovedNotificationTemplate({
+        username: refund.adAccount.user.username,
+        userEmail: refund.adAccount.user.email,
+        refundId: id.slice(-8).toUpperCase(),
+        amount: refundAmount,
+        platform: refund.adAccount.platform,
+        accountId: refund.adAccount.accountId,
+        adminRemarks,
+        agentLogo,
+        agentBrandName
+      })
+      sendEmail({ to: refund.adAccount.user.agent.email, ...agentNotification }).catch(console.error)
+    }
 
     return c.json({ message: 'Account refund approved' })
   } catch (error) {
@@ -1481,7 +1638,33 @@ accounts.post('/refunds/:id/reject', requireAdmin, async (c) => {
     const { adminRemarks } = await c.req.json()
 
     const refund = await prisma.accountRefund.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        adAccount: {
+          include: {
+            user: {
+              include: {
+                agent: {
+                  select: {
+                    email: true,
+                    brandLogo: true,
+                    username: true,
+                    emailSenderNameApproved: true,
+                    smtpEnabled: true,
+                    smtpHost: true,
+                    smtpPort: true,
+                    smtpUsername: true,
+                    smtpPassword: true,
+                    smtpEncryption: true,
+                    smtpFromEmail: true,
+                    customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true }, take: 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     })
 
     if (!refund) {
@@ -1499,6 +1682,44 @@ accounts.post('/refunds/:id/reject', requireAdmin, async (c) => {
         adminRemarks
       }
     })
+
+    // Get agent branding
+    const agentLogo = refund.adAccount.user.agent?.customDomains?.[0]?.brandLogo || refund.adAccount.user.agent?.brandLogo || null
+    const agentBrandName = refund.adAccount.user.agent?.username || null
+
+    // Send rejection email to user
+    const userEmailTemplate = getAccountRefundRejectedTemplate({
+      username: refund.adAccount.user.username,
+      refundId: id.slice(-8).toUpperCase(),
+      amount: Number(refund.amount),
+      platform: refund.adAccount.platform,
+      accountId: refund.adAccount.accountId,
+      adminRemarks,
+      agentLogo,
+      agentBrandName
+    })
+    sendEmail({
+      to: refund.adAccount.user.email,
+      ...userEmailTemplate,
+      senderName: refund.adAccount.user.agent?.emailSenderNameApproved || undefined,
+      smtpConfig: buildSmtpConfig(refund.adAccount.user.agent)
+    }).catch(console.error)
+
+    // Send notification to agent
+    if (refund.adAccount.user.agent?.email) {
+      const agentNotification = getAgentRefundRejectedNotificationTemplate({
+        username: refund.adAccount.user.username,
+        userEmail: refund.adAccount.user.email,
+        refundId: id.slice(-8).toUpperCase(),
+        amount: Number(refund.amount),
+        platform: refund.adAccount.platform,
+        accountId: refund.adAccount.accountId,
+        adminRemarks,
+        agentLogo,
+        agentBrandName
+      })
+      sendEmail({ to: refund.adAccount.user.agent.email, ...agentNotification }).catch(console.error)
+    }
 
     return c.json({ message: 'Account refund rejected' })
   } catch (error) {
