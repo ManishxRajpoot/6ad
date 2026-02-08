@@ -143,6 +143,11 @@ model User {
   emailVerifyExpiry DateTime?
   pendingEmail      String?     // New email pending verification during email change
 
+  // Password reset
+  passwordResetToken   String?     // One-time use token for password reset
+  passwordResetExpiry  DateTime?   // Token expiry time
+  requirePasswordChange Boolean   @default(false)  // Force user to change password on first login
+
   // Remarks
   personalRemarks   String?
   contactRemarks    String?
