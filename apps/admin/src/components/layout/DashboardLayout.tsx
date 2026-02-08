@@ -62,11 +62,11 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#F8F9FC]">
       <Sidebar />
-      <div className="ml-64">
+      <div className="ml-[200px] transition-all duration-300">
         <Header title={title} subtitle={subtitle} />
-        <main className="p-6">{children}</main>
+        <main className="p-5">{children}</main>
       </div>
     </div>
   )

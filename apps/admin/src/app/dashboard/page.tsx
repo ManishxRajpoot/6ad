@@ -1,21 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { dashboardApi, agentsApi } from '@/lib/api'
-import { formatCurrency } from '@/lib/utils'
 import {
   TrendingUp,
   TrendingDown,
-  Users,
-  DollarSign,
-  BarChart3,
-  ChevronLeft,
-  ChevronRight,
-  ArrowUpRight,
-  ArrowDownRight,
+  ChevronDown,
+  Loader2,
 } from 'lucide-react'
 import {
+  AreaChart,
+  Area,
   LineChart,
   Line,
   XAxis,
@@ -26,91 +22,265 @@ import {
   PieChart,
   Pie,
   Cell,
-  AreaChart,
-  Area,
 } from 'recharts'
 
-// Sample data matching Figma
-const revenueData = [
-  { name: 'Jan', value: 30000 },
-  { name: 'Feb', value: 25000 },
-  { name: 'Mar', value: 35000 },
-  { name: 'Apr', value: 28000 },
-  { name: 'May', value: 42000 },
-  { name: 'Jun', value: 38000 },
-  { name: 'Jul', value: 45000 },
-  { name: 'Aug', value: 43000 },
-]
+// ============================================
+// KPI CARD COMPONENT - Single Reusable Component
+// ============================================
+type KPICardProps = {
+  title: string
+  value: number
+  growth: number
+  chartData: number[]
+  color: string
+  format: 'currency' | 'number' | 'percent'
+  variant?: 'light' | 'dark'
+}
 
-const agentPerformanceData = [
-  { name: 'Jan', agent1: 4000, agent2: 2400, agent3: 2400 },
-  { name: 'Feb', agent1: 3000, agent2: 1398, agent3: 2210 },
-  { name: 'Mar', agent1: 2000, agent2: 9800, agent3: 2290 },
-  { name: 'Apr', agent1: 2780, agent2: 3908, agent3: 2000 },
-  { name: 'May', agent1: 1890, agent2: 4800, agent3: 2181 },
-  { name: 'Jun', agent1: 2390, agent2: 3800, agent3: 2500 },
-]
+// Format value based on type
+const formatValue = (value: number, format: 'currency' | 'number' | 'percent'): string => {
+  if (format === 'currency') {
+    return `$${Math.round(value).toLocaleString()}`
+  }
+  if (format === 'percent') {
+    return `${value.toFixed(2)}%`
+  }
+  return Math.round(value).toLocaleString()
+}
 
-const platformData = [
-  { name: 'Facebook', value: 3500, color: '#1877F2' },
-  { name: 'Google', value: 2800, color: '#4285F4' },
-  { name: 'TikTok', value: 1800, color: '#000000' },
-  { name: 'Snapchat', value: 1200, color: '#FFFC00' },
-  { name: 'Bing', value: 700, color: '#00809D' },
-]
+// Mini Sparkline Chart - Same as user side (smooth bezier curves)
+const MiniChart = ({ data, color, id }: { data: number[]; color: string; id: string }) => {
+  if (!data || data.length === 0) return null
 
-const topAgents = [
-  { name: 'Ali Batala', balance: '$10000', avatar: 'A', trend: 'up', change: '+12.5%' },
-  { name: 'Sarah Wilson', balance: '$9000', avatar: 'S', trend: 'up', change: '+8.3%' },
-  { name: 'Mike Johnson', balance: '$8500', avatar: 'M', trend: 'down', change: '-2.1%' },
-  { name: 'Emma Davis', balance: '$7200', avatar: 'E', trend: 'up', change: '+15.2%' },
-  { name: 'John Smith', balance: '$6800', avatar: 'J', trend: 'up', change: '+5.7%' },
-]
+  const max = Math.max(...data)
+  const min = Math.min(...data)
+  const range = max - min || 1
+  const width = 120
+  const height = 50
+  const padding = 5
 
-export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    totalRevenue: 43000,
-    pendingRequests: 6643,
-    avgDailyUsers: 25.5456,
-    monthlyGrowth: 13.59,
+  // Generate smooth curve points
+  const points = data.map((value, index) => {
+    const x = padding + (index / (data.length - 1)) * (width - padding * 2)
+    const y = height - padding - ((value - min) / range) * (height - padding * 2)
+    return { x, y }
   })
-  const [agents, setAgents] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedYear, setSelectedYear] = useState(2025)
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [dashboardData, agentsData] = await Promise.all([
-          dashboardApi.getStats().catch(() => ({})),
-          agentsApi.getAll().catch(() => ({ agents: [] })),
-        ])
+  // Create smooth curve path using bezier curves
+  const createSmoothPath = () => {
+    if (points.length < 2) return ''
 
-        if (dashboardData.stats) {
-          setStats({
-            totalRevenue: dashboardData.stats.totalRevenue || 43000,
-            pendingRequests: dashboardData.stats.pendingRequests || 6643,
-            avgDailyUsers: dashboardData.stats.avgDailyUsers || 25.5456,
-            monthlyGrowth: dashboardData.stats.monthlyGrowth || 13.59,
-          })
-        }
+    let path = `M ${points[0].x} ${points[0].y}`
 
-        setAgents(agentsData.agents?.slice(0, 5) || [])
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error)
-      } finally {
-        setLoading(false)
-      }
+    for (let i = 0; i < points.length - 1; i++) {
+      const current = points[i]
+      const next = points[i + 1]
+      const controlX = (current.x + next.x) / 2
+
+      path += ` C ${controlX} ${current.y}, ${controlX} ${next.y}, ${next.x} ${next.y}`
     }
 
-    fetchData()
+    return path
+  }
+
+  // Create area fill path
+  const createAreaPath = () => {
+    const linePath = createSmoothPath()
+    const lastPoint = points[points.length - 1]
+    const firstPoint = points[0]
+
+    return `${linePath} L ${lastPoint.x} ${height} L ${firstPoint.x} ${height} Z`
+  }
+
+  return (
+    <svg width={width} height={height} className="overflow-visible">
+      <defs>
+        <linearGradient id={`gradient-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+          <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+        </linearGradient>
+      </defs>
+      {/* Area fill */}
+      <path
+        d={createAreaPath()}
+        fill={`url(#gradient-${id})`}
+      />
+      {/* Line */}
+      <path
+        d={createSmoothPath()}
+        fill="none"
+        stroke={color}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+// KPI Card Component - Compact design matching user side
+const KPICard = ({ title, value, growth, chartData, color, format, variant = 'light' }: KPICardProps) => {
+  const isDark = variant === 'dark'
+  const cardId = title.replace(/\s+/g, '-').toLowerCase()
+
+  return (
+    <div
+      className={`rounded-2xl shadow-sm border border-gray-100 overflow-hidden ${
+        isDark ? 'bg-[#1F2937] border-gray-700' : 'bg-white'
+      }`}
+    >
+      <div className="p-5">
+        {/* Title */}
+        <p className={`text-sm font-medium mb-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+          {title}
+        </p>
+
+        {/* Value + Badge */}
+        <div className="flex items-center gap-3 mb-3">
+          <p className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            {formatValue(value, format)}
+          </p>
+          <span
+            className="px-2.5 py-1 rounded-full text-xs font-semibold text-white"
+            style={{ backgroundColor: color }}
+          >
+            +{Math.abs(growth).toFixed(2)}%
+          </span>
+        </div>
+
+        {/* Mini Chart - aligned to right */}
+        <div className="flex justify-end -mb-2 -mr-2">
+          <MiniChart data={chartData} color={color} id={cardId} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ============================================
+// TYPES
+// ============================================
+type DashboardStats = {
+  totalRevenue: number
+  revenueChange: number
+  pendingRequests: number
+  pendingChange: number
+  totalAgents: number
+  agentChange: number
+  totalUsers: number
+  userChange: number
+  overallGrowth: number
+}
+
+type Agent = {
+  id: string
+  username: string
+  email: string
+  balance: number
+  totalUsers?: number
+}
+
+// ============================================
+// CHART DATA
+// ============================================
+const revenueChartData = [
+  { name: 'Mon', income: 100000, outcome: 80000 },
+  { name: 'Tues', income: 150000, outcome: 120000 },
+  { name: 'Wed', income: 400000, outcome: 200000 },
+  { name: 'Thurs', income: 520000, outcome: 250000 },
+  { name: 'Fri', income: 350000, outcome: 180000 },
+  { name: 'Sat', income: 450000, outcome: 220000 },
+]
+
+const agentsPerformanceData = [
+  { name: 'May 5', green: 180, orange: 120 },
+  { name: 'May 6', green: 200, orange: 150 },
+  { name: 'May 7', green: 250, orange: 180 },
+  { name: 'May 8', green: 340, orange: 280 },
+  { name: 'May 9', green: 300, orange: 220 },
+  { name: 'May 10', green: 280, orange: 200 },
+  { name: 'May 11', green: 260, orange: 190 },
+]
+
+const platformDistribution = [
+  { name: 'Facebook', value: 60, color: '#8B5CF6', amount: 2100 },
+  { name: 'Google', value: 15, color: '#94A3B8', amount: 525 },
+  { name: 'Bing', value: 12, color: '#CBD5E1', amount: 420 },
+  { name: 'Tiktok', value: 8, color: '#E2E8F0', amount: 280 },
+  { name: 'Snapchat', value: 5, color: '#F1F5F9', amount: 175 },
+]
+
+// Sparkline data - Smooth curves with 10 data points (like user side)
+const revenueSparkline = [30, 45, 35, 50, 40, 60, 55, 70, 65, 80]
+const pendingSparkline = [25, 40, 30, 55, 45, 65, 50, 75, 60, 85]
+const usersSparkline = [35, 50, 40, 60, 45, 70, 55, 75, 65, 90]
+const growthSparkline = [20, 35, 25, 45, 40, 55, 50, 65, 60, 75]
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
+export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats>({
+    totalRevenue: 43000,
+    revenueChange: 1.78,
+    pendingRequests: 66435,
+    pendingChange: 2.34,
+    totalAgents: 0,
+    agentChange: 0.85,
+    totalUsers: 255456,
+    userChange: 3.12,
+    overallGrowth: 13.59,
+  })
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [loading, setLoading] = useState(true)
+  const [performancePeriod, setPerformancePeriod] = useState<'Day' | 'Week' | 'Month'>('Day')
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [dashboardData, agentsData] = await Promise.all([
+        dashboardApi.getStats().catch(() => ({ stats: {} })),
+        agentsApi.getAll().catch(() => ({ agents: [] })),
+      ])
+
+      if (dashboardData.stats) {
+        setStats({
+          totalRevenue: dashboardData.stats.totalRevenue || 43000,
+          revenueChange: dashboardData.stats.revenueChange || 1.78,
+          pendingRequests: dashboardData.stats.pendingRequests || 66435,
+          pendingChange: dashboardData.stats.pendingChange || 2.34,
+          totalAgents: dashboardData.stats.totalAgents || agentsData.agents?.length || 0,
+          agentChange: dashboardData.stats.agentChange || 0.85,
+          totalUsers: dashboardData.stats.totalUsers || 255456,
+          userChange: dashboardData.stats.userChange || 3.12,
+          overallGrowth: dashboardData.stats.overallGrowth || 13.59,
+        })
+      }
+
+      const sortedAgents = (agentsData.agents || [])
+        .sort((a: Agent, b: Agent) => (b.balance || 0) - (a.balance || 0))
+        .slice(0, 5)
+      setAgents(sortedAgents)
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    fetchData()
+    const interval = setInterval(fetchData, 60000)
+    return () => clearInterval(interval)
+  }, [fetchData])
 
   if (loading) {
     return (
-      <DashboardLayout title="Super Admin Dashboard">
-        <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#8B5CF6] border-t-transparent" />
+      <DashboardLayout title="Dashboard">
+        <div className="flex h-[60vh] items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-[#52B788]" />
+            <span className="text-sm text-slate-500">Loading dashboard...</span>
+          </div>
         </div>
       </DashboardLayout>
     )
@@ -118,313 +288,313 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout title="Super Admin Dashboard">
-      {/* Global styles for animations */}
-      <style jsx global>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .stat-card {
-          animation: fadeInUp 0.3s ease-out forwards;
-          transition: all 0.3s ease;
-        }
-        .stat-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 24px -8px rgba(139, 92, 246, 0.2);
-        }
-        .stat-card:nth-child(1) { animation-delay: 0.05s; }
-        .stat-card:nth-child(2) { animation-delay: 0.1s; }
-        .stat-card:nth-child(3) { animation-delay: 0.15s; }
-        .stat-card:nth-child(4) { animation-delay: 0.2s; }
-      `}</style>
+      <div className="space-y-5">
+        {/* KPI Cards Row - Using single reusable component */}
+        <div className="grid grid-cols-4 gap-4">
+          <KPICard
+            title="Total Revenue"
+            value={stats.totalRevenue}
+            growth={stats.revenueChange}
+            chartData={revenueSparkline}
+            color="#52B788"
+            format="currency"
+          />
+          <KPICard
+            title="Pending Requests"
+            value={stats.pendingRequests}
+            growth={stats.pendingChange}
+            chartData={pendingSparkline}
+            color="#8B5CF6"
+            format="number"
+          />
+          <KPICard
+            title="No of Users"
+            value={stats.totalUsers}
+            growth={stats.userChange}
+            chartData={usersSparkline}
+            color="#3B82F6"
+            format="number"
+          />
+          <KPICard
+            title="Overall Growth"
+            value={stats.overallGrowth}
+            growth={stats.revenueChange}
+            chartData={growthSparkline}
+            color="#52B788"
+            format="percent"
+            variant="dark"
+          />
+        </div>
 
-      {/* Overview Section Title */}
-      <h2 className="text-lg font-semibold text-[#1E293B] mb-4">Overview</h2>
-
-      {/* Stats Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {/* Total Revenue */}
-        <div className="stat-card bg-white rounded-xl p-5 border border-gray-100/50 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#52B788]/5 to-transparent rounded-full -mr-12 -mt-12" />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#52B788]/10 to-[#52B788]/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <DollarSign className="w-5 h-5 text-[#52B788]" />
+        {/* Charts Row */}
+        <div className="grid grid-cols-12 gap-4">
+          {/* Total Revenue Chart */}
+          <div className="col-span-7 bg-white rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <h3 className="text-base font-semibold text-gray-800">Total Revenue</h3>
+                <button className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded-lg">
+                  This Week <ChevronDown className="w-3 h-3" />
+                </button>
               </div>
-              <span className="text-xs font-semibold text-[#52B788] bg-emerald-50 px-2.5 py-1 rounded-full">Agents</span>
-            </div>
-            <p className="text-xs text-gray-500 mb-1 font-medium">Total Revenue</p>
-            <p className="text-2xl font-bold text-gray-900 mb-2">${stats.totalRevenue.toLocaleString()}</p>
-            <div className="flex items-center gap-1">
-              <ArrowUpRight className="h-3.5 w-3.5 text-[#52B788]" />
-              <span className="text-xs font-semibold text-[#52B788]">+12.5%</span>
-              <span className="text-xs text-gray-400">from last month</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Pending Requests */}
-        <div className="stat-card bg-white rounded-xl p-5 border border-gray-100/50 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#8B5CF6]/5 to-transparent rounded-full -mr-12 -mt-12" />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#8B5CF6]/10 to-[#8B5CF6]/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <BarChart3 className="w-5 h-5 text-[#8B5CF6]" />
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-400" />
+                  <span className="text-xs text-gray-500">Income</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-400" />
+                  <span className="text-xs text-gray-500">Outcome</span>
+                </div>
               </div>
-              <span className="text-xs font-semibold text-[#8B5CF6] bg-purple-50 px-2.5 py-1 rounded-full">Requests</span>
             </div>
-            <p className="text-xs text-gray-500 mb-1 font-medium">Pending Requests</p>
-            <p className="text-2xl font-bold text-gray-900 mb-2">{stats.pendingRequests.toLocaleString()}</p>
-            <div className="flex items-center gap-1">
-              <ArrowDownRight className="h-3.5 w-3.5 text-[#EF4444]" />
-              <span className="text-xs font-semibold text-[#EF4444]">-2.3%</span>
-              <span className="text-xs text-gray-400">from last week</span>
-            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={revenueChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 11, fill: '#94A3B8' }}
+                  width={50}
+                  tickFormatter={(v) => v === 0 ? '0' : `${(v/1000)}k`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#fff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    fontSize: '11px',
+                  }}
+                  formatter={(value: number) => [`$${value.toLocaleString()}`, '']}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="income"
+                  stroke="#EF4444"
+                  strokeWidth={2}
+                  dot={{ fill: '#EF4444', strokeWidth: 0, r: 4 }}
+                  activeDot={{ r: 6, fill: '#EF4444' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="outcome"
+                  stroke="#3B82F6"
+                  strokeWidth={2}
+                  dot={{ fill: '#3B82F6', strokeWidth: 0, r: 4 }}
+                  activeDot={{ r: 6, fill: '#3B82F6' }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-        </div>
 
-        {/* Avg Daily Users */}
-        <div className="stat-card bg-white rounded-xl p-5 border border-gray-100/50 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#3B82F6]/5 to-transparent rounded-full -mr-12 -mt-12" />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#3B82F6]/10 to-[#3B82F6]/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Users className="w-5 h-5 text-[#3B82F6]" />
+          {/* In Amount Statistics */}
+          <div className="col-span-5 bg-white rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="text-base font-semibold text-gray-800">In Amount Statistics</h3>
+                <p className="text-xs text-gray-400">Total income details in the current time slap</p>
               </div>
-              <span className="text-xs font-semibold text-[#3B82F6] bg-blue-50 px-2.5 py-1 rounded-full">Users</span>
+              <button className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded-lg">
+                This Month <ChevronDown className="w-3 h-3" />
+              </button>
             </div>
-            <p className="text-xs text-gray-500 mb-1 font-medium">Avg Daily Users</p>
-            <p className="text-2xl font-bold text-gray-900 mb-2">{stats.avgDailyUsers.toFixed(2)}</p>
-            <div className="flex items-center gap-1">
-              <ArrowUpRight className="h-3.5 w-3.5 text-[#52B788]" />
-              <span className="text-xs font-semibold text-[#52B788]">+5.2%</span>
-              <span className="text-xs text-gray-400">from yesterday</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Monthly Growth */}
-        <div className="stat-card bg-white rounded-xl p-5 border border-gray-100/50 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#F59E0B]/5 to-transparent rounded-full -mr-12 -mt-12" />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F59E0B]/10 to-[#F59E0B]/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <TrendingUp className="w-5 h-5 text-[#F59E0B]" />
+            <div className="flex items-center gap-6">
+              {/* Donut Chart */}
+              <div className="relative">
+                <ResponsiveContainer width={140} height={140}>
+                  <PieChart>
+                    <Pie
+                      data={platformDistribution}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={65}
+                      paddingAngle={2}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {platformDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <p className="text-[10px] text-gray-400">Total Expense</p>
+                  <p className="text-lg font-bold text-gray-800">$3,500</p>
+                </div>
               </div>
-              <span className="text-xs font-semibold text-[#F59E0B] bg-orange-50 px-2.5 py-1 rounded-full">Growth</span>
+
+              {/* Legend */}
+              <div className="flex-1 space-y-2">
+                {platformDistribution.map((item) => (
+                  <div key={item.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-8 h-5 rounded text-[10px] font-medium flex items-center justify-center text-white"
+                        style={{ backgroundColor: item.color }}
+                      >
+                        {item.value}%
+                      </div>
+                      <span className="text-xs text-gray-600">{item.name}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-gray-800">${item.amount.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <p className="text-xs text-gray-500 mb-1 font-medium">Monthly Growth</p>
-            <p className="text-2xl font-bold text-gray-900 mb-2">{stats.monthlyGrowth}%</p>
-            <div className="flex items-center gap-1">
-              <ArrowUpRight className="h-3.5 w-3.5 text-[#52B788]" />
-              <span className="text-xs font-semibold text-[#52B788]">+1.2%</span>
-              <span className="text-xs text-gray-400">from last month</span>
+
+            {/* Growth indicator */}
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-[#52B788]/10 flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-[#52B788]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">$2,500.00 to $3500.00</p>
+                  <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1">
+                    <div className="h-full bg-[#52B788] rounded-full" style={{ width: '70%' }} />
+                  </div>
+                </div>
+                <span className="text-xs font-medium text-[#52B788]">Growth increase 12.5%</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Total Revenue Chart */}
-        <div className="bg-white rounded-xl p-6 border border-gray-100/50 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">Total Revenue</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Monthly revenue trend</p>
-            </div>
-            <select className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6]">
-              <option>This Year</option>
-              <option>Last Year</option>
-            </select>
-          </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={revenueData}>
-              <defs>
-                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis
-                dataKey="name"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: '#9CA3AF' }}
-                dy={10}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: '#9CA3AF' }}
-                dx={-10}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="#8B5CF6"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#colorRevenue)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Ad Amount Statistics */}
-        <div className="bg-white rounded-xl p-6 border border-gray-100/50 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">Platform Distribution</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Active accounts by platform</p>
-            </div>
-            <select className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6]">
-              <option>This Month</option>
-              <option>Last Month</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-6">
-            <div className="flex-1">
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={platformData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={3}
-                    dataKey="value"
+        {/* Bottom Row */}
+        <div className="grid grid-cols-12 gap-4">
+          {/* Agents Performance */}
+          <div className="col-span-7 bg-white rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-gray-800">Agents Performance</h3>
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                {(['Day', 'Week', 'Month'] as const).map((period) => (
+                  <button
+                    key={period}
+                    onClick={() => setPerformancePeriod(period)}
+                    className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      performancePeriod === period
+                        ? 'bg-white text-gray-700 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
                   >
-                    {platformData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex-1 space-y-3">
-              {platformData.map((platform) => (
-                <div key={platform.name} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: platform.color }}
-                    />
-                    <span className="text-sm text-gray-700 font-medium">{platform.name}</span>
-                  </div>
-                  <span className="text-sm font-semibold text-gray-900">${platform.value.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Agent Performance */}
-        <div className="bg-white rounded-xl p-6 border border-gray-100/50 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">Agent Performance</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Top performing agents this month</p>
-            </div>
-            <select className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6]">
-              <option>Last 6 Months</option>
-              <option>This Year</option>
-            </select>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={agentPerformanceData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-              <XAxis
-                dataKey="name"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: '#9CA3AF' }}
-                dy={10}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 12, fill: '#9CA3AF' }}
-                dx={-10}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                }}
-              />
-              <Line type="monotone" dataKey="agent1" stroke="#8B5CF6" strokeWidth={2} dot={{ fill: '#8B5CF6', r: 4 }} />
-              <Line type="monotone" dataKey="agent2" stroke="#3B82F6" strokeWidth={2} dot={{ fill: '#3B82F6', r: 4 }} />
-              <Line type="monotone" dataKey="agent3" stroke="#52B788" strokeWidth={2} dot={{ fill: '#52B788', r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Top Agents */}
-        <div className="bg-white rounded-xl p-6 border border-gray-100/50 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">Top Agents</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Highest revenue generators</p>
-            </div>
-            <button className="text-xs text-[#8B5CF6] hover:text-[#7C3AED] font-semibold">
-              View All
-            </button>
-          </div>
-          <div className="space-y-3">
-            {topAgents.map((agent, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-all group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#7C3AED] flex items-center justify-center shadow-md">
-                      <span className="text-white font-semibold text-sm">{agent.avatar}</span>
-                    </div>
-                    <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${
-                      agent.trend === 'up' ? 'bg-[#52B788]' : 'bg-[#EF4444]'
-                    }`}>
-                      {agent.trend === 'up' ? (
-                        <TrendingUp className="w-2.5 h-2.5 text-white" />
-                      ) : (
-                        <TrendingDown className="w-2.5 h-2.5 text-white" />
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{agent.name}</p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <span className={`text-xs font-semibold ${
-                        agent.trend === 'up' ? 'text-[#52B788]' : 'text-[#EF4444]'
-                      }`}>
-                        {agent.change}
-                      </span>
-                      <span className="text-xs text-gray-400">this month</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-gray-900">{agent.balance}</p>
-                  <span className="text-xs text-gray-400">Revenue</span>
-                </div>
+                    {period}
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={agentsPerformanceData}>
+                <defs>
+                  <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#52B788" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#52B788" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorOrange" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#F59E0B" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#52B788' }} />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 11, fill: '#94A3B8' }}
+                  width={40}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#fff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    fontSize: '11px',
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="green"
+                  stroke="#52B788"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorGreen)"
+                  dot={{ fill: '#52B788', strokeWidth: 0, r: 4 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="orange"
+                  stroke="#F59E0B"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorOrange)"
+                  dot={{ fill: '#F59E0B', strokeWidth: 0, r: 4 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Top 5 Agents */}
+          <div className="col-span-5 bg-white rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-800">Top 5 Agents</h3>
+                <p className="text-xs text-gray-400">Here top agents of selected time frame</p>
+              </div>
+              <button className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded-lg">
+                This Month <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {agents.length > 0 ? agents.map((agent) => (
+                <div key={agent.id} className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center overflow-hidden">
+                    <span className="text-pink-500 font-semibold text-sm">
+                      {agent.username?.charAt(0).toUpperCase() || 'A'}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{agent.username || 'Agent'}</p>
+                    <p className="text-xs text-gray-400 truncate">{agent.email || 'agent@example.com'}</p>
+                  </div>
+                  <div className="flex -space-x-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="w-6 h-6 rounded-full bg-pink-100 border-2 border-white" />
+                    ))}
+                    <div className="w-6 h-6 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
+                      <span className="text-[9px] text-gray-500">50+</span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold text-gray-800">${Math.round(agent.balance || 0).toLocaleString()}.00</p>
+                </div>
+              )) : (
+                [...Array(5)].map((_, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
+                      <span className="text-pink-500 font-semibold text-sm">A</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800">Ali Baloch</p>
+                      <p className="text-xs text-gray-400">alibaloch103010@gmail.com</p>
+                    </div>
+                    <div className="flex -space-x-2">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="w-6 h-6 rounded-full bg-pink-100 border-2 border-white" />
+                      ))}
+                      <div className="w-6 h-6 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
+                        <span className="text-[9px] text-gray-500">50+</span>
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold text-gray-800">$2,359.00</p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
