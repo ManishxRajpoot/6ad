@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Table, TableHeader, TableBody, TableRow, TableCell } from '@/components/ui/Table'
 import { settingsApi, cheetahApi, cryptoApi } from '@/lib/api'
-import { Plus, Edit, Trash2, CreditCard, Copy, Check, Globe, Eye, EyeOff, Ban, Link, Save, Mail, Palette, Send, Server, Zap, RefreshCw, DollarSign, Wallet, Coins } from 'lucide-react'
+import { Plus, Edit, Trash2, CreditCard, Copy, Check, Globe, Eye, EyeOff, Ban, Link, Save, Mail, Palette, Send, Server, Zap, RefreshCw, DollarSign, Wallet, Coins, Database } from 'lucide-react'
 import { FacebookPlatformIcon, GooglePlatformIcon, TikTokPlatformIcon, SnapchatPlatformIcon, BingPlatformIcon } from '@/components/icons/PlatformIcons'
 
 type PayLink = {
@@ -1271,6 +1271,129 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* MongoDB Database Settings */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
+                <Database className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <CardTitle>Database Configuration</CardTitle>
+                <p className="text-sm text-gray-500">MongoDB connection details for system administration</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Database Name */}
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Database Name</p>
+                    <p className="text-xs text-gray-500 mt-0.5">MongoDB database name</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-sm font-mono text-emerald-700">6ad</code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('6ad')
+                        setCopiedId('db-name')
+                        setTimeout(() => setCopiedId(null), 2000)
+                      }}
+                      className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                    >
+                      {copiedId === 'db-name' ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Database User */}
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Database User</p>
+                    <p className="text-xs text-gray-500 mt-0.5">MongoDB authentication username</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-sm font-mono text-blue-700">6ad_admin</code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('6ad_admin')
+                        setCopiedId('db-user')
+                        setTimeout(() => setCopiedId(null), 2000)
+                      }}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      {copiedId === 'db-user' ? <Check className="w-4 h-4 text-blue-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Database Password */}
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Database Password</p>
+                    <p className="text-xs text-gray-500 mt-0.5">MongoDB authentication password</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-sm font-mono text-amber-700">
+                      BigSixmediaIndia@555
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('BigSixmediaIndia@555')
+                        setCopiedId('db-pass')
+                        setTimeout(() => setCopiedId(null), 2000)
+                      }}
+                      className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                    >
+                      {copiedId === 'db-pass' ? <Check className="w-4 h-4 text-amber-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Connection String */}
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Connection String</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Full MongoDB connection URI</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText('mongodb://6ad_admin:BigSixmediaIndia%40555@localhost:27017/6ad?authSource=admin')
+                      setCopiedId('db-uri')
+                      setTimeout(() => setCopiedId(null), 2000)
+                    }}
+                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                  >
+                    {copiedId === 'db-uri' ? <Check className="w-4 h-4 text-purple-600" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+                <code className="block w-full px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg text-xs font-mono text-purple-700 break-all">
+                  mongodb://6ad_admin:BigSixmediaIndia%40555@localhost:27017/6ad?authSource=admin
+                </code>
+              </div>
+
+              {/* Info Box */}
+              <div className="p-4 bg-red-50 rounded-xl border border-red-100">
+                <p className="text-sm text-red-800 font-medium mb-2">Security Warning:</p>
+                <ul className="text-xs text-red-700 space-y-1">
+                  <li>• Keep these credentials secure and never share them publicly</li>
+                  <li>• Only use these credentials for database administration</li>
+                  <li>• Consider rotating passwords periodically for security</li>
+                  <li>• Use SSH tunnel or VPN when connecting remotely</li>
+                </ul>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
