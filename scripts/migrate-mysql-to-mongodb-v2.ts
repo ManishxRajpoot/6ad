@@ -11,9 +11,16 @@ import bcrypt from 'bcryptjs'
 import * as fs from 'fs'
 
 // Load environment variables from apps/api/.env
-config({ path: '/Users/manishrajpoot/Coinest_Share/6ad/apps/api/.env' })
+config({ path: '/home/6ad/apps/api/.env' })
 
 const prisma = new PrismaClient()
+
+// Generate unique referral code for migrated users
+function generateReferralCode(username: string): string {
+  const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase()
+  const userPart = (username || 'USR').substring(0, 3).toUpperCase()
+  return `${userPart}${randomPart}`
+}
 
 // Old MySQL user type mapping
 const mapUserRole = (type: number): 'ADMIN' | 'AGENT' | 'USER' => {
@@ -335,42 +342,61 @@ async function migrateUsers(users: OldUser[]) {
 
       const plainPassword = String(user.pass || '12345678')
       const hashedPassword = await bcrypt.hash(plainPassword, 10)
+      const username = user.username || String(user.name)
 
-      const newUser = await prisma.user.create({
-        data: {
-          email: user.email,
-          username: user.username || String(user.name),
-          password: hashedPassword,
-          plaintextPassword: plainPassword,
-          role: mapUserRole(user.type),
-          walletBalance: user.balance || 0,
-          phone: user.mobile ? String(user.mobile) : null,
-          phone2: user.contact1 ? String(user.contact1) : null,
-          realName: user.name ? String(user.name) : null,
+      // Retry with different referral codes in case of collision
+      let retries = 5
+      let newUser: any = null
+      while (retries > 0) {
+        const referralCode = generateReferralCode(username)
+        try {
+          newUser = await prisma.user.create({
+            data: {
+              email: user.email,
+              username,
+              password: hashedPassword,
+              plaintextPassword: plainPassword,
+              role: mapUserRole(user.type),
+              walletBalance: user.balance || 0,
+              phone: user.mobile ? String(user.mobile) : null,
+              phone2: user.contact1 ? String(user.contact1) : null,
+              realName: user.name ? String(user.name) : null,
+              referralCode,
 
-          // Commission settings - map old fields to new
-          fbFee: user.facebook_opening_fee || 30,
-          fbCommission: user.facebook_deposit_commission || 5,
-          googleFee: user.google_opening_fee || 30,
-          googleCommission: user.google_deposit_commission || 5,
-          tiktokFee: user.tiktok_opening_fee || 30,
-          tiktokCommission: user.tiktok_deposit_commission || 5,
-          bingFee: user.bing_opening_fee || 30,
-          bingCommission: user.bing_deposit_commission || 5,
-          snapchatFee: user.snapchat_opening_fee || 30,
-          snapchatCommission: user.snapchat_deposit_commission || 5,
+              // Commission settings - map old fields to new
+              fbFee: user.facebook_opening_fee || 30,
+              fbCommission: user.facebook_deposit_commission || 5,
+              googleFee: user.google_opening_fee || 30,
+              googleCommission: user.google_deposit_commission || 5,
+              tiktokFee: user.tiktok_opening_fee || 30,
+              tiktokCommission: user.tiktok_deposit_commission || 5,
+              bingFee: user.bing_opening_fee || 30,
+              bingCommission: user.bing_deposit_commission || 5,
+              snapchatFee: user.snapchat_opening_fee || 30,
+              snapchatCommission: user.snapchat_deposit_commission || 5,
 
-          status: user.sts === 1 ? 'ACTIVE' : 'BLOCKED',
-          emailVerified: true,
-          twoFactorEnabled: false,
+              status: user.sts === 1 ? 'ACTIVE' : 'BLOCKED',
+              emailVerified: true,
+              twoFactorEnabled: false,
 
-          createdAt: user.created_at ? new Date(user.created_at) : new Date(),
+              createdAt: user.created_at ? new Date(user.created_at) : new Date(),
+            }
+          })
+          break // Success, exit retry loop
+        } catch (err: any) {
+          if (err?.message?.includes('referralCode') && retries > 1) {
+            retries--
+            continue // Retry with new code
+          }
+          throw err // Re-throw non-referralCode errors or final retry
         }
-      })
+      }
 
-      userIdMap.set(user.id, newUser.id)
-      stats.usersCreated++
-      console.log(`  ✅ User: ${user.email} (${mapUserRole(user.type)})`)
+      if (newUser) {
+        userIdMap.set(user.id, newUser.id)
+        stats.usersCreated++
+        console.log(`  ✅ User: ${user.email} (${mapUserRole(user.type)})`)
+      }
     } catch (error: any) {
       console.error(`  ❌ Failed to migrate user ${user.email}:`, error.message)
     }
@@ -953,7 +979,7 @@ async function main() {
   console.log('🚀 Starting MySQL to MongoDB Migration V2')
   console.log('=========================================\n')
 
-  const sqlPath = '/Users/manishrajpoot/Coinest_Share/sixad_db.sql'
+  const sqlPath = '/home/6ad/sixad_db.sql'
   console.log(`📄 Reading SQL file: ${sqlPath}`)
 
   if (!fs.existsSync(sqlPath)) {
@@ -989,6 +1015,36 @@ async function main() {
   console.log(`  TikTok BM Shares: ${ttBmShares.length}`)
   console.log(`  Bing BM Shares: ${bingBmShares.length}`)
   console.log(`  Snap BM Shares: ${snapBmShares.length}`)
+
+  // First, fix existing users with null referralCode to avoid unique constraint conflicts
+  console.log('\n🔧 Fixing existing users with null referralCode...')
+  const usersWithNullCode = await prisma.user.findMany({
+    where: { referralCode: null },
+    select: { id: true, username: true }
+  })
+  let fixedCount = 0
+  for (const u of usersWithNullCode) {
+    let retries = 5
+    while (retries > 0) {
+      try {
+        const code = generateReferralCode(u.username || 'USR')
+        await prisma.user.update({
+          where: { id: u.id },
+          data: { referralCode: code }
+        })
+        fixedCount++
+        break
+      } catch (err: any) {
+        if (err?.message?.includes('referralCode') && retries > 1) {
+          retries--
+          continue
+        }
+        console.error(`  ⚠️ Could not fix referralCode for user ${u.id}:`, err.message)
+        break
+      }
+    }
+  }
+  console.log(`  ✅ Fixed ${fixedCount}/${usersWithNullCode.length} users with null referralCode`)
 
   // Migrate in order
   await migrateUsers(users)
