@@ -321,12 +321,26 @@ export default function UsersPage() {
     try {
       await accountsApi.updateStatus(accountId, 'SUSPENDED')
       toast.success('Account Removed', `${accountName} has been suspended`)
-      // Re-fetch the list
       if (adAccountsUser) {
         fetchUserAdAccounts(adAccountsUser.id, adAccountsPlatform === 'ALL' ? undefined : adAccountsPlatform)
       }
     } catch (error: any) {
       toast.error('Failed to remove account', error.message || 'An error occurred')
+    } finally {
+      setRemovingAccountId(null)
+    }
+  }
+
+  const handleActivateAccount = async (accountId: string, accountName: string) => {
+    setRemovingAccountId(accountId)
+    try {
+      await accountsApi.updateStatus(accountId, 'APPROVED')
+      toast.success('Account Activated', `${accountName} is now active`)
+      if (adAccountsUser) {
+        fetchUserAdAccounts(adAccountsUser.id, adAccountsPlatform === 'ALL' ? undefined : adAccountsPlatform)
+      }
+    } catch (error: any) {
+      toast.error('Failed to activate account', error.message || 'An error occurred')
     } finally {
       setRemovingAccountId(null)
     }
@@ -1428,7 +1442,23 @@ export default function UsersPage() {
                         {getStatusBadge(account.status)}
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        {account.status !== 'SUSPENDED' && account.status !== 'REFUNDED' ? (
+                        {account.status === 'SUSPENDED' ? (
+                          <button
+                            onClick={() => handleActivateAccount(account.id, account.accountName || account.accountId)}
+                            disabled={removingAccountId === account.id}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50"
+                            title="Activate account"
+                          >
+                            {removingAccountId === account.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Check className="w-3 h-3" />
+                            )}
+                            Activate
+                          </button>
+                        ) : account.status === 'REFUNDED' ? (
+                          <span className="text-[10px] text-gray-400">-</span>
+                        ) : (
                           <button
                             onClick={() => handleRemoveAccount(account.id, account.accountName || account.accountId)}
                             disabled={removingAccountId === account.id}
@@ -1442,8 +1472,6 @@ export default function UsersPage() {
                             )}
                             Remove
                           </button>
-                        ) : (
-                          <span className="text-[10px] text-gray-400">-</span>
                         )}
                       </td>
                     </tr>

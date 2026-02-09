@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Card } from '@/components/ui/Card'
 import { applicationsApi, usersApi, bmShareApi, accountDepositsApi, accountRefundsApi, balanceTransfersApi } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
 import {
   Search,
   Plus,
@@ -18,7 +19,8 @@ import {
   X,
   Check,
   Gift,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react'
 
 type Application = {
@@ -148,6 +150,7 @@ const StatsChart = ({ value, color }: { value: number; color: string }) => {
 }
 
 export default function FacebookPage() {
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState<Tab>('account-list')
   const [applications, setApplications] = useState<Application[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -167,6 +170,8 @@ export default function FacebookPage() {
   // Account Deposits state
   const [accountDeposits, setAccountDeposits] = useState<AccountDeposit[]>([])
   const [depositsLoading, setDepositsLoading] = useState(false)
+  const [cheetahStatus, setCheetahStatus] = useState<Record<string, boolean>>({})
+  const [approvingDepositId, setApprovingDepositId] = useState<string | null>(null)
 
   // Account Refunds state
   const [accountRefunds, setAccountRefunds] = useState<AccountRefund[]>([])
@@ -305,7 +310,23 @@ export default function FacebookPage() {
     setDepositsLoading(true)
     try {
       const data = await accountDepositsApi.getAll('FACEBOOK', statusFilter !== 'all' ? statusFilter : undefined)
-      setAccountDeposits(data.deposits || [])
+      const deposits = data.deposits || []
+      setAccountDeposits(deposits)
+
+      // Check Cheetah status for pending Facebook deposits
+      const pendingFbAccountIds = deposits
+        .filter((d: AccountDeposit) => d.status === 'PENDING' && d.adAccount.platform === 'FACEBOOK')
+        .map((d: AccountDeposit) => d.adAccount.accountId)
+        .filter((id: string, index: number, arr: string[]) => arr.indexOf(id) === index) // unique
+
+      if (pendingFbAccountIds.length > 0) {
+        try {
+          const result = await accountDepositsApi.checkCheetah(pendingFbAccountIds)
+          setCheetahStatus(result.cheetahStatus || {})
+        } catch {
+          // Silently fail - Cheetah status is optional UI enhancement
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch account deposits:', error)
     } finally {
@@ -359,11 +380,26 @@ export default function FacebookPage() {
 
   // Handle Account Deposit approve/reject
   const handleDepositApprove = async (id: string) => {
+    setApprovingDepositId(id)
     try {
-      await accountDepositsApi.approve(id)
+      const result = await accountDepositsApi.approve(id)
+
+      // Show appropriate toast based on Cheetah recharge result
+      if (result.cheetahRecharge === 'success') {
+        toast.success('Deposit Approved', 'Deposit approved and ad account recharged via Cheetah successfully')
+      } else if (result.cheetahRecharge === 'not-cheetah') {
+        toast.success('Deposit Approved', 'Deposit approved. This is not a Cheetah account — please recharge manually.')
+      } else {
+        toast.success('Deposit Approved', 'Deposit approved successfully')
+      }
+
       fetchAccountDeposits()
     } catch (error: any) {
-      alert(error.message || 'Failed to approve')
+      // Cheetah errors return 400 - deposit stays PENDING
+      toast.error('Recharge Failed', error.message || 'Cheetah recharge failed. Deposit kept pending.')
+      fetchAccountDeposits()
+    } finally {
+      setApprovingDepositId(null)
     }
   }
 
@@ -371,9 +407,10 @@ export default function FacebookPage() {
     if (!confirm('Are you sure you want to reject this deposit request?')) return
     try {
       await accountDepositsApi.reject(id)
+      toast.success('Deposit Rejected', 'Deposit rejected and amount refunded to user wallet')
       fetchAccountDeposits()
     } catch (error: any) {
-      alert(error.message || 'Failed to reject')
+      toast.error('Failed to Reject', error.message || 'Failed to reject deposit')
     }
   }
 
@@ -1099,11 +1136,21 @@ export default function FacebookPage() {
                       const depositAmount = parseFloat(dep.amount) || 0
                       const commissionAmount = parseFloat(dep.commissionAmount || '0') || 0
                       const totalCost = depositAmount + commissionAmount
+                      const isNotCheetah = dep.adAccount.platform === 'FACEBOOK' && cheetahStatus[dep.adAccount.accountId] === false
                       return (
                         <tr key={dep.id} className="border-b border-gray-50 hover:bg-gray-50/50 align-middle">
                           <td className="py-4 px-4 text-sm text-gray-700 whitespace-nowrap">{dep.adAccount.user.username}</td>
                           <td className="py-4 px-4 text-sm text-gray-600">{dep.adAccount.accountName}</td>
-                          <td className="py-4 px-4 text-sm text-[#52B788] font-mono">{dep.adAccount.accountId}</td>
+                          <td className="py-4 px-4 text-sm font-mono whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[#52B788]">{dep.adAccount.accountId}</span>
+                              {isNotCheetah && dep.status === 'PENDING' && (
+                                <span title="Not a Cheetah account — manual recharge required" className="inline-flex items-center">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-4 px-4 text-sm font-semibold text-[#52B788]">${depositAmount.toFixed(2)}</td>
                           <td className="py-4 px-4 text-sm font-semibold text-orange-600">
                             ${totalCost.toFixed(2)}
@@ -1121,14 +1168,20 @@ export default function FacebookPage() {
                               <div className="flex items-center gap-2">
                                 <button
                                   onClick={() => handleDepositApprove(dep.id)}
-                                  className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                  disabled={approvingDepositId === dep.id}
+                                  className="p-1.5 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors disabled:opacity-50"
                                   title="Approve"
                                 >
-                                  <Check className="w-4 h-4" />
+                                  {approvingDepositId === dep.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <Check className="w-4 h-4" />
+                                  )}
                                 </button>
                                 <button
                                   onClick={() => handleDepositReject(dep.id)}
-                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                  disabled={approvingDepositId === dep.id}
+                                  className="p-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
                                   title="Reject"
                                 >
                                   <X className="w-4 h-4" />

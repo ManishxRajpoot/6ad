@@ -134,9 +134,9 @@ accounts.get('/', requireUser, async (c) => {
     // Role-based filtering
     if (userRole === 'USER') {
       where.userId = userId
-      // Exclude REFUNDED accounts from user's view (unless explicitly filtered)
+      // Exclude REFUNDED and SUSPENDED accounts from user's view (unless explicitly filtered)
       if (!status) {
-        where.status = { not: 'REFUNDED' }
+        where.status = { notIn: ['REFUNDED', 'SUSPENDED'] }
       }
     } else if (userRole === 'AGENT') {
       if (targetUserId) {
@@ -332,6 +332,38 @@ accounts.get('/deposits/admin', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Get account deposits error:', error)
     return c.json({ error: 'Failed to get deposits' }, 500)
+  }
+})
+
+// POST /accounts/deposits/check-cheetah - Check which accounts are from Cheetah
+accounts.post('/deposits/check-cheetah', requireAdmin, async (c) => {
+  try {
+    const { accountIds } = await c.req.json()
+
+    if (!accountIds || !Array.isArray(accountIds) || accountIds.length === 0) {
+      return c.json({ error: 'accountIds array required' }, 400)
+    }
+
+    const configLoaded = await loadCheetahConfig()
+    if (!configLoaded) {
+      return c.json({ cheetahStatus: {} })
+    }
+
+    const cheetahStatus: Record<string, boolean> = {}
+
+    for (const accountId of accountIds) {
+      try {
+        const result = await cheetahApi.getAccount(accountId)
+        cheetahStatus[accountId] = result.code === 0 && result.data && result.data.length > 0
+      } catch {
+        cheetahStatus[accountId] = false
+      }
+    }
+
+    return c.json({ cheetahStatus })
+  } catch (error) {
+    console.error('Check Cheetah accounts error:', error)
+    return c.json({ error: 'Failed to check Cheetah accounts' }, 500)
   }
 })
 
@@ -741,6 +773,10 @@ accounts.get('/:platform', requireUser, async (c) => {
 
     if (userRole === 'USER') {
       where.userId = userId
+      // Exclude REFUNDED and SUSPENDED from user's view
+      if (!status) {
+        where.status = { notIn: ['REFUNDED', 'SUSPENDED'] }
+      }
     } else if (userRole === 'AGENT') {
       where.user = { agentId: userId }
     }
@@ -1193,10 +1229,81 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       return c.json({ error: 'Deposit already processed' }, 400)
     }
 
-    // Cheetah API auto-recharge disabled
-    // let cheetahRechargeResult: any = null
-    // let cheetahError: string | null = null
+    // Cheetah API auto-recharge variables
+    let cheetahRechargeResult: any = null
+    let cheetahError: string | null = null
+    let isCheetahAccount: boolean = false
 
+    // STEP 1: For Facebook accounts, check & recharge Cheetah FIRST before approving
+    if (deposit.adAccount.platform === 'FACEBOOK') {
+      try {
+        const configLoaded = await loadCheetahConfig()
+        if (configLoaded) {
+          // Check if this account exists in Cheetah
+          const accountResult = await cheetahApi.getAccount(deposit.adAccount.accountId)
+
+          if (accountResult.code === 0 && accountResult.data && accountResult.data.length > 0) {
+            isCheetahAccount = true
+            const cheetahAccount = accountResult.data[0]
+            const currentSpendCap = parseFloat(cheetahAccount.spend_cap) || 0
+            const depositAmount = Number(deposit.amount)
+            const newSpendCap = currentSpendCap + depositAmount
+
+            // Check available quota before recharging
+            const quotaResult = await cheetahApi.getQuota()
+            if (quotaResult.code === 0) {
+              const availableQuota = parseFloat(quotaResult.data.available_quota) || 0
+
+              if (availableQuota >= depositAmount) {
+                // Sufficient balance - proceed with recharge
+                cheetahRechargeResult = await cheetahApi.rechargeAccount(
+                  deposit.adAccount.accountId,
+                  newSpendCap
+                )
+
+                if (cheetahRechargeResult.code !== 0) {
+                  // Cheetah recharge failed - DO NOT approve, keep pending
+                  return c.json({
+                    error: cheetahRechargeResult.msg || 'Cheetah recharge failed',
+                    cheetahRecharge: 'failed',
+                    isCheetahAccount: true
+                  }, 400)
+                }
+              } else {
+                // Insufficient Cheetah balance - DO NOT approve, keep pending
+                return c.json({
+                  error: `Insufficient Cheetah balance. Available: $${availableQuota.toFixed(2)}, Required: $${depositAmount.toFixed(2)}`,
+                  cheetahRecharge: 'failed',
+                  isCheetahAccount: true
+                }, 400)
+              }
+            } else {
+              // Failed to check quota - DO NOT approve, keep pending
+              return c.json({
+                error: quotaResult.msg || 'Failed to check Cheetah quota',
+                cheetahRecharge: 'failed',
+                isCheetahAccount: true
+              }, 400)
+            }
+          } else {
+            // Account not found in Cheetah - not a Cheetah account, allow manual approve
+            isCheetahAccount = false
+          }
+        } else {
+          // Cheetah config not found - don't block, admin can handle manually
+          cheetahError = 'Cheetah API configuration not found'
+        }
+      } catch (error: any) {
+        // Cheetah API error - DO NOT approve for Cheetah accounts, keep pending
+        return c.json({
+          error: error.message || 'Cheetah API error',
+          cheetahRecharge: 'failed',
+          isCheetahAccount: true
+        }, 400)
+      }
+    }
+
+    // STEP 2: Cheetah recharge succeeded (or not a Cheetah account) - now approve in DB
     await prisma.$transaction(async (tx) => {
       // Update deposit status
       await tx.accountDeposit.update({
@@ -1245,8 +1352,9 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
 
     return c.json({
       message: 'Account deposit approved',
-      cheetahRecharge: cheetahRechargeResult?.code === 0 ? 'success' : (cheetahError ? 'failed' : 'skipped'),
-      cheetahError: cheetahError
+      cheetahRecharge: cheetahRechargeResult?.code === 0 ? 'success' : (isCheetahAccount ? 'skipped' : 'not-cheetah'),
+      cheetahError: cheetahError,
+      isCheetahAccount: deposit.adAccount.platform === 'FACEBOOK' ? isCheetahAccount : null
     })
   } catch (error) {
     console.error('Approve account deposit error:', error)

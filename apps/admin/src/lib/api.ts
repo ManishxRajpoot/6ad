@@ -368,9 +368,11 @@ export const accountDepositsApi = {
     return api.get<{ deposits: any[]; pagination: any }>(`/accounts/deposits/admin${queryString ? `?${queryString}` : ''}`)
   },
   approve: (id: string, adminRemarks?: string) =>
-    api.post<{ message: string; deposit: any }>(`/accounts/deposits/${id}/approve`, { adminRemarks }),
+    api.post<{ message: string; cheetahRecharge: string; cheetahError: string | null; isCheetahAccount: boolean | null }>(`/accounts/deposits/${id}/approve`, { adminRemarks }),
   reject: (id: string, adminRemarks?: string) =>
     api.post<{ message: string; deposit: any }>(`/accounts/deposits/${id}/reject`, { adminRemarks }),
+  checkCheetah: (accountIds: string[]) =>
+    api.post<{ cheetahStatus: Record<string, boolean> }>('/accounts/deposits/check-cheetah', { accountIds }),
 }
 
 // Account Refunds API (Admin)
