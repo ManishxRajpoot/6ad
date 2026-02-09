@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 import { z } from 'zod'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
-import { testSmtpConnection, sendTestEmail, SmtpConfig } from '../utils/email.js'
+import { testSmtpConnection, sendTestEmail, checkDomainHealth, SmtpConfig } from '../utils/email.js'
 import { generateEmailLogo } from '../utils/image.js'
 
 // Generate unique referral code for user
@@ -362,19 +362,60 @@ agents.post('/smtp/test', async (c) => {
       return c.json({ success: false, error: connectionResult.error }, 400)
     }
 
+    // Run DNS health check for the from email domain
+    let dnsHealth = null
+    try {
+      dnsHealth = await checkDomainHealth(smtpFromEmail)
+    } catch (e) {
+      console.warn('[SMTP] DNS health check failed:', e)
+    }
+
     // If test email provided, send test email
     if (testEmail) {
       const emailResult = await sendTestEmail(config, testEmail)
       if (!emailResult.success) {
-        return c.json({ success: false, error: emailResult.error }, 400)
+        return c.json({ success: false, error: emailResult.error, dnsHealth }, 400)
       }
-      return c.json({ success: true, message: `Test email sent to ${testEmail}` })
+      return c.json({
+        success: true,
+        message: `Test email sent to ${testEmail}`,
+        dnsHealth,
+      })
     }
 
-    return c.json({ success: true, message: 'SMTP connection successful' })
+    return c.json({
+      success: true,
+      message: 'SMTP connection successful',
+      dnsHealth,
+    })
   } catch (error: any) {
     console.error('Test SMTP error:', error)
     return c.json({ success: false, error: error.message || 'SMTP test failed' }, 500)
+  }
+})
+
+// POST /agents/smtp/dns-check - Check domain email health (SPF, DKIM, DMARC)
+agents.post('/smtp/dns-check', async (c) => {
+  try {
+    const userId = c.get('userId')
+    const userRole = c.get('userRole')
+
+    if (userRole !== 'AGENT' && userRole !== 'ADMIN') {
+      return c.json({ error: 'Only agents and admins can check domain health' }, 403)
+    }
+
+    const body = await c.req.json()
+    const { fromEmail } = body
+
+    if (!fromEmail || !fromEmail.includes('@')) {
+      return c.json({ error: 'Valid email address is required' }, 400)
+    }
+
+    const result = await checkDomainHealth(fromEmail)
+    return c.json(result)
+  } catch (error: any) {
+    console.error('DNS check error:', error)
+    return c.json({ error: error.message || 'DNS check failed' }, 500)
   }
 })
 

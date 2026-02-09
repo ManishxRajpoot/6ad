@@ -160,16 +160,19 @@ export async function testSmtpConnection(config: SmtpConfig): Promise<{ success:
   }
 }
 
-// Send test email with custom SMTP
+// Send test email with custom SMTP (with full anti-spam headers)
 export async function sendTestEmail(config: SmtpConfig, testEmail: string): Promise<{ success: boolean; error?: string }> {
   try {
     const transporter = createCustomTransporter(config)
     const senderName = config.fromName || 'SMTP Test'
+    const domain = config.fromEmail.split('@')[1]
+    const headers = getAntiSpamHeaders(config.fromEmail, domain)
 
     await transporter.sendMail({
       from: `"${senderName}" <${config.fromEmail}>`,
       to: testEmail,
-      subject: 'SMTP Configuration Test - Success!',
+      replyTo: config.fromEmail,
+      subject: `Test email from ${senderName} - SMTP working`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: 0 auto;">
           <h2 style="color: #7C3AED;">SMTP Test Successful!</h2>
@@ -180,14 +183,136 @@ export async function sendTestEmail(config: SmtpConfig, testEmail: string): Prom
             <p style="margin: 5px 0;"><strong>Encryption:</strong> ${config.encryption}</p>
             <p style="margin: 5px 0;"><strong>From:</strong> ${config.fromEmail}</p>
           </div>
-          <p style="margin-top: 15px; color: #6B7280; font-size: 12px;">This is a test email from 6AD Platform.</p>
+          <p style="margin-top: 15px; color: #6B7280; font-size: 12px;">
+            If this email landed in your inbox, your SMTP is configured correctly.
+            If it went to spam, check your domain's SPF, DKIM, and DMARC DNS records.
+          </p>
         </div>
-      `
+      `,
+      text: `SMTP Test Successful!\n\nHost: ${config.host}\nPort: ${config.port}\nEncryption: ${config.encryption}\nFrom: ${config.fromEmail}\n\nIf this email landed in your inbox, your SMTP is configured correctly.\nIf it went to spam, check your domain's SPF, DKIM, and DMARC DNS records.`,
+      headers,
+      envelope: {
+        from: config.fromEmail,
+        to: testEmail,
+      },
     })
 
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message || 'Failed to send test email' }
+  }
+}
+
+// Check domain email health (SPF, DKIM, DMARC) via DNS lookup
+// This helps agents understand why their emails go to spam
+export interface DomainHealthResult {
+  domain: string
+  spf: { found: boolean; record?: string; valid: boolean; issue?: string }
+  dkim: { found: boolean; issue?: string }
+  dmarc: { found: boolean; record?: string; valid: boolean; issue?: string }
+  score: number  // 0-100 deliverability score
+  issues: string[]
+  recommendations: string[]
+}
+
+export async function checkDomainHealth(fromEmail: string): Promise<DomainHealthResult> {
+  const dns = await import('dns')
+  const { promisify } = await import('util')
+  const resolveTxt = promisify(dns.resolveTxt)
+
+  const domain = fromEmail.split('@')[1]
+  const issues: string[] = []
+  const recommendations: string[] = []
+  let score = 100
+
+  // Check SPF
+  let spf: DomainHealthResult['spf'] = { found: false, valid: false }
+  try {
+    const txtRecords = await resolveTxt(domain)
+    const spfRecord = txtRecords.flat().find(r => r.startsWith('v=spf1'))
+    if (spfRecord) {
+      spf = { found: true, record: spfRecord, valid: true }
+      if (spfRecord.includes('~all')) {
+        spf.issue = 'SPF uses softfail (~all). Use hardfail (-all) for better protection.'
+        issues.push('SPF softfail (~all) — change to hardfail (-all)')
+        score -= 10
+      } else if (spfRecord.includes('+all')) {
+        spf.issue = 'SPF allows any server to send (+all). This is very unsafe!'
+        spf.valid = false
+        issues.push('SPF is open (+all) — extremely dangerous, change to -all')
+        score -= 30
+      }
+    } else {
+      spf.issue = 'No SPF record found'
+      issues.push('No SPF record — email servers cannot verify if you authorized sending')
+      recommendations.push('Add SPF TXT record: v=spf1 include:_spf.YOUR_PROVIDER.com -all')
+      score -= 25
+    }
+  } catch {
+    spf.issue = 'Cannot resolve DNS for domain'
+    issues.push('DNS resolution failed for SPF check')
+    score -= 25
+  }
+
+  // Check DKIM (try common selectors)
+  let dkim: DomainHealthResult['dkim'] = { found: false }
+  const dkimSelectors = ['default', 'mail', 'dkim', 'selector1', 'selector2', 's1', 's2', 'k1', 'google', '6admail', 'hostinger', 'mx', 'titan', 'zoho', 'protonmail']
+  for (const sel of dkimSelectors) {
+    try {
+      const records = await resolveTxt(`${sel}._domainkey.${domain}`)
+      const dkimRecord = records.flat().join('')
+      if (dkimRecord.includes('v=DKIM1') || dkimRecord.includes('k=rsa')) {
+        dkim = { found: true }
+        break
+      }
+    } catch {
+      // selector not found, try next
+    }
+  }
+  if (!dkim.found) {
+    dkim.issue = 'No DKIM record found with common selectors'
+    issues.push('No DKIM record — Gmail and Yahoo will likely flag emails as spam')
+    recommendations.push('Enable DKIM in your email provider and add the DKIM DNS record')
+    score -= 30
+  }
+
+  // Check DMARC
+  let dmarc: DomainHealthResult['dmarc'] = { found: false, valid: false }
+  try {
+    const dmarcRecords = await resolveTxt(`_dmarc.${domain}`)
+    const dmarcRecord = dmarcRecords.flat().find(r => r.startsWith('v=DMARC1'))
+    if (dmarcRecord) {
+      dmarc = { found: true, record: dmarcRecord, valid: true }
+      if (dmarcRecord.includes('p=none')) {
+        dmarc.issue = 'DMARC policy is set to none — no enforcement'
+        issues.push('DMARC p=none — change to p=quarantine or p=reject for better protection')
+        score -= 10
+      }
+    } else {
+      dmarc.issue = 'No DMARC record found'
+      issues.push('No DMARC record — spam filters cannot enforce your email policy')
+      recommendations.push('Add DMARC TXT record at _dmarc: v=DMARC1; p=quarantine; rua=mailto:' + fromEmail)
+      score -= 15
+    }
+  } catch {
+    dmarc.issue = 'No DMARC record found'
+    issues.push('No DMARC DNS record')
+    score -= 15
+  }
+
+  // Bonus recommendations
+  if (issues.length === 0) {
+    recommendations.push('Your domain email setup looks great! SPF, DKIM, and DMARC all configured.')
+  }
+
+  return {
+    domain,
+    spf,
+    dkim,
+    dmarc,
+    score: Math.max(0, score),
+    issues,
+    recommendations,
   }
 }
 
