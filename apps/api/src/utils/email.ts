@@ -1,4 +1,6 @@
 import nodemailer from 'nodemailer'
+import fs from 'fs'
+import path from 'path'
 
 // Default SMTP configuration from environment variables
 const DEFAULT_SMTP = {
@@ -11,6 +13,25 @@ const DEFAULT_SMTP = {
   fromName: process.env.SMTP_FROM_NAME || 'Six Media'
 }
 
+// DKIM configuration - load private key for email signing
+// DKIM (DomainKeys Identified Mail) prevents emails from going to spam
+// The private key is used to sign outgoing emails, recipients verify via DNS TXT record
+const DKIM_PRIVATE_KEY_PATH = process.env.DKIM_PRIVATE_KEY_PATH || '/home/6ad/dkim/dkim-private.pem'
+const DKIM_SELECTOR = process.env.DKIM_SELECTOR || '6admail'
+const DKIM_DOMAIN = process.env.DKIM_DOMAIN || '6ad.in'
+
+let dkimPrivateKey: string | undefined
+try {
+  if (fs.existsSync(DKIM_PRIVATE_KEY_PATH)) {
+    dkimPrivateKey = fs.readFileSync(DKIM_PRIVATE_KEY_PATH, 'utf8')
+    console.log('[EMAIL] DKIM private key loaded from:', DKIM_PRIVATE_KEY_PATH)
+  } else {
+    console.warn('[EMAIL] DKIM private key not found at:', DKIM_PRIVATE_KEY_PATH, '- emails will be sent WITHOUT DKIM signing')
+  }
+} catch (err) {
+  console.warn('[EMAIL] Failed to load DKIM private key:', err)
+}
+
 // Log SMTP config on module load (hide password)
 console.log('[EMAIL] SMTP Config loaded:', {
   host: DEFAULT_SMTP.host,
@@ -18,7 +39,10 @@ console.log('[EMAIL] SMTP Config loaded:', {
   secure: DEFAULT_SMTP.secure,
   user: DEFAULT_SMTP.user,
   fromEmail: DEFAULT_SMTP.fromEmail,
-  hasPassword: !!DEFAULT_SMTP.pass
+  hasPassword: !!DEFAULT_SMTP.pass,
+  dkimEnabled: !!dkimPrivateKey,
+  dkimSelector: DKIM_SELECTOR,
+  dkimDomain: DKIM_DOMAIN
 })
 
 // Create default transporter using SMTP from env
@@ -30,9 +54,15 @@ const defaultTransporter = nodemailer.createTransport({
     user: DEFAULT_SMTP.user,
     pass: DEFAULT_SMTP.pass
   },
-  // DKIM alignment: ensure envelope sender matches From header domain
-  // This helps SPF/DKIM alignment and prevents spam flagging
-  dkim: undefined,  // Will use Hostinger's DKIM if configured in DNS
+  // DKIM signing - cryptographically signs every outgoing email
+  // Recipients verify the signature via DNS TXT record at 6admail._domainkey.6ad.in
+  ...(dkimPrivateKey && {
+    dkim: {
+      domainName: DKIM_DOMAIN,
+      keySelector: DKIM_SELECTOR,
+      privateKey: dkimPrivateKey,
+    }
+  }),
   pool: true,        // Reuse SMTP connection for better performance
   maxConnections: 3, // Limit concurrent connections
   maxMessages: 50,   // Messages per connection before reconnecting
@@ -44,6 +74,11 @@ const defaultTransporter = nodemailer.createTransport({
     await defaultTransporter.verify()
     console.log('[EMAIL] SMTP server is ready to send emails')
     console.log('[EMAIL] SMTP From:', DEFAULT_SMTP.fromEmail)
+    if (dkimPrivateKey) {
+      console.log('[EMAIL] DKIM signing ENABLED for domain:', DKIM_DOMAIN, 'selector:', DKIM_SELECTOR)
+    } else {
+      console.warn('[EMAIL] WARNING: DKIM signing DISABLED - emails may go to spam!')
+    }
   } catch (error) {
     console.error('[EMAIL] SMTP connection error:', error)
   }
@@ -254,20 +289,21 @@ function htmlToPlainText(html: string): string {
 }
 
 // Build anti-spam email headers for better deliverability
-function getAntiSpamHeaders(fromEmail: string, toEmail: string): Record<string, string> {
-  const domain = fromEmail.split('@')[1] || '6ad.in'
-  const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@${domain}>`
+// These headers are critical for inbox placement (Gmail, Yahoo, Outlook)
+function getAntiSpamHeaders(fromEmail: string, senderDomain?: string): Record<string, string> {
+  const domain = senderDomain || fromEmail.split('@')[1] || '6ad.in'
+  // RFC 5322 compliant Message-ID with proper format
+  const uniqueId = `${Date.now()}.${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
+  const messageId = `<${uniqueId}@${domain}>`
 
   return {
     'Message-ID': messageId,
-    'X-Mailer': '6AD Platform',
+    'X-Mailer': '6AD Platform v2.0',
     'X-Priority': '3',                    // Normal priority (1=high looks spammy)
-    'Precedence': 'bulk',                 // Tells filters this is a legitimate bulk/transactional email
     'X-Auto-Response-Suppress': 'All',    // Prevent auto-replies/out-of-office loops
-    'Reply-To': fromEmail,                // Explicit reply-to helps deliverability
     'List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=Unsubscribe>`,  // Required by Gmail/Yahoo since Feb 2024
     'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',                      // One-click unsubscribe (RFC 8058)
-    'MIME-Version': '1.0',
+    'Feedback-ID': `transactional:${domain}:6ad`,  // Gmail uses this for reputation tracking
   }
 }
 
@@ -286,7 +322,8 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
       const customTransporter = createCustomTransporter(options.smtpConfig)
       const fromName = options.smtpConfig.fromName || senderName
       const fromEmail = options.smtpConfig.fromEmail
-      const headers = getAntiSpamHeaders(fromEmail, options.to)
+      const agentDomain = fromEmail.split('@')[1]
+      const headers = getAntiSpamHeaders(fromEmail, agentDomain)
 
       const info = await customTransporter.sendMail({
         from: `"${fromName}" <${fromEmail}>`,
@@ -296,17 +333,22 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
         html: processedHtml,
         text: plainText,
         headers,
+        // Set envelope sender to match From header domain for SPF alignment
+        envelope: {
+          from: fromEmail,
+          to: options.to,
+        },
         ...(attachments.length > 0 && { attachments })
       })
 
-      console.log('Email sent via custom SMTP:', info.messageId, attachments.length > 0 ? `(${attachments.length} embedded images)` : '')
+      console.log('[EMAIL] Sent via agent SMTP:', info.messageId, 'from:', fromEmail, 'to:', options.to)
       return true
     }
 
-    // Use default SMTP
+    // Use default SMTP (info@6ad.in) with DKIM signing
     const fromName = options.senderName || DEFAULT_SMTP.fromName
     const fromEmail = DEFAULT_SMTP.fromEmail
-    const headers = getAntiSpamHeaders(fromEmail, options.to)
+    const headers = getAntiSpamHeaders(fromEmail, DKIM_DOMAIN)
 
     const info = await defaultTransporter.sendMail({
       from: `"${fromName}" <${fromEmail}>`,
@@ -316,10 +358,15 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
       html: processedHtml,
       text: plainText,
       headers,
+      // Set envelope sender to match From header for SPF/DKIM alignment
+      envelope: {
+        from: fromEmail,
+        to: options.to,
+      },
       ...(attachments.length > 0 && { attachments })
     })
 
-    console.log('Email sent:', info.messageId, 'to:', options.to, attachments.length > 0 ? `(${attachments.length} embedded images)` : '')
+    console.log('[EMAIL] Sent:', info.messageId, 'to:', options.to, dkimPrivateKey ? '(DKIM signed)' : '(NO DKIM)', attachments.length > 0 ? `(${attachments.length} images)` : '')
     return true
   } catch (error) {
     console.error('Error sending email:', error)
@@ -434,11 +481,15 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
 
   return `
     <!DOCTYPE html>
-    <html>
+    <html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:o="urn:schemas-microsoft-com:office:office">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <meta name="x-apple-disable-message-reformatting">
+      <meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no">
       <title>${title}</title>
+      <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
     </head>
     <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6; -webkit-font-smoothing: antialiased;">
       <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 20px;">
@@ -498,17 +549,20 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
                 </td>
               </tr>
 
-              <!-- Footer -->
+              <!-- Footer - CAN-SPAM compliant -->
               <tr>
                 <td style="padding: 20px 28px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
                   <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                       <td align="center">
-                        <p style="margin: 0 0 4px; color: #6b7280; font-size: 12px;">
-                          © 2026 ${platformName}. All rights reserved.
-                        </p>
-                        <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+                        <p style="margin: 0 0 6px; color: #6b7280; font-size: 12px;">
                           ${footerText || `You received this email because you have an account with ${platformName}.`}
+                        </p>
+                        <p style="margin: 0 0 6px; color: #9ca3af; font-size: 11px;">
+                          &copy; ${new Date().getFullYear()} ${platformName} &bull; Digital Advertising Platform
+                        </p>
+                        <p style="margin: 0; color: #9ca3af; font-size: 10px;">
+                          Six Media, India &bull; <a href="https://6ad.in" style="color: #9ca3af; text-decoration: underline;">6ad.in</a>
                         </p>
                       </td>
                     </tr>
