@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/auth'
 import { useDomainStore } from '@/store/domain'
 import { Shield, ArrowRight, Loader2, Mail, Lock, Eye, EyeOff, Award, TrendingUp, Users, Zap, CheckCircle2, Check, Copy, Smartphone, KeyRound, Ban } from 'lucide-react'
 
-type SecurityStep = 'login' | 'email' | '2fa-setup' | '2fa-verify' | '2fa-login' | 'blocked'
+type SecurityStep = 'login' | 'email' | '2fa-setup' | '2fa-verify' | '2fa-login' | 'password-change' | 'blocked'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -35,6 +35,12 @@ export default function LoginPage() {
   const [secretKey, setSecretKey] = useState('')
   const [copiedSecret, setCopiedSecret] = useState(false)
 
+  // Password change state (for users created by admin/agent)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
   // Animation state
   const [animationClass, setAnimationClass] = useState('')
   const [displayStep, setDisplayStep] = useState<SecurityStep>('login')
@@ -43,20 +49,20 @@ export default function LoginPage() {
   // Handle step change animations
   useEffect(() => {
     if (prevStepRef.current !== securityStep) {
-      // Start exit animation
-      setAnimationClass('animate-flip-out')
+      // Start exit animation — slide out left + fade
+      setAnimationClass('animate-slide-out')
 
       const timer = setTimeout(() => {
         setDisplayStep(securityStep)
         prevStepRef.current = securityStep
-        // Start enter animation
-        setAnimationClass('animate-flip-in')
+        // Start enter animation — slide in from right + fade
+        setAnimationClass('animate-slide-in')
 
         // Clear animation class after it completes
         setTimeout(() => {
           setAnimationClass('')
-        }, 500)
-      }, 300)
+        }, 400)
+      }, 250)
 
       return () => clearTimeout(timer)
     }
@@ -90,8 +96,8 @@ export default function LoginPage() {
         return
       }
 
-      // Check if user needs security setup
-      if (!user.emailVerified || !user.twoFactorEnabled) {
+      // Check if user needs security setup or password change
+      if (!user.emailVerified || !user.twoFactorEnabled || user.requirePasswordChange) {
         // Store temp credentials and start security wizard
         setTempUser(user)
         setTempToken(token)
@@ -101,6 +107,8 @@ export default function LoginPage() {
           setSecurityStep('email')
         } else if (!user.twoFactorEnabled) {
           setSecurityStep('2fa-setup')
+        } else if (user.requirePasswordChange) {
+          setSecurityStep('password-change')
         }
         setLoading(false)
         return
@@ -160,6 +168,8 @@ export default function LoginPage() {
       // Move to 2FA setup if not enabled
       if (!updatedUser.twoFactorEnabled) {
         setSecurityStep('2fa-setup')
+      } else if (updatedUser.requirePasswordChange) {
+        setSecurityStep('password-change')
       } else {
         // All done, go to dashboard
         router.push('/dashboard')
@@ -202,8 +212,14 @@ export default function LoginPage() {
       await authApi.twoFactor.verify(verifyCode)
       const { user: updatedUser } = await authApi.me()
       updateUser(updatedUser)
-      // All setup complete, go to dashboard
-      router.push('/dashboard')
+      setTempUser(updatedUser)
+      // Check if user needs to change password (created by admin/agent)
+      if (updatedUser.requirePasswordChange) {
+        setSecurityStep('password-change')
+      } else {
+        // All setup complete, go to dashboard
+        router.push('/dashboard')
+      }
     } catch (err: any) {
       setError(err.message || 'Invalid verification code')
     } finally {
@@ -215,6 +231,32 @@ export default function LoginPage() {
     navigator.clipboard.writeText(secretKey)
     setCopiedSecret(true)
     setTimeout(() => setCopiedSecret(false), 2000)
+  }
+
+  // Password change handler (for users created by admin/agent)
+  const handlePasswordChange = async () => {
+    if (!newPassword || newPassword.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    try {
+      await authApi.setPassword({ newPassword })
+      const { user: updatedUser } = await authApi.me()
+      updateUser(updatedUser)
+      // All done, go to dashboard
+      router.push('/dashboard')
+    } catch (err: any) {
+      setError(err.message || 'Failed to change password')
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Show agency logo if custom domain is configured, otherwise show default Six Media logo
@@ -269,6 +311,21 @@ export default function LoginPage() {
     )
   }
 
+  // White logo for mobile hero (Variation C)
+  const SixMediaLogoWhite = () => (
+    <div className="flex items-center gap-2">
+      <svg viewBox="0 0 48 28" className="w-11 h-6" fill="none">
+        <path d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14" fill="white" opacity="0.9"/>
+        <path d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14" fill="white" opacity="0.7"/>
+        <ellipse cx="24" cy="14" rx="4" ry="5" fill="white" opacity="0.15"/>
+      </svg>
+      <div className="flex flex-col leading-none">
+        <span className="text-[17px] font-bold text-white tracking-tight">SIXMEDIA</span>
+        <span className="text-[8px] font-semibold tracking-[0.2em] text-white/60 mt-0.5">ADVERTISING</span>
+      </div>
+    </div>
+  )
+
   const platforms = [
     {
       name: 'Facebook',
@@ -320,7 +377,7 @@ export default function LoginPage() {
   // Render the right side content based on display step (for smooth animation)
   const renderRightContent = () => {
     // Security Setup Wizard Steps
-    if (displayStep === 'email' || displayStep === '2fa-setup' || displayStep === '2fa-verify') {
+    if (displayStep === 'email' || displayStep === '2fa-setup' || displayStep === '2fa-verify' || displayStep === 'password-change') {
       return (
         <div className="w-full max-w-[480px]">
           {/* Wizard Card */}
@@ -340,40 +397,59 @@ export default function LoginPage() {
 
             {/* Progress Steps */}
             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-              <div className="flex items-center justify-center gap-4">
-                {/* Step 1 */}
-                <div className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+              <div className="flex items-center justify-center gap-3">
+                {/* Step 1 - Email */}
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
                     tempUser?.emailVerified
                       ? 'bg-emerald-500 text-white'
                       : securityStep === 'email'
                         ? 'bg-purple-600 text-white'
                         : 'bg-gray-200 text-gray-500'
                   }`}>
-                    {tempUser?.emailVerified ? <Check className="w-4 h-4" /> : '1'}
+                    {tempUser?.emailVerified ? <Check className="w-3.5 h-3.5" /> : '1'}
                   </div>
-                  <span className={`text-sm font-medium ${securityStep === 'email' || tempUser?.emailVerified ? 'text-gray-900' : 'text-gray-400'}`}>
-                    Email Verification
+                  <span className={`text-xs font-medium hidden sm:inline ${securityStep === 'email' || tempUser?.emailVerified ? 'text-gray-900' : 'text-gray-400'}`}>
+                    Email
                   </span>
                 </div>
 
-                <div className={`w-12 h-0.5 ${tempUser?.emailVerified ? 'bg-emerald-500' : 'bg-gray-200'}`} />
+                <div className={`w-8 h-0.5 ${tempUser?.emailVerified ? 'bg-emerald-500' : 'bg-gray-200'}`} />
 
-                {/* Step 2 */}
-                <div className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                {/* Step 2 - 2FA */}
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
                     tempUser?.twoFactorEnabled
                       ? 'bg-emerald-500 text-white'
                       : securityStep === '2fa-setup' || securityStep === '2fa-verify'
                         ? 'bg-purple-600 text-white'
                         : 'bg-gray-200 text-gray-500'
                   }`}>
-                    {tempUser?.twoFactorEnabled ? <Check className="w-4 h-4" /> : '2'}
+                    {tempUser?.twoFactorEnabled ? <Check className="w-3.5 h-3.5" /> : '2'}
                   </div>
-                  <span className={`text-sm font-medium ${securityStep === '2fa-setup' || securityStep === '2fa-verify' || tempUser?.twoFactorEnabled ? 'text-gray-900' : 'text-gray-400'}`}>
-                    Two-Factor Auth
+                  <span className={`text-xs font-medium hidden sm:inline ${securityStep === '2fa-setup' || securityStep === '2fa-verify' || tempUser?.twoFactorEnabled ? 'text-gray-900' : 'text-gray-400'}`}>
+                    2FA
                   </span>
                 </div>
+
+                {/* Step 3 - Password (only shown if requirePasswordChange) */}
+                {tempUser?.requirePasswordChange && (
+                  <>
+                    <div className={`w-8 h-0.5 ${tempUser?.twoFactorEnabled && !tempUser?.requirePasswordChange ? 'bg-emerald-500' : securityStep === 'password-change' ? 'bg-purple-300' : 'bg-gray-200'}`} />
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
+                        securityStep === 'password-change'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        3
+                      </div>
+                      <span className={`text-xs font-medium hidden sm:inline ${securityStep === 'password-change' ? 'text-gray-900' : 'text-gray-400'}`}>
+                        Password
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -615,6 +691,104 @@ export default function LoginPage() {
                       <span className="text-sm font-medium">Completing setup...</span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Password Change Step */}
+              {securityStep === 'password-change' && (
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
+                    <Lock className="w-8 h-8 text-purple-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Set Your Password</h2>
+                  <p className="text-gray-500 text-sm mb-6">
+                    Create a strong password to secure your account
+                  </p>
+
+                  <div className="space-y-4 text-left">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        New Password
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type={showNewPassword ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Enter new password"
+                          className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:bg-white transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Confirm Password
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Confirm new password"
+                          className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 focus:bg-white transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Password requirements */}
+                    <div className="p-3 bg-gray-50 rounded-xl">
+                      <p className="text-xs text-gray-500 mb-2 font-medium">Password requirements:</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded-full flex items-center justify-center ${newPassword.length >= 8 ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+                            {newPassword.length >= 8 && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-xs ${newPassword.length >= 8 ? 'text-emerald-600' : 'text-gray-400'}`}>At least 8 characters</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded-full flex items-center justify-center ${newPassword && confirmPassword && newPassword === confirmPassword ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+                            {newPassword && confirmPassword && newPassword === confirmPassword && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <span className={`text-xs ${newPassword && confirmPassword && newPassword === confirmPassword ? 'text-emerald-600' : 'text-gray-400'}`}>Passwords match</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handlePasswordChange}
+                      disabled={loading || newPassword.length < 8 || newPassword !== confirmPassword}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white py-3.5 rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-purple-500/25"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Setting password...
+                        </>
+                      ) : (
+                        <>
+                          <KeyRound className="w-5 h-5" />
+                          Set Password & Continue
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -880,18 +1054,24 @@ export default function LoginPage() {
               <div className="w-full border-t border-gray-200"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-400">Secure login</span>
+              <span className="px-4 bg-white xl:bg-white text-gray-400">Secure login</span>
             </div>
           </div>
 
           {/* Security badges */}
           <div className="flex items-center justify-center gap-4 sm:gap-6">
             <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
-              <Shield className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-emerald-500" />
+              <svg className="w-3.5 sm:w-4 h-3.5 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
               <span className="text-[10px] sm:text-xs">SSL Encrypted</span>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
-              <Zap className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-purple-500" />
+              <svg className="w-3.5 sm:w-4 h-3.5 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M9 12l2 2 4-4"/>
+              </svg>
               <span className="text-[10px] sm:text-xs">2FA Protected</span>
             </div>
           </div>
@@ -1021,110 +1201,136 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Mobile Hero Section - visible below xl only */}
+        {/* Mobile Hero Section - Variation C (Wave Split) - visible below xl only */}
         <div className="xl:hidden w-full flex flex-col">
-          {/* Logo Pill - overlapping onto hero */}
-          <div className="relative z-20 flex justify-center -mb-6">
-            <div className="bg-white rounded-full px-5 py-2.5 shadow-lg border border-gray-100">
-              {isUsingCustomBranding && branding?.brandLogo ? (
-                <img src={branding.brandLogo} alt="Logo" className="h-8 sm:h-10 max-w-[180px] object-contain" />
-              ) : (
-                <SixMediaLogo size="small" />
-              )}
+          {/* Gradient Hero with wave bottom — smooth height transition */}
+          <div
+            className="relative bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 overflow-hidden px-6 hero-transition"
+            style={{
+              paddingTop: displayStep === 'login' ? '2rem' : '2rem',
+              paddingBottom: displayStep === 'login' ? '5rem' : '2.5rem',
+            }}
+          >
+            {/* Animated gradient overlay */}
+            <div className="absolute inset-0 wave-c-gradient-shift" />
+
+            {/* Animated circles / orbit rings + particles — always rendered, fade with transition */}
+            <div
+              className="absolute inset-0 overflow-hidden hero-decorations-transition"
+              style={{ opacity: displayStep === 'login' ? 1 : 0 }}
+            >
+              <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full border-2 border-white/10 orbit-ring" />
+              <div className="absolute bottom-5 -left-10 w-32 h-32 rounded-full border border-white/10 orbit-ring-reverse" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[220px] h-[220px] rounded-full border border-white/[0.08] mobile-pulse-ring" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[160px] h-[160px] rounded-full border border-white/[0.06] wave-c-pulse-ring-2" />
+              {/* 8 floating particles */}
+              <div className="mobile-particle mobile-particle-1" />
+              <div className="mobile-particle mobile-particle-2" />
+              <div className="mobile-particle mobile-particle-3" />
+              <div className="mobile-particle mobile-particle-4" />
+              <div className="mobile-particle mobile-particle-5" />
+              <div className="mobile-particle mobile-particle-6" />
+              <div className="wave-c-p7" />
+              <div className="wave-c-p8" />
             </div>
-          </div>
 
-          {/* Gradient Hero */}
-          <div className={`relative bg-gradient-to-br from-purple-700 via-purple-600 to-indigo-600 overflow-hidden ${
-            displayStep === 'login' ? 'px-6 pt-12 pb-16' : 'pt-10 pb-8'
-          }`}>
-            {/* Floating Particles */}
-            {displayStep === 'login' && (
-              <div className="absolute inset-0 overflow-hidden">
-                <div className="mobile-particle mobile-particle-1" />
-                <div className="mobile-particle mobile-particle-2" />
-                <div className="mobile-particle mobile-particle-3" />
-                <div className="mobile-particle mobile-particle-4" />
-                <div className="mobile-particle mobile-particle-5" />
-                <div className="mobile-particle mobile-particle-6" />
-                <div className="mobile-particle mobile-particle-7" />
-                <div className="mobile-particle mobile-particle-8" />
+            {/* Orbiting dots — always rendered, fade with transition */}
+            <div
+              className="hero-decorations-transition"
+              style={{ opacity: displayStep === 'login' ? 1 : 0 }}
+            >
+              <div className="absolute -top-10 -right-10 w-40 h-40 orbit-ring" style={{ animationDuration: '12s' }}>
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-pink-300 shadow-lg shadow-pink-400/50" />
               </div>
-            )}
-
-            {/* Radar/Orbit Rings */}
-            {displayStep === 'login' && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-[200px] h-[200px] sm:w-[260px] sm:h-[260px] rounded-full border border-white/10 animate-pulse-slow" />
-                <div className="absolute w-[300px] h-[300px] sm:w-[380px] sm:h-[380px] rounded-full border border-white/5" />
+              <div className="absolute bottom-5 -left-10 w-32 h-32 orbit-ring-reverse" style={{ animationDuration: '16s' }}>
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-cyan-300 shadow-lg shadow-cyan-400/50" />
               </div>
-            )}
+            </div>
 
             {/* Hero Content */}
             <div className="relative z-10 text-center">
-              <h2 className={`font-bold text-white mb-1 ${
-                displayStep === 'login' ? 'text-2xl sm:text-3xl' : 'text-lg sm:text-xl'
-              }`}>
-                {isUsingCustomBranding && branding?.brandName ? branding.brandName : 'SIXMEDIA'}
-              </h2>
-              <p className="text-purple-200 text-sm sm:text-base">
-                Premium Ad Accounts Platform
+              {/* Logo with glow */}
+              <div className="flex justify-center mb-4">
+                <div className="wave-c-logo-glow">
+                  {isUsingCustomBranding && branding?.brandLogo ? (
+                    <img src={branding.brandLogo} alt="Logo" className="h-8 sm:h-10 max-w-[180px] object-contain brightness-0 invert" />
+                  ) : (
+                    <SixMediaLogoWhite />
+                  )}
+                </div>
+              </div>
+
+              <p className="text-white/70 text-xs uppercase tracking-[0.2em] wave-c-text-shimmer hero-text-transition"
+                style={{ marginBottom: displayStep === 'login' ? '1.25rem' : '0' }}
+              >
+                Premium Ad Account Platform
               </p>
 
-              {/* Extended content only on login step */}
-              {displayStep === 'login' && (
-                <>
-                  {/* Stat Badges */}
-                  <div className="flex justify-center gap-2 sm:gap-3 mt-5 mb-5">
-                    <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 border border-white/20">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <TrendingUp className="w-3.5 h-3.5 text-emerald-300" />
-                        <span className="text-white font-bold text-sm sm:text-base">$2.5M+</span>
-                      </div>
-                      <p className="text-purple-200 text-[10px] sm:text-xs">Ad Spend</p>
+              {/* Extended content — slide/fade collapse instead of conditional render */}
+              <div
+                className="hero-expand-content overflow-hidden"
+                style={{
+                  maxHeight: displayStep === 'login' ? '300px' : '0',
+                  opacity: displayStep === 'login' ? 1 : 0,
+                }}
+              >
+                {/* Stat Badges with pulse */}
+                <div className="flex justify-center gap-2 sm:gap-3 mb-8">
+                  <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 border border-white/20 wave-c-badge-pulse" style={{ animationDelay: '0s' }}>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <TrendingUp className="w-3.5 h-3.5 text-emerald-300" />
+                      <span className="text-white font-bold text-sm sm:text-base">$2.5M+</span>
                     </div>
-                    <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 border border-white/20">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <Users className="w-3.5 h-3.5 text-blue-300" />
-                        <span className="text-white font-bold text-sm sm:text-base">10K+</span>
-                      </div>
-                      <p className="text-purple-200 text-[10px] sm:text-xs">Advertisers</p>
-                    </div>
-                    <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 border border-white/20">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <Award className="w-3.5 h-3.5 text-yellow-300" />
-                        <span className="text-white font-bold text-sm sm:text-base">500+</span>
-                      </div>
-                      <p className="text-purple-200 text-[10px] sm:text-xs">FB Accounts</p>
-                    </div>
+                    <p className="text-purple-200 text-[10px] sm:text-xs">Ad Spend</p>
                   </div>
+                  <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 border border-white/20 wave-c-badge-pulse" style={{ animationDelay: '0.5s' }}>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Users className="w-3.5 h-3.5 text-blue-300" />
+                      <span className="text-white font-bold text-sm sm:text-base">1000+</span>
+                    </div>
+                    <p className="text-purple-200 text-[10px] sm:text-xs">Advertisers</p>
+                  </div>
+                  <div className="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 sm:px-4 sm:py-2.5 border border-white/20 wave-c-badge-pulse" style={{ animationDelay: '1s' }}>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Award className="w-3.5 h-3.5 text-yellow-300" />
+                      <span className="text-white font-bold text-sm sm:text-base">500+</span>
+                    </div>
+                    <p className="text-purple-200 text-[10px] sm:text-xs">FB Accounts</p>
+                  </div>
+                </div>
 
-                  {/* Platform Icons Carousel */}
-                  <div className="flex justify-center">
-                    <div className="overflow-hidden" style={{ maxWidth: '280px' }}>
-                      <div className="flex items-center gap-2.5 animate-slide-mobile">
-                        {[...platforms, ...platforms].map((platform, index) => (
-                          <div
-                            key={index}
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 backdrop-blur-sm border border-white/20 flex items-center justify-center flex-shrink-0"
-                          >
-                            <div className="brightness-0 invert opacity-90">
-                              {platform.icon}
-                            </div>
+                {/* Platform Icons Carousel */}
+                <div className="flex justify-center">
+                  <div className="overflow-hidden" style={{ maxWidth: '260px' }}>
+                    <div className="flex items-center gap-2.5 animate-slide-mobile" style={{ animationDuration: '10s' }}>
+                      {[...platforms, ...platforms].map((platform, index) => (
+                        <div
+                          key={index}
+                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-white/15 backdrop-blur-sm border border-white/20 flex items-center justify-center flex-shrink-0"
+                        >
+                          <div className="brightness-0 invert opacity-90 scale-90">
+                            {platform.icon}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </>
-              )}
+                </div>
+              </div>
+            </div>
+
+            {/* Static Wave SVG */}
+            <div className="absolute -bottom-[2px] left-0 right-0 z-20">
+              <svg viewBox="0 0 375 40" className="w-full block" preserveAspectRatio="none" style={{ height: '42px' }}>
+                <path d="M0 20 Q93 0 187 20 Q281 40 375 20 L375 40 L0 40 Z" fill="#F9FAFB" />
+              </svg>
             </div>
           </div>
         </div>
 
         {/* Right Section - Dynamic Content */}
-        <div className="w-full xl:w-[45%] xl:min-h-screen flex items-center justify-center p-4 sm:p-6 xl:p-12 overflow-hidden perspective-1000 -mt-8 xl:mt-0 relative z-10">
-          <div className={`w-full max-w-[440px] flex items-center justify-center transform-style-3d ${animationClass}`}>
+        <div className="w-full xl:w-[45%] xl:min-h-screen flex items-center justify-center p-4 sm:p-6 xl:p-12 overflow-hidden -mt-1 xl:mt-0 relative z-10 bg-gray-50 xl:bg-transparent">
+          <div className={`w-full max-w-[440px] flex items-center justify-center ${animationClass}`}>
             {renderRightContent()}
           </div>
         </div>
@@ -1133,12 +1339,8 @@ export default function LoginPage() {
       {/* CSS for animations */}
       <style jsx>{`
         @keyframes slide {
-          0% {
-            transform: translateX(0);
-          }
-          100% {
-            transform: translateX(-50%);
-          }
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
         }
         .animate-slide {
           animation: slide 15s linear infinite;
@@ -1146,37 +1348,34 @@ export default function LoginPage() {
         .animate-slide:hover {
           animation-play-state: paused;
         }
-        .perspective-1000 {
-          perspective: 1200px;
+        /* Hero smooth collapse/expand transitions */
+        .hero-transition {
+          transition: padding 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .transform-style-3d {
-          transform-style: preserve-3d;
+        .hero-decorations-transition {
+          transition: opacity 0.4s ease-in-out;
         }
-        @keyframes flipOut {
-          0% {
-            opacity: 1;
-            transform: rotateY(0deg) scale(1);
-          }
-          100% {
-            opacity: 0;
-            transform: rotateY(-90deg) scale(0.9);
-          }
+        .hero-text-transition {
+          transition: margin-bottom 0.4s ease-in-out;
         }
-        @keyframes flipIn {
-          0% {
-            opacity: 0;
-            transform: rotateY(90deg) scale(0.9);
-          }
-          100% {
-            opacity: 1;
-            transform: rotateY(0deg) scale(1);
-          }
+        .hero-expand-content {
+          transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease-in-out;
         }
-        .animate-flip-out {
-          animation: flipOut 0.3s cubic-bezier(0.55, 0.055, 0.675, 0.19) forwards;
+
+        /* Step transition — slide + fade */
+        @keyframes slideOut {
+          0% { opacity: 1; transform: translateX(0) scale(1); }
+          100% { opacity: 0; transform: translateX(-30px) scale(0.97); }
         }
-        .animate-flip-in {
-          animation: flipIn 0.5s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+        @keyframes slideIn {
+          0% { opacity: 0; transform: translateX(30px) scale(0.97); }
+          100% { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        .animate-slide-out {
+          animation: slideOut 0.25s ease-in forwards;
+        }
+        .animate-slide-in {
+          animation: slideIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
 
         /* Mobile floating particles */
@@ -1192,39 +1391,98 @@ export default function LoginPage() {
         .mobile-particle-4 { width: 5px; height: 5px; top: 70%; left: 20%; animation-duration: 9s; animation-delay: 0.5s; }
         .mobile-particle-5 { width: 3px; height: 3px; top: 10%; left: 65%; animation-duration: 5s; animation-delay: 3s; }
         .mobile-particle-6 { width: 7px; height: 7px; top: 50%; left: 30%; animation-duration: 10s; animation-delay: 1.5s; }
-        .mobile-particle-7 { width: 4px; height: 4px; top: 25%; left: 85%; animation-duration: 6.5s; animation-delay: 2.5s; }
-        .mobile-particle-8 { width: 5px; height: 5px; top: 80%; left: 55%; animation-duration: 7.5s; animation-delay: 0.8s; }
 
         @keyframes float-particle {
-          0% {
-            transform: translateY(0px) translateX(0px) scale(0);
-            opacity: 0;
-          }
-          15% {
-            opacity: 1;
-            transform: translateY(-5px) translateX(3px) scale(1);
-          }
-          85% {
-            opacity: 1;
-          }
-          100% {
-            transform: translateY(-50px) translateX(25px) scale(0.5);
-            opacity: 0;
-          }
+          0% { transform: translateY(0px) translateX(0px) scale(0); opacity: 0; }
+          15% { opacity: 1; transform: translateY(-5px) translateX(3px) scale(1); }
+          85% { opacity: 1; }
+          100% { transform: translateY(-50px) translateX(25px) scale(0.5); opacity: 0; }
         }
 
         /* Mobile platform carousel */
         .animate-slide-mobile {
-          animation: slide 12s linear infinite;
+          animation: slide 10s linear infinite;
         }
 
-        /* Slow pulse for radar rings */
-        .animate-pulse-slow {
-          animation: pulse-slow 3s ease-in-out infinite;
+        /* ========== VARIATION C ANIMATIONS ========== */
+
+        /* Orbit ring spin */
+        .orbit-ring {
+          animation: orbit-spin 15s linear infinite;
         }
-        @keyframes pulse-slow {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.05); }
+        @keyframes orbit-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .orbit-ring-reverse {
+          animation: orbit-spin 20s linear infinite reverse;
+        }
+
+        /* Pulse ring */
+        .mobile-pulse-ring {
+          animation: pulse-ring-anim 3s ease-in-out infinite;
+        }
+        @keyframes pulse-ring-anim {
+          0%, 100% { opacity: 0.3; transform: translate(-50%, -50%) scale(1); }
+          50% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.05); }
+        }
+
+        /* Second pulse ring */
+        .wave-c-pulse-ring-2 {
+          animation: pulse-ring-anim 4s ease-in-out infinite;
+          animation-delay: 1.5s;
+        }
+
+        /* Stat badge pulse */
+        .wave-c-badge-pulse {
+          animation: wave-c-badge-anim 3s ease-in-out infinite;
+        }
+        @keyframes wave-c-badge-anim {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(255,255,255,0); }
+          50% { transform: scale(1.05); box-shadow: 0 0 20px rgba(255,255,255,0.15); }
+        }
+
+        /* Extra particles for Variation C */
+        .wave-c-p7, .wave-c-p8 {
+          position: absolute;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.25);
+          animation: float-particle linear infinite;
+        }
+        .wave-c-p7 { width: 5px; height: 5px; top: 20%; left: 75%; animation-duration: 7s; animation-delay: 1.5s; }
+        .wave-c-p8 { width: 4px; height: 4px; top: 60%; left: 40%; animation-duration: 6s; animation-delay: 3.5s; }
+
+        /* Gradient shift overlay */
+        .wave-c-gradient-shift {
+          background: linear-gradient(135deg, rgba(99,102,241,0.3) 0%, rgba(168,85,247,0.1) 50%, rgba(236,72,153,0.3) 100%);
+          animation: wave-c-gradient-move 8s ease-in-out infinite;
+        }
+        @keyframes wave-c-gradient-move {
+          0%, 100% { opacity: 0; }
+          50% { opacity: 1; }
+        }
+
+        /* Logo glow */
+        .wave-c-logo-glow {
+          animation: wave-c-glow 3s ease-in-out infinite;
+        }
+        @keyframes wave-c-glow {
+          0%, 100% { filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
+          50% { filter: drop-shadow(0 0 12px rgba(255,255,255,0.4)); }
+        }
+
+        /* Text shimmer */
+        .wave-c-text-shimmer {
+          background: linear-gradient(90deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.5) 100%);
+          background-size: 200% 100%;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: wave-c-shimmer 3s linear infinite;
+        }
+        @keyframes wave-c-shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
         }
       `}</style>
     </div>

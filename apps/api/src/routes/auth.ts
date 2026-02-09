@@ -431,6 +431,7 @@ auth.get('/me', verifyToken, async (c) => {
         bingUnlimitedDomainFee: true,
         twoFactorEnabled: true,
         emailVerified: true,
+        requirePasswordChange: true,
         agentId: true,
         brandLogo: true,
         brandName: true,

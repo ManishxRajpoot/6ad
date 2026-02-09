@@ -11,8 +11,10 @@ function handleAutoLogout() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
-    // Redirect to login page
-    window.location.href = '/login'
+    // Only redirect if not already on the login page (prevents reload loop)
+    if (!window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login'
+    }
   }
 }
 
@@ -42,13 +44,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
       // Check for authentication errors - auto logout
       if (response.status === 401) {
-        const errorMessage = (errorData.error || errorData.message || '').toLowerCase()
-        // Check if this is a login attempt failure (wrong password, 2FA, etc.)
-        const isLoginAttempt = endpoint.includes('/auth/login') || endpoint.includes('/auth/verify')
+        // Check if this is a login/auth flow request (login page security wizard)
+        const isAuthFlow = endpoint.includes('/auth/')
 
-        if (isLoginAttempt) {
-          // Login failure - throw the actual API error message
-          throw new Error(errorData.error || errorData.message || 'Login failed')
+        if (isAuthFlow) {
+          // Auth flow failure - throw the actual API error message (don't auto-logout)
+          throw new Error(errorData.error || errorData.message || 'Authentication failed')
         }
 
         // Token invalid/expired - auto logout
@@ -86,6 +87,8 @@ export const authApi = {
   me: () => api.get<{ user: any }>('/auth/me'),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.post<{ message: string }>('/auth/change-password', data),
+  setPassword: (data: { newPassword: string }) =>
+    api.post<{ message: string }>('/auth/password/change', data),
   checkUsername: (username: string) =>
     api.get<{ available: boolean; error?: string }>(`/auth/check-username?username=${encodeURIComponent(username)}`),
   getReferrerInfo: (code: string) =>

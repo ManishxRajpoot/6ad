@@ -1,10 +1,27 @@
 import { Hono } from 'hono'
 import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
+import crypto from 'crypto'
+import { sendEmail, getWelcomeEmailTemplate, buildSmtpConfig } from '../utils/email.js'
 
 const prisma = new PrismaClient()
 import { z } from 'zod'
 import { verifyToken, requireAgent, requireAdmin } from '../middleware/auth.js'
+
+// Generate secure password reset token
+function generatePasswordResetToken(): string {
+  return crypto.randomBytes(32).toString('hex')
+}
+
+// Get frontend URL for password reset (supports whitelabel domains)
+function getPasswordResetUrl(token: string, customDomain?: string | null): string {
+  if (customDomain) {
+    const domain = customDomain.startsWith('http') ? customDomain : `https://${customDomain}`
+    return `${domain}/reset-password?token=${token}`
+  }
+  const baseUrl = process.env.FRONTEND_URL || 'https://6ad.in'
+  return `${baseUrl}/reset-password?token=${token}`
+}
 
 // Generate unique referral code for user
 function generateReferralCode(username: string): string {
@@ -397,6 +414,9 @@ users.post('/', requireAgent, async (c) => {
       }
     }
 
+    // Generate password reset token for welcome email
+    const passwordResetToken = generatePasswordResetToken()
+
     // Generate unique referral code for the user with retry on collision
     let user
     let retries = 3
@@ -435,6 +455,8 @@ users.post('/', requireAgent, async (c) => {
             bingCommission: data.bingCommission || 0,
             bingUnlimitedDomainFee: data.bingUnlimitedDomainFee || 0,
             creatorId,
+            passwordResetToken,
+            requirePasswordChange: true,
           },
           select: {
             id: true,
@@ -513,6 +535,76 @@ users.post('/', requireAgent, async (c) => {
       googleCommission: userWithNumbers.googleCommission,
       plaintextPassword: userWithNumbers.plaintextPassword
     }, null, 2))
+
+    // Send welcome email with password reset link
+    console.log('=== WELCOME EMAIL: Starting to send welcome email to', normalizedEmail, '===')
+    try {
+      // Get agent branding info and custom domain for whitelabel
+      let agentBrandInfo: { brandLogo?: string | null; emailLogo?: string | null; username?: string | null; emailSenderNameApproved?: string | null; smtpEnabled?: boolean | null; smtpHost?: string | null; smtpPort?: number | null; smtpUsername?: string | null; smtpPassword?: string | null; smtpEncryption?: string | null; smtpFromEmail?: string | null } = {}
+      let agentCustomDomain: string | null = null
+
+      if (agentId) {
+        const agentData = await prisma.user.findUnique({
+          where: { id: agentId },
+          select: {
+            brandLogo: true,
+            emailLogo: true,
+            username: true,
+            emailSenderNameApproved: true,
+            smtpEnabled: true,
+            smtpHost: true,
+            smtpPort: true,
+            smtpUsername: true,
+            smtpPassword: true,
+            smtpEncryption: true,
+            smtpFromEmail: true,
+            customDomains: { where: { status: 'APPROVED' }, select: { domain: true, brandLogo: true, emailLogo: true }, take: 1 }
+          }
+        })
+        if (agentData) {
+          const approvedDomain = agentData.customDomains?.[0]
+          agentCustomDomain = approvedDomain?.domain || null
+          agentBrandInfo = {
+            brandLogo: approvedDomain?.brandLogo || agentData.brandLogo,
+            emailLogo: approvedDomain?.emailLogo || agentData.emailLogo,
+            username: agentData.username,
+            emailSenderNameApproved: agentData.emailSenderNameApproved,
+            smtpEnabled: agentData.smtpEnabled,
+            smtpHost: agentData.smtpHost,
+            smtpPort: agentData.smtpPort,
+            smtpUsername: agentData.smtpUsername,
+            smtpPassword: agentData.smtpPassword,
+            smtpEncryption: agentData.smtpEncryption,
+            smtpFromEmail: agentData.smtpFromEmail,
+          }
+        }
+      }
+
+      const passwordResetLink = getPasswordResetUrl(passwordResetToken, agentCustomDomain)
+      const welcomeEmail = getWelcomeEmailTemplate({
+        username: data.username,
+        email: normalizedEmail,
+        passwordResetLink,
+        agentLogo: agentBrandInfo.emailLogo || agentBrandInfo.brandLogo || null,
+        agentBrandName: agentBrandInfo.username || null
+      })
+
+      console.log('=== WELCOME EMAIL: About to call sendEmail to', normalizedEmail, '===')
+      console.log('=== WELCOME EMAIL: Reset link:', passwordResetLink, '===')
+      console.log('=== WELCOME EMAIL: Agent brand info:', JSON.stringify({ username: agentBrandInfo.username, smtpEnabled: agentBrandInfo.smtpEnabled, hasSmtpHost: !!agentBrandInfo.smtpHost }), '===')
+
+      const emailResult = await sendEmail({
+        to: normalizedEmail,
+        ...welcomeEmail,
+        senderName: agentBrandInfo.emailSenderNameApproved || undefined,
+        smtpConfig: buildSmtpConfig(agentBrandInfo)
+      })
+
+      console.log(`=== WELCOME EMAIL: sendEmail returned ${emailResult} for ${normalizedEmail} ===`)
+    } catch (emailError) {
+      console.error('=== WELCOME EMAIL ERROR:', emailError, '===')
+      // Don't fail user creation if email fails
+    }
 
     return c.json({ message: 'User created successfully', user: userWithNumbers }, 201)
   } catch (error: any) {
