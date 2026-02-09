@@ -6,7 +6,7 @@
  */
 
 import { Hono } from 'hono'
-import { streamSSE } from 'hono/helper/streaming/sse'
+import { streamSSE } from 'hono/streaming'
 import jwt from 'jsonwebtoken'
 import { PrismaClient } from '@prisma/client'
 import { addClient, removeClient, getClientCount } from '../services/event-bus.js'

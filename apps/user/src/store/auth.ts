@@ -42,6 +42,8 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (user, token) => {
         localStorage.setItem('token', token)
         set({ user, token, isAuthenticated: true })
+        // Trigger SSE reconnect with fresh token (same-tab event)
+        window.dispatchEvent(new Event('sse:reconnect'))
       },
       updateUser: (user) => {
         set({ user })

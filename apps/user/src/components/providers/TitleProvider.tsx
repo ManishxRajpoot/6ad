@@ -21,8 +21,11 @@ export function TitleProvider({ children }: { children: React.ReactNode }) {
     if (!isHydrated) return
 
     const updateTitle = async () => {
-      // If authenticated, fetch fresh user data
-      if (isAuthenticated && token) {
+      // Skip API call on login page — token may be stale from previous session
+      const isLoginPage = typeof window !== 'undefined' && window.location.pathname.startsWith('/login')
+
+      // If authenticated and not on login page, fetch fresh user data
+      if (isAuthenticated && token && !isLoginPage) {
         try {
           const response = await authApi.me()
           if (response.user) {

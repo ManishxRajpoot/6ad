@@ -3,7 +3,7 @@
  * Manages connected SSE clients and broadcasts real-time events
  */
 
-import type { SSEStreamingApi } from 'hono/helper/streaming/sse'
+import type { SSEStreamingApi } from 'hono/streaming'
 
 // Types
 export type EventType =

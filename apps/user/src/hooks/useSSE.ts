@@ -40,6 +40,7 @@ export function useSSE(handlers: SSEEventHandlers) {
   const eventSourceRef = useRef<EventSource | null>(null)
   const handlersRef = useRef(handlers)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const authFailedRef = useRef(false)
 
   // Keep handlers ref up to date without recreating EventSource
   handlersRef.current = handlers
@@ -49,6 +50,9 @@ export function useSSE(handlers: SSEEventHandlers) {
 
     const token = localStorage.getItem('token')
     if (!token) return
+
+    // Don't retry if we already know the token is invalid
+    if (authFailedRef.current) return
 
     // Close existing connection
     if (eventSourceRef.current) {
@@ -61,23 +65,21 @@ export function useSSE(handlers: SSEEventHandlers) {
 
     es.onopen = () => {
       setIsConnected(true)
+      authFailedRef.current = false
       console.log('[SSE] Connected')
     }
 
-    es.onerror = (err) => {
+    es.onerror = () => {
       setIsConnected(false)
 
       // EventSource auto-reconnects on network errors
       // But if we get a 401/403, the connection closes permanently
       if (es.readyState === EventSource.CLOSED) {
-        console.log('[SSE] Connection closed, will retry in 10s')
-        // Manual reconnect after delay for auth errors
-        reconnectTimeoutRef.current = setTimeout(() => {
-          const currentToken = localStorage.getItem('token')
-          if (currentToken) {
-            connect()
-          }
-        }, 10000)
+        // Mark auth as failed — stop retrying until a fresh login
+        authFailedRef.current = true
+        es.close()
+        eventSourceRef.current = null
+        // Don't log or retry — will reconnect when user logs in via sse:reconnect event
       }
     }
 
@@ -112,13 +114,45 @@ export function useSSE(handlers: SSEEventHandlers) {
     }
   }, [connect])
 
+  // Listen for login/logout — reconnect with fresh token after login
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'token') {
+        if (e.newValue) {
+          // New token set (user just logged in) — reset auth failure and connect
+          authFailedRef.current = false
+          connect()
+        } else {
+          // Token removed (user logged out) — disconnect
+          if (eventSourceRef.current) {
+            eventSourceRef.current.close()
+            eventSourceRef.current = null
+          }
+          setIsConnected(false)
+        }
+      }
+    }
+
+    // Custom event dispatched after login in same tab (storage event only fires cross-tab)
+    const handleReconnect = () => {
+      authFailedRef.current = false
+      connect()
+    }
+
+    window.addEventListener('storage', handleStorageChange)
+    window.addEventListener('sse:reconnect', handleReconnect)
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('sse:reconnect', handleReconnect)
+    }
+  }, [connect])
+
   // Reconnect when tab becomes visible (handles long-backgrounded tabs)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !authFailedRef.current) {
         const es = eventSourceRef.current
         if (!es || es.readyState === EventSource.CLOSED) {
-          console.log('[SSE] Tab visible, reconnecting...')
           connect()
         }
       }

@@ -40,17 +40,20 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Request failed' }))
 
-      // Check for authentication errors - auto logout
+      // Any 401 = session invalid, auto logout immediately
       if (response.status === 401) {
+        // Skip auto-logout only for login attempts (wrong password etc.)
+        const isLoginAttempt = endpoint.includes('/auth/login')
+        if (!isLoginAttempt) {
+          handleAutoLogout()
+          return Promise.reject(new Error('Session expired. Please login again.'))
+        }
+      }
+
+      // Also auto-logout if user not found (stale JWT from before migration)
+      if (response.status === 404) {
         const errorMessage = (errorData.message || errorData.error || '').toLowerCase()
-        // Check for token-related errors
-        if (
-          errorMessage.includes('invalid') ||
-          errorMessage.includes('expired') ||
-          errorMessage.includes('token') ||
-          errorMessage.includes('unauthorized') ||
-          errorMessage.includes('authentication')
-        ) {
+        if (errorMessage.includes('user not found')) {
           handleAutoLogout()
           return Promise.reject(new Error('Session expired. Please login again.'))
         }

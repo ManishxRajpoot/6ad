@@ -57,6 +57,15 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
         return Promise.reject(new Error('Session expired. Please login again.'))
       }
 
+      // Also auto-logout if user not found (stale JWT from before migration)
+      if (response.status === 404) {
+        const msg = (errorData.error || errorData.message || '').toLowerCase()
+        if (msg.includes('user not found')) {
+          handleAutoLogout()
+          return Promise.reject(new Error('Session expired. Please login again.'))
+        }
+      }
+
       throw new Error(errorData.error || errorData.message || 'Request failed')
     }
 
