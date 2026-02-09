@@ -84,6 +84,7 @@ const loginSchema = z.object({
   password: z.string().min(6),
   totpCode: z.string().length(6).optional(),
   emailOtp: z.string().length(6).optional(),
+  rememberMe: z.boolean().optional(),
 })
 
 const registerSchema = z.object({
@@ -176,7 +177,7 @@ auth.get('/referrer-info', async (c) => {
 auth.post('/login', async (c) => {
   try {
     const body = await c.req.json()
-    const { email: emailOrUsername, password, totpCode, emailOtp } = loginSchema.parse(body)
+    const { email: emailOrUsername, password, totpCode, emailOtp, rememberMe } = loginSchema.parse(body)
 
     // Find user by email or username (case-insensitive)
     const isEmail = emailOrUsername.includes('@')
@@ -210,8 +211,8 @@ auth.post('/login', async (c) => {
       }, 403)
     }
 
-    // Check if 2FA is enabled
-    if (user.twoFactorEnabled && user.twoFactorSecret) {
+    // Check if 2FA is enabled (skip if rememberMe is checked - trusted device)
+    if (user.twoFactorEnabled && user.twoFactorSecret && !rememberMe) {
       // If no TOTP code and no email OTP provided, return requires2FA flag
       if (!totpCode && !emailOtp) {
         return c.json({
@@ -252,8 +253,8 @@ auth.post('/login', async (c) => {
       orderBy: { priority: 'asc' }
     })
 
-    // Generate token
-    const token = generateToken(user)
+    // Generate token (24hr default, 72hr if rememberMe)
+    const token = generateToken(user, !!rememberMe)
 
     // Return user data (excluding password)
     const { password: _, ...userData } = user

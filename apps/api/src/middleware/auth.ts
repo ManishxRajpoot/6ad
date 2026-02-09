@@ -83,10 +83,11 @@ export const verifyAgent = requireAgent
 export const verifyUser = requireUser
 
 // Generate JWT token
-export const generateToken = (user: { id: string; email: string; role: UserRole }): string => {
+// Default: 24hr session. With rememberMe: 72hr session (trusted device)
+export const generateToken = (user: { id: string; email: string; role: UserRole }, rememberMe: boolean = false): string => {
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
+    { id: user.id, email: user.email, role: user.role, rememberMe },
     JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: rememberMe ? '72h' : '24h' }
   )
 }

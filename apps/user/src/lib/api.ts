@@ -89,7 +89,7 @@ export const api = {
 
 // Auth API
 export const authApi = {
-  login: (data: { email: string; password: string; totpCode?: string; emailOtp?: string }) =>
+  login: (data: { email: string; password: string; totpCode?: string; emailOtp?: string; rememberMe?: boolean }) =>
     api.post<{ token: string; user: any; requires2FA?: boolean; maskedEmail?: string; message?: string }>('/auth/login', data),
   register: (data: { email: string; password: string; username: string; referralCode?: string }) =>
     api.post<{ token: string; user: any }>('/auth/register', data),

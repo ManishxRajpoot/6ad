@@ -12,6 +12,7 @@ export default function LoginPage() {
   const setAuth = useAuthStore((state) => state.setAuth)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -23,7 +24,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { token, user } = await authApi.login(formData)
+      const { token, user } = await authApi.login({ ...formData, rememberMe })
 
       if (user.role !== 'ADMIN') {
         setError('Access denied. Admin only.')
@@ -118,6 +119,29 @@ export default function LoginPage() {
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
             />
+
+            {/* Remember this device */}
+            <label className="flex items-center gap-2.5 cursor-pointer select-none group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="peer sr-only"
+                />
+                <div className="w-5 h-5 rounded-md border-2 border-gray-300 peer-checked:border-purple-600 peer-checked:bg-purple-600 transition-all duration-200 flex items-center justify-center group-hover:border-purple-400">
+                  {rememberMe && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-700">Remember this device</span>
+                <p className="text-xs text-gray-400">Stay signed in for 72 hours, skip 2FA</p>
+              </div>
+            </label>
 
             <Button type="submit" loading={loading} className="w-full py-3 sm:py-3.5">
               Sign In

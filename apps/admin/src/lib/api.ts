@@ -84,7 +84,7 @@ export const api = {
 
 // Auth API
 export const authApi = {
-  login: (data: { email: string; password: string }) =>
+  login: (data: { email: string; password: string; rememberMe?: boolean }) =>
     api.post<{ token: string; user: any }>('/auth/login', data),
   me: () => api.get<{ user: any }>('/auth/me'),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>

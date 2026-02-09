@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -76,7 +77,7 @@ export default function LoginPage() {
     const code = codeOverride || totpCode
 
     try {
-      const loginData: any = { email, password }
+      const loginData: any = { email, password, rememberMe }
       if (securityStep === '2fa-login' && code) {
         if (emailOtpMode) {
           loginData.emailOtp = code
@@ -1048,6 +1049,29 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+
+            {/* Remember Me */}
+            <label className="flex items-center gap-2.5 cursor-pointer group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-5 h-5 border-2 border-gray-300 rounded-md peer-checked:bg-teal-600 peer-checked:border-teal-600 transition-all flex items-center justify-center group-hover:border-teal-400">
+                  {rememberMe && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+              <div>
+                <span className="text-sm text-gray-700 font-medium">Remember this device</span>
+                <p className="text-[10px] text-gray-400">Stay logged in for 72 hours without 2FA</p>
+              </div>
+            </label>
 
             <button
               type="submit"
