@@ -11,6 +11,12 @@ import {
   ArrowUpRight,
   Settings,
   LogOut,
+  Megaphone,
+  Globe,
+  Bell,
+  Monitor,
+  Gift,
+  Ticket,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -69,19 +75,54 @@ type MenuItem = {
   icon: React.ComponentType<{ className?: string }> | (() => React.ReactElement)
 }
 
-const menuItems: MenuItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Agents', href: '/agents', icon: UserCog },
-  { name: 'Users', href: '/users', icon: Users },
-  { name: 'Transactions', href: '/transactions', icon: CreditCard },
-  { name: 'Reports', href: '/reports', icon: FileText },
-  { name: 'Facebook', href: '/facebook', icon: FacebookIcon },
-  { name: 'Google', href: '/google', icon: GoogleIcon },
-  { name: 'Snapchat', href: '/snapchat', icon: SnapchatIcon },
-  { name: 'Tiktok', href: '/tiktok', icon: TiktokIcon },
-  { name: 'Bing', href: '/bing', icon: BingIcon },
-  { name: 'Withdrawals', href: '/withdrawals', icon: ArrowUpRight },
-  { name: 'Settings', href: '/settings', icon: Settings },
+type MenuSection = {
+  label?: string
+  items: MenuItem[]
+}
+
+const menuSections: MenuSection[] = [
+  {
+    items: [
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    ]
+  },
+  {
+    label: 'Management',
+    items: [
+      { name: 'Agents', href: '/agents', icon: UserCog },
+      { name: 'Users', href: '/users', icon: Users },
+      { name: 'Transactions', href: '/transactions', icon: CreditCard },
+      { name: 'Withdrawals', href: '/withdrawals', icon: ArrowUpRight },
+      { name: 'Reports', href: '/reports', icon: FileText },
+    ]
+  },
+  {
+    label: 'Platforms',
+    items: [
+      { name: 'Facebook', href: '/facebook', icon: FacebookIcon },
+      { name: 'Google', href: '/google', icon: GoogleIcon },
+      { name: 'TikTok', href: '/tiktok', icon: TiktokIcon },
+      { name: 'Snapchat', href: '/snapchat', icon: SnapchatIcon },
+      { name: 'Bing', href: '/bing', icon: BingIcon },
+      { name: 'BM Config', href: '/bm-config', icon: Monitor },
+    ]
+  },
+  {
+    label: 'Content',
+    items: [
+      { name: 'Announcements', href: '/announcements', icon: Megaphone },
+      { name: 'Notifications', href: '/notifications', icon: Bell },
+      { name: 'Coupons', href: '/coupons', icon: Ticket },
+      { name: 'Referrals', href: '/referrals', icon: Gift },
+    ]
+  },
+  {
+    label: 'System',
+    items: [
+      { name: 'Domains', href: '/domain-requests', icon: Globe },
+      { name: 'Settings', href: '/settings', icon: Settings },
+    ]
+  },
 ]
 
 export function Sidebar() {
@@ -96,28 +137,39 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-3 overflow-y-auto">
-        <div className="space-y-1">
-          {menuItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-            const IconComponent = item.icon
+      <nav className="flex-1 py-3 px-3 overflow-y-auto">
+        <div className="space-y-4">
+          {menuSections.map((section, sIdx) => (
+            <div key={sIdx}>
+              {section.label && (
+                <p className="px-3 mb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                  {section.label}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {section.items.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                  const IconComponent = item.icon
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
-                  isActive
-                    ? 'bg-[#52B788] text-white'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                )}
-              >
-                <IconComponent className={cn("w-5 h-5", isActive ? "text-white" : "text-gray-500")} />
-                <span>{item.name}</span>
-              </Link>
-            )
-          })}
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all',
+                        isActive
+                          ? 'bg-[#52B788] text-white'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      )}
+                    >
+                      <IconComponent className={cn("w-4 h-4", isActive ? "text-white" : "text-gray-500")} />
+                      <span>{item.name}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </nav>
 
