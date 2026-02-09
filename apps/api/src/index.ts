@@ -25,7 +25,9 @@ import cheetahRoutes from './routes/cheetah.js'
 import agentWithdrawalRoutes from './routes/agent-withdrawals.js'
 import bmAdRequestRoutes from './routes/bm-ad-request.js'
 import versionRoutes from './routes/version.js'
+import eventRoutes from './routes/events.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
+import { startHeartbeat } from './services/event-bus.js'
 
 const app = new Hono()
 
@@ -91,12 +93,16 @@ app.route('/cheetah', cheetahRoutes)
 app.route('/agent-withdrawals', agentWithdrawalRoutes)
 app.route('/bm-ad-request', bmAdRequestRoutes)
 app.route('/version', versionRoutes)
+app.route('/events', eventRoutes)
 
 // Initialize BM configurations from database
 initializeBMConfigs().catch(console.error)
 
 // Start background crypto verification service
 startBackgroundVerifier().catch(console.error)
+
+// Start SSE heartbeat for real-time event delivery
+startHeartbeat()
 
 // Start server
 const port = Number(process.env.PORT) || 5001

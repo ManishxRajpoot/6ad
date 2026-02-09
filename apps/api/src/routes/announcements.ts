@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { prisma } from '@6ad/database'
 import { verifyToken, verifyAdmin } from '../middleware/auth'
+import { broadcast } from '../services/event-bus.js'
 
 const announcements = new Hono()
 
@@ -81,6 +82,9 @@ announcements.post('/', verifyToken, verifyAdmin, async (c) => {
       }
     })
 
+    // Broadcast real-time update
+    broadcast({ event: 'announcements-updated', data: { action: 'created' } })
+
     return c.json({ announcement }, 201)
   } catch (error) {
     console.error('Create announcement error:', error)
@@ -112,6 +116,9 @@ announcements.patch('/:id', verifyToken, verifyAdmin, async (c) => {
       data: updateData
     })
 
+    // Broadcast real-time update
+    broadcast({ event: 'announcements-updated', data: { action: 'updated' } })
+
     return c.json({ announcement })
   } catch (error) {
     console.error('Update announcement error:', error)
@@ -127,6 +134,9 @@ announcements.delete('/:id', verifyToken, verifyAdmin, async (c) => {
     await prisma.announcement.delete({
       where: { id: announcementId }
     })
+
+    // Broadcast real-time update
+    broadcast({ event: 'announcements-updated', data: { action: 'deleted' } })
 
     return c.json({ success: true })
   } catch (error) {

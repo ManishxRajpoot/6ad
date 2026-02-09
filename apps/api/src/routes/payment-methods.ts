@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { PrismaClient } from '@prisma/client'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
+import { broadcast } from '../services/event-bus.js'
 
 const prisma = new PrismaClient()
 const app = new Hono()
@@ -76,6 +77,9 @@ app.post('/', verifyToken, requireAdmin, async (c) => {
       }
     })
 
+    // Broadcast real-time update to all user/agency clients
+    broadcast({ event: 'payment-methods-updated', data: { action: 'created' } })
+
     return c.json({ paymentMethod, message: 'Payment method created successfully' }, 201)
   } catch (error) {
     console.error('Failed to create payment method:', error)
@@ -120,6 +124,9 @@ app.patch('/:id', verifyToken, requireAdmin, async (c) => {
       data: updateData
     })
 
+    // Broadcast real-time update to all user/agency clients
+    broadcast({ event: 'payment-methods-updated', data: { action: 'updated' } })
+
     return c.json({ paymentMethod, message: 'Payment method updated successfully' })
   } catch (error) {
     console.error('Failed to update payment method:', error)
@@ -143,6 +150,9 @@ app.delete('/:id', verifyToken, requireAdmin, async (c) => {
     await prisma.paymentMethod.delete({
       where: { id }
     })
+
+    // Broadcast real-time update to all user/agency clients
+    broadcast({ event: 'payment-methods-updated', data: { action: 'deleted' } })
 
     return c.json({ message: 'Payment method deleted successfully' })
   } catch (error) {
@@ -169,6 +179,9 @@ app.post('/reorder', verifyToken, requireAdmin, async (c) => {
         })
       )
     )
+
+    // Broadcast real-time update to all user/agency clients
+    broadcast({ event: 'payment-methods-updated', data: { action: 'reordered' } })
 
     return c.json({ message: 'Payment methods reordered successfully' })
   } catch (error) {

@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { prisma } from '@6ad/database'
 import { verifyToken, verifyAdmin } from '../middleware/auth'
+import { broadcast } from '../services/event-bus.js'
 
 const notifications = new Hono()
 
@@ -179,6 +180,9 @@ notifications.post('/admin/send', verifyToken, verifyAdmin, async (c) => {
       }
     })
 
+    // Broadcast real-time notification push
+    broadcast({ event: 'notification', data: { userId, action: 'new' } })
+
     return c.json({ notification, message: 'Notification sent successfully' })
   } catch (error) {
     console.error('Send notification error:', error)
@@ -219,6 +223,9 @@ notifications.post('/admin/send-all', verifyToken, verifyAdmin, async (c) => {
       data: notificationsData
     })
 
+    // Broadcast real-time notification push to all
+    broadcast({ event: 'notification', data: { action: 'broadcast' } })
+
     return c.json({ count: result.count, message: `Sent to ${result.count} users` })
   } catch (error) {
     console.error('Send all notifications error:', error)
@@ -236,7 +243,7 @@ export async function createNotification(data: {
   metadata?: any
 }) {
   try {
-    return await prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         userId: data.userId,
         type: data.type,
@@ -246,6 +253,11 @@ export async function createNotification(data: {
         metadata: data.metadata ? JSON.stringify(data.metadata) : null
       }
     })
+
+    // Broadcast real-time notification push
+    broadcast({ event: 'notification', data: { userId: data.userId, action: 'new', type: data.type } })
+
+    return notification
   } catch (error) {
     console.error('Create notification error:', error)
     return null

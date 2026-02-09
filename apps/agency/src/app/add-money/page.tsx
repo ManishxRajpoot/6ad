@@ -10,6 +10,7 @@ import { DatePicker } from '@/components/ui/DatePicker'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
 import { paymentMethodsApi, transactionsApi, authApi, usersApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { useSSEEvent } from '@/hooks/useSSEEvent'
 import {
   Search,
   Copy,
@@ -131,6 +132,13 @@ export default function AddMoneyPage() {
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
+
+  // Real-time update: refetch payment methods when admin changes them
+  useSSEEvent('payment-methods-updated', () => {
+    paymentMethodsApi.getAll().then(data => {
+      setPaymentMethods(data.paymentMethods || [])
+    }).catch(() => {})
+  })
 
   // Show toast notification
   const showToast = (message: string, type: 'success' | 'error') => {

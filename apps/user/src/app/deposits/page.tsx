@@ -13,6 +13,7 @@ import { PaginationSelect } from '@/components/ui/PaginationSelect'
 import { paymentMethodsApi, transactionsApi, authApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { useToast } from '@/contexts/ToastContext'
+import { useSSEEvent } from '@/hooks/useSSEEvent'
 import {
   Search,
   Copy,
@@ -117,6 +118,14 @@ export default function DepositsPage() {
 
   // Use global toast
   const toast = useToast()
+
+  // Real-time update: refetch payment methods when admin changes them
+  useSSEEvent('payment-methods-updated', () => {
+    // Clear cached payment methods so they get refetched
+    paymentMethodsApi.getAll().then(data => {
+      setPaymentMethods(data.paymentMethods || [])
+    }).catch(() => {})
+  })
 
   // Show toast notification helper (for backward compatibility)
   const showToast = (message: string, type: 'success' | 'error') => {

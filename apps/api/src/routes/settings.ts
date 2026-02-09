@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 import { verifyToken, requireAdmin, requireUser } from '../middleware/auth.js'
+import { broadcast } from '../services/event-bus.js'
 
 const settings = new Hono()
 
@@ -270,6 +271,9 @@ settings.patch('/site', requireAdmin, async (c) => {
       }
     })
 
+    // Broadcast real-time update
+    broadcast({ event: 'site-settings-updated', data: { action: 'updated' } })
+
     return c.json({ message: 'Settings updated', settings: updated })
   } catch (error) {
     console.error('Update site settings error:', error)
@@ -395,6 +399,9 @@ settings.patch('/platforms', requireAdmin, async (c) => {
       })
     }
 
+    // Broadcast real-time update
+    broadcast({ event: 'platforms-updated', data: { action: 'updated' } })
+
     return c.json({
       message: 'Platform settings updated',
       platforms: {
@@ -476,6 +483,9 @@ settings.patch('/profile-share-links', requireAdmin, async (c) => {
         }
       })
     }
+
+    // Broadcast real-time update
+    broadcast({ event: 'settings-updated', data: { setting: 'profile-share-links' } })
 
     return c.json({
       message: 'Profile share links updated',
@@ -610,6 +620,9 @@ settings.put('/agent-balance-visibility', requireAdmin, async (c) => {
       })
     }
 
+    // Broadcast real-time update to agents only
+    broadcast({ event: 'settings-updated', data: { setting: 'agent-balance-visibility' }, targets: 'agents' })
+
     return c.json({
       message: 'Agent balance visibility updated',
       showBalanceToAgents: globalSettings.showBalanceToAgents
@@ -666,6 +679,9 @@ settings.put('/referral-domain', requireAdmin, async (c) => {
         data: { referralDomain }
       })
     }
+
+    // Broadcast real-time update
+    broadcast({ event: 'settings-updated', data: { setting: 'referral-domain' } })
 
     return c.json({
       message: 'Referral domain updated',

@@ -6,6 +6,7 @@ import { TitleProvider } from '@/components/providers/TitleProvider'
 import { ToastProvider } from '@/contexts/ToastContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { UpdateChecker } from '@/components/UpdateChecker'
+import { SSEProvider } from '@/components/providers/SSEProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -29,7 +30,9 @@ export default function RootLayout({
           <ToastProvider>
             <DomainProvider>
               <TitleProvider>
-                {children}
+                <SSEProvider>
+                  {children}
+                </SSEProvider>
                 <UpdateChecker />
               </TitleProvider>
             </DomainProvider>

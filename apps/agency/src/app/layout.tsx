@@ -4,6 +4,7 @@ import './globals.css'
 import { ToastProvider } from '@/contexts/ToastContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { UpdateChecker } from '@/components/UpdateChecker'
+import { SSEProvider } from '@/components/providers/SSEProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -25,7 +26,9 @@ export default function RootLayout({
       <body className={inter.className} suppressHydrationWarning>
         <ErrorBoundary>
           <ToastProvider>
-            {children}
+            <SSEProvider>
+              {children}
+            </SSEProvider>
             <UpdateChecker />
           </ToastProvider>
         </ErrorBoundary>

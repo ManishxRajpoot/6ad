@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Check, Trash2, ExternalLink } from 'lucide-react'
 import { notificationsApi } from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
+import { useSSEEvent } from '@/hooks/useSSEEvent'
 
 interface Notification {
   id: string
@@ -23,7 +24,7 @@ export function NotificationBell() {
   const [isAnimating, setIsAnimating] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Fetch unread count on mount and periodically
+  // Fetch unread count on mount and periodically (120s fallback, SSE handles primary delivery)
   useEffect(() => {
     const fetchUnreadCount = async () => {
       try {
@@ -35,9 +36,23 @@ export function NotificationBell() {
     }
 
     fetchUnreadCount()
-    const interval = setInterval(fetchUnreadCount, 30000) // Every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 120000) // 120s fallback (SSE is primary)
     return () => clearInterval(interval)
   }, [])
+
+  // Real-time: instantly update when new notification arrives via SSE
+  useSSEEvent('notification', () => {
+    notificationsApi.getUnreadCount().then(res => {
+      setUnreadCount(res.unreadCount)
+    }).catch(() => {})
+    // If dropdown is open, refresh the list too
+    if (isOpen) {
+      notificationsApi.getAll({ limit: 10 }).then(res => {
+        setNotifications(res.notifications)
+        setUnreadCount(res.unreadCount)
+      }).catch(() => {})
+    }
+  })
 
   // Fetch notifications when dropdown opens
   useEffect(() => {
