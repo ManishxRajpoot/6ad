@@ -29,7 +29,13 @@ const defaultTransporter = nodemailer.createTransport({
   auth: {
     user: DEFAULT_SMTP.user,
     pass: DEFAULT_SMTP.pass
-  }
+  },
+  // DKIM alignment: ensure envelope sender matches From header domain
+  // This helps SPF/DKIM alignment and prevents spam flagging
+  dkim: undefined,  // Will use Hostinger's DKIM if configured in DNS
+  pool: true,        // Reuse SMTP connection for better performance
+  maxConnections: 3, // Limit concurrent connections
+  maxMessages: 50,   // Messages per connection before reconnecting
 })
 
 // Verify connection on startup (async to avoid blocking)
@@ -218,6 +224,53 @@ export function buildSmtpConfig(agent: {
   return config
 }
 
+// Generate clean plain text from HTML (better than crude regex strip)
+function htmlToPlainText(html: string): string {
+  return html
+    // Replace <br> tags with newlines
+    .replace(/<br\s*\/?>/gi, '\n')
+    // Replace block-level elements with newlines
+    .replace(/<\/(p|div|h[1-6]|tr|li)>/gi, '\n')
+    .replace(/<\/(td|th)>/gi, '\t')
+    // Replace <a> tags with text + URL
+    .replace(/<a[^>]+href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '$2 ($1)')
+    // Remove all remaining HTML tags
+    .replace(/<[^>]*>/g, '')
+    // Decode common HTML entities
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#9679;/g, '•')
+    .replace(/&#10003;/g, '✓')
+    .replace(/&#10005;/g, '✗')
+    .replace(/&#9432;/g, 'ℹ')
+    // Clean up excessive whitespace
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n\s*\n/g, '\n\n')
+    .trim()
+}
+
+// Build anti-spam email headers for better deliverability
+function getAntiSpamHeaders(fromEmail: string, toEmail: string): Record<string, string> {
+  const domain = fromEmail.split('@')[1] || '6ad.in'
+  const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@${domain}>`
+
+  return {
+    'Message-ID': messageId,
+    'X-Mailer': '6AD Platform',
+    'X-Priority': '3',                    // Normal priority (1=high looks spammy)
+    'Precedence': 'bulk',                 // Tells filters this is a legitimate bulk/transactional email
+    'X-Auto-Response-Suppress': 'All',    // Prevent auto-replies/out-of-office loops
+    'Reply-To': fromEmail,                // Explicit reply-to helps deliverability
+    'List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=Unsubscribe>`,  // Required by Gmail/Yahoo since Feb 2024
+    'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',                      // One-click unsubscribe (RFC 8058)
+    'MIME-Version': '1.0',
+  }
+}
+
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
     const senderName = options.senderName || 'Six Media'
@@ -225,17 +278,24 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     // Convert inline base64 images to CID attachments (Gmail strips base64 images)
     const { html: processedHtml, attachments } = extractBase64Images(options.html)
 
+    // Generate proper plain text version (not just crude HTML strip)
+    const plainText = options.text || htmlToPlainText(options.html)
+
     // Use custom SMTP if provided, otherwise use default
     if (options.smtpConfig) {
       const customTransporter = createCustomTransporter(options.smtpConfig)
       const fromName = options.smtpConfig.fromName || senderName
+      const fromEmail = options.smtpConfig.fromEmail
+      const headers = getAntiSpamHeaders(fromEmail, options.to)
 
       const info = await customTransporter.sendMail({
-        from: `"${fromName}" <${options.smtpConfig.fromEmail}>`,
+        from: `"${fromName}" <${fromEmail}>`,
         to: options.to,
+        replyTo: fromEmail,
         subject: options.subject,
         html: processedHtml,
-        text: options.text || options.html.replace(/<[^>]*>/g, ''),
+        text: plainText,
+        headers,
         ...(attachments.length > 0 && { attachments })
       })
 
@@ -245,12 +305,17 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
 
     // Use default SMTP
     const fromName = options.senderName || DEFAULT_SMTP.fromName
+    const fromEmail = DEFAULT_SMTP.fromEmail
+    const headers = getAntiSpamHeaders(fromEmail, options.to)
+
     const info = await defaultTransporter.sendMail({
-      from: `"${fromName}" <${DEFAULT_SMTP.fromEmail}>`,
+      from: `"${fromName}" <${fromEmail}>`,
       to: options.to,
+      replyTo: fromEmail,
       subject: options.subject,
       html: processedHtml,
-      text: options.text || options.html.replace(/<[^>]*>/g, ''),
+      text: plainText,
+      headers,
       ...(attachments.length > 0 && { attachments })
     })
 
@@ -443,7 +508,7 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
                           © 2026 ${platformName}. All rights reserved.
                         </p>
                         <p style="margin: 0; color: #9ca3af; font-size: 11px;">
-                          ${footerText || 'This is an automated message. Please do not reply directly.'}
+                          ${footerText || `You received this email because you have an account with ${platformName}.`}
                         </p>
                       </td>
                     </tr>
@@ -1311,8 +1376,10 @@ export function getVerificationEmailTemplate(code: string, username: string, age
     </p>
   `
 
+  const brandName = agentBrandName || 'Six Media'
+
   return {
-    subject: 'Email Verification Code',
+    subject: `${code} is your ${brandName} verification code`,
     html: getBaseEmailTemplate({
       title: 'Email Verification',
       subtitle: 'Verify your email address',
@@ -1472,7 +1539,7 @@ export function getPasswordResetEmailTemplate(data: PasswordResetEmailData): { s
   `
 
   return {
-    subject: 'Password Reset Request',
+    subject: `Reset your ${data.agentBrandName || 'Six Media'} password`,
     html: getBaseEmailTemplate({
       title: 'Reset Password',
       subtitle: 'Security Request',
