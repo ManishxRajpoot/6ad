@@ -197,9 +197,15 @@ export const transactionsApi = {
 // Accounts API
 export const accountsApi = {
   getAll: (platform?: string) => api.get<{ accounts: any[] }>(`/accounts${platform ? `?platform=${platform}` : ''}`),
+  getByUser: (userId: string, platform?: string) => {
+    const params = new URLSearchParams({ targetUserId: userId, limit: '100' })
+    if (platform && platform !== 'ALL') params.set('platform', platform)
+    return api.get<{ accounts: any[] }>(`/accounts?${params.toString()}`)
+  },
   getById: (id: string) => api.get<{ account: any }>(`/accounts/${id}`),
   create: (data: any) => api.post<{ account: any }>('/accounts', data),
   update: (id: string, data: any) => api.put<{ account: any }>(`/accounts/${id}`, data),
+  updateStatus: (id: string, status: string) => api.patch<{ account: any; message: string }>(`/accounts/${id}`, { status }),
   delete: (id: string) => api.delete<{ message: string }>(`/accounts/${id}`),
 }
 

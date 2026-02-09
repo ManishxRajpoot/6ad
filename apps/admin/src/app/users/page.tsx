@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Modal } from '@/components/ui/Modal'
-import { usersApi, agentsApi } from '@/lib/api'
+import { usersApi, agentsApi, accountsApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { useDateFilterStore } from '@/store/dateFilter'
-import { Plus, Search, MoreVertical, ChevronDown, Eye, Edit, Trash2, Shield, Copy, Check, RefreshCw } from 'lucide-react'
+import { Plus, Search, MoreVertical, ChevronDown, Eye, Edit, Trash2, Shield, Copy, Check, RefreshCw, Monitor, X, Loader2 } from 'lucide-react'
 
 type User = {
   id: string
@@ -256,6 +256,14 @@ export default function UsersPage() {
 
   const [resetting2FA, setResetting2FA] = useState(false)
 
+  // Ad Accounts Modal state
+  const [isAdAccountsModalOpen, setIsAdAccountsModalOpen] = useState(false)
+  const [adAccountsUser, setAdAccountsUser] = useState<User | null>(null)
+  const [adAccounts, setAdAccounts] = useState<any[]>([])
+  const [adAccountsPlatform, setAdAccountsPlatform] = useState<string>('ALL')
+  const [adAccountsLoading, setAdAccountsLoading] = useState(false)
+  const [removingAccountId, setRemovingAccountId] = useState<string | null>(null)
+
   const handleReset2FA = async (user: User) => {
     if (!confirm(`Are you sure you want to reset 2FA for ${user.username}? They will need to set up 2FA again on next login.`)) {
       return
@@ -274,6 +282,98 @@ export default function UsersPage() {
       toast.error('Failed to reset 2FA', error.message || 'An error occurred')
     } finally {
       setResetting2FA(false)
+    }
+  }
+
+  // Ad Accounts handlers
+  const fetchUserAdAccounts = async (userId: string, platform?: string) => {
+    setAdAccountsLoading(true)
+    try {
+      const data = await accountsApi.getByUser(userId, platform)
+      setAdAccounts(data.accounts || [])
+    } catch (error) {
+      console.error('Failed to fetch user ad accounts:', error)
+      setAdAccounts([])
+    } finally {
+      setAdAccountsLoading(false)
+    }
+  }
+
+  const handleViewAdAccounts = (user: User) => {
+    setAdAccountsUser(user)
+    setAdAccountsPlatform('ALL')
+    setIsAdAccountsModalOpen(true)
+    fetchUserAdAccounts(user.id)
+    setActiveDropdown(null)
+  }
+
+  const handleAdAccountsPlatformChange = (platform: string) => {
+    setAdAccountsPlatform(platform)
+    if (adAccountsUser) {
+      fetchUserAdAccounts(adAccountsUser.id, platform === 'ALL' ? undefined : platform)
+    }
+  }
+
+  const handleRemoveAccount = async (accountId: string, accountName: string) => {
+    if (!confirm(`Remove "${accountName}" from this user's panel? The account status will be set to Suspended.`)) return
+
+    setRemovingAccountId(accountId)
+    try {
+      await accountsApi.updateStatus(accountId, 'SUSPENDED')
+      toast.success('Account Removed', `${accountName} has been suspended`)
+      // Re-fetch the list
+      if (adAccountsUser) {
+        fetchUserAdAccounts(adAccountsUser.id, adAccountsPlatform === 'ALL' ? undefined : adAccountsPlatform)
+      }
+    } catch (error: any) {
+      toast.error('Failed to remove account', error.message || 'An error occurred')
+    } finally {
+      setRemovingAccountId(null)
+    }
+  }
+
+  const getPlatformIcon = (platform: string) => {
+    switch (platform) {
+      case 'FACEBOOK':
+        return <svg className="w-4 h-4 text-[#1877F2]" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+      case 'GOOGLE':
+        return <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#EA4335" d="M5.26 9.76A7.05 7.05 0 0 1 12 5.06c1.68 0 3.19.58 4.39 1.54l3.28-3.28A11.96 11.96 0 0 0 12 .06c-4.74 0-8.8 2.76-10.74 6.76l4 3.1z"/><path fill="#34A853" d="M1.26 9.76A11.91 11.91 0 0 0 0 12.06c0 1.92.45 3.73 1.26 5.34l4-3.1a7.15 7.15 0 0 1 0-4.44l-4-3.1z"/><path fill="#4285F4" d="M12 18.06c-2.67 0-5-1.47-6.26-3.66l-4 3.1C4.2 21.36 7.8 24.06 12 24.06c3.02 0 5.74-1.14 7.84-2.98l-3.9-3.02c-1.1.72-2.47 1.14-3.94 1.14z"/><path fill="#FBBC05" d="M23.94 12.06c0-.9-.08-1.76-.22-2.6H12v5.12h6.72c-.32 1.6-1.18 2.96-2.46 3.88l3.9 3.02c2.28-2.1 3.78-5.2 3.78-9.42z"/></svg>
+      case 'TIKTOK':
+        return <svg className="w-4 h-4 text-gray-900" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+      case 'SNAPCHAT':
+        return <svg className="w-4 h-4 text-[#FFFC00]" viewBox="0 0 24 24" fill="currentColor"><path d="M12.206.793c.99 0 4.347.276 5.93 3.821.529 1.193.403 3.219.299 4.847l-.003.06c-.012.18-.022.345-.03.51.075.045.203.09.401.09.3-.016.659-.12 1.033-.301a.603.603 0 0 1 .272-.063c.12 0 .24.03.345.09.264.135.39.345.39.585 0 .196-.076.375-.21.515-.15.135-.39.27-.795.39-.06.016-.12.03-.18.045-.165.045-.345.09-.51.135-.075.016-.15.045-.225.075-.15.06-.255.135-.3.225-.045.105-.045.225 0 .36.09.195.18.39.285.585.12.24.375.705.66 1.125.36.54.78.99 1.245 1.35.27.195.54.36.81.495.15.075.27.15.375.225.27.165.42.39.435.6.03.21-.075.435-.285.615a1.665 1.665 0 0 1-.765.345 4.2 4.2 0 0 1-.84.12c-.225.015-.45.045-.675.105-.15.045-.285.12-.405.21-.21.165-.315.33-.315.465-.015.135.015.27.075.405.06.135.135.27.225.405.18.27.285.585.255.885-.045.405-.345.72-.735.84-.21.06-.435.09-.66.09-.21 0-.405-.03-.585-.075a4.065 4.065 0 0 0-.675-.12c-.15-.015-.3-.015-.45 0-.195.015-.39.045-.585.09-.255.06-.51.135-.765.225l-.09.03c-.255.09-.54.18-.84.255a4.62 4.62 0 0 1-1.095.135c-.375 0-.75-.045-1.11-.135a7.316 7.316 0 0 1-.84-.255l-.075-.03a8.06 8.06 0 0 0-.765-.225 3.975 3.975 0 0 0-.585-.09c-.15-.015-.3-.015-.45 0-.225.015-.45.06-.675.12-.195.045-.39.075-.585.075-.225 0-.45-.03-.66-.09-.39-.12-.69-.435-.735-.84-.03-.3.075-.615.255-.885.09-.135.165-.27.225-.405.06-.135.09-.27.075-.405 0-.135-.105-.3-.315-.465a1.11 1.11 0 0 0-.405-.21 4.62 4.62 0 0 0-.675-.105 4.2 4.2 0 0 1-.84-.12 1.665 1.665 0 0 1-.765-.345c-.21-.18-.315-.405-.285-.615.015-.21.165-.435.435-.6.105-.075.225-.15.375-.225.27-.135.54-.3.81-.495.465-.36.885-.81 1.245-1.35.285-.42.54-.885.66-1.125.105-.195.195-.39.285-.585.045-.135.045-.255 0-.36-.045-.09-.15-.165-.3-.225a1.665 1.665 0 0 0-.225-.075 6.6 6.6 0 0 1-.51-.135c-.06-.015-.12-.03-.18-.045-.405-.12-.645-.255-.795-.39a.585.585 0 0 1-.21-.515c0-.24.126-.45.39-.585a.69.69 0 0 1 .345-.09c.09 0 .18.015.27.063.375.18.735.285 1.035.3.198 0 .326-.044.4-.089a4.95 4.95 0 0 1-.032-.51l-.004-.06c-.103-1.628-.229-3.654.3-4.847C7.86 1.069 11.215.793 12.206.793z"/></svg>
+      case 'BING':
+        return <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#008373" d="M5 3v16.5l4.5 2.5 8-4.5v-4L9.5 10V5.5L5 3z"/><path fill="#00A99D" d="M9.5 5.5V10l8 3.5v4l-8 4.5L5 19.5V3l4.5 2.5z"/><path fill="#00C8B4" d="M9.5 10l8 3.5v4l-8 4.5v-12z"/></svg>
+      default:
+        return <Monitor className="w-4 h-4 text-gray-400" />
+    }
+  }
+
+  const getPlatformLabel = (platform: string) => {
+    switch (platform) {
+      case 'FACEBOOK': return 'Facebook'
+      case 'GOOGLE': return 'Google'
+      case 'TIKTOK': return 'TikTok'
+      case 'SNAPCHAT': return 'Snapchat'
+      case 'BING': return 'Bing'
+      default: return platform
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'APPROVED':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Active</span>
+      case 'PENDING':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">Pending</span>
+      case 'SUSPENDED':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">Suspended</span>
+      case 'REJECTED':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">Rejected</span>
+      case 'REFUNDED':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700">Refunded</span>
+      default:
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">{status}</span>
     }
   }
 
@@ -578,13 +678,20 @@ export default function UsersPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => handleViewProfile(user)}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
                             title="View Profile"
                           >
                             <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleViewAdAccounts(user)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            title="Ad Accounts"
+                          >
+                            <Monitor className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handleEditUser(user)}
@@ -1237,6 +1344,135 @@ export default function UsersPage() {
             </div>
           </div>
         )}
+      </Modal>
+      {/* Ad Accounts Modal */}
+      <Modal
+        isOpen={isAdAccountsModalOpen}
+        onClose={() => {
+          setIsAdAccountsModalOpen(false)
+          setAdAccountsUser(null)
+          setAdAccounts([])
+          setAdAccountsPlatform('ALL')
+        }}
+        title={`${adAccountsUser?.username || 'User'}'s Ad Accounts`}
+        className="max-w-2xl"
+      >
+        <div className="space-y-4">
+          {/* Platform Filter Tabs */}
+          <div className="flex flex-wrap gap-1.5">
+            {[
+              { value: 'ALL', label: 'All' },
+              { value: 'FACEBOOK', label: 'Facebook' },
+              { value: 'GOOGLE', label: 'Google' },
+              { value: 'TIKTOK', label: 'TikTok' },
+              { value: 'SNAPCHAT', label: 'Snapchat' },
+              { value: 'BING', label: 'Bing' },
+            ].map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => handleAdAccountsPlatformChange(tab.value)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  adAccountsPlatform === tab.value
+                    ? 'bg-[#8B5CF6] text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {tab.value !== 'ALL' && <span className="flex-shrink-0">{getPlatformIcon(tab.value)}</span>}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Accounts List */}
+          <div className="max-h-[400px] overflow-y-auto rounded-lg border border-gray-200">
+            {adAccountsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-[#8B5CF6]" />
+                <span className="ml-2 text-sm text-gray-500">Loading accounts...</span>
+              </div>
+            ) : adAccounts.length === 0 ? (
+              <div className="text-center py-12">
+                <Monitor className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">No ad accounts found</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {adAccountsPlatform !== 'ALL' ? `No ${getPlatformLabel(adAccountsPlatform)} accounts for this user` : 'This user has no ad accounts yet'}
+                </p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500">Platform</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500">Account ID</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-gray-500">Name</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500">Status</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-gray-500 w-[80px]">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adAccounts.map((account) => (
+                    <tr key={account.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors">
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                          {getPlatformIcon(account.platform)}
+                          <span className="text-xs font-medium text-gray-700">{getPlatformLabel(account.platform)}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs font-mono text-gray-600">{account.accountId}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs text-gray-700">{account.accountName || '-'}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {getStatusBadge(account.status)}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {account.status !== 'SUSPENDED' && account.status !== 'REFUNDED' ? (
+                          <button
+                            onClick={() => handleRemoveAccount(account.id, account.accountName || account.accountId)}
+                            disabled={removingAccountId === account.id}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                            title="Remove from user panel"
+                          >
+                            {removingAccountId === account.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <X className="w-3 h-3" />
+                            )}
+                            Remove
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-gray-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Footer */}
+          {adAccounts.length > 0 && (
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-xs text-gray-400">
+                Showing {adAccounts.length} account{adAccounts.length !== 1 ? 's' : ''}
+                {adAccountsPlatform !== 'ALL' ? ` (${getPlatformLabel(adAccountsPlatform)})` : ''}
+              </p>
+              <button
+                onClick={() => {
+                  setIsAdAccountsModalOpen(false)
+                  setAdAccountsUser(null)
+                  setAdAccounts([])
+                }}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          )}
+        </div>
       </Modal>
     </DashboardLayout>
   )
