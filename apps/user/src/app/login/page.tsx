@@ -1035,7 +1035,7 @@ export default function LoginPage() {
             </div>
 
             {/* Remember Me */}
-            <label className="flex items-center gap-2.5 cursor-pointer group">
+            <label className="flex items-center gap-2 cursor-pointer group">
               <div className="relative">
                 <input
                   type="checkbox"
@@ -1043,18 +1043,15 @@ export default function LoginPage() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-5 h-5 border-2 border-gray-300 rounded-md peer-checked:bg-purple-600 peer-checked:border-purple-600 transition-all flex items-center justify-center group-hover:border-purple-400">
+                <div className="w-[15px] h-[15px] border-[1.5px] border-gray-300 rounded peer-checked:bg-purple-600 peer-checked:border-purple-600 transition-all flex items-center justify-center group-hover:border-purple-400">
                   {rememberMe && (
-                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   )}
                 </div>
               </div>
-              <div>
-                <span className="text-sm text-gray-700 font-medium">Remember this device</span>
-                <p className="text-[10px] text-gray-400">Stay logged in for 72 hours without 2FA</p>
-              </div>
+              <span className="text-xs text-gray-500">Remember this device for 72 hours</span>
             </label>
 
             <button
