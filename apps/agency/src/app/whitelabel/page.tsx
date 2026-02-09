@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
-import { domainsApi, brandingApi, smtpApi } from '@/lib/api'
+import { domainsApi, brandingApi, smtpApi, DnsHealthResult } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import {
   Globe,
@@ -89,6 +89,8 @@ export default function WhitelabelPage() {
   const [loadingSmtp, setLoadingSmtp] = useState(true)
   const [smtpTestResult, setSmtpTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [encryptionDropdownOpen, setEncryptionDropdownOpen] = useState(false)
+  const [dnsHealth, setDnsHealth] = useState<DnsHealthResult | null>(null)
+  const [checkingDns, setCheckingDns] = useState(false)
 
   const fetchDomains = async () => {
     try {
@@ -189,6 +191,7 @@ export default function WhitelabelPage() {
   const handleTestSmtp = async () => {
     setTestingSmtp(true)
     setSmtpTestResult(null)
+    setDnsHealth(null)
     try {
       const res = await smtpApi.test({
         smtpHost,
@@ -204,10 +207,28 @@ export default function WhitelabelPage() {
       } else {
         setSmtpTestResult({ success: false, message: res.error || 'Connection failed' })
       }
+      // Capture DNS health from response
+      if (res.dnsHealth) {
+        setDnsHealth(res.dnsHealth)
+      }
     } catch (err: any) {
       setSmtpTestResult({ success: false, message: err.message || 'Test failed' })
     } finally {
       setTestingSmtp(false)
+    }
+  }
+
+  const handleCheckDns = async () => {
+    if (!smtpFromEmail) return
+    setCheckingDns(true)
+    setDnsHealth(null)
+    try {
+      const res = await smtpApi.dnsCheck(smtpFromEmail)
+      setDnsHealth(res)
+    } catch (err: any) {
+      toast.error(err.message || 'DNS check failed')
+    } finally {
+      setCheckingDns(false)
     }
   }
 
@@ -1066,24 +1087,139 @@ export default function WhitelabelPage() {
                           </div>
                         )}
 
-                        {/* Test Button */}
-                        <button
-                          onClick={handleTestSmtp}
-                          disabled={testingSmtp || !smtpHost || !smtpPort || !smtpUsername || !smtpPassword || !smtpFromEmail}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-[#0D9488]/10 text-gray-700 hover:text-[#0D9488] rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {testingSmtp ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Testing...
-                            </>
-                          ) : (
-                            <>
-                              <Zap className="w-4 h-4" />
-                              Test Connection
-                            </>
-                          )}
-                        </button>
+                        {/* Test & Check DNS Buttons */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleTestSmtp}
+                            disabled={testingSmtp || !smtpHost || !smtpPort || !smtpUsername || !smtpPassword || !smtpFromEmail}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-[#0D9488]/10 text-gray-700 hover:text-[#0D9488] rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {testingSmtp ? (
+                              <><Loader2 className="w-4 h-4 animate-spin" /> Testing...</>
+                            ) : (
+                              <><Zap className="w-4 h-4" /> Test Connection</>
+                            )}
+                          </button>
+                          <button
+                            onClick={handleCheckDns}
+                            disabled={checkingDns || !smtpFromEmail}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-purple-50 text-gray-700 hover:text-purple-700 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {checkingDns ? (
+                              <><Loader2 className="w-4 h-4 animate-spin" /> Checking...</>
+                            ) : (
+                              <><Globe className="w-4 h-4" /> Check Domain</>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* DNS Health Report */}
+                        {dnsHealth && (
+                          <div className="border border-gray-200 rounded-lg overflow-hidden">
+                            {/* Score Header */}
+                            <div className={`px-3 py-2.5 flex items-center justify-between ${
+                              dnsHealth.score >= 80 ? 'bg-green-50' : dnsHealth.score >= 50 ? 'bg-amber-50' : 'bg-red-50'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                {dnsHealth.score >= 80 ? (
+                                  <CheckCircle className="w-4 h-4 text-green-600" />
+                                ) : dnsHealth.score >= 50 ? (
+                                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                                ) : (
+                                  <AlertCircle className="w-4 h-4 text-red-600" />
+                                )}
+                                <span className="text-sm font-medium text-gray-900">
+                                  Domain Health: {dnsHealth.domain}
+                                </span>
+                              </div>
+                              <span className={`text-sm font-bold ${
+                                dnsHealth.score >= 80 ? 'text-green-700' : dnsHealth.score >= 50 ? 'text-amber-700' : 'text-red-700'
+                              }`}>
+                                {dnsHealth.score}/100
+                              </span>
+                            </div>
+
+                            <div className="p-3 space-y-2">
+                              {/* SPF */}
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${dnsHealth.spf.found ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <span className="text-xs font-medium text-gray-700 w-14">SPF</span>
+                                <span className={`text-xs ${dnsHealth.spf.found ? 'text-green-700' : 'text-red-600'}`}>
+                                  {dnsHealth.spf.found ? (dnsHealth.spf.issue || 'Configured') : 'Not found'}
+                                </span>
+                              </div>
+
+                              {/* DKIM */}
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${dnsHealth.dkim.found ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <span className="text-xs font-medium text-gray-700 w-14">DKIM</span>
+                                <span className={`text-xs ${dnsHealth.dkim.found ? 'text-green-700' : 'text-red-600'}`}>
+                                  {dnsHealth.dkim.found ? 'Configured' : 'Not found — emails will go to spam'}
+                                </span>
+                              </div>
+
+                              {/* DMARC */}
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${dnsHealth.dmarc.found ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <span className="text-xs font-medium text-gray-700 w-14">DMARC</span>
+                                <span className={`text-xs ${dnsHealth.dmarc.found ? 'text-green-700' : 'text-red-600'}`}>
+                                  {dnsHealth.dmarc.found ? (dnsHealth.dmarc.issue || 'Configured') : 'Not found'}
+                                </span>
+                              </div>
+
+                              {/* Issues & Recommendations */}
+                              {dnsHealth.issues.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-gray-100">
+                                  <p className="text-xs font-medium text-gray-700 mb-1.5">How to fix:</p>
+                                  <div className="space-y-2">
+                                    {!dnsHealth.spf.found && (
+                                      <div className="bg-gray-50 rounded-md p-2">
+                                        <p className="text-xs font-medium text-gray-700 mb-1">Add SPF record:</p>
+                                        <p className="text-xs text-gray-500 mb-1">Go to your domain DNS settings and add a TXT record:</p>
+                                        <div className="bg-white border border-gray-200 rounded p-1.5 text-xs font-mono text-gray-800 break-all">
+                                          Name: @ &nbsp; Type: TXT &nbsp; Value: v=spf1 include:_spf.{smtpHost.replace('smtp.', '')} -all
+                                        </div>
+                                      </div>
+                                    )}
+                                    {!dnsHealth.dkim.found && (
+                                      <div className="bg-red-50 rounded-md p-2">
+                                        <p className="text-xs font-medium text-red-700 mb-1">Enable DKIM (most important):</p>
+                                        <p className="text-xs text-red-600">DKIM is required by Gmail and Yahoo since Feb 2024. Without it, your emails will go to spam.</p>
+                                        <p className="text-xs text-gray-600 mt-1">Go to your email provider dashboard → Email Authentication → Enable DKIM, then add the DKIM TXT record to your domain DNS.</p>
+                                      </div>
+                                    )}
+                                    {!dnsHealth.dmarc.found && (
+                                      <div className="bg-gray-50 rounded-md p-2">
+                                        <p className="text-xs font-medium text-gray-700 mb-1">Add DMARC record:</p>
+                                        <div className="bg-white border border-gray-200 rounded p-1.5 text-xs font-mono text-gray-800 break-all">
+                                          Name: _dmarc &nbsp; Type: TXT &nbsp; Value: v=DMARC1; p=quarantine; rua=mailto:{smtpFromEmail}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {dnsHealth.spf.found && dnsHealth.spf.issue && dnsHealth.spf.issue.includes('~all') && (
+                                      <div className="bg-gray-50 rounded-md p-2">
+                                        <p className="text-xs font-medium text-gray-700 mb-1">Strengthen SPF:</p>
+                                        <p className="text-xs text-gray-600">Change <code className="bg-red-100 px-1 rounded">~all</code> to <code className="bg-green-100 px-1 rounded">-all</code> in your SPF record for better protection.</p>
+                                      </div>
+                                    )}
+                                    {dnsHealth.dmarc.found && dnsHealth.dmarc.issue && dnsHealth.dmarc.issue.includes('p=none') && (
+                                      <div className="bg-gray-50 rounded-md p-2">
+                                        <p className="text-xs font-medium text-gray-700 mb-1">Strengthen DMARC:</p>
+                                        <p className="text-xs text-gray-600">Change <code className="bg-red-100 px-1 rounded">p=none</code> to <code className="bg-green-100 px-1 rounded">p=quarantine</code> for better spam protection.</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {dnsHealth.score >= 80 && dnsHealth.issues.length === 0 && (
+                                <p className="text-xs text-green-700 mt-1 pt-1 border-t border-gray-100">
+                                  Your domain is properly configured. Emails should land in inbox.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 

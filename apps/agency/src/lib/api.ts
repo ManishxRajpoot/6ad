@@ -285,7 +285,19 @@ export const smtpApi = {
     smtpEncryption: string;
     smtpFromEmail: string;
     testEmail?: string;
-  }) => api.post<{ success: boolean; message?: string; error?: string }>('/agents/smtp/test', data),
+  }) => api.post<{ success: boolean; message?: string; error?: string; dnsHealth?: DnsHealthResult }>('/agents/smtp/test', data),
+  dnsCheck: (fromEmail: string) => api.post<DnsHealthResult>('/agents/smtp/dns-check', { fromEmail }),
+}
+
+// DNS Health check result type
+export interface DnsHealthResult {
+  domain: string
+  spf: { found: boolean; record?: string; valid: boolean; issue?: string }
+  dkim: { found: boolean; issue?: string }
+  dmarc: { found: boolean; record?: string; valid: boolean; issue?: string }
+  score: number
+  issues: string[]
+  recommendations: string[]
 }
 
 // Agent Withdrawals API
