@@ -102,7 +102,7 @@ export default function SettingsPage() {
   const [testEmail, setTestEmail] = useState('')
   const [showSmtpPassword, setShowSmtpPassword] = useState(false)
 
-  // Cheetah API state
+  // Ad Account API state
   const [cheetahEnvironment, setCheetahEnvironment] = useState<'test' | 'production'>('test')
   const [cheetahConfigLoading, setCheetahConfigLoading] = useState(true)
   const [savingCheetahConfig, setSavingCheetahConfig] = useState(false)
@@ -368,11 +368,11 @@ export default function SettingsPage() {
     setSavingCheetahConfig(true)
     try {
       await cheetahApi.config.update({ environment: cheetahEnvironment })
-      alert(`Cheetah API configured successfully! (${cheetahEnvironment} environment)`)
+      alert(`API configured successfully! (${cheetahEnvironment} environment)`)
       setCheetahConfigured(true)
       fetchCheetahQuota()
     } catch (error: any) {
-      console.error('Failed to save Cheetah config:', error)
+      console.error('Failed to save config:', error)
       alert(`Failed to configure: ${error.message || 'Unknown error'}`)
     } finally {
       setSavingCheetahConfig(false)
@@ -1019,7 +1019,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Cheetah Mobile API (猎豹移动) */}
+        {/* Ad Account Management API */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -1027,7 +1027,7 @@ export default function SettingsPage() {
                 <Zap className="h-5 w-5 text-white" />
               </div>
               <div>
-                <CardTitle>猎豹移动 Open API (Cheetah Mobile)</CardTitle>
+                <CardTitle>Ad Account Management API</CardTitle>
                 <p className="text-sm text-gray-500">Connect to Facebook/Meta ad account management API</p>
               </div>
             </div>
@@ -1074,7 +1074,7 @@ export default function SettingsPage() {
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="test">🧪 Test Environment (test-open-api.neverbugs.com)</option>
-                    <option value="production">🚀 Production Environment (open-api.cheetahmobile.com)</option>
+                    <option value="production">🚀 Production Environment</option>
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
                     {cheetahEnvironment === 'test'

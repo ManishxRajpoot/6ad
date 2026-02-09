@@ -64,8 +64,11 @@ const defaultTransporter = nodemailer.createTransport({
     }
   }),
   pool: true,        // Reuse SMTP connection for better performance
-  maxConnections: 3, // Limit concurrent connections
-  maxMessages: 50,   // Messages per connection before reconnecting
+  maxConnections: 5, // Concurrent connections
+  maxMessages: 100,  // Messages per connection before reconnecting
+  connectionTimeout: 5000,  // 5s to connect
+  greetingTimeout: 5000,    // 5s for greeting
+  socketTimeout: 10000,     // 10s socket timeout
 })
 
 // Verify connection on startup (async to avoid blocking)
@@ -95,21 +98,65 @@ export interface SmtpConfig {
   fromName?: string
 }
 
-// Create transporter with custom SMTP config
+// ============= AGENT SMTP TRANSPORTER CACHE =============
+// Cache agent SMTP transporters to reuse warm connections (avoids 3-10s cold start per email)
+// Key: "host:port:username" → pooled transporter
+const agentTransporterCache = new Map<string, { transporter: nodemailer.Transporter; lastUsed: number }>()
+
+// Clean stale transporters every 10 minutes (idle > 15 min)
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of agentTransporterCache) {
+    if (now - entry.lastUsed > 15 * 60 * 1000) {
+      try { entry.transporter.close() } catch (_) {}
+      agentTransporterCache.delete(key)
+    }
+  }
+}, 10 * 60 * 1000)
+
+// Get or create a cached pooled transporter for agent SMTP
+function getAgentTransporter(config: SmtpConfig): nodemailer.Transporter {
+  const cacheKey = `${config.host}:${config.port}:${config.username}`
+  const cached = agentTransporterCache.get(cacheKey)
+
+  if (cached) {
+    cached.lastUsed = Date.now()
+    return cached.transporter
+  }
+
+  // Create new pooled transporter
+  const isImplicitTLS = config.port === 465
+  const useSecure = config.encryption === 'SSL' || isImplicitTLS
+
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: useSecure,
+    auth: {
+      user: config.username,
+      pass: config.password
+    },
+    ...(config.port === 587 && !useSecure && { requireTLS: true }),
+    pool: true,           // POOLED — keeps connection alive for reuse
+    maxConnections: 3,
+    maxMessages: 50,
+    connectionTimeout: 5000,   // 5s connect
+    greetingTimeout: 5000,     // 5s greeting
+    socketTimeout: 10000,      // 10s socket
+  })
+
+  agentTransporterCache.set(cacheKey, { transporter, lastUsed: Date.now() })
+  console.log(`[SMTP] Cached new pooled transporter for ${config.host}:${config.port} (${config.username})`)
+  return transporter
+}
+
+// Create transporter with custom SMTP config (uncached — used for testing only)
 function createCustomTransporter(config: SmtpConfig) {
   // Auto-detect secure mode based on port if encryption setting is mismatched
   // Port 465 always uses implicit SSL/TLS (secure: true)
   // Port 587/25 use STARTTLS (secure: false, then upgrade)
   const isImplicitTLS = config.port === 465
   const useSecure = config.encryption === 'SSL' || isImplicitTLS
-
-  console.log('[SMTP] Creating transporter:', {
-    host: config.host,
-    port: config.port,
-    encryption: config.encryption,
-    useSecure,
-    isImplicitTLS
-  })
 
   return nodemailer.createTransport({
     host: config.host,
@@ -122,9 +169,9 @@ function createCustomTransporter(config: SmtpConfig) {
     // For port 587, require TLS upgrade (STARTTLS)
     ...(config.port === 587 && !useSecure && { requireTLS: true }),
     // Connection timeout for better error messages
-    connectionTimeout: 30000,
-    greetingTimeout: 15000,
-    socketTimeout: 30000
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 10000
   })
 }
 
@@ -359,19 +406,11 @@ export function buildSmtpConfig(agent: {
   emailSenderNameApproved?: string | null
   username?: string | null
 } | null | undefined): SmtpConfig | undefined {
-  console.log('[SMTP] Building config from agent:', agent ? {
-    smtpEnabled: agent.smtpEnabled,
-    smtpHost: agent.smtpHost,
-    smtpFromEmail: agent.smtpFromEmail,
-    hasPassword: !!agent.smtpPassword
-  } : 'null/undefined')
-
   if (!agent?.smtpEnabled || !agent.smtpHost || !agent.smtpFromEmail) {
-    console.log('[SMTP] Returning undefined - missing required fields')
     return undefined
   }
 
-  const config = {
+  return {
     host: agent.smtpHost,
     port: agent.smtpPort || 587,
     username: agent.smtpUsername || '',
@@ -380,8 +419,6 @@ export function buildSmtpConfig(agent: {
     fromEmail: agent.smtpFromEmail,
     fromName: agent.emailSenderNameApproved || agent.username || undefined
   }
-  console.log('[SMTP] Returning config:', { ...config, password: '***' })
-  return config
 }
 
 // Generate clean plain text from HTML (better than crude regex strip)
@@ -444,13 +481,14 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
 
     // Use custom SMTP if provided, otherwise use default
     if (options.smtpConfig) {
-      const customTransporter = createCustomTransporter(options.smtpConfig)
+      // Use cached pooled transporter — reuses warm connections (fast)
+      const agentTransporter = getAgentTransporter(options.smtpConfig)
       const fromName = options.smtpConfig.fromName || senderName
       const fromEmail = options.smtpConfig.fromEmail
       const agentDomain = fromEmail.split('@')[1]
       const headers = getAntiSpamHeaders(fromEmail, agentDomain)
 
-      const info = await customTransporter.sendMail({
+      const info = await agentTransporter.sendMail({
         from: `"${fromName}" <${fromEmail}>`,
         to: options.to,
         replyTo: fromEmail,
@@ -1567,6 +1605,16 @@ export function getVerificationEmailTemplate(code: string, username: string, age
       agentBrandName,
       content
     })
+  }
+}
+
+// Ultra-fast minimal 2FA login email — skips heavy base template, ~2KB total
+export function get2FALoginEmailTemplate(code: string, username: string, agentLogo?: string | null, agentBrandName?: string | null): { subject: string; html: string } {
+  const brandName = agentBrandName || 'Six Media'
+
+  return {
+    subject: `${code} - ${brandName} login code`,
+    html: `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f3f4f6"><table width="100%" cellpadding="0" cellspacing="0" style="padding:30px 15px"><tr><td align="center"><table width="100%" cellpadding="0" cellspacing="0" style="max-width:460px;background:#fff;border-radius:10px;overflow:hidden"><tr><td style="background:#7C3AED;padding:16px 20px"><span style="color:#fff;font-size:16px;font-weight:700">${brandName}</span></td></tr><tr><td style="padding:24px 20px"><p style="margin:0 0 12px;color:#374151;font-size:14px">Hi <strong>${username}</strong>,</p><p style="margin:0 0 20px;color:#6b7280;font-size:13px">Your login verification code:</p><div style="background:#f9fafb;border:2px dashed #e5e7eb;border-radius:10px;padding:18px;text-align:center;margin:0 0 18px"><p style="margin:0;color:#111;font-size:32px;font-weight:700;letter-spacing:8px;font-family:monospace">${code}</p></div><p style="margin:0 0 12px;color:#6b7280;font-size:12px">Expires in 10 minutes. Do not share this code.</p><p style="margin:0;color:#9ca3af;font-size:11px">&copy; ${new Date().getFullYear()} ${brandName}</p></td></tr></table></td></tr></table></body></html>`
   }
 }
 

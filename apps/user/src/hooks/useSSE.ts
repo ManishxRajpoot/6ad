@@ -66,7 +66,6 @@ export function useSSE(handlers: SSEEventHandlers) {
     es.onopen = () => {
       setIsConnected(true)
       authFailedRef.current = false
-      console.log('[SSE] Connected')
     }
 
     es.onerror = () => {

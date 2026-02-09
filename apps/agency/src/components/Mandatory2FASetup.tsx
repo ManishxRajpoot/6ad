@@ -72,9 +72,6 @@ export function Mandatory2FASetup() {
     try {
       const response = await authApi.email.sendCode()
       setEmailCodeSent(true)
-      if (response.code) {
-        console.log('Email verification code:', response.code)
-      }
     } catch (err: any) {
       setError(err.message || 'Failed to send verification code')
     } finally {

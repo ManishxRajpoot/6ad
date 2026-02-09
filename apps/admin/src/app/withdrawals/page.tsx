@@ -118,15 +118,11 @@ export default function WithdrawalsPage() {
   }
 
   const handleApprove = async () => {
-    console.log('handleApprove called', { selectedWithdrawal, approvedAmount, adminRemarks })
-
     if (!selectedWithdrawal) {
-      console.log('No selectedWithdrawal')
       return
     }
 
     const amount = parseFloat(approvedAmount)
-    console.log('Parsed amount:', amount)
 
     if (isNaN(amount) || amount < 0) {
       toast.error('Invalid Amount', 'Please enter a valid approved amount')
@@ -140,12 +136,10 @@ export default function WithdrawalsPage() {
 
     setActionLoading(true)
     try {
-      console.log('Calling API with:', { id: selectedWithdrawal.id, approvedAmount: amount, adminRemarks })
       const result = await agentWithdrawalsApi.approve(selectedWithdrawal.id, {
         approvedAmount: amount,
         adminRemarks: adminRemarks || undefined
       })
-      console.log('API result:', result)
       toast.success('Withdrawal Approved', `Approved $${amount.toLocaleString()} for ${selectedWithdrawal.agent.username}`)
       setIsApproveModalOpen(false)
       fetchWithdrawals()

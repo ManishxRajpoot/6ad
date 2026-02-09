@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Plus, ChevronLeft, ChevronRight, Play, Loader2 } from 'lucide-react'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { Plus, ChevronLeft, ChevronRight, Play, Loader2, Calendar } from 'lucide-react'
+import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { dashboardApi, accountsApi } from '@/lib/api'
@@ -81,6 +81,10 @@ export default function DashboardPage() {
   } | null>(null)
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [cheetahBalances, setCheetahBalances] = useState<Record<string, any>>({})
+  const [datePreset, setDatePreset] = useState<'3d' | '7d' | '30d' | '90d' | '6mo' | 'custom'>('3d')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+  const [activeMetric, setActiveMetric] = useState<'cpr' | 'cpc' | 'ctr' | 'cpm'>('cpr')
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -124,90 +128,201 @@ export default function DashboardPage() {
   // Get Cheetah accounts list
   const cheetahAccounts = adAccounts.filter(acc => cheetahBalances[acc.accountId]?.isCheetah)
 
-  // Fetch insights when selected account changes
+  // Get current date range
+  const getDateRange = () => {
+    if (datePreset === 'custom' && customStart && customEnd) return { start: customStart, end: customEnd }
+    const end = new Date()
+    const start = new Date()
+    switch (datePreset) {
+      case '3d': start.setDate(end.getDate() - 3); break
+      case '7d': start.setDate(end.getDate() - 7); break
+      case '30d': start.setDate(end.getDate() - 30); break
+      case '90d': start.setDate(end.getDate() - 90); break
+      case '6mo': default: start.setMonth(end.getMonth() - 6); break
+    }
+    return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] }
+  }
+
+  const dateRange = getDateRange()
+
+  const metricColors: Record<string, string> = { cpr: '#EC4899', cpc: '#3B82F6', ctr: '#10B981', cpm: '#F97316' }
+  const metricLabels: Record<string, string> = { cpr: 'Cost/Result', cpc: 'CPC', ctr: 'CTR', cpm: 'CPM' }
+
+  // Fetch insights when selected account or date range changes
   useEffect(() => {
+    let cancelled = false
+
+    const normalizeInsights = (data: any): any[] => {
+      if (!data) return []
+      if (Array.isArray(data)) return data
+      return [data]
+    }
+
+    const processDay = (d: any) => ({
+      month: d.date_start || d.month || d.date || '',
+      deposits: d.deposits || 0,
+      spent: parseFloat(d.spend || d.spent || 0),
+      impressions: parseInt(d.impressions || 0),
+      clicks: parseInt(d.clicks || 0),
+      results: parseInt(d.results || d.actions?.length || 0),
+      cpc: parseFloat(d.cpc || 0),
+      ctr: parseFloat(d.ctr || 0),
+      cpm: parseFloat(d.cpm || 0),
+      cpr: parseFloat(d.cost_per_result || d.cpr || 0),
+    })
+
     const fetchInsights = async () => {
-      if (!selectedAccountId || selectedAccountId === 'all') {
-        // For "all", aggregate data from all Cheetah accounts
-        if (cheetahAccounts.length === 0) {
-          setAccountInsights([])
-          setInsightsTotals(null)
-          return
-        }
-
-        setInsightsLoading(true)
-        try {
-          // Fetch insights for all accounts and aggregate
-          const allResults = await Promise.all(
-            cheetahAccounts.map(acc => accountsApi.getMonthlyInsights(acc.accountId).catch(() => null))
-          )
-
-          // Aggregate totals
-          let totalSpent = 0, totalImpressions = 0, totalClicks = 0, totalResults = 0
-          const monthlyAggregated: Record<string, any> = {}
-
-          allResults.forEach(result => {
-            if (result?.totals) {
-              totalSpent += result.totals.spent || 0
-              totalImpressions += result.totals.impressions || 0
-              totalClicks += result.totals.clicks || 0
-              totalResults += result.totals.results || 0
-            }
-            if (result?.monthlyData) {
-              result.monthlyData.forEach((m: any) => {
-                const key = `${m.month}-${m.year}`
-                if (!monthlyAggregated[key]) {
-                  monthlyAggregated[key] = { month: m.month, year: m.year, deposits: 0, spent: 0 }
-                }
-                monthlyAggregated[key].deposits += m.deposits || 0
-                monthlyAggregated[key].spent += m.spent || 0
-              })
-            }
-          })
-
-          const cpr = totalResults > 0 ? parseFloat((totalSpent / totalResults).toFixed(2)) : 0
-          const aggregatedTotals = {
-            spent: totalSpent,
-            impressions: totalImpressions,
-            clicks: totalClicks,
-            results: totalResults,
-            conversions: 0, // Not available from aggregated data
-            cpc: totalClicks > 0 ? parseFloat((totalSpent / totalClicks).toFixed(2)) : 0,
-            ctr: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
-            cpr: cpr,
-            cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0,
-            cpa: cpr // CPA falls back to CPR when not available from API
-          }
-
-          setInsightsTotals(aggregatedTotals)
-          setAccountInsights(Object.values(monthlyAggregated))
-        } catch {
-          setAccountInsights([])
-          setInsightsTotals(null)
-        } finally {
-          setInsightsLoading(false)
-        }
+      if (cheetahAccounts.length === 0) {
+        setAccountInsights([])
+        setInsightsTotals(null)
         return
       }
 
       setInsightsLoading(true)
+
+      // Determine if we should fetch daily or monthly data
+      const startDate = new Date(dateRange.start)
+      const endDate = new Date(dateRange.end)
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+      const useDaily = daysDiff <= 90
+
+      console.log('[Reports Debug] selectedAccountId:', selectedAccountId, 'dateRange:', dateRange, 'daysDiff:', daysDiff, 'useDaily:', useDaily, 'cheetahAccounts:', cheetahAccounts.length)
+
       try {
-        const result = await accountsApi.getMonthlyInsights(selectedAccountId)
-        if (result.monthlyData) {
-          setAccountInsights(result.monthlyData)
+        if (selectedAccountId === 'all') {
+          if (useDaily) {
+            // Fetch daily data for all accounts
+            const allResults = await Promise.all(
+              cheetahAccounts.map(acc =>
+                accountsApi.getInsightsDateRange(acc.accountId, dateRange.start, dateRange.end).catch((err) => { console.log('[Reports Debug] getInsightsDateRange error for', acc.accountId, err); return null })
+              )
+            )
+            console.log('[Reports Debug] allResults:', JSON.stringify(allResults?.map(r => ({ insights: r?.insights ? (Array.isArray(r.insights) ? `array(${r.insights.length})` : typeof r.insights) : null, error: r?.error }))))
+            if (cancelled) return
+
+            let totalSpent = 0, totalImpressions = 0, totalClicks = 0, totalResults = 0
+            const dailyAggregated: Record<string, any> = {}
+
+            allResults.forEach(result => {
+              const insights = normalizeInsights(result?.insights)
+              insights.forEach((d: any) => {
+                const day = processDay(d)
+                totalSpent += day.spent
+                totalImpressions += day.impressions
+                totalClicks += day.clicks
+                totalResults += day.results
+                const key = day.month
+                if (!dailyAggregated[key]) {
+                  dailyAggregated[key] = { month: key, deposits: 0, spent: 0, impressions: 0, clicks: 0, results: 0, cpc: 0, ctr: 0, cpm: 0, cpr: 0 }
+                }
+                dailyAggregated[key].deposits += day.deposits
+                dailyAggregated[key].spent += day.spent
+                dailyAggregated[key].impressions += day.impressions
+                dailyAggregated[key].clicks += day.clicks
+                dailyAggregated[key].results += day.results
+              })
+            })
+
+            // Calculate derived metrics for each aggregated day
+            Object.values(dailyAggregated).forEach((day: any) => {
+              day.cpc = day.clicks > 0 ? day.spent / day.clicks : 0
+              day.ctr = day.impressions > 0 ? (day.clicks / day.impressions) * 100 : 0
+              day.cpm = day.impressions > 0 ? (day.spent / day.impressions) * 1000 : 0
+              day.cpr = day.results > 0 ? day.spent / day.results : 0
+            })
+
+            const cpr = totalResults > 0 ? parseFloat((totalSpent / totalResults).toFixed(2)) : 0
+            setInsightsTotals({
+              spent: totalSpent, impressions: totalImpressions, clicks: totalClicks, results: totalResults, conversions: 0,
+              cpc: totalClicks > 0 ? parseFloat((totalSpent / totalClicks).toFixed(2)) : 0,
+              ctr: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
+              cpr, cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0,
+              cpa: cpr
+            })
+            setAccountInsights(Object.values(dailyAggregated).sort((a: any, b: any) => a.month.localeCompare(b.month)))
+          } else {
+            // Fetch monthly data for all accounts
+            const allResults = await Promise.all(
+              cheetahAccounts.map(acc => accountsApi.getMonthlyInsights(acc.accountId).catch(() => null))
+            )
+            if (cancelled) return
+
+            let totalSpent = 0, totalImpressions = 0, totalClicks = 0, totalResults = 0
+            const monthlyAggregated: Record<string, any> = {}
+
+            allResults.forEach(result => {
+              if (result?.totals) {
+                totalSpent += result.totals.spent || 0
+                totalImpressions += result.totals.impressions || 0
+                totalClicks += result.totals.clicks || 0
+                totalResults += result.totals.results || 0
+              }
+              if (result?.monthlyData) {
+                result.monthlyData.forEach((m: any) => {
+                  const key = `${m.month}-${m.year}`
+                  if (!monthlyAggregated[key]) {
+                    monthlyAggregated[key] = { month: m.month, year: m.year, deposits: 0, spent: 0 }
+                  }
+                  monthlyAggregated[key].deposits += m.deposits || 0
+                  monthlyAggregated[key].spent += m.spent || 0
+                })
+              }
+            })
+
+            const cpr = totalResults > 0 ? parseFloat((totalSpent / totalResults).toFixed(2)) : 0
+            setInsightsTotals({
+              spent: totalSpent, impressions: totalImpressions, clicks: totalClicks, results: totalResults, conversions: 0,
+              cpc: totalClicks > 0 ? parseFloat((totalSpent / totalClicks).toFixed(2)) : 0,
+              ctr: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
+              cpr, cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0,
+              cpa: cpr
+            })
+            setAccountInsights(Object.values(monthlyAggregated))
+          }
+        } else {
+          // Single account
+          if (useDaily) {
+            const result = await accountsApi.getInsightsDateRange(selectedAccountId, dateRange.start, dateRange.end)
+            console.log('[Reports Debug] Single account result:', JSON.stringify({ insights: result?.insights ? (Array.isArray(result.insights) ? `array(${result.insights.length})` : typeof result.insights) : null, error: (result as any)?.error }))
+            if (cancelled) return
+            const insights = normalizeInsights(result?.insights)
+            const processed = insights.map(processDay)
+            console.log('[Reports Debug] Processed days:', processed.length, 'sample:', JSON.stringify(processed[0]))
+
+            let totalSpent = 0, totalImpressions = 0, totalClicks = 0, totalResults = 0
+            processed.forEach(d => {
+              totalSpent += d.spent; totalImpressions += d.impressions; totalClicks += d.clicks; totalResults += d.results
+            })
+
+            const cpr = totalResults > 0 ? parseFloat((totalSpent / totalResults).toFixed(2)) : 0
+            setInsightsTotals({
+              spent: totalSpent, impressions: totalImpressions, clicks: totalClicks, results: totalResults, conversions: 0,
+              cpc: totalClicks > 0 ? parseFloat((totalSpent / totalClicks).toFixed(2)) : 0,
+              ctr: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
+              cpr, cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0,
+              cpa: cpr
+            })
+            setAccountInsights(processed)
+          } else {
+            const result = await accountsApi.getMonthlyInsights(selectedAccountId)
+            if (cancelled) return
+            if (result.monthlyData) setAccountInsights(result.monthlyData)
+            if (result.totals) setInsightsTotals(result.totals)
+          }
         }
-        if (result.totals) {
-          setInsightsTotals(result.totals)
+      } catch (err) {
+        console.error('[Reports Debug] Fetch error:', err)
+        if (!cancelled) {
+          setAccountInsights([])
+          setInsightsTotals(null)
         }
-      } catch {
-        setAccountInsights([])
-        setInsightsTotals(null)
       } finally {
-        setInsightsLoading(false)
+        if (!cancelled) setInsightsLoading(false)
       }
     }
     fetchInsights()
-  }, [selectedAccountId, cheetahAccounts.length])
+    return () => { cancelled = true }
+  }, [selectedAccountId, cheetahAccounts.length, datePreset, customStart, customEnd])
 
   // Calculate total spent from all platforms (totalDeposit represents money spent on ad accounts)
   const totalSpent = dashboardData?.accountsByPlatform?.reduce((sum: number, platform: any) => {
@@ -245,40 +360,6 @@ export default function DashboardPage() {
   const formatAmount = (amount: number) => {
     return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
-
-  // Generate reports chart data from recent activity
-  const generateReportsData = () => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const currentMonth = new Date().getMonth()
-
-    // Get last 7 months
-    const data: { name: string; balance: number }[] = []
-    for (let i = 6; i >= 0; i--) {
-      const monthIndex = (currentMonth - i + 12) % 12
-      data.push({ name: months[monthIndex], balance: 0 })
-    }
-
-    // Aggregate wallet flows by month if available
-    if (dashboardData?.recentActivity) {
-      dashboardData.recentActivity.forEach((activity: any) => {
-        const activityDate = new Date(activity.createdAt)
-        const activityMonth = months[activityDate.getMonth()]
-        const monthData = data.find(d => d.name === activityMonth)
-        if (monthData && activity.type === 'DEPOSIT') {
-          monthData.balance += Number(activity.amount) || 0
-        }
-      })
-    }
-
-    // If no data, use cumulative total as last month
-    if (data.every(d => d.balance === 0) && totalSpent > 0) {
-      data[data.length - 1].balance = totalSpent
-    }
-
-    return data
-  }
-
-  const reportsData = generateReportsData()
 
   // Platform accounts for Active Accounts Status section
   const platformAccounts = dashboardData?.accountsByPlatform?.map((platform: any) => ({
@@ -646,226 +727,162 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Bottom Row - Reports Chart and Active Accounts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
-        {/* Reports & Analytics - Polished Version */}
-        <Card className="p-4 rounded-xl flex flex-col bg-white">
-          {/* Header Row - Compact */}
-          <div className="flex items-center justify-between mb-3">
+      {/* Reports & Analytics - Full Width Redesigned */}
+      <Card className="p-4 lg:p-5 rounded-xl flex flex-col bg-white mb-4">
+        {/* Header Row with Account Selector & Date Range */}
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="w-0.5 h-4 bg-[#52B788] rounded-full" />
+              <span className="w-0.5 h-5 bg-[#52B788] rounded-full" />
               <h3 className="text-sm font-semibold text-[#1E293B]">Reports & Analytics</h3>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-[#52B788]" />
-                <span className="text-[10px] text-gray-400">Deposits</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-[#3B82F6]" />
-                <span className="text-[10px] text-gray-400">Spent</span>
+            {/* Date Range Presets */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(['3d', '7d', '30d', '90d', '6mo'] as const).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setDatePreset(p)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                    datePreset === p ? 'bg-[#52B788] text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  {p === '3d' ? '3D' : p === '7d' ? '7D' : p === '30d' ? '30D' : p === '90d' ? '90D' : '6M'}
+                </button>
+              ))}
+              <div className="flex items-center gap-1 ml-1">
+                <Calendar className="w-3 h-3 text-gray-400" />
+                <input type="date" value={datePreset === 'custom' ? customStart : dateRange.start}
+                  onChange={(e) => { setDatePreset('custom'); setCustomStart(e.target.value) }}
+                  className="px-1.5 py-1 border border-gray-200 rounded text-[10px] text-gray-600 focus:outline-none focus:border-[#52B788] w-[100px]" />
+                <span className="text-[10px] text-gray-400">-</span>
+                <input type="date" value={datePreset === 'custom' ? customEnd : dateRange.end}
+                  onChange={(e) => { setDatePreset('custom'); setCustomEnd(e.target.value) }}
+                  className="px-1.5 py-1 border border-gray-200 rounded text-[10px] text-gray-600 focus:outline-none focus:border-[#52B788] w-[100px]" />
               </div>
             </div>
           </div>
 
-          {/* Account Selector - Minimal & Compact */}
+          {/* Account Selector */}
           {cheetahAccounts.length > 0 && (
-            <div className="flex items-center gap-1.5 mb-3 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200">
-              <button
-                onClick={() => setSelectedAccountId('all')}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200">
+              <button onClick={() => setSelectedAccountId('all')}
                 className={`px-2.5 py-1 rounded text-[10px] font-medium transition-all whitespace-nowrap ${
-                  selectedAccountId === 'all'
-                    ? 'bg-[#8B5CF6] text-white'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}
-              >
-                All
-              </button>
+                  selectedAccountId === 'all' ? 'bg-[#8B5CF6] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}>All</button>
               {cheetahAccounts.map((acc) => (
-                <button
-                  key={acc.accountId}
-                  onClick={() => setSelectedAccountId(acc.accountId)}
+                <button key={acc.accountId} onClick={() => setSelectedAccountId(acc.accountId)}
                   className={`px-2.5 py-1 rounded text-[10px] font-medium transition-all whitespace-nowrap ${
-                    selectedAccountId === acc.accountId
-                      ? 'bg-[#8B5CF6] text-white'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
-                >
-                  {acc.accountName || acc.accountId}
-                </button>
+                    selectedAccountId === acc.accountId ? 'bg-[#8B5CF6] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}>{acc.accountName || acc.accountId}</button>
               ))}
             </div>
           )}
+        </div>
 
-          {/* Metrics Row - Tight & Connected */}
-          {insightsTotals && !insightsLoading && (
-            <div className="grid grid-cols-4 gap-2 mb-3">
-              <div className="bg-gray-50 rounded-lg px-3 py-2">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <div className="w-5 h-5 rounded bg-blue-100 flex items-center justify-center">
-                    <svg className="w-3 h-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <span className="text-[9px] text-gray-400 uppercase">Spent</span>
-                </div>
-                <p className="text-sm font-bold text-[#1E293B]">${insightsTotals.spent.toLocaleString()}</p>
+        {/* KPI Metrics Row */}
+        {insightsTotals && !insightsLoading && (
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
+            {[
+              { label: 'Spent', value: `$${insightsTotals.spent.toLocaleString(undefined, {maximumFractionDigits: 0})}` },
+              { label: 'Impressions', value: insightsTotals.impressions >= 1000000 ? `${(insightsTotals.impressions/1000000).toFixed(1)}M` : insightsTotals.impressions >= 1000 ? `${(insightsTotals.impressions/1000).toFixed(1)}K` : insightsTotals.impressions.toLocaleString() },
+              { label: 'Clicks', value: insightsTotals.clicks >= 1000000 ? `${(insightsTotals.clicks/1000000).toFixed(1)}M` : insightsTotals.clicks >= 1000 ? `${(insightsTotals.clicks/1000).toFixed(1)}K` : insightsTotals.clicks.toLocaleString() },
+              { label: 'Results', value: insightsTotals.results >= 1000000 ? `${(insightsTotals.results/1000000).toFixed(1)}M` : insightsTotals.results >= 1000 ? `${(insightsTotals.results/1000).toFixed(1)}K` : insightsTotals.results.toLocaleString() },
+              { label: 'Cost/Result', value: `$${insightsTotals.cpr.toFixed(2)}` },
+              { label: 'CPC', value: `$${insightsTotals.cpc.toFixed(2)}` },
+              { label: 'CTR', value: `${insightsTotals.ctr.toFixed(2)}%` },
+              { label: 'CPM', value: `$${insightsTotals.cpm.toFixed(2)}` },
+            ].map(kpi => (
+              <div key={kpi.label} className="bg-gray-50 rounded-lg px-3 py-2.5">
+                <p className="text-[9px] text-gray-400 uppercase mb-1">{kpi.label}</p>
+                <p className="text-sm font-bold text-[#1E293B]">{kpi.value}</p>
               </div>
-              <div className="bg-gray-50 rounded-lg px-3 py-2">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <div className="w-5 h-5 rounded bg-purple-100 flex items-center justify-center">
-                    <svg className="w-3 h-3 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
-                    </svg>
-                  </div>
-                  <span className="text-[9px] text-gray-400 uppercase">CPC</span>
-                </div>
-                <p className="text-sm font-bold text-[#1E293B]">${insightsTotals.cpc.toFixed(2)}</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg px-3 py-2">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <div className="w-5 h-5 rounded bg-emerald-100 flex items-center justify-center">
-                    <svg className="w-3 h-3 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                    </svg>
-                  </div>
-                  <span className="text-[9px] text-gray-400 uppercase">CTR</span>
-                </div>
-                <p className="text-sm font-bold text-[#1E293B]">{insightsTotals.ctr.toFixed(2)}%</p>
-              </div>
-              <div className="bg-gray-50 rounded-lg px-3 py-2">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <div className="w-5 h-5 rounded bg-orange-100 flex items-center justify-center">
-                    <svg className="w-3 h-3 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                  </div>
-                  <span className="text-[9px] text-gray-400 uppercase">CPA</span>
-                </div>
-                <p className="text-sm font-bold text-[#1E293B]">${(insightsTotals.cpa || 0).toFixed(2)}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Secondary Metrics - Properly Spaced */}
-          {insightsTotals && !insightsLoading && (
-            <div className="grid grid-cols-5 gap-3 px-2 py-2 bg-gray-50 rounded-lg mb-4">
-              <div className="text-center">
-                <p className="text-[9px] text-gray-400 uppercase mb-0.5">Impressions</p>
-                <p className="text-xs font-semibold text-[#1E293B]">{insightsTotals.impressions.toLocaleString()}</p>
-              </div>
-              <div className="text-center border-l border-gray-200">
-                <p className="text-[9px] text-gray-400 uppercase mb-0.5">Clicks</p>
-                <p className="text-xs font-semibold text-[#1E293B]">{insightsTotals.clicks.toLocaleString()}</p>
-              </div>
-              <div className="text-center border-l border-gray-200">
-                <p className="text-[9px] text-gray-400 uppercase mb-0.5">Results</p>
-                <p className="text-xs font-semibold text-[#1E293B]">{insightsTotals.results.toLocaleString()}</p>
-              </div>
-              <div className="text-center border-l border-gray-200">
-                <p className="text-[9px] text-gray-400 uppercase mb-0.5">CPR</p>
-                <p className="text-xs font-semibold text-[#1E293B]">${insightsTotals.cpr.toFixed(2)}</p>
-              </div>
-              <div className="text-center border-l border-gray-200">
-                <p className="text-[9px] text-gray-400 uppercase mb-0.5">CPM</p>
-                <p className="text-xs font-semibold text-[#1E293B]">${insightsTotals.cpm.toFixed(2)}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Chart Area - Balanced with proper spacing */}
-          <div className="flex-1 min-h-[180px] pt-2">
-            {loading || insightsLoading ? (
-              <div className="h-full flex items-center justify-center">
-                <Loader2 className="w-5 h-5 text-[#52B788] animate-spin" />
-              </div>
-            ) : cheetahAccounts.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                  <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
-                <p className="text-xs text-gray-400">No ad accounts available</p>
-              </div>
-            ) : accountInsights.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                  <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                </div>
-                <p className="text-xs text-gray-400">No data available</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={accountInsights} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
-                  <defs>
-                    <linearGradient id="colorDeposits" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#52B788" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#52B788" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorSpent" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                  <XAxis
-                    dataKey="month"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 10 }}
-                    dy={5}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 10 }}
-                    tickFormatter={(value) => value >= 1000 ? `$${(value / 1000).toFixed(0)}k` : `$${value}`}
-                    width={40}
-                    dx={-5}
-                  />
-                  <Tooltip
-                    formatter={(value: number, name: string) => [
-                      `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                      name === 'deposits' ? 'Deposits' : 'Spent'
-                    ]}
-                    contentStyle={{
-                      backgroundColor: '#1F2937',
-                      border: 'none',
-                      borderRadius: '6px',
-                      color: '#fff',
-                      padding: '6px 10px',
-                      fontSize: '11px'
-                    }}
-                    labelStyle={{ color: '#9CA3AF', marginBottom: '4px', fontSize: '10px' }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="deposits"
-                    stroke="#52B788"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorDeposits)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="spent"
-                    stroke="#3B82F6"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorSpent)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
+            ))}
           </div>
-        </Card>
+        )}
 
-        {/* Active Accounts Status */}
-        <Card data-tutorial="recent-activity" className="p-4 rounded-lg flex flex-col">
-          <h3 className="text-sm font-semibold text-[#1E293B] mb-3">Active Accounts Status</h3>
+        {/* Charts Row - Spend/Deposits + Performance Metrics */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[240px]">
+          {/* Spend & Deposits Chart */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-gray-500">Spend & Deposits</span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#52B788]" /><span className="text-[9px] text-gray-400">Deposits</span></div>
+                <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#3B82F6]" /><span className="text-[9px] text-gray-400">Spent</span></div>
+              </div>
+            </div>
+            <div className="h-[220px]">
+              {loading || insightsLoading ? (
+                <div className="h-full flex items-center justify-center"><Loader2 className="w-5 h-5 text-[#52B788] animate-spin" /></div>
+              ) : cheetahAccounts.length === 0 || accountInsights.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-200 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                  <p className="text-[10px] text-gray-400">{cheetahAccounts.length === 0 ? 'No ad accounts' : 'No data for range'}</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={accountInsights} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="colorDeposits" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#52B788" stopOpacity={0.25} /><stop offset="95%" stopColor="#52B788" stopOpacity={0} /></linearGradient>
+                      <linearGradient id="colorSpent" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3B82F6" stopOpacity={0.25} /><stop offset="95%" stopColor="#3B82F6" stopOpacity={0} /></linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 9 }} dy={5} interval="preserveStartEnd" />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 9 }} tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`} width={40} />
+                    <Tooltip formatter={(value: number, name: string) => [`$${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, name === 'deposits' ? 'Deposits' : 'Spent']}
+                      contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '6px', color: '#fff', padding: '6px 10px', fontSize: '11px' }}
+                      labelStyle={{ color: '#9CA3AF', marginBottom: '4px', fontSize: '10px' }} />
+                    <Area type="monotone" dataKey="deposits" stroke="#52B788" strokeWidth={2} fillOpacity={1} fill="url(#colorDeposits)" dot={{ r: 4, fill: '#52B788', strokeWidth: 0 }} />
+                    <Area type="monotone" dataKey="spent" stroke="#3B82F6" strokeWidth={2} fillOpacity={1} fill="url(#colorSpent)" dot={{ r: 4, fill: '#3B82F6', strokeWidth: 0 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {/* Performance Metrics Chart */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-gray-500">Performance</span>
+              <div className="flex items-center gap-1">
+                {(['cpr', 'cpc', 'ctr', 'cpm'] as const).map(m => (
+                  <button key={m} onClick={() => setActiveMetric(m)}
+                    className={`px-2 py-0.5 rounded text-[9px] font-medium transition-all ${activeMetric === m ? 'text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    style={activeMetric === m ? { backgroundColor: metricColors[m] } : {}}
+                  >{metricLabels[m]}</button>
+                ))}
+              </div>
+            </div>
+            <div className="h-[220px]">
+              {loading || insightsLoading ? (
+                <div className="h-full flex items-center justify-center"><Loader2 className="w-5 h-5 text-[#52B788] animate-spin" /></div>
+              ) : accountInsights.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-200 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                  <p className="text-[10px] text-gray-400">No performance data</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={accountInsights} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 9 }} dy={5} interval="preserveStartEnd" />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 9 }}
+                      tickFormatter={(v) => activeMetric === 'ctr' ? `${v}%` : `$${v}`} width={40} />
+                    <Tooltip formatter={(value: number) => [activeMetric === 'ctr' ? `${value.toFixed(2)}%` : `$${value.toFixed(2)}`, metricLabels[activeMetric]]}
+                      contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '6px', color: '#fff', padding: '6px 10px', fontSize: '11px' }}
+                      labelStyle={{ color: '#9CA3AF', marginBottom: '4px', fontSize: '10px' }} />
+                    <Line type="monotone" dataKey={activeMetric} stroke={metricColors[activeMetric]} strokeWidth={2.5} dot={{ r: 4, fill: metricColors[activeMetric], strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Active Accounts Status */}
+      <Card data-tutorial="recent-activity" className="p-4 rounded-lg flex flex-col">
+        <h3 className="text-sm font-semibold text-[#1E293B] mb-3">Active Accounts Status</h3>
           <div className="space-y-2 flex-1">
             {loading ? (
               <>
@@ -962,7 +979,6 @@ export default function DashboardPage() {
             )}
           </div>
         </Card>
-      </div>
       </div>
     </DashboardLayout>
   )

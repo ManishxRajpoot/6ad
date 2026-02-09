@@ -472,7 +472,7 @@ export const agentWithdrawalsApi = {
     api.post<{ message: string }>(`/agent-withdrawals/${id}/reject`, { adminRemarks }),
 }
 
-// Cheetah Mobile API (猎豹移动)
+// Ad Account Management API
 export const cheetahApi = {
   // Configuration
   config: {

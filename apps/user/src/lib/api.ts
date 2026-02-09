@@ -89,8 +89,8 @@ export const api = {
 
 // Auth API
 export const authApi = {
-  login: (data: { email: string; password: string; totpCode?: string }) =>
-    api.post<{ token: string; user: any; requires2FA?: boolean; message?: string }>('/auth/login', data),
+  login: (data: { email: string; password: string; totpCode?: string; emailOtp?: string }) =>
+    api.post<{ token: string; user: any; requires2FA?: boolean; maskedEmail?: string; message?: string }>('/auth/login', data),
   register: (data: { email: string; password: string; username: string; referralCode?: string }) =>
     api.post<{ token: string; user: any }>('/auth/register', data),
   me: () => api.get<{ user: any }>('/auth/me'),
@@ -108,6 +108,8 @@ export const authApi = {
     verify: (code: string) => api.post<{ message: string }>('/auth/2fa/verify', { code }),
     disable: (data: { password: string; code?: string }) => api.post<{ message: string }>('/auth/2fa/disable', data),
     status: () => api.get<{ enabled: boolean }>('/auth/2fa/status'),
+    sendEmailCode: (email: string, password: string) =>
+      api.post<{ message: string; maskedEmail: string }>('/auth/2fa/send-email-code', { email, password }),
   },
   // Email verification
   email: {
@@ -162,6 +164,13 @@ export const accountsApi = {
       isCheetah: boolean
       error?: string
     }>(`/accounts/insights/monthly/${accountId}`),
+  getInsightsDateRange: (id: string, startDate: string, endDate: string) =>
+    api.get<{
+      insights: any[] | null
+      startDate: string
+      endDate: string
+      error?: string
+    }>(`/accounts/${id}/insights?startDate=${startDate}&endDate=${endDate}`),
 }
 
 // Transactions API (User's own transactions)

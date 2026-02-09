@@ -2089,12 +2089,28 @@ accounts.get('/:id/insights', requireUser, async (c) => {
     const userRole = c.get('userRole')
     const { startDate, endDate } = c.req.query()
 
-    // Find account
-    const account = await prisma.adAccount.findUnique({
-      where: { id }
-    })
+    console.log('[DEBUG insights] Received id param:', id, 'startDate:', startDate, 'endDate:', endDate)
+
+    // Find account by database ID or by Facebook accountId
+    let account = null
+    try {
+      account = await prisma.adAccount.findUnique({
+        where: { id }
+      })
+      console.log('[DEBUG insights] findUnique result:', account ? `found (accountId: ${account.accountId})` : 'not found')
+    } catch {
+      // id is not a valid ObjectId - try as accountId instead
+      console.log('[DEBUG insights] findUnique failed (not a valid ObjectId), trying findFirst by accountId')
+    }
+    if (!account) {
+      account = await prisma.adAccount.findFirst({
+        where: { accountId: id }
+      })
+      console.log('[DEBUG insights] findFirst by accountId result:', account ? `found (id: ${account.id})` : 'not found')
+    }
 
     if (!account) {
+      console.log('[DEBUG insights] Account not found for id:', id)
       return c.json({ error: 'Account not found' }, 404)
     }
 
@@ -2125,6 +2141,7 @@ accounts.get('/:id/insights', requireUser, async (c) => {
       'impressions,clicks,spend,actions'
     )
 
+    console.log('[DEBUG insights] Cheetah response code:', result.code, 'data type:', Array.isArray(result.data) ? `array(${result.data.length})` : typeof result.data, 'msg:', result.msg)
     if (result.code === 0) {
       return c.json({ insights: result.data, startDate: start, endDate: end })
     } else if (result.code === 999 || result.code === 110) {
@@ -2241,14 +2258,7 @@ accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
           'impressions,clicks,spend,actions'
         )
 
-        // Debug logging
-        console.log(`[Monthly Insights] Account: ${accountId}, Month: ${monthInfo.month} ${monthInfo.year}`)
-        console.log(`[Monthly Insights] API Response code: ${result.code}, msg: ${result.msg}`)
-
         if (result.code === 0 && result.data) {
-          // Log raw data for debugging
-          console.log(`[Monthly Insights] Raw data:`, JSON.stringify(result.data)?.substring(0, 300))
-
           // Sum up metrics from insights
           if (Array.isArray(result.data)) {
             result.data.forEach((day: any) => {
@@ -2273,10 +2283,8 @@ accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
               results = parseInt(result.data.actions) || 0
             }
           }
-          console.log(`[Monthly Insights] Parsed: spent=${spent}, impressions=${impressions}, clicks=${clicks}, results=${results}, conversions=${conversions}`)
         } else {
           // Fallback to getDaySpend if insights API fails
-          console.log(`[Monthly Insights] Trying getDaySpend fallback for ${accountId}`)
           const spendResult = await cheetahApi.getDaySpend(accountId, monthInfo.startDate, monthInfo.endDate)
           if (spendResult.code === 0 && spendResult.data) {
             if (Array.isArray(spendResult.data)) {
@@ -2284,9 +2292,7 @@ accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
                 spent += parseFloat(day.spend) || 0
               })
             }
-            console.log(`[Monthly Insights] getDaySpend success: spent=${spent}`)
           } else {
-            console.log(`[Monthly Insights] getDaySpend also failed: code=${spendResult.code}, msg=${spendResult.msg}`)
           }
         }
 

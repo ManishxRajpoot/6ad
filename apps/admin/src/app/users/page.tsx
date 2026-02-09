@@ -100,13 +100,6 @@ export default function UsersPage() {
         usersApi.getAll(),
         agentsApi.getAll(),
       ])
-      console.log('=== FETCHED USERS DATA ===')
-      console.log('First user:', usersData.users?.[0])
-      console.log('First user commissions:', {
-        fbCommission: usersData.users?.[0]?.fbCommission,
-        googleCommission: usersData.users?.[0]?.googleCommission,
-        plaintextPassword: usersData.users?.[0]?.plaintextPassword
-      })
       setUsers(usersData.users || [])
       setAgents(agentsData.agents || [])
     } catch (error) {
@@ -231,36 +224,11 @@ export default function UsersPage() {
         payload.password = formData.password
       }
 
-      console.log('=== FRONTEND SUBMIT ===')
-      console.log('Submitting payload:', payload)
-      console.log('Commission values being sent:', {
-        fbCommission: payload.fbCommission,
-        googleCommission: payload.googleCommission,
-        fbFee: payload.fbFee,
-        googleFee: payload.googleFee
-      })
-      console.log('Is edit mode:', isEditMode)
-      console.log('Selected user:', selectedUser)
-
       if (selectedUser) {
         const response = await usersApi.update(selectedUser.id, payload)
-        console.log('=== UPDATE RESPONSE ===')
-        console.log('Full response:', response)
-        console.log('Returned user commissions:', {
-          fbCommission: response.user?.fbCommission,
-          googleCommission: response.user?.googleCommission,
-          plaintextPassword: response.user?.plaintextPassword
-        })
         toast.success('User Updated', `${formData.username} has been updated successfully`)
       } else {
         const response = await usersApi.create(payload)
-        console.log('=== CREATE RESPONSE ===')
-        console.log('Full response:', response)
-        console.log('Created user commissions:', {
-          fbCommission: response.user?.fbCommission,
-          googleCommission: response.user?.googleCommission,
-          plaintextPassword: response.user?.plaintextPassword
-        })
         toast.success('User Created', `${formData.username} has been added successfully`)
       }
 

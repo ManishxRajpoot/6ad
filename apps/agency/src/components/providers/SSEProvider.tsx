@@ -30,8 +30,8 @@ export function SSEProvider({ children }: { children: React.ReactNode }) {
     onModulesUpdated: (data) => {
       window.dispatchEvent(new CustomEvent('sse:modules-updated', { detail: data }))
     },
-    onConnected: (data) => {
-      console.log('[SSE] Provider connected', data)
+    onConnected: (_data) => {
+      // connected
     },
   })
 

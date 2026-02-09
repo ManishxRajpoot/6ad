@@ -32,7 +32,6 @@ export function UpdateChecker() {
         setInitialVersion(serverVersion)
       } else if (serverVersion !== initialVersion) {
         // Version changed - new deployment detected!
-        console.log('[UpdateChecker] New version detected:', serverVersion, 'Current:', initialVersion)
         setUpdateAvailable(true)
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -41,7 +40,7 @@ export function UpdateChecker() {
         })
       }
     } catch (error) {
-      console.debug('[UpdateChecker] Failed to check for updates')
+      // silently ignore update check failures
     }
   }, [initialVersion])
 
@@ -68,7 +67,7 @@ export function UpdateChecker() {
         await Promise.all(registrations.map(r => r.unregister()))
       }
     } catch (error) {
-      console.debug('[UpdateChecker] Failed to clear caches')
+      // silently ignore cache clear failures
     }
 
     // Force hard reload - bypass cache completely

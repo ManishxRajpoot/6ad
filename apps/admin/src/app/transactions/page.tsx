@@ -258,7 +258,6 @@ export default function TransactionsPage() {
       const users = (usersData.users || []).map((u: any) => ({ ...u, role: 'USER' }))
       const agents = (agentsData.agents || []).map((a: any) => ({ ...a, role: 'AGENT' }))
 
-      console.log('Fetched users:', users.length, 'agents:', agents.length)
       setAllUsers([...users, ...agents])
     } catch (error) {
       console.error('Failed to fetch users:', error)

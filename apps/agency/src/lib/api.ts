@@ -94,8 +94,8 @@ export const api = {
 
 // Auth API
 export const authApi = {
-  login: (data: { email: string; password: string }) =>
-    api.post<{ token: string; user: any }>('/auth/login', data),
+  login: (data: { email: string; password: string; totpCode?: string; emailOtp?: string }) =>
+    api.post<{ token: string; user: any; requires2FA?: boolean; maskedEmail?: string; message?: string }>('/auth/login', data),
   me: () => api.get<{ user: any }>('/auth/me'),
   changePassword: (data: { currentPassword: string; newPassword: string }) =>
     api.post<{ message: string }>('/auth/change-password', data),
@@ -111,6 +111,8 @@ export const authApi = {
     setup: () => api.post<{ secret: string; otpauthUrl: string }>('/auth/2fa/setup', {}),
     verify: (code: string) => api.post<{ message: string }>('/auth/2fa/verify', { code }),
     disable: (data: { password: string }) => api.post<{ message: string }>('/auth/2fa/disable', data),
+    sendEmailCode: (email: string, password: string) =>
+      api.post<{ message: string; maskedEmail: string }>('/auth/2fa/send-email-code', { email, password }),
   },
 }
 
@@ -225,7 +227,7 @@ export const accountsApi = {
   getById: (id: string) => api.get<{ account: any }>(`/accounts/${id}`),
   create: (data: any) => api.post<{ account: any }>('/accounts', data),
   update: (id: string, data: any) => api.put<{ account: any }>(`/accounts/${id}`, data),
-  // Agent: Get all ad accounts for users under this agent with Cheetah status
+  // Agent: Get all ad accounts for users under this agent with status
   getAgentAll: (params?: { platform?: string; search?: string; page?: number; limit?: number }) => {
     const queryParams = new URLSearchParams()
     if (params?.platform) queryParams.append('platform', params.platform)

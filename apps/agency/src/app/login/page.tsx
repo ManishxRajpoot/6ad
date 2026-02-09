@@ -33,6 +33,12 @@ export default function LoginPage() {
   const [secretKey, setSecretKey] = useState('')
   const [copiedSecret, setCopiedSecret] = useState(false)
 
+  // Email OTP for 2FA login
+  const [emailOtpMode, setEmailOtpMode] = useState(false)
+  const [sendingEmailOtp, setSendingEmailOtp] = useState(false)
+  const [emailOtpCooldown, setEmailOtpCooldown] = useState(0)
+  const [maskedEmail, setMaskedEmail] = useState('')
+
   // Profile picture state
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
@@ -70,14 +76,20 @@ export default function LoginPage() {
     const code = codeOverride || totpCode
 
     try {
-      const response = await api.post<any>('/auth/login', {
-        email,
-        password,
-        ...(securityStep === '2fa-login' && code ? { totpCode: code } : {})
-      })
+      const loginData: any = { email, password }
+      if (securityStep === '2fa-login' && code) {
+        if (emailOtpMode) {
+          loginData.emailOtp = code
+        } else {
+          loginData.totpCode = code
+        }
+      }
+
+      const response = await authApi.login(loginData)
 
       // Check if 2FA is required for existing user login
       if (response?.requires2FA) {
+        if (response.maskedEmail) setMaskedEmail(response.maskedEmail)
         setSecurityStep('2fa-login')
         setLoading(false)
         return
@@ -131,11 +143,55 @@ export default function LoginPage() {
 
   const handleBack = () => {
     if (securityStep === '2fa-login') {
-      setSecurityStep('login')
-      setTotpCode('')
-      setError('')
+      if (emailOtpMode) {
+        // Go back to authenticator mode
+        setEmailOtpMode(false)
+        setTotpCode('')
+        setError('')
+      } else {
+        setSecurityStep('login')
+        setTotpCode('')
+        setError('')
+        setEmailOtpMode(false)
+        setEmailOtpCooldown(0)
+      }
     }
   }
+
+  // Handle sending email OTP for 2FA login — switches UI instantly
+  const handleSendEmailOtp = async () => {
+    setError('')
+    // Switch UI immediately — don't wait for API
+    setEmailOtpMode(true)
+    setTotpCode('')
+    setEmailOtpCooldown(60)
+    setSendingEmailOtp(true)
+
+    // Fire API in background
+    try {
+      const response = await authApi.twoFactor.sendEmailCode(email, password)
+      if (response.maskedEmail) setMaskedEmail(response.maskedEmail)
+    } catch (err: any) {
+      setError(err.message || 'Failed to send email code')
+    } finally {
+      setSendingEmailOtp(false)
+    }
+  }
+
+  // Cooldown timer for email OTP
+  useEffect(() => {
+    if (emailOtpCooldown <= 0) return
+    const timer = setInterval(() => {
+      setEmailOtpCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [emailOtpCooldown])
 
   // Email verification handlers
   const handleSendEmailCode = async () => {
@@ -778,18 +834,22 @@ export default function LoginPage() {
                 className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
               >
                 <ArrowRight className="w-4 h-4 rotate-180" />
-                Back to login
+                {emailOtpMode ? 'Use authenticator instead' : 'Back to login'}
               </button>
             </div>
 
             <div className="p-6 pt-4">
               <div className="text-center">
                 <div className="w-16 h-16 rounded-2xl bg-teal-100 flex items-center justify-center mx-auto mb-4">
-                  <Shield className="w-8 h-8 text-teal-600" />
+                  {emailOtpMode ? <Mail className="w-8 h-8 text-teal-600" /> : <Shield className="w-8 h-8 text-teal-600" />}
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Two-Factor Authentication</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  {emailOtpMode ? 'Email Verification' : 'Two-Factor Authentication'}
+                </h2>
                 <p className="text-gray-500 text-sm mb-6">
-                  Enter the 6-digit code from your authenticator app
+                  {emailOtpMode
+                    ? `Enter the 6-digit code sent to ${maskedEmail}`
+                    : 'Enter the 6-digit code from your authenticator app'}
                 </p>
 
                 {error && (
@@ -801,7 +861,7 @@ export default function LoginPage() {
                 <div className="flex gap-2 justify-center mb-4">
                   {[0, 1, 2, 3, 4, 5].map((index) => (
                     <input
-                      key={index}
+                      key={`${emailOtpMode ? 'email' : 'totp'}-${index}`}
                       type="text"
                       maxLength={1}
                       value={totpCode[index] || ''}
@@ -865,9 +925,51 @@ export default function LoginPage() {
                   </div>
                 )}
 
-                <p className="text-sm text-gray-400">
-                  Open your authenticator app to get the code
-                </p>
+                {emailOtpMode ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-400">
+                      Check your email inbox for the code
+                    </p>
+                    {emailOtpCooldown > 0 ? (
+                      <p className="text-xs text-gray-400">
+                        Resend code in <span className="font-medium text-teal-600">{emailOtpCooldown}s</span>
+                      </p>
+                    ) : (
+                      <button
+                        onClick={handleSendEmailOtp}
+                        disabled={sendingEmailOtp}
+                        className="text-sm text-teal-600 hover:text-teal-700 font-medium transition-colors disabled:opacity-50"
+                      >
+                        {sendingEmailOtp ? 'Sending...' : 'Resend code'}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-400">
+                      Open your authenticator app to get the code
+                    </p>
+                    <div className="border-t border-gray-100 pt-3">
+                      <button
+                        onClick={handleSendEmailOtp}
+                        disabled={sendingEmailOtp}
+                        className="text-sm text-teal-600 hover:text-teal-700 font-medium transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {sendingEmailOtp ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Sending code...
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="w-3.5 h-3.5" />
+                            Get code via email
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

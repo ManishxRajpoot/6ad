@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import bcrypt from 'bcryptjs'
 import { PrismaClient } from '@prisma/client'
 import * as OTPAuth from 'otpauth'
-import { sendEmail, getVerificationEmailTemplate, get2FADisabledEmailTemplate, buildSmtpConfig, getWelcomeEmailTemplate, getPasswordResetEmailTemplate } from '../utils/email.js'
+import { sendEmail, getVerificationEmailTemplate, get2FADisabledEmailTemplate, get2FALoginEmailTemplate, buildSmtpConfig, getWelcomeEmailTemplate, getPasswordResetEmailTemplate } from '../utils/email.js'
 import crypto from 'crypto'
 
 const prisma = new PrismaClient()
@@ -70,11 +70,20 @@ async function getAgentCustomDomain(agentId: string | null): Promise<string | nu
 
 const auth = new Hono()
 
+// Mask email for privacy: "john@gmail.com" → "j***n@gmail.com"
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@')
+  if (!domain) return '***'
+  if (local.length <= 2) return `${local[0]}***@${domain}`
+  return `${local[0]}${'*'.repeat(Math.min(local.length - 2, 3))}${local[local.length - 1]}@${domain}`
+}
+
 // Validation schemas
 const loginSchema = z.object({
   email: z.string().min(1), // Can be email or username
   password: z.string().min(6),
   totpCode: z.string().length(6).optional(),
+  emailOtp: z.string().length(6).optional(),
 })
 
 const registerSchema = z.object({
@@ -167,9 +176,7 @@ auth.get('/referrer-info', async (c) => {
 auth.post('/login', async (c) => {
   try {
     const body = await c.req.json()
-    const { email: emailOrUsername, password, totpCode } = loginSchema.parse(body)
-
-    console.log('[LOGIN] Attempt:', { emailOrUsername, passwordLength: password?.length })
+    const { email: emailOrUsername, password, totpCode, emailOtp } = loginSchema.parse(body)
 
     // Find user by email or username (case-insensitive)
     const isEmail = emailOrUsername.includes('@')
@@ -184,21 +191,13 @@ auth.post('/login', async (c) => {
       }
     })
 
-    console.log('[LOGIN] User found:', user ? { id: user.id, email: user.email, hasPassword: !!user.password } : null)
-
     if (!user) {
-      console.log('[LOGIN] FAILED: User not found')
       return c.json({ error: 'Account not found. Please check your email/username or contact support.' }, 401)
     }
 
     // Check password
-    console.log('[LOGIN] Comparing passwords...')
-    console.log('[LOGIN] Input password:', password)
-    console.log('[LOGIN] Stored hash:', user.password)
     const isValidPassword = await bcrypt.compare(password, user.password)
-    console.log('[LOGIN] Password valid:', isValidPassword)
     if (!isValidPassword) {
-      console.log('[LOGIN] FAILED: Invalid password')
       return c.json({ error: 'Invalid email/username or password' }, 401)
     }
 
@@ -213,18 +212,37 @@ auth.post('/login', async (c) => {
 
     // Check if 2FA is enabled
     if (user.twoFactorEnabled && user.twoFactorSecret) {
-      // If no TOTP code provided, return requires2FA flag
-      if (!totpCode) {
+      // If no TOTP code and no email OTP provided, return requires2FA flag
+      if (!totpCode && !emailOtp) {
         return c.json({
           requires2FA: true,
+          maskedEmail: maskEmail(user.email),
           message: 'Two-factor authentication required'
         }, 200)
       }
 
-      // Verify TOTP code
-      const isValidTotp = verifyTOTP(totpCode, user.twoFactorSecret, user.email)
-      if (!isValidTotp) {
-        return c.json({ error: 'Invalid verification code' }, 401)
+      // Verify via email OTP if provided
+      if (emailOtp) {
+        if (!user.twoFactorEmailCode || !user.twoFactorEmailExpiry) {
+          return c.json({ error: 'No email code requested. Please request a code first.' }, 401)
+        }
+        if (new Date() > new Date(user.twoFactorEmailExpiry)) {
+          return c.json({ error: 'Email code has expired. Please request a new one.' }, 401)
+        }
+        if (user.twoFactorEmailCode !== emailOtp) {
+          return c.json({ error: 'Invalid email verification code' }, 401)
+        }
+        // Clear the used code
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { twoFactorEmailCode: null, twoFactorEmailExpiry: null }
+        })
+      } else if (totpCode) {
+        // Verify TOTP code
+        const isValidTotp = verifyTOTP(totpCode, user.twoFactorSecret, user.email)
+        if (!isValidTotp) {
+          return c.json({ error: 'Invalid verification code' }, 401)
+        }
       }
     }
 
@@ -664,6 +682,121 @@ auth.get('/2fa/status', verifyToken, async (c) => {
   } catch (error) {
     console.error('2FA status error:', error)
     return c.json({ error: 'Failed to get 2FA status' }, 500)
+  }
+})
+
+// POST /auth/2fa/send-email-code - Send email OTP for 2FA login (no auth token required)
+// Single DB query upfront (user + agent), then fire-and-forget email — NO db calls in background
+auth.post('/2fa/send-email-code', async (c) => {
+  try {
+    const body = await c.req.json()
+    const { email: emailOrUsername, password } = body
+
+    if (!emailOrUsername || !password) {
+      return c.json({ error: 'Email and password are required' }, 400)
+    }
+
+    // Single query: user + agent + agent SMTP — everything needed in one shot
+    const isEmail = emailOrUsername.includes('@')
+    const user = await prisma.user.findFirst({
+      where: isEmail
+        ? { email: { equals: emailOrUsername, mode: 'insensitive' } }
+        : { username: { equals: emailOrUsername, mode: 'insensitive' } },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        username: true,
+        twoFactorEnabled: true,
+        twoFactorEmailSentAt: true,
+        agent: {
+          select: {
+            brandLogo: true,
+            emailLogo: true,
+            username: true,
+            emailSenderNameApproved: true,
+            smtpEnabled: true,
+            smtpHost: true,
+            smtpPort: true,
+            smtpUsername: true,
+            smtpPassword: true,
+            smtpEncryption: true,
+            smtpFromEmail: true,
+          }
+        }
+      }
+    })
+
+    if (!user || !user.twoFactorEnabled) {
+      return c.json({ error: 'Invalid credentials' }, 401)
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password)
+    if (!isValidPassword) {
+      return c.json({ error: 'Invalid credentials' }, 401)
+    }
+
+    // Rate limit: 60s between sends
+    if (user.twoFactorEmailSentAt) {
+      const timeSinceLastSend = Date.now() - new Date(user.twoFactorEmailSentAt).getTime()
+      if (timeSinceLastSend < 60000) {
+        const waitSeconds = Math.ceil((60000 - timeSinceLastSend) / 1000)
+        return c.json({ error: `Please wait ${waitSeconds} seconds before requesting a new code` }, 429)
+      }
+    }
+
+    // Generate code
+    const code = generateEmailCode()
+    const expiry = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+
+    // Prepare everything for email BEFORE any DB/SMTP calls
+    const agentLogo = user.agent?.emailLogo || user.agent?.brandLogo || null
+    const agentBrandName = user.agent?.username || null
+    const senderName = user.agent?.emailSenderNameApproved || undefined
+    const smtpConfig = buildSmtpConfig(user.agent)
+    const emailTemplate = get2FALoginEmailTemplate(code, user.username, agentLogo, agentBrandName)
+    const maskedEmailResult = maskEmail(user.email)
+    const userEmail = user.email
+
+    // Fire BOTH in parallel: DB update + email send at the same time
+    // DB update stores the code, email send delivers it — neither depends on the other
+    const dbUpdatePromise = prisma.user.update({
+      where: { id: user.id },
+      data: {
+        twoFactorEmailCode: code,
+        twoFactorEmailExpiry: expiry,
+        twoFactorEmailSentAt: new Date()
+      }
+    })
+
+    // Start email send immediately — don't wait for DB update
+    sendEmail({
+      to: userEmail,
+      subject: emailTemplate.subject,
+      html: emailTemplate.html,
+      senderName,
+      smtpConfig
+    }).then((sent) => {
+      if (sent) {
+        console.log(`[2FA-EMAIL] Sent to ${userEmail}`)
+      } else {
+        console.error(`[2FA-EMAIL] Failed: ${userEmail}`)
+      }
+    }).catch((err) => {
+      console.error(`[2FA-EMAIL] Error: ${userEmail}`, err)
+    })
+
+    // Wait for DB update before responding (code must be stored)
+    await dbUpdatePromise
+
+    return c.json({
+      message: 'Verification code sent to your email',
+      maskedEmail: maskedEmailResult
+    })
+  } catch (error) {
+    console.error('Send 2FA email code error:', error)
+    return c.json({ error: 'Failed to send verification code' }, 500)
   }
 })
 

@@ -136,6 +136,9 @@ model User {
   // 2FA
   twoFactorEnabled  Boolean     @default(false)
   twoFactorSecret   String?
+  twoFactorEmailCode    String?     // Email OTP code for 2FA login alternative
+  twoFactorEmailExpiry  DateTime?   // Email OTP expiry (10 min)
+  twoFactorEmailSentAt  DateTime?   // Rate limiting: 60s between sends
 
   // Email verification
   emailVerified     Boolean     @default(false)
