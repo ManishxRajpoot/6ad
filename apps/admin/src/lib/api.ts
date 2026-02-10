@@ -368,7 +368,7 @@ export const accountDepositsApi = {
     return api.get<{ deposits: any[]; pagination: any }>(`/accounts/deposits/admin${queryString ? `?${queryString}` : ''}`)
   },
   approve: (id: string, adminRemarks?: string) =>
-    api.post<{ message: string; cheetahRecharge: string; cheetahError: string | null; isCheetahAccount: boolean | null }>(`/accounts/deposits/${id}/approve`, { adminRemarks }),
+    api.post<{ message: string; cheetahRecharge: string; cheetahError: string | null; isCheetahAccount: boolean | null; rechargeStatus: string; rechargeMethod: string }>(`/accounts/deposits/${id}/approve`, { adminRemarks }),
   reject: (id: string, adminRemarks?: string) =>
     api.post<{ message: string; deposit: any }>(`/accounts/deposits/${id}/reject`, { adminRemarks }),
   checkCheetah: (accountIds: string[]) =>
@@ -616,4 +616,24 @@ export interface BMConfig {
 export interface BMConfigFull extends BMConfig {
   accessToken: string
   fullToken: string
+}
+
+// Extension Management API (Admin)
+export const extensionAdminApi = {
+  // Sessions
+  getSessions: () =>
+    api.get<{ sessions: any[] }>('/extension-admin/sessions'),
+  createSession: (name: string) =>
+    api.post<{ session: any; apiKey: string }>('/extension-admin/sessions', { name }),
+  deleteSession: (id: string) =>
+    api.delete<{ message: string }>(`/extension-admin/sessions/${id}`),
+  // Recharge Queue
+  getRecharges: (status?: string) => {
+    const params = status && status !== 'all' ? `?status=${status}` : ''
+    return api.get<{ recharges: any[] }>(`/extension-admin/recharges${params}`)
+  },
+  markManual: (depositId: string) =>
+    api.post<{ message: string }>(`/extension-admin/recharges/${depositId}/mark-manual`, {}),
+  retryRecharge: (depositId: string) =>
+    api.post<{ message: string }>(`/extension-admin/recharges/${depositId}/retry`, {}),
 }

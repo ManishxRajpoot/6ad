@@ -1303,7 +1303,22 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       }
     }
 
-    // STEP 2: Cheetah recharge succeeded (or not a Cheetah account) - now approve in DB
+    // STEP 2: Determine recharge method and status
+    let rechargeMethod = 'NONE'
+    let rechargeStatus = 'NONE'
+
+    if (deposit.adAccount.platform === 'FACEBOOK') {
+      if (isCheetahAccount && cheetahRechargeResult?.code === 0) {
+        rechargeMethod = 'CHEETAH'
+        rechargeStatus = 'COMPLETED'
+      } else if (!isCheetahAccount) {
+        // Not a Cheetah account — queue for Chrome extension auto-recharge
+        rechargeMethod = 'EXTENSION'
+        rechargeStatus = 'PENDING'
+      }
+    }
+
+    // STEP 3: Approve in DB with recharge tracking
     await prisma.$transaction(async (tx) => {
       // Update deposit status
       await tx.accountDeposit.update({
@@ -1311,6 +1326,9 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
         data: {
           status: 'APPROVED',
           approvedAt: new Date(),
+          rechargeMethod,
+          rechargeStatus,
+          rechargedAt: rechargeMethod === 'CHEETAH' ? new Date() : undefined,
         }
       })
 
@@ -1354,7 +1372,9 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       message: 'Account deposit approved',
       cheetahRecharge: cheetahRechargeResult?.code === 0 ? 'success' : (isCheetahAccount ? 'skipped' : 'not-cheetah'),
       cheetahError: cheetahError,
-      isCheetahAccount: deposit.adAccount.platform === 'FACEBOOK' ? isCheetahAccount : null
+      isCheetahAccount: deposit.adAccount.platform === 'FACEBOOK' ? isCheetahAccount : null,
+      rechargeStatus,
+      rechargeMethod,
     })
   } catch (error) {
     console.error('Approve account deposit error:', error)

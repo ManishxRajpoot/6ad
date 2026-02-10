@@ -412,6 +412,14 @@ model AccountDeposit {
   remarks           String?
   adminRemarks      String?
 
+  // Recharge tracking
+  rechargeStatus    String            @default("NONE")   // NONE | PENDING | IN_PROGRESS | COMPLETED | FAILED
+  rechargeMethod    String            @default("NONE")   // NONE | CHEETAH | EXTENSION | MANUAL
+  rechargeError     String?
+  rechargeAttempts  Int               @default(0)
+  rechargedAt       DateTime?
+  rechargedBy       String?                               // ExtensionSession ID that completed it
+
   approvedAt        DateTime?
 
   createdAt         DateTime          @default(now())
@@ -1283,4 +1291,29 @@ model AgentWithdrawal {
   @@index([agentId])
   @@index([status])
   @@index([createdAt])
+}
+
+model ExtensionSession {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  name            String                    // Human-readable label e.g. "Chrome Profile - John's FB"
+  apiKey          String    @unique         // SHA-256 hash of the API key
+  apiKeyPrefix    String                    // First 8 chars for display e.g. "ext_a3f2..."
+
+  // FB session info (reported by extension)
+  fbUserId        String?
+  fbUserName      String?
+  adAccountIds    String[]                  // FB ad account IDs this profile can access
+
+  // Health
+  isActive        Boolean   @default(true)
+  lastSeenAt      DateTime  @default(now())
+  lastError       String?
+
+  // Stats
+  totalRecharges  Int       @default(0)
+  failedRecharges Int       @default(0)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }

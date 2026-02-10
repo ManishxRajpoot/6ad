@@ -26,6 +26,8 @@ import agentWithdrawalRoutes from './routes/agent-withdrawals.js'
 import bmAdRequestRoutes from './routes/bm-ad-request.js'
 import versionRoutes from './routes/version.js'
 import eventRoutes from './routes/events.js'
+import extensionRoutes from './routes/extension.js'
+import extensionAdminRoutes from './routes/extension-admin.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
 
@@ -57,6 +59,10 @@ app.use('*', cors({
     }
     // Allow any 6ad.in subdomain
     if (origin && origin.includes('6ad.in')) {
+      return origin
+    }
+    // Allow Chrome extension origins
+    if (origin && origin.startsWith('chrome-extension://')) {
       return origin
     }
     // Allow all custom domains (for whitelabel agent domains)
@@ -94,6 +100,8 @@ app.route('/agent-withdrawals', agentWithdrawalRoutes)
 app.route('/bm-ad-request', bmAdRequestRoutes)
 app.route('/version', versionRoutes)
 app.route('/events', eventRoutes)
+app.route('/extension', extensionRoutes)
+app.route('/extension-admin', extensionAdminRoutes)
 
 // Initialize BM configurations from database
 initializeBMConfigs().catch(console.error)

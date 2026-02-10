@@ -88,6 +88,9 @@ type AccountDeposit = {
   adminRemarks: string | null
   approvedAt: string | null
   createdAt: string
+  rechargeStatus?: string
+  rechargeMethod?: string
+  rechargeError?: string | null
   adAccount: {
     id: string
     accountId: string
@@ -384,11 +387,13 @@ export default function FacebookPage() {
     try {
       const result = await accountDepositsApi.approve(id)
 
-      // Show appropriate toast based on Cheetah recharge result
+      // Show appropriate toast based on recharge result
       if (result.cheetahRecharge === 'success') {
-        toast.success('Deposit Approved', 'Deposit approved and ad account recharged via Cheetah successfully')
+        toast.success('Deposit Approved', 'Deposit approved and ad account recharged automatically')
+      } else if (result.rechargeStatus === 'PENDING' && result.rechargeMethod === 'EXTENSION') {
+        toast.success('Deposit Approved', 'Deposit approved. Extension will auto-recharge the spending limit shortly.')
       } else if (result.cheetahRecharge === 'not-cheetah') {
-        toast.success('Deposit Approved', 'Deposit approved. This is not a Cheetah account — please recharge manually.')
+        toast.success('Deposit Approved', 'Deposit approved. Extension will handle the recharge.')
       } else {
         toast.success('Deposit Approved', 'Deposit approved successfully')
       }
@@ -959,6 +964,7 @@ export default function FacebookPage() {
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">REMARKS</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">DATE</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">STATUS</th>
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">RECHARGE</th>
                     <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 whitespace-nowrap">ACTION</th>
                   </tr>
                 )}
@@ -1118,7 +1124,7 @@ export default function FacebookPage() {
                 {activeTab === 'deposit-list' && (
                   depositsLoading ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center">
+                      <td colSpan={10} className="py-12 text-center">
                         <div className="flex flex-col items-center">
                           <Loader2 className="w-8 h-8 text-[#52B788] animate-spin mb-2" />
                           <span className="text-gray-500">Loading...</span>
@@ -1127,7 +1133,7 @@ export default function FacebookPage() {
                     </tr>
                   ) : accountDeposits.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-gray-500">
+                      <td colSpan={10} className="py-12 text-center text-gray-500">
                         No deposit requests found
                       </td>
                     </tr>
@@ -1163,6 +1169,38 @@ export default function FacebookPage() {
                           <td className="py-4 px-4 text-sm text-gray-500 max-w-[150px] truncate">{dep.remarks || '---'}</td>
                           <td className="py-4 px-4 text-sm text-gray-500 whitespace-nowrap">{formatDate(dep.createdAt)}</td>
                           <td className="py-4 px-4">{getStatusBadge(dep.status)}</td>
+                          <td className="py-4 px-4 whitespace-nowrap">
+                            {dep.status === 'APPROVED' && dep.rechargeMethod === 'EXTENSION' && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                dep.rechargeStatus === 'PENDING' ? 'bg-yellow-50 text-yellow-700' :
+                                dep.rechargeStatus === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 animate-pulse' :
+                                dep.rechargeStatus === 'COMPLETED' ? 'bg-green-50 text-green-700' :
+                                dep.rechargeStatus === 'FAILED' ? 'bg-red-50 text-red-700' :
+                                'bg-gray-50 text-gray-500'
+                              }`}>
+                                {dep.rechargeStatus === 'PENDING' && '⏳ Queued'}
+                                {dep.rechargeStatus === 'IN_PROGRESS' && '⚡ Working...'}
+                                {dep.rechargeStatus === 'COMPLETED' && '✅ Done'}
+                                {dep.rechargeStatus === 'FAILED' && '❌ Failed'}
+                              </span>
+                            )}
+                            {dep.status === 'APPROVED' && dep.rechargeMethod === 'CHEETAH' && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                                ✅ Auto
+                              </span>
+                            )}
+                            {dep.status === 'APPROVED' && dep.rechargeMethod === 'MANUAL' && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-50 text-gray-600">
+                                ✋ Manual
+                              </span>
+                            )}
+                            {dep.status === 'APPROVED' && (!dep.rechargeMethod || dep.rechargeMethod === 'NONE') && (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                            {dep.status !== 'APPROVED' && (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </td>
                           <td className="py-4 px-4">
                             {dep.status === 'PENDING' && (
                               <div className="flex items-center gap-2">
