@@ -89,11 +89,11 @@ app.post('/heartbeat', async (c) => {
 
     // If extension sends a new FB token, exchange it for a long-lived token (60 days)
     if (fbAccessToken && fbAccessToken !== session.fbAccessToken) {
-      const longLivedToken = await exchangeForLongLivedToken(fbAccessToken)
-      if (longLivedToken) {
-        updateData.fbAccessToken = longLivedToken
-      } else {
-        // Fallback: store the short-lived token if exchange fails
+      try {
+        const longLivedToken = await exchangeForLongLivedToken(fbAccessToken)
+        updateData.fbAccessToken = longLivedToken || fbAccessToken
+      } catch (tokenErr: any) {
+        console.error('[Extension] Token exchange error (non-fatal):', tokenErr.message)
         updateData.fbAccessToken = fbAccessToken
       }
     }

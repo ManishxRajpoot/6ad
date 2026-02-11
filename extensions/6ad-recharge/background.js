@@ -66,7 +66,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
   const config = await getConfig()
   if (!config.apiKey) throw new Error('No API key configured')
 
-  const url = `${config.apiUrl}${endpoint}`
+  const url = `${config.apiUrl.replace(/\/+$/, '')}${endpoint}`
   const options = {
     method,
     headers: {
