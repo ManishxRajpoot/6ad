@@ -5,6 +5,35 @@ import crypto from 'crypto'
 const prisma = new PrismaClient()
 const app = new Hono()
 
+const FB_APP_ID = process.env.FACEBOOK_APP_ID || ''
+const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || ''
+
+// Exchange short-lived FB token for long-lived token (60 days)
+async function exchangeForLongLivedToken(shortToken: string): Promise<string | null> {
+  if (!FB_APP_ID || !FB_APP_SECRET) {
+    console.log('[Extension] No FB App credentials configured, skipping token exchange')
+    return null
+  }
+
+  try {
+    const url = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&fb_exchange_token=${encodeURIComponent(shortToken)}`
+    const res = await fetch(url)
+    const data = await res.json() as any
+
+    if (data.access_token) {
+      console.log(`[Extension] Token exchanged for long-lived token (expires in ${data.expires_in || 'unknown'}s)`)
+      return data.access_token
+    } else if (data.error) {
+      console.error('[Extension] Token exchange failed:', data.error.message)
+      return null
+    }
+    return null
+  } catch (err: any) {
+    console.error('[Extension] Token exchange error:', err.message)
+    return null
+  }
+}
+
 // ==================== Extension Auth Middleware ====================
 
 function hashApiKey(key: string): string {
@@ -45,7 +74,7 @@ app.post('/heartbeat', async (c) => {
   try {
     const session = c.get('extensionSession') as any
     const body = await c.req.json()
-    const { adAccountIds, fbUserId, fbUserName } = body
+    const { adAccountIds, fbUserId, fbUserName, fbAccessToken } = body
 
     const updateData: any = {
       lastSeenAt: new Date(),
@@ -58,28 +87,33 @@ app.post('/heartbeat', async (c) => {
     if (fbUserId) updateData.fbUserId = fbUserId
     if (fbUserName) updateData.fbUserName = fbUserName
 
+    // If extension sends a new FB token, exchange it for a long-lived token (60 days)
+    if (fbAccessToken && fbAccessToken !== session.fbAccessToken) {
+      const longLivedToken = await exchangeForLongLivedToken(fbAccessToken)
+      if (longLivedToken) {
+        updateData.fbAccessToken = longLivedToken
+      } else {
+        // Fallback: store the short-lived token if exchange fails
+        updateData.fbAccessToken = fbAccessToken
+      }
+    }
+
     await prisma.extensionSession.update({
       where: { id: session.id },
       data: updateData
     })
 
-    // Count pending recharges for this session's accounts
-    const sessionAccounts = adAccountIds || session.adAccountIds || []
-    let pendingCount = 0
-
-    if (sessionAccounts.length > 0) {
-      pendingCount = await prisma.accountDeposit.count({
-        where: {
-          status: 'APPROVED',
-          rechargeStatus: 'PENDING',
-          rechargeMethod: 'EXTENSION',
-          adAccount: {
-            platform: 'FACEBOOK',
-            accountId: { in: sessionAccounts }
-          }
+    // Count ALL pending FB extension recharges (not filtered by discovered accounts)
+    const pendingCount = await prisma.accountDeposit.count({
+      where: {
+        status: 'APPROVED',
+        rechargeStatus: 'PENDING',
+        rechargeMethod: 'EXTENSION',
+        adAccount: {
+          platform: 'FACEBOOK',
         }
-      })
-    }
+      }
+    })
 
     return c.json({
       status: 'ok',
@@ -92,14 +126,12 @@ app.post('/heartbeat', async (c) => {
   }
 })
 
-// GET /extension/pending-recharges - Get pending recharges for this extension's accounts
+// GET /extension/pending-recharges - Get pending recharges for Facebook accounts
+// Returns ALL pending extension recharges (not filtered by discovered accounts)
+// because Graph API /me/adaccounts doesn't always return all accessible accounts
 app.get('/pending-recharges', async (c) => {
   try {
     const session = c.get('extensionSession') as any
-
-    if (!session.adAccountIds || session.adAccountIds.length === 0) {
-      return c.json({ recharges: [] })
-    }
 
     const deposits = await prisma.accountDeposit.findMany({
       where: {
@@ -108,7 +140,6 @@ app.get('/pending-recharges', async (c) => {
         rechargeMethod: 'EXTENSION',
         adAccount: {
           platform: 'FACEBOOK',
-          accountId: { in: session.adAccountIds }
         }
       },
       include: {
@@ -162,11 +193,6 @@ app.post('/recharge/:depositId/claim', async (c) => {
 
     if (!deposit) {
       return c.json({ claimed: false, reason: 'Already claimed or not found' })
-    }
-
-    // Verify this session has access to this account
-    if (!session.adAccountIds.includes(deposit.adAccount.accountId)) {
-      return c.json({ claimed: false, reason: 'No access to this ad account' })
     }
 
     await prisma.accountDeposit.update({

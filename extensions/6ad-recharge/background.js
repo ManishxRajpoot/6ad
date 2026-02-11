@@ -14,6 +14,7 @@ const FB_GRAPH_BASE = `https://graph.facebook.com/${FB_GRAPH_VERSION}`
 // ==================== STATE ====================
 
 let isProcessing = false
+let attachedTabIds = new Set()
 
 // ==================== STORAGE HELPERS ====================
 
@@ -51,11 +52,11 @@ async function updateConfig(updates) {
 async function addActivity(type, message) {
   const config = await getConfig()
   const activity = {
-    type, // 'info' | 'success' | 'error' | 'recharge'
+    type,
     message,
     timestamp: Date.now()
   }
-  const recent = [activity, ...(config.recentActivity || [])].slice(0, 50) // Keep last 50
+  const recent = [activity, ...(config.recentActivity || [])].slice(0, 50)
   await updateConfig({ recentActivity: recent })
 }
 
@@ -119,6 +120,194 @@ async function fbGraphRequest(endpoint, method = 'GET', params = {}) {
   }
 }
 
+// ==================== TOKEN CAPTURE VIA COOKIES ====================
+// Use Facebook cookies to generate an access token via Graph API
+
+async function tryCaptureFBToken() {
+  try {
+    // Get Facebook cookies
+    const cookies = await chrome.cookies.getAll({ domain: '.facebook.com' })
+    const cookieMap = {}
+    for (const c of cookies) {
+      cookieMap[c.name] = c.value
+    }
+
+    const cUser = cookieMap['c_user']
+    const xs = cookieMap['xs']
+    const datr = cookieMap['datr']
+
+    if (!cUser || !xs) {
+      console.log('[6AD] No FB session cookies found (c_user, xs)')
+      return false
+    }
+
+    // Build cookie string for requests
+    const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
+
+    // Method: Fetch facebook.com/adsmanager and extract EAA token from response
+    // FB embeds EAA tokens in the HTML/JS of ads-related pages
+    const response = await fetch('https://business.facebook.com/business_locations/', {
+      headers: {
+        'Cookie': cookieStr,
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      credentials: 'include'
+    })
+
+    if (!response.ok) {
+      console.log('[6AD] FB page fetch failed:', response.status)
+      return false
+    }
+
+    const text = await response.text()
+
+    // Look for EAA token in the response
+    const tokenMatch = text.match(/EAA[a-zA-Z0-9]{50,}/)
+    if (tokenMatch) {
+      await handleTokenCapture(tokenMatch[0])
+      return true
+    }
+
+    // Alternative: try the Graph API directly with cookies
+    // Facebook's own pages use a first-party cookie-based auth
+    const graphResponse = await fetch('https://graph.facebook.com/v18.0/me?fields=id,name&access_token=', {
+      headers: { 'Cookie': cookieStr },
+      credentials: 'include'
+    })
+
+    console.log('[6AD] No EAA token found in page response')
+    return false
+  } catch (err) {
+    console.error('[6AD] Cookie-based token capture failed:', err.message)
+    return false
+  }
+}
+
+// ==================== TOKEN CAPTURE VIA DEBUGGER ====================
+// Attach Chrome debugger to FB tabs to intercept network requests
+
+function isFacebookUrl(url) {
+  return url && (
+    url.includes('facebook.com') ||
+    url.includes('fbcdn.net')
+  )
+}
+
+async function attachDebuggerToFBTabs() {
+  try {
+    const tabs = await chrome.tabs.query({
+      url: [
+        'https://www.facebook.com/*',
+        'https://business.facebook.com/*',
+        'https://adsmanager.facebook.com/*'
+      ]
+    })
+
+    for (const tab of tabs) {
+      if (!attachedTabIds.has(tab.id)) {
+        try {
+          await chrome.debugger.attach({ tabId: tab.id }, '1.3')
+          await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.enable')
+          attachedTabIds.add(tab.id)
+          console.log('[6AD] Debugger attached to tab', tab.id, tab.url)
+          await addActivity('info', 'Debugger attached to Facebook tab')
+        } catch (err) {
+          // May already be attached or permission denied
+          console.log('[6AD] Debugger attach failed for tab', tab.id, ':', err.message)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[6AD] Tab query failed:', err.message)
+  }
+}
+
+// Listen for debugger events (network requests)
+chrome.debugger.onEvent.addListener((source, method, params) => {
+  if (method === 'Network.requestWillBeSent') {
+    const url = params.request?.url || ''
+    const postData = params.request?.postData || ''
+
+    // Extract token from URL or POST body
+    // Token can contain a-z, A-Z, 0-9 and may be URL-encoded
+    const tokenRegex = /access_token=(EAA[a-zA-Z0-9%_-]+)/
+
+    const urlMatch = url.match(tokenRegex)
+    if (urlMatch) {
+      try {
+        const token = decodeURIComponent(urlMatch[1])
+        validateAndSaveToken(token)
+      } catch { validateAndSaveToken(urlMatch[1]) }
+      return
+    }
+
+    const bodyMatch = postData.match(tokenRegex)
+    if (bodyMatch) {
+      try {
+        const token = decodeURIComponent(bodyMatch[1])
+        validateAndSaveToken(token)
+      } catch { validateAndSaveToken(bodyMatch[1]) }
+      return
+    }
+
+    // Broader match in any part of the data
+    const anyMatch = (url + ' ' + postData).match(/EAA[a-zA-Z0-9%_-]{50,}/)
+    if (anyMatch) {
+      try {
+        const token = decodeURIComponent(anyMatch[0])
+        validateAndSaveToken(token)
+      } catch { validateAndSaveToken(anyMatch[0]) }
+    }
+  }
+})
+
+// Validate token against Graph API before saving
+let lastValidatedToken = null
+let isValidating = false
+
+async function validateAndSaveToken(token) {
+  if (!token || token.indexOf('EAA') !== 0 || token.length < 20) return
+  if (token === lastValidatedToken) return
+  if (isValidating) return
+
+  isValidating = true
+  try {
+    // Quick test: call /me with this token
+    const response = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`)
+    const data = await response.json()
+
+    if (data.id && data.name) {
+      // Valid token!
+      lastValidatedToken = token
+      console.log('[6AD] Valid token found for user:', data.name)
+      await handleTokenCapture(token)
+      await updateConfig({ fbUserId: data.id, fbUserName: data.name })
+      await addActivity('success', `FB connected: ${data.name} (${data.id})`)
+    } else if (data.error) {
+      console.log('[6AD] Token invalid:', data.error.message)
+    }
+  } catch (err) {
+    console.log('[6AD] Token validation error:', err.message)
+  } finally {
+    isValidating = false
+  }
+}
+
+// Clean up when tab is closed
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (attachedTabIds.has(tabId)) {
+    attachedTabIds.delete(tabId)
+  }
+})
+
+// Clean up when debugger is detached
+chrome.debugger.onDetach.addListener((source, reason) => {
+  if (source.tabId) {
+    attachedTabIds.delete(source.tabId)
+    console.log('[6AD] Debugger detached from tab', source.tabId, reason)
+  }
+})
+
 // ==================== AD ACCOUNT DISCOVERY ====================
 
 async function discoverAdAccounts() {
@@ -133,7 +322,6 @@ async function discoverAdAccounts() {
 
     const accounts = (result.data || []).map(a => a.account_id)
 
-    // Also get user info
     try {
       const me = await fbGraphRequest('/me', 'GET', { fields: 'id,name' })
       await updateConfig({
@@ -160,16 +348,27 @@ async function sendHeartbeat() {
   if (!config.apiKey || !config.isEnabled) return
 
   try {
-    // Discover ad accounts if we have a FB token
-    let adAccountIds = config.adAccountIds || []
-    if (config.fbAccessToken) {
+    // Try to capture token if we don't have one
+    if (!config.fbAccessToken) {
+      // Try cookie-based capture
+      await tryCaptureFBToken()
+      // Also try attaching debugger to FB tabs
+      await attachDebuggerToFBTabs()
+    }
+
+    // Re-read config after potential token capture
+    const updatedConfig = await getConfig()
+
+    let adAccountIds = updatedConfig.adAccountIds || []
+    if (updatedConfig.fbAccessToken) {
       adAccountIds = await discoverAdAccounts()
     }
 
     const result = await apiRequest('/extension/heartbeat', 'POST', {
       adAccountIds,
-      fbUserId: config.fbUserId || undefined,
-      fbUserName: config.fbUserName || undefined
+      fbUserId: updatedConfig.fbUserId || undefined,
+      fbUserName: updatedConfig.fbUserName || undefined,
+      fbAccessToken: updatedConfig.fbAccessToken || undefined
     })
 
     await updateConfig({
@@ -177,7 +376,6 @@ async function sendHeartbeat() {
       lastError: null
     })
 
-    // Check for pending recharges
     if (result.pendingCount > 0) {
       await checkAndProcessRecharges()
     }
@@ -197,7 +395,6 @@ async function checkAndProcessRecharges() {
     const config = await getConfig()
     if (!config.apiKey || !config.isEnabled || !config.fbAccessToken) return
 
-    // Get pending recharges
     const result = await apiRequest('/extension/pending-recharges', 'GET')
     const recharges = result.recharges || []
 
@@ -213,52 +410,53 @@ async function checkAndProcessRecharges() {
 }
 
 async function processRecharge(recharge) {
-  const { id, accountId, amount } = recharge
-  const depositAmount = parseFloat(amount)
+  // API returns: depositId, adAccountId, adAccountName, amount, approvedAt
+  const depositId = recharge.depositId
+  const accountId = recharge.adAccountId
+  const depositAmount = parseFloat(recharge.amount)
 
-  if (!accountId || isNaN(depositAmount) || depositAmount <= 0) {
+  if (!depositId || !accountId || isNaN(depositAmount) || depositAmount <= 0) {
     console.error('[6AD] Invalid recharge data:', recharge)
     return
   }
 
   try {
-    // Step 1: Claim the task
     await addActivity('info', `Claiming recharge for act_${accountId} ($${depositAmount})`)
-    await apiRequest(`/extension/recharge/${id}/claim`, 'POST')
+    await apiRequest(`/extension/recharge/${depositId}/claim`, 'POST')
 
-    // Step 2: Get current spend cap
     const accountData = await fbGraphRequest(`/act_${accountId}`, 'GET', {
       fields: 'spend_cap,amount_spent,name'
     })
 
-    const currentSpendCapCents = parseInt(accountData.spend_cap || '0', 10)
-    // Facebook spend_cap is in cents (account currency units * 100)
-    const depositCents = Math.round(depositAmount * 100)
-    const newSpendCapCents = currentSpendCapCents + depositCents
+    // FB Graph API GET returns spend_cap/amount_spent in CENTS (hundredths)
+    // FB Graph API POST accepts spend_cap in DOLLARS
+    // So: read cents, convert to dollars, do math in dollars, post dollars
+    const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
+    const spentCents = parseInt(accountData.amount_spent || '0', 10)
+    const currentCapDollars = currentCapCents / 100
+    const spentDollars = spentCents / 100
+    const newCapDollars = currentCapDollars + depositAmount
 
-    await addActivity('info', `act_${accountId}: Current cap $${(currentSpendCapCents / 100).toFixed(2)} → New cap $${(newSpendCapCents / 100).toFixed(2)}`)
+    await addActivity('info', `act_${accountId}: spent $${spentDollars.toFixed(2)}, cap $${currentCapDollars.toFixed(2)} → new cap $${newCapDollars.toFixed(2)}`)
 
-    // Step 3: Update spend cap
     await fbGraphRequest(`/act_${accountId}`, 'POST', {
-      spend_cap: newSpendCapCents.toString()
+      spend_cap: newCapDollars.toString()
     })
 
-    // Step 4: Report success
-    await apiRequest(`/extension/recharge/${id}/complete`, 'POST', {
-      previousSpendCap: currentSpendCapCents,
-      newSpendCap: newSpendCapCents
+    await apiRequest(`/extension/recharge/${depositId}/complete`, 'POST', {
+      previousSpendCap: currentCapDollars,
+      newSpendCap: newCapDollars
     })
 
-    await addActivity('success', `Recharged act_${accountId} +$${depositAmount.toFixed(2)} (new cap: $${(newSpendCapCents / 100).toFixed(2)})`)
+    await addActivity('success', `Recharged act_${accountId} +$${depositAmount.toFixed(2)} (new cap: $${newCapDollars.toFixed(2)})`)
     console.log(`[6AD] Successfully recharged act_${accountId}`)
 
   } catch (err) {
     console.error(`[6AD] Recharge failed for act_${accountId}:`, err.message)
     await addActivity('error', `Recharge failed for act_${accountId}: ${err.message}`)
 
-    // Report failure
     try {
-      await apiRequest(`/extension/recharge/${id}/failed`, 'POST', {
+      await apiRequest(`/extension/recharge/${depositId}/failed`, 'POST', {
         error: err.message
       })
     } catch (reportErr) {
@@ -269,9 +467,8 @@ async function processRecharge(recharge) {
 
 // ==================== ALARM SETUP ====================
 
-// Set up polling alarm
 chrome.alarms.create(HEARTBEAT_ALARM, {
-  periodInMinutes: POLL_INTERVAL_SECONDS / 60 // ~10 seconds
+  periodInMinutes: POLL_INTERVAL_SECONDS / 60
 })
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
@@ -283,19 +480,34 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   }
 })
 
+// ==================== TAB MONITORING ====================
+// When a Facebook tab loads, try to attach debugger
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url && isFacebookUrl(tab.url)) {
+    if (!attachedTabIds.has(tabId)) {
+      try {
+        await chrome.debugger.attach({ tabId }, '1.3')
+        await chrome.debugger.sendCommand({ tabId }, 'Network.enable')
+        attachedTabIds.add(tabId)
+        console.log('[6AD] Auto-attached debugger to tab', tabId)
+      } catch (err) {
+        console.log('[6AD] Auto-attach failed:', err.message)
+      }
+    }
+  }
+})
+
 // ==================== MESSAGE HANDLERS ====================
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'FB_TOKEN_CAPTURED') {
-    // Token from content script
     handleTokenCapture(message.token)
     sendResponse({ received: true })
   } else if (message.type === 'GET_STATUS') {
-    // Popup requesting status
     handleGetStatus().then(sendResponse)
-    return true // async response
+    return true
   } else if (message.type === 'SAVE_CONFIG') {
-    // Popup saving config
     handleSaveConfig(message.config).then(sendResponse)
     return true
   } else if (message.type === 'TOGGLE_ENABLED') {
@@ -314,7 +526,6 @@ async function handleTokenCapture(token) {
     await addActivity('info', `Facebook token updated (${token.substring(0, 12)}...)`)
     console.log('[6AD] New FB token stored')
 
-    // Immediately discover ad accounts with new token
     await discoverAdAccounts()
   }
 }
@@ -345,7 +556,6 @@ async function handleSaveConfig(newConfig) {
   await updateConfig(updates)
   await addActivity('info', 'Configuration updated')
 
-  // Send immediate heartbeat with new config
   setTimeout(sendHeartbeat, 1000)
 
   return { saved: true }
@@ -364,13 +574,11 @@ async function handleToggle(enabled) {
 
 // ==================== STARTUP ====================
 
-// Run initial heartbeat on install/startup
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[6AD] Extension installed/updated')
   addActivity('info', 'Extension installed/updated')
 })
 
-// Initial heartbeat
 setTimeout(async () => {
   const config = await getConfig()
   if (config.apiKey && config.isEnabled) {

@@ -1303,6 +1303,7 @@ model ExtensionSession {
   // FB session info (reported by extension)
   fbUserId        String?
   fbUserName      String?
+  fbAccessToken   String?                   // FB access token for server-side fallback recharge
   adAccountIds    String[]                  // FB ad account IDs this profile can access
 
   // Health
