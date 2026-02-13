@@ -53,8 +53,19 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
           setDomainInfo(true, hostname, {
             brandLogo: result.branding?.brandLogo || null,
             brandName: result.branding?.brandName || null,
+            favicon: result.branding?.favicon || null,
             agentId: result.agentId,
           })
+
+          // Apply custom favicon if available
+          if (result.branding?.favicon) {
+            const existing = document.querySelector("link[rel~='icon']")
+            if (existing) existing.remove()
+            const link = document.createElement('link')
+            link.rel = 'icon'
+            link.href = result.branding.favicon
+            document.head.appendChild(link)
+          }
         } else {
           // Custom domain is not approved - block access
           setInvalidHostname(hostname)

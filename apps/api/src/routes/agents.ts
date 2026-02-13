@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 import { z } from 'zod'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
+import { broadcastToUser } from '../services/event-bus.js'
 import { testSmtpConnection, sendTestEmail, checkDomainHealth, SmtpConfig } from '../utils/email.js'
 import { generateEmailLogo } from '../utils/image.js'
 
@@ -139,6 +140,7 @@ agents.get('/branding', async (c) => {
         id: true,
         brandLogo: true,
         brandName: true,
+        favicon: true,
         emailSenderName: true,
         emailSenderNameApproved: true,
         emailSenderNameStatus: true,
@@ -169,12 +171,17 @@ agents.patch('/branding', async (c) => {
     }
 
     const body = await c.req.json()
-    const { brandLogo, brandName, emailSenderName } = body
+    const { brandLogo, brandName, emailSenderName, favicon } = body
 
     // If emailSenderName is being updated, set status to PENDING for admin approval
     const updateData: any = {
       brandLogo: brandLogo || null,
       brandName: brandName || null,
+    }
+
+    // Update favicon if provided
+    if (favicon !== undefined) {
+      updateData.favicon = favicon || null
     }
 
     // Auto-generate optimized email logo
@@ -205,6 +212,7 @@ agents.patch('/branding', async (c) => {
         id: true,
         brandLogo: true,
         brandName: true,
+        favicon: true,
         emailSenderName: true,
         emailSenderNameApproved: true,
         emailSenderNameStatus: true,
@@ -786,6 +794,9 @@ agents.post('/:id/block', requireAdmin, async (c) => {
         reason,
       }
     })
+
+    // Force-logout the blocked agent via SSE
+    broadcastToUser(id, 'force-logout', { reason: 'Account has been blocked' })
 
     return c.json({ message: 'Agent blocked successfully' })
   } catch (error) {

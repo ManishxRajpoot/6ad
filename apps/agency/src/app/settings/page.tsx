@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { useAuthStore } from '@/store/auth'
@@ -29,12 +30,24 @@ import {
 type TabType = 'profile' | 'security'
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<DashboardLayout title="Settings"><div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div></DashboardLayout>}>
+      <SettingsContent />
+    </Suspense>
+  )
+}
+
+function SettingsContent() {
   const { user, setUser } = useAuthStore()
   const toast = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<TabType>('profile')
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const tab = searchParams.get('tab')
+    return tab === 'security' ? 'security' : 'profile'
+  })
 
   // Personal Information
   const [fullName, setFullName] = useState(user?.realName || '')

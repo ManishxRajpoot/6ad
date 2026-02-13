@@ -57,6 +57,15 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
         return Promise.reject(new Error('Session expired. Please login again.'))
       }
 
+      // Auto-logout if user is blocked (403)
+      if (response.status === 403) {
+        const msg = (errorData.error || errorData.message || '').toLowerCase()
+        if (msg.includes('blocked')) {
+          handleAutoLogout()
+          return Promise.reject(new Error('Your account has been blocked. Please contact support.'))
+        }
+      }
+
       // Also auto-logout if user not found (stale JWT from before migration)
       if (response.status === 404) {
         const msg = (errorData.error || errorData.message || '').toLowerCase()
@@ -293,7 +302,7 @@ export const domainsApi = {
   checkDomain: (domain: string) =>
     fetch(`${API_URL}/domains/check/${domain}`)
       .then(res => res.json())
-      .then(data => data as { valid: boolean; domain?: string; branding?: { brandName: string | null; brandLogo: string | null }; agentId?: string; message?: string }),
+      .then(data => data as { valid: boolean; domain?: string; branding?: { brandName: string | null; brandLogo: string | null; favicon: string | null }; agentId?: string; message?: string }),
 }
 
 // Platform Settings API (for visibility settings)

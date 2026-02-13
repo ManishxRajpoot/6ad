@@ -835,12 +835,12 @@ export default function AddMoneyPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-5 py-2.5 text-[12px] font-medium rounded-t-lg transition-all duration-300 relative overflow-hidden ${
                   activeTab === tab.id
-                    ? 'bg-[#0D9488] text-white shadow-md shadow-teal-200/40'
+                    ? 'bg-[#6366F1] text-white shadow-md shadow-indigo-200/40'
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 {activeTab === tab.id && (
-                  <span className="absolute inset-0 bg-gradient-to-r from-[#0D9488] to-[#9333EA]" />
+                  <span className="absolute inset-0 bg-[#6366F1]" />
                 )}
                 <span className="relative">{tab.label}</span>
               </button>
@@ -1946,7 +1946,7 @@ export default function AddMoneyPage() {
           {/* Left Column - User Selection */}
           <div className="space-y-2.5">
             {/* Agent's Balance Display - Compact */}
-            <div className="p-2.5 bg-gradient-to-r from-[#0D9488] to-[#9333EA] rounded-lg text-white">
+            <div className="p-2.5 bg-[#6366F1] rounded-lg text-white">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
                   <Wallet className="w-4 h-4" />
@@ -2237,7 +2237,7 @@ export default function AddMoneyPage() {
             {/* Receipt Card Frame */}
             <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
               {/* Header */}
-              <div className="bg-gradient-to-r from-[#0D9488] to-[#9333EA] px-6 py-4 flex items-center justify-between">
+              <div className="bg-[#6366F1] px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                     <ImageIcon className="w-5 h-5 text-white" />

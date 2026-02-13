@@ -81,7 +81,7 @@ export default function DashboardPage() {
   } | null>(null)
   const [insightsLoading, setInsightsLoading] = useState(false)
   const [cheetahBalances, setCheetahBalances] = useState<Record<string, any>>({})
-  const [datePreset, setDatePreset] = useState<'3d' | '7d' | '30d' | '90d' | '6mo' | 'custom'>('3d')
+  const [datePreset, setDatePreset] = useState<'yesterday' | '3d' | '7d' | '30d' | '90d' | '6mo' | 'custom'>('yesterday')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
   const [activeMetric, setActiveMetric] = useState<'cpr' | 'cpc' | 'ctr' | 'cpm'>('cpr')
@@ -134,6 +134,12 @@ export default function DashboardPage() {
     const end = new Date()
     const start = new Date()
     switch (datePreset) {
+      case 'yesterday': {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yStr = yesterday.toISOString().split('T')[0]
+        return { start: yStr, end: yStr }
+      }
       case '3d': start.setDate(end.getDate() - 3); break
       case '7d': start.setDate(end.getDate() - 7); break
       case '30d': start.setDate(end.getDate() - 30); break
@@ -158,18 +164,26 @@ export default function DashboardPage() {
       return [data]
     }
 
-    const processDay = (d: any) => ({
-      month: d.date_start || d.month || d.date || '',
-      deposits: d.deposits || 0,
-      spent: parseFloat(d.spend || d.spent || 0),
-      impressions: parseInt(d.impressions || 0),
-      clicks: parseInt(d.clicks || 0),
-      results: parseInt(d.results || d.actions?.length || 0),
-      cpc: parseFloat(d.cpc || 0),
-      ctr: parseFloat(d.ctr || 0),
-      cpm: parseFloat(d.cpm || 0),
-      cpr: parseFloat(d.cost_per_result || d.cpr || 0),
-    })
+    const processDay = (d: any) => {
+      // Sum action values correctly: actions is [{action_type: 'xxx', value: '123'}, ...]
+      const results = d.results
+        ? parseInt(d.results)
+        : Array.isArray(d.actions)
+          ? d.actions.reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0)
+          : 0
+      return {
+        month: d.date_start || d.month || d.date || '',
+        deposits: d.deposits || 0,
+        spent: parseFloat(d.spend || d.spent || 0),
+        impressions: parseInt(d.impressions || 0),
+        clicks: parseInt(d.clicks || 0),
+        results,
+        cpc: parseFloat(d.cpc || 0),
+        ctr: parseFloat(d.ctr || 0),
+        cpm: parseFloat(d.cpm || 0),
+        cpr: parseFloat(d.cost_per_result || d.cpr || 0),
+      }
+    }
 
     const fetchInsights = async () => {
       if (cheetahAccounts.length === 0) {
@@ -194,23 +208,27 @@ export default function DashboardPage() {
             // Fetch daily data for all accounts
             const allResults = await Promise.all(
               cheetahAccounts.map(acc =>
-                accountsApi.getInsightsDateRange(acc.accountId, dateRange.start, dateRange.end).catch((err) => { console.log('[Reports Debug] getInsightsDateRange error for', acc.accountId, err); return null })
+                accountsApi.getInsightsDateRange(acc.accountId, dateRange.start, dateRange.end).catch(() => null)
               )
-            )
-            console.log('[Reports Debug] allResults:', JSON.stringify(allResults?.map(r => ({ insights: r?.insights ? (Array.isArray(r.insights) ? `array(${r.insights.length})` : typeof r.insights) : null, error: r?.error }))))
+            ) as any[]
             if (cancelled) return
 
+            // Use server-computed totals from each account
             let totalSpent = 0, totalImpressions = 0, totalClicks = 0, totalResults = 0
             const dailyAggregated: Record<string, any> = {}
 
             allResults.forEach(result => {
+              // Aggregate totals from server
+              if (result?.totals) {
+                totalSpent += result.totals.spent || 0
+                totalImpressions += result.totals.impressions || 0
+                totalClicks += result.totals.clicks || 0
+                totalResults += result.totals.results || 0
+              }
+              // Aggregate daily chart data
               const insights = normalizeInsights(result?.insights)
               insights.forEach((d: any) => {
                 const day = processDay(d)
-                totalSpent += day.spent
-                totalImpressions += day.impressions
-                totalClicks += day.clicks
-                totalResults += day.results
                 const key = day.month
                 if (!dailyAggregated[key]) {
                   dailyAggregated[key] = { month: key, deposits: 0, spent: 0, impressions: 0, clicks: 0, results: 0, cpc: 0, ctr: 0, cpm: 0, cpr: 0 }
@@ -223,7 +241,7 @@ export default function DashboardPage() {
               })
             })
 
-            // Calculate derived metrics for each aggregated day
+            // Derived metrics for chart days
             Object.values(dailyAggregated).forEach((day: any) => {
               day.cpc = day.clicks > 0 ? day.spent / day.clicks : 0
               day.ctr = day.impressions > 0 ? (day.clicks / day.impressions) * 100 : 0
@@ -282,26 +300,33 @@ export default function DashboardPage() {
         } else {
           // Single account
           if (useDaily) {
-            const result = await accountsApi.getInsightsDateRange(selectedAccountId, dateRange.start, dateRange.end)
-            console.log('[Reports Debug] Single account result:', JSON.stringify({ insights: result?.insights ? (Array.isArray(result.insights) ? `array(${result.insights.length})` : typeof result.insights) : null, error: (result as any)?.error }))
+            const result = await accountsApi.getInsightsDateRange(selectedAccountId, dateRange.start, dateRange.end) as any
             if (cancelled) return
             const insights = normalizeInsights(result?.insights)
             const processed = insights.map(processDay)
-            console.log('[Reports Debug] Processed days:', processed.length, 'sample:', JSON.stringify(processed[0]))
 
-            let totalSpent = 0, totalImpressions = 0, totalClicks = 0, totalResults = 0
-            processed.forEach(d => {
-              totalSpent += d.spent; totalImpressions += d.impressions; totalClicks += d.clicks; totalResults += d.results
-            })
-
-            const cpr = totalResults > 0 ? parseFloat((totalSpent / totalResults).toFixed(2)) : 0
-            setInsightsTotals({
-              spent: totalSpent, impressions: totalImpressions, clicks: totalClicks, results: totalResults, conversions: 0,
-              cpc: totalClicks > 0 ? parseFloat((totalSpent / totalClicks).toFixed(2)) : 0,
-              ctr: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
-              cpr, cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0,
-              cpa: cpr
-            })
+            // Use server-computed totals if available, otherwise fallback
+            if (result?.totals) {
+              setInsightsTotals({
+                spent: result.totals.spent, impressions: result.totals.impressions,
+                clicks: result.totals.clicks, results: result.totals.results, conversions: 0,
+                cpc: result.totals.cpc, ctr: result.totals.ctr,
+                cpr: result.totals.cpr, cpm: result.totals.cpm, cpa: result.totals.cpr
+              })
+            } else {
+              let totalSpent = 0, totalImpressions = 0, totalClicks = 0, totalResults = 0
+              processed.forEach(d => {
+                totalSpent += d.spent; totalImpressions += d.impressions; totalClicks += d.clicks; totalResults += d.results
+              })
+              const cpr = totalResults > 0 ? parseFloat((totalSpent / totalResults).toFixed(2)) : 0
+              setInsightsTotals({
+                spent: totalSpent, impressions: totalImpressions, clicks: totalClicks, results: totalResults, conversions: 0,
+                cpc: totalClicks > 0 ? parseFloat((totalSpent / totalClicks).toFixed(2)) : 0,
+                ctr: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
+                cpr, cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0,
+                cpa: cpr
+              })
+            }
             setAccountInsights(processed)
           } else {
             const result = await accountsApi.getMonthlyInsights(selectedAccountId)
@@ -738,7 +763,7 @@ export default function DashboardPage() {
             </div>
             {/* Date Range Presets */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              {(['3d', '7d', '30d', '90d', '6mo'] as const).map(p => (
+              {(['yesterday', '3d', '7d', '30d', '90d', '6mo'] as const).map(p => (
                 <button
                   key={p}
                   onClick={() => setDatePreset(p)}
@@ -746,7 +771,7 @@ export default function DashboardPage() {
                     datePreset === p ? 'bg-[#52B788] text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                   }`}
                 >
-                  {p === '3d' ? '3D' : p === '7d' ? '7D' : p === '30d' ? '30D' : p === '90d' ? '90D' : '6M'}
+                  {p === 'yesterday' ? 'Yesterday' : p === '3d' ? '3D' : p === '7d' ? '7D' : p === '30d' ? '30D' : p === '90d' ? '90D' : '6M'}
                 </button>
               ))}
               <div className="flex items-center gap-1 ml-1">

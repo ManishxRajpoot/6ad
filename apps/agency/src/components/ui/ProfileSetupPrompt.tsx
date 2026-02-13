@@ -107,7 +107,7 @@ export function ProfileSetupPrompt() {
           <div className="flex justify-center mb-6">
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="relative w-28 h-28 rounded-full bg-gradient-to-br from-[#0D9488] to-[#9333EA] flex items-center justify-center cursor-pointer hover:opacity-90 transition-all overflow-hidden group shadow-lg ring-4 ring-[#0D9488]/10"
+              className="relative w-28 h-28 rounded-full bg-[#6366F1] flex items-center justify-center cursor-pointer hover:opacity-90 transition-all overflow-hidden group shadow-lg ring-4 ring-[#6366F1]/10"
             >
               {previewImage ? (
                 <>

@@ -455,7 +455,7 @@ auth.get('/me', verifyToken, async (c) => {
         brandLogo: true,
         brandName: true,
         agent: {
-          select: { id: true, username: true, email: true, brandLogo: true, brandName: true }
+          select: { id: true, username: true, email: true, brandLogo: true, brandName: true, favicon: true }
         },
         createdAt: true,
         updatedAt: true,

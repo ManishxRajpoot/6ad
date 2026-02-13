@@ -18,6 +18,7 @@ type User = {
     email: string
     brandLogo?: string | null
     brandName?: string | null
+    favicon?: string | null
   }
 }
 

@@ -2355,7 +2355,102 @@ accounts.get('/:id/insights', requireUser, async (c) => {
 
     console.log('[DEBUG insights] Cheetah response code:', result.code, 'data type:', Array.isArray(result.data) ? `array(${result.data.length})` : typeof result.data, 'msg:', result.msg)
     if (result.code === 0) {
-      return c.json({ insights: result.data, startDate: start, endDate: end })
+      // Conversion action keywords — only real business outcomes, not engagement metrics
+      // We pick the one with the HIGHEST value among these (at account level we don't know campaign objective)
+      const CONVERSION_KEYWORDS = [
+        'purchase',
+        'lead',
+        'complete_registration',
+        'messaging_conversation_started',
+        'messaging_first_reply',
+        'submit_application',
+        'subscribe',
+        'start_trial',
+      ]
+
+      const getResultFromActions = (actions: any[]): { results: number, resultType: string } => {
+        if (!actions || !Array.isArray(actions)) return { results: 0, resultType: '' }
+
+        // Find all conversion actions and pick the one with the highest value
+        let bestResult = 0
+        let bestType = ''
+
+        for (const keyword of CONVERSION_KEYWORDS) {
+          // Use exact match on action_type to avoid 'purchase' matching 'web_in_store_purchase' etc.
+          const found = actions.find((a: any) => a.action_type === keyword)
+          if (found) {
+            const val = parseInt(found.value) || 0
+            if (val > bestResult) {
+              bestResult = val
+              bestType = keyword
+            }
+          }
+        }
+
+        // If no conversion found, fallback to link_click
+        if (bestResult === 0) {
+          const linkClick = actions.find((a: any) => a.action_type === 'link_click')
+          if (linkClick) {
+            bestResult = parseInt(linkClick.value) || 0
+            bestType = 'link_click'
+          }
+        }
+
+        return { results: bestResult, resultType: bestType }
+      }
+
+      // Normalize: Cheetah may return a single object or an array
+      const rawData = Array.isArray(result.data) ? result.data : [result.data]
+
+      // Log first day's actions for debugging
+      if (rawData.length > 0 && rawData[0].actions) {
+        const firstDay = rawData[0]
+        console.log('[DEBUG insights] Day:', firstDay.date_start || firstDay.date, 'Action types:', JSON.stringify(Array.isArray(firstDay.actions) ? firstDay.actions.map((a: any) => `${a.action_type}=${a.value}`) : firstDay.actions))
+      }
+
+      // Process each day and compute totals on server
+      let totalSpent = 0, totalImpressions = 0, totalClicks = 0, totalResults = 0
+
+      const processedData = rawData.map((day: any) => {
+        const spent = parseFloat(day.spend) || 0
+        const impressions = parseInt(day.impressions) || 0
+        const clicks = parseInt(day.clicks) || 0
+        const { results, resultType } = Array.isArray(day.actions)
+          ? getResultFromActions(day.actions)
+          : { results: parseInt(day.actions) || 0, resultType: '' }
+
+        totalSpent += spent
+        totalImpressions += impressions
+        totalClicks += clicks
+        totalResults += results
+
+        return {
+          date_start: day.date_start || day.date || '',
+          spend: spent,
+          impressions,
+          clicks,
+          results,
+          resultType,
+          cpc: clicks > 0 ? parseFloat((spent / clicks).toFixed(4)) : 0,
+          ctr: impressions > 0 ? parseFloat(((clicks / impressions) * 100).toFixed(2)) : 0,
+          cpm: impressions > 0 ? parseFloat(((spent / impressions) * 1000).toFixed(2)) : 0,
+          cpr: results > 0 ? parseFloat((spent / results).toFixed(2)) : 0,
+        }
+      })
+
+      // Return insights + pre-computed totals so frontend doesn't need to calculate
+      const totals = {
+        spent: parseFloat(totalSpent.toFixed(2)),
+        impressions: totalImpressions,
+        clicks: totalClicks,
+        results: totalResults,
+        cpc: totalClicks > 0 ? parseFloat((totalSpent / totalClicks).toFixed(4)) : 0,
+        ctr: totalImpressions > 0 ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0,
+        cpm: totalImpressions > 0 ? parseFloat(((totalSpent / totalImpressions) * 1000).toFixed(2)) : 0,
+        cpr: totalResults > 0 ? parseFloat((totalSpent / totalResults).toFixed(2)) : 0,
+      }
+
+      return c.json({ insights: processedData, totals, startDate: start, endDate: end })
     } else if (result.code === 999 || result.code === 110) {
       return c.json({ error: 'Account not from Cheetah', insights: null })
     } else {
@@ -2439,10 +2534,29 @@ accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
         .reduce((sum: number, action: any) => sum + (parseInt(action.value) || 0), 0)
     }
 
-    // Helper function to count all results
+    // Count results — pick highest-value conversion action (same logic as daily route)
+    const MONTHLY_CONVERSION_KEYWORDS = [
+      'purchase', 'lead', 'complete_registration',
+      'messaging_conversation_started', 'messaging_first_reply',
+      'submit_application', 'subscribe', 'start_trial'
+    ]
+
     const countAllResults = (actions: any[]): number => {
       if (!actions || !Array.isArray(actions)) return 0
-      return actions.reduce((sum: number, action: any) => sum + (parseInt(action.value) || 0), 0)
+      let best = 0
+      for (const keyword of MONTHLY_CONVERSION_KEYWORDS) {
+        const found = actions.find((a: any) => a.action_type === keyword)
+        if (found) {
+          const val = parseInt(found.value) || 0
+          if (val > best) best = val
+        }
+      }
+      // Fallback to link_click
+      if (best === 0) {
+        const lc = actions.find((a: any) => a.action_type === 'link_click')
+        if (lc) best = parseInt(lc.value) || 0
+      }
+      return best
     }
 
     // Fetch insights for each month with full analytics

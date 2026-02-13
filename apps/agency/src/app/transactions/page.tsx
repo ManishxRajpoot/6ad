@@ -1003,7 +1003,7 @@ export default function TransactionsPage() {
                       onClick={() => setCurrentPage(page)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === page
-                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-[#6366F1] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -1016,7 +1016,7 @@ export default function TransactionsPage() {
                       onClick={() => setCurrentPage(1)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === 1
-                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-[#6366F1] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -1025,7 +1025,7 @@ export default function TransactionsPage() {
                     {currentPage > 3 && <span className="w-4 text-center text-gray-400">...</span>}
                     {currentPage > 2 && currentPage < totalPages - 1 && (
                       <button
-                        className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm"
+                        className="w-8 h-8 rounded-lg font-medium bg-[#6366F1] text-white shadow-sm"
                       >
                         {currentPage}
                       </button>
@@ -1035,7 +1035,7 @@ export default function TransactionsPage() {
                       onClick={() => setCurrentPage(totalPages)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === totalPages
-                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-[#6366F1] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >

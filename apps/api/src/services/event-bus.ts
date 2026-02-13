@@ -14,6 +14,7 @@ export type EventType =
   | 'notification'
   | 'site-settings-updated'
   | 'modules-updated'
+  | 'force-logout'
 
 export type BroadcastTarget = 'all' | 'users' | 'agents'
 
@@ -89,6 +90,34 @@ export function broadcast(event: BroadcastEvent): void {
 
   if (sentCount > 0) {
     console.log(`[SSE] Broadcast "${eventType}" → ${sentCount} client(s)`)
+  }
+}
+
+/**
+ * Broadcast an event to a specific user (all their connected sessions)
+ */
+export function broadcastToUser(userId: string, event: EventType, data: Record<string, any> = {}): void {
+  const payload = JSON.stringify(data)
+  let sentCount = 0
+
+  for (const [connectionId, client] of clients.entries()) {
+    if (client.userId !== userId) continue
+
+    try {
+      client.stream.writeSSE({
+        event,
+        data: payload,
+        id: `${Date.now()}-${connectionId.slice(0, 8)}`,
+      })
+      sentCount++
+    } catch (err) {
+      console.log(`[SSE] Write failed for ${client.userId}, removing`)
+      clients.delete(connectionId)
+    }
+  }
+
+  if (sentCount > 0) {
+    console.log(`[SSE] Sent "${event}" to user ${userId} → ${sentCount} session(s)`)
   }
 }
 

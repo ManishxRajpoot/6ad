@@ -24,10 +24,12 @@ const domains = new Hono()
 const submitDomainSchema = z.object({
   domain: z.string().min(3).regex(/^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/, 'Invalid domain format'),
   brandLogo: z.string().optional(), // Base64 logo
+  favicon: z.string().optional(), // Base64 favicon
 })
 
 const updateDomainBrandingSchema = z.object({
   brandLogo: z.string().optional(), // Base64 logo
+  favicon: z.string().optional(), // Base64 favicon
 })
 
 const updateDomainStatusSchema = z.object({
@@ -131,6 +133,7 @@ domains.get('/check/:domain', async (c) => {
       domain: customDomain.domain,
       branding: {
         brandLogo: customDomain.brandLogo,
+        favicon: customDomain.favicon,
       },
       agentId: customDomain.agentId,
     })
@@ -353,7 +356,7 @@ domains.post('/', async (c) => {
     }
 
     const body = await c.req.json()
-    const { domain, brandLogo } = submitDomainSchema.parse(body)
+    const { domain, brandLogo, favicon } = submitDomainSchema.parse(body)
 
     // Check if domain already exists (registered by another agent)
     const existingDomain = await prisma.customDomain.findUnique({
@@ -379,6 +382,7 @@ domains.post('/', async (c) => {
         status: 'PENDING',
         brandLogo: brandLogo || null,
         emailLogo,
+        favicon: favicon || null,
       },
     })
 
@@ -416,7 +420,7 @@ domains.patch('/:id', async (c) => {
     }
 
     const body = await c.req.json()
-    const { brandLogo } = updateDomainBrandingSchema.parse(body)
+    const { brandLogo, favicon } = updateDomainBrandingSchema.parse(body)
 
     const customDomain = await prisma.customDomain.findFirst({
       where: { id, agentId: userId },
@@ -430,16 +434,23 @@ domains.patch('/:id', async (c) => {
     const emailLogo = brandLogo ? await generateEmailLogo(brandLogo) : null
 
     // Update branding and reset status to PENDING for re-approval
+    const updateData: any = {
+      brandLogo: brandLogo || null,
+      emailLogo,
+      status: 'PENDING', // Reset to pending when branding is updated
+      approvedAt: null,
+      rejectedAt: null,
+      adminRemarks: null,
+    }
+
+    // Update favicon if provided
+    if (favicon !== undefined) {
+      updateData.favicon = favicon || null
+    }
+
     const updatedDomain = await prisma.customDomain.update({
       where: { id },
-      data: {
-        brandLogo: brandLogo || null,
-        emailLogo,
-        status: 'PENDING', // Reset to pending when branding is updated
-        approvedAt: null,
-        rejectedAt: null,
-        adminRemarks: null,
-      },
+      data: updateData,
     })
 
     return c.json({

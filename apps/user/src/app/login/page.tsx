@@ -819,7 +819,7 @@ export default function LoginPage() {
 
               <h2 className="text-2xl font-bold text-gray-900 mb-3">Account Blocked</h2>
               <p className="text-gray-500 mb-6 leading-relaxed">
-                Your account has been blocked. Please contact your account provider for assistance.
+                Your account has been blocked. Please contact support for assistance.
               </p>
 
               {/* Info Box */}

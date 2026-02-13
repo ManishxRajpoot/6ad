@@ -7,6 +7,7 @@ import { sendEmail, getWelcomeEmailTemplate, buildSmtpConfig } from '../utils/em
 const prisma = new PrismaClient()
 import { z } from 'zod'
 import { verifyToken, requireAgent, requireAdmin } from '../middleware/auth.js'
+import { broadcastToUser } from '../services/event-bus.js'
 
 // Generate secure password reset token
 function generatePasswordResetToken(): string {
@@ -937,6 +938,9 @@ users.post('/:id/block', requireAgent, async (c) => {
         reason,
       }
     })
+
+    // Force-logout the blocked user via SSE
+    broadcastToUser(id, 'force-logout', { reason: 'Account has been blocked' })
 
     return c.json({ message: 'User blocked successfully' })
   } catch (error) {

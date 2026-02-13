@@ -908,7 +908,7 @@ export default function UsersPage() {
                       onClick={() => setCurrentPage(page)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === page
-                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-[#6366F1] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -921,7 +921,7 @@ export default function UsersPage() {
                       onClick={() => setCurrentPage(1)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === 1
-                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-[#6366F1] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -930,7 +930,7 @@ export default function UsersPage() {
                     {currentPage > 3 && <span className="w-4 text-center text-gray-400">...</span>}
                     {currentPage > 2 && currentPage < totalPages - 1 && (
                       <button
-                        className="w-8 h-8 rounded-lg font-medium bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm"
+                        className="w-8 h-8 rounded-lg font-medium bg-[#6366F1] text-white shadow-sm"
                       >
                         {currentPage}
                       </button>
@@ -940,7 +940,7 @@ export default function UsersPage() {
                       onClick={() => setCurrentPage(totalPages)}
                       className={`w-8 h-8 rounded-lg font-medium transition-colors ${
                         currentPage === totalPages
-                          ? 'bg-gradient-to-r from-[#0D9488] to-[#9333EA] text-white shadow-sm'
+                          ? 'bg-[#6366F1] text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
@@ -1011,15 +1011,14 @@ export default function UsersPage() {
                     className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#0D9488] focus:outline-none focus:ring-1 focus:ring-[#0D9488]/20"
                   />
                 ) : (
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">{usernamePrefix}</span>
+                  <div className="flex items-center h-8 rounded-md border border-gray-200 focus-within:border-[#0D9488] focus-within:ring-1 focus-within:ring-[#0D9488]/20">
+                    <span className="pl-2.5 text-gray-400 text-xs whitespace-nowrap select-none">{usernamePrefix}</span>
                     <input
                       type="text"
                       required
                       value={formData.username}
                       onChange={(e) => setFormData({ ...formData, username: e.target.value.replace(/[^a-zA-Z0-9_]/g, '') })}
-                      className="w-full h-8 px-2.5 rounded-md border border-gray-200 text-xs focus:border-[#0D9488] focus:outline-none focus:ring-1 focus:ring-[#0D9488]/20"
-                      style={{ paddingLeft: `${usernamePrefix.length * 7 + 10}px` }}
+                      className="flex-1 h-full px-0.5 text-xs bg-transparent focus:outline-none"
                     />
                   </div>
                 )}
@@ -1331,77 +1330,57 @@ export default function UsersPage() {
       </Modal>
 
       {/* Block User Modal */}
-      <Modal
-        isOpen={isBlockModalOpen}
-        onClose={() => {
-          setIsBlockModalOpen(false)
-          setUserToBlock(null)
-          setBlockReason('')
-        }}
-        title="Block User"
-      >
-        <div className="space-y-4">
-          <div className="flex items-center gap-4 p-4 bg-red-50 rounded-xl">
-            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-              <ShieldOff className="w-6 h-6 text-red-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Are you sure you want to block this user?</p>
-              <p className="text-sm text-gray-500 mt-1">
-                <span className="font-semibold text-gray-700">{userToBlock?.username}</span> will not be able to login.
+      {isBlockModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setIsBlockModalOpen(false); setUserToBlock(null); setBlockReason('') }} />
+          <div className="relative bg-white rounded-xl shadow-xl w-[380px] mx-4 overflow-hidden">
+            {/* Red top accent */}
+            <div className="h-1 bg-red-500" />
+            <div className="p-5">
+              {/* Header */}
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center">
+                  <Ban className="w-4.5 h-4.5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">Block User</h3>
+                  <p className="text-xs text-gray-400">This action can be undone later</p>
+                </div>
+              </div>
+              {/* Message */}
+              <p className="text-xs text-gray-500 mb-4">
+                Are you sure you want to block <span className="font-semibold text-gray-700">{userToBlock?.username}</span>? They will be logged out immediately and unable to access their account.
               </p>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Reason (Optional)</label>
-            <textarea
-              value={blockReason}
-              onChange={(e) => setBlockReason(e.target.value)}
-              placeholder="Enter reason for blocking this user..."
-              rows={3}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 focus:bg-white resize-none"
-            />
-          </div>
-
-          <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
-            <p className="text-xs text-amber-700">
-              <span className="font-semibold">Note:</span> Blocked users will see a message to contact support when they try to login.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                setIsBlockModalOpen(false)
-                setUserToBlock(null)
-                setBlockReason('')
-              }}
-              className="px-5 h-10 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={confirmBlockUser}
-              disabled={blockLoading}
-              className="px-5 h-10 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {blockLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Blocking...
-                </>
-              ) : (
-                <>
-                  <Ban className="w-4 h-4" />
+              {/* Reason input */}
+              <input
+                type="text"
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                placeholder="Reason for blocking (optional)"
+                className="w-full h-9 px-3 text-xs rounded-lg border border-gray-200 focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-100 placeholder:text-gray-300 mb-4"
+              />
+              {/* Buttons */}
+              <div className="flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => { setIsBlockModalOpen(false); setUserToBlock(null); setBlockReason('') }}
+                  className="px-4 h-8 rounded-lg text-xs text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmBlockUser}
+                  disabled={blockLoading}
+                  className="px-4 h-8 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {blockLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
                   Block User
-                </>
-              )}
-            </button>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </Modal>
+      )}
 
       {/* Give/Take Coupon Modal */}
       <Modal

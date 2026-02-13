@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware'
 type DomainBranding = {
   brandLogo: string | null
   brandName: string | null
+  favicon: string | null
   agentId: string
 }
 

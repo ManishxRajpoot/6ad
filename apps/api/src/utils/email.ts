@@ -724,9 +724,6 @@ function getBaseEmailTemplate(options: BaseTemplateOptions): string {
                         <p style="margin: 0 0 6px; color: #9ca3af; font-size: 11px;">
                           &copy; ${new Date().getFullYear()} ${platformName} &bull; Digital Advertising Platform
                         </p>
-                        <p style="margin: 0; color: #9ca3af; font-size: 10px;">
-                          Six Media, India &bull; <a href="https://6ad.in" style="color: #9ca3af; text-decoration: underline;">6ad.in</a>
-                        </p>
                       </td>
                     </tr>
                   </table>

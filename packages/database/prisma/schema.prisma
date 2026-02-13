@@ -159,6 +159,7 @@ model User {
   brandLogo         String?
   emailLogo         String?   // Auto-generated optimized logo for emails
   brandName         String?
+  favicon           String?   // Custom favicon for whitelabel (base64)
   emailSenderName           String?   // Custom email sender name for whitelabel (pending approval)
   emailSenderNameApproved   String?   // Approved email sender name (used in actual emails)
   emailSenderNameStatus     String?   @default("PENDING") // PENDING, APPROVED, REJECTED
@@ -611,6 +612,7 @@ model CustomDomain {
   // Branding (logo submitted with domain, requires admin approval)
   brandLogo         String?       // Base64 logo submitted by agent
   emailLogo         String?       // Auto-generated optimized logo for emails
+  favicon           String?       // Custom favicon for whitelabel (base64)
 
   // Agent who owns this domain
   agentId           String        @db.ObjectId

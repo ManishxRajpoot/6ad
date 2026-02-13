@@ -38,6 +38,7 @@ type CustomDomain = {
   dnsVerified: boolean
   verificationToken: string | null
   brandLogo: string | null
+  favicon: string | null
   adminRemarks: string | null
   approvedAt: string | null
   rejectedAt: string | null
@@ -66,6 +67,10 @@ export default function WhitelabelPage() {
   const [showAddDomainForm, setShowAddDomainForm] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const updateFileInputRef = useRef<HTMLInputElement>(null)
+  const [newFavicon, setNewFavicon] = useState('')
+  const faviconFileInputRef = useRef<HTMLInputElement>(null)
+  const updateFaviconFileInputRef = useRef<HTMLInputElement>(null)
+  const [updatingFavicon, setUpdatingFavicon] = useState(false)
 
   // Email settings state
   const [useCustomEmail, setUseCustomEmail] = useState(false)
@@ -268,7 +273,8 @@ export default function WhitelabelPage() {
     try {
       const res = await domainsApi.submit({
         domain: newDomain.trim(),
-        brandLogo: newLogo || undefined
+        brandLogo: newLogo || undefined,
+        favicon: newFavicon || undefined
       })
       setDomains([res.domain, ...domains])
       setDnsInstructions(res.dnsInstructions)
@@ -277,6 +283,7 @@ export default function WhitelabelPage() {
       setShowDnsModal(true)
       setNewDomain('')
       setNewLogo('')
+      setNewFavicon('')
     } catch (err: any) {
       toast.error(err.message || 'Failed to submit domain')
     } finally {
@@ -298,6 +305,42 @@ export default function WhitelabelPage() {
       toast.error(err.message || 'Failed to update logo')
     } finally {
       setUpdatingLogo(false)
+    }
+  }
+
+  const handleFaviconUpload = (e: React.ChangeEvent<HTMLInputElement>, isUpdate = false) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 500 * 1024) {
+        toast.error('Favicon must be less than 500KB')
+        return
+      }
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        if (isUpdate && selectedDomain) {
+          handleUpdateFavicon(reader.result as string)
+        } else {
+          setNewFavicon(reader.result as string)
+        }
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleUpdateFavicon = async (faviconData: string) => {
+    if (!selectedDomain) return
+
+    setUpdatingFavicon(true)
+
+    try {
+      const res = await domainsApi.update(selectedDomain.id, { favicon: faviconData })
+      setDomains(domains.map(d => d.id === selectedDomain.id ? res.domain : d))
+      setSelectedDomain(res.domain)
+      toast.success('Favicon updated successfully. Awaiting admin approval.')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update favicon')
+    } finally {
+      setUpdatingFavicon(false)
     }
   }
 
@@ -629,6 +672,81 @@ export default function WhitelabelPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Favicon Section */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
+                          <Palette className="w-3.5 h-3.5 text-[#0D9488]" />
+                        </div>
+                        <h3 className="text-sm font-medium text-gray-900">Favicon</h3>
+                      </div>
+
+                      <div className="space-y-3">
+                        {activeDomain.favicon ? (
+                          <div className="relative p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3">
+                            <img
+                              src={activeDomain.favicon}
+                              alt="Favicon"
+                              className="w-8 h-8 object-contain"
+                            />
+                            <span className="text-sm text-gray-600">Current favicon</span>
+                            {activeDomain.status !== 'APPROVED' && (
+                              <span className="text-xs text-yellow-600 ml-auto">Awaiting approval</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center">
+                            <Palette className="w-5 h-5 text-gray-300 mx-auto mb-1" />
+                            <p className="text-sm text-gray-500">No favicon uploaded</p>
+                          </div>
+                        )}
+
+                        {/* Upload/Update Favicon Button */}
+                        <div>
+                          <input
+                            ref={updateFaviconFileInputRef}
+                            type="file"
+                            accept="image/png,image/svg+xml,image/x-icon,image/ico,.ico"
+                            onChange={(e) => {
+                              setSelectedDomain(activeDomain)
+                              handleFaviconUpload(e, true)
+                            }}
+                            className="hidden"
+                          />
+                          <button
+                            onClick={() => {
+                              setSelectedDomain(activeDomain)
+                              updateFaviconFileInputRef.current?.click()
+                            }}
+                            disabled={updatingFavicon}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {updatingFavicon ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Updating...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-4 h-4" />
+                                {activeDomain.favicon ? 'Update Favicon' : 'Upload Favicon'}
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Favicon Requirements */}
+                        <div className="p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
+                          <p className="text-xs font-medium text-[#0D9488] mb-1.5">Favicon Requirements</p>
+                          <ul className="text-xs text-gray-600 space-y-0.5">
+                            <li>• <strong>Size:</strong> 32×32 or 64×64 pixels</li>
+                            <li>• <strong>Format:</strong> PNG, SVG, or ICO</li>
+                            <li>• <strong>Max size:</strong> 500KB</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
                   </>
                 ) : showAddDomainForm ? (
                   /* Add Domain Form */
@@ -696,12 +814,62 @@ export default function WhitelabelPage() {
                       </div>
                     </div>
 
+                    {/* Favicon Upload (Add Domain Form) */}
+                    <div className="pb-4 border-b border-gray-100">
+                      <h3 className="text-sm font-medium text-gray-900 mb-3">Favicon</h3>
+                      {newFavicon ? (
+                        <div className="relative p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 flex items-center gap-3">
+                          <img
+                            src={newFavicon}
+                            alt="Favicon"
+                            className="w-8 h-8 object-contain"
+                          />
+                          <span className="text-sm text-gray-600">Favicon selected</span>
+                          <button
+                            onClick={() => {
+                              setNewFavicon('')
+                              if (faviconFileInputRef.current) faviconFileInputRef.current.value = ''
+                            }}
+                            className="absolute top-2 right-2 p-1 bg-red-100 rounded-full text-red-600 hover:bg-red-200 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => faviconFileInputRef.current?.click()}
+                          className="p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center cursor-pointer hover:border-[#0D9488] hover:bg-[#0D9488]/5 transition-colors"
+                        >
+                          <Palette className="w-5 h-5 text-gray-300 mx-auto mb-1" />
+                          <p className="text-sm text-gray-500">Click to upload favicon</p>
+                          <p className="text-xs text-gray-400">Max 500KB</p>
+                        </div>
+                      )}
+                      <input
+                        ref={faviconFileInputRef}
+                        type="file"
+                        accept="image/png,image/svg+xml,image/x-icon,image/ico,.ico"
+                        onChange={(e) => handleFaviconUpload(e)}
+                        className="hidden"
+                      />
+
+                      <div className="mt-3 p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
+                        <p className="text-xs font-medium text-[#0D9488] mb-1.5">Favicon Specifications</p>
+                        <ul className="text-xs text-gray-600 space-y-0.5">
+                          <li>• <strong>Size:</strong> 32×32 or 64×64 pixels</li>
+                          <li>• <strong>Format:</strong> PNG, SVG, or ICO</li>
+                          <li>• <strong>Max size:</strong> 500KB</li>
+                        </ul>
+                      </div>
+                    </div>
+
                     <div className="flex gap-3">
                       <button
                         onClick={() => {
                           setShowAddDomainForm(false)
                           setNewDomain('')
                           setNewLogo('')
+                          setNewFavicon('')
                         }}
                         className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-all"
                       >

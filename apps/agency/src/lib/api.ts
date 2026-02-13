@@ -69,6 +69,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     }
 
     if (response.status === 403) {
+      const msg = (errorData.error || errorData.message || '').toLowerCase()
+      // Auto-logout if agent is blocked
+      if (msg.includes('blocked')) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+          window.location.href = '/login?blocked=true'
+        }
+        throw new Error('Your account has been blocked. Please contact support.')
+      }
       // Check if API returned a specific error message
       if (errorData.error || errorData.message) {
         throw new Error(errorData.error || errorData.message)
@@ -242,9 +252,9 @@ export const accountsApi = {
 // Domains API (Agent whitelabel - domain + logo)
 export const domainsApi = {
   getAll: () => api.get<{ domains: any[] }>('/domains'),
-  submit: (data: { domain: string; brandLogo?: string }) =>
+  submit: (data: { domain: string; brandLogo?: string; favicon?: string }) =>
     api.post<{ message: string; domain: any; dnsInstructions: any }>('/domains', data),
-  update: (id: string, data: { brandLogo?: string }) =>
+  update: (id: string, data: { brandLogo?: string; favicon?: string }) =>
     api.patch<{ message: string; domain: any }>(`/domains/${id}`, data),
   verify: (id: string) =>
     api.post<{ message: string; dnsVerified: boolean }>(`/domains/${id}/verify`, {}),
@@ -254,8 +264,8 @@ export const domainsApi = {
 
 // Branding API (Agent email sender name + branding)
 export const brandingApi = {
-  get: () => api.get<{ branding: { id: string; brandLogo: string | null; brandName: string | null; emailSenderName: string | null; emailSenderNameApproved: string | null; emailSenderNameStatus: string | null } }>('/agents/branding'),
-  update: (data: { brandLogo?: string; brandName?: string; emailSenderName?: string }) =>
+  get: () => api.get<{ branding: { id: string; brandLogo: string | null; brandName: string | null; favicon: string | null; emailSenderName: string | null; emailSenderNameApproved: string | null; emailSenderNameStatus: string | null } }>('/agents/branding'),
+  update: (data: { brandLogo?: string; brandName?: string; emailSenderName?: string; favicon?: string }) =>
     api.patch<{ message: string; agent: any }>('/agents/branding', data),
 }
 

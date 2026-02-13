@@ -12,6 +12,7 @@ export type SSEEventType =
   | 'notification'
   | 'site-settings-updated'
   | 'modules-updated'
+  | 'force-logout'
 
 export interface SSEEventHandlers {
   onPaymentMethodsUpdated?: (data: any) => void
@@ -22,6 +23,7 @@ export interface SSEEventHandlers {
   onSiteSettingsUpdated?: (data: any) => void
   onModulesUpdated?: (data: any) => void
   onConnected?: (data: any) => void
+  onForceLogout?: (data: any) => void
 }
 
 const EVENT_MAP: Record<string, keyof SSEEventHandlers> = {
@@ -33,6 +35,7 @@ const EVENT_MAP: Record<string, keyof SSEEventHandlers> = {
   'site-settings-updated': 'onSiteSettingsUpdated',
   'modules-updated': 'onModulesUpdated',
   'connected': 'onConnected',
+  'force-logout': 'onForceLogout',
 }
 
 export function useSSE(handlers: SSEEventHandlers) {

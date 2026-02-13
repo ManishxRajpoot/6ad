@@ -33,6 +33,12 @@ export function SSEProvider({ children }: { children: React.ReactNode }) {
     onConnected: () => {
       // Connected — no-op
     },
+    onForceLogout: () => {
+      // User has been blocked — force logout immediately
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      window.location.href = '/login?blocked=true'
+    },
   })
 
   return <>{children}</>

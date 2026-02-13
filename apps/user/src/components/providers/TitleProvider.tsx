@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useAuthStore } from '@/store/auth'
+import { useDomainStore } from '@/store/domain'
 import { authApi } from '@/lib/api'
 
 export function TitleProvider({ children }: { children: React.ReactNode }) {
@@ -10,10 +11,22 @@ export function TitleProvider({ children }: { children: React.ReactNode }) {
   const updateUser = useAuthStore((state) => state.updateUser)
   const isHydrated = useAuthStore((state) => state.isHydrated)
   const token = useAuthStore((state) => state.token)
+  const isCustomDomain = useDomainStore((state) => state.isCustomDomain)
 
   // Set title helper
   const setTitle = (agentName?: string | null) => {
     document.title = `${agentName || 'Ads System'} - Ad Account Management`
+  }
+
+  // Apply favicon dynamically
+  const applyFavicon = (faviconUrl?: string | null) => {
+    if (!faviconUrl) return
+    const existing = document.querySelector("link[rel~='icon']")
+    if (existing) existing.remove()
+    const link = document.createElement('link')
+    link.rel = 'icon'
+    link.href = faviconUrl
+    document.head.appendChild(link)
   }
 
   // On mount and when authenticated, fetch fresh data and set title
@@ -31,6 +44,10 @@ export function TitleProvider({ children }: { children: React.ReactNode }) {
           if (response.user) {
             updateUser(response.user)
             setTitle(response.user.agent?.username)
+            // Apply agent favicon for non-custom-domain users
+            if (!isCustomDomain && response.user.agent?.favicon) {
+              applyFavicon(response.user.agent.favicon)
+            }
             return
           }
         } catch (e) {
@@ -40,6 +57,10 @@ export function TitleProvider({ children }: { children: React.ReactNode }) {
 
       // Use stored user data or default
       setTitle(user?.agent?.username)
+      // Apply agent favicon for non-custom-domain users
+      if (!isCustomDomain && user?.agent?.favicon) {
+        applyFavicon(user.agent.favicon)
+      }
     }
 
     updateTitle()
