@@ -852,8 +852,8 @@ async function captureTokenAfterLogin(sessionId: string) {
         await page.goto('https://adsmanager.facebook.com/adsmanager/manage/campaigns', { waitUntil: 'networkidle2', timeout: 30000 })
       }
       // Ads Manager is a SPA — wait for AJAX calls
-      log(`Waiting 10s for Ads Manager AJAX calls...`)
-      await sleep(10000)
+      log(`Waiting 12s for Ads Manager AJAX calls...`)
+      await sleep(12000)
       await takeScreenshot(session, page)
 
       // Check CDP interceptor
@@ -871,17 +871,37 @@ async function captureTokenAfterLogin(sessionId: string) {
     }
   }
 
-  // ===== STRATEGY 3: Try business.facebook.com settings =====
+  // ===== STRATEGY 3: BM Settings — Ad Accounts page =====
   if (!token) {
     try {
-      log(`Trying business.facebook.com/latest/settings...`)
+      log(`Trying business.facebook.com/settings/ad-accounts...`)
+      await page.goto('https://business.facebook.com/latest/settings/ad_accounts', { waitUntil: 'networkidle2', timeout: 25000 })
+      await sleep(8000)
+      await takeScreenshot(session, page)
+
+      if (session.networkToken) {
+        token = session.networkToken
+        log(`Got token from BM ad accounts: ${token.substring(0, 25)}...`)
+      }
+      if (!token) {
+        token = await extractTokenFromPage(page)
+      }
+    } catch (e: any) {
+      log(`BM ad accounts failed: ${e.message}`)
+    }
+  }
+
+  // ===== STRATEGY 4: BM Settings — Business Users page =====
+  if (!token) {
+    try {
+      log(`Trying business.facebook.com/settings/business_users...`)
       await page.goto('https://business.facebook.com/latest/settings/business_users', { waitUntil: 'networkidle2', timeout: 25000 })
       await sleep(8000)
       await takeScreenshot(session, page)
 
       if (session.networkToken) {
         token = session.networkToken
-        log(`Got token from business.facebook.com: ${token.substring(0, 25)}...`)
+        log(`Got token from business users: ${token.substring(0, 25)}...`)
       }
       if (!token) {
         token = await extractTokenFromPage(page)
@@ -891,7 +911,7 @@ async function captureTokenAfterLogin(sessionId: string) {
     }
   }
 
-  // ===== STRATEGY 4: Use DTSG to call internal API =====
+  // ===== STRATEGY 5: Use DTSG to call internal API =====
   if (!token) {
     try {
       log(`Trying DTSG approach...`)
@@ -947,7 +967,7 @@ async function captureTokenAfterLogin(sessionId: string) {
     }
   }
 
-  // ===== STRATEGY 5: Try www.facebook.com/adsmanager (different path) =====
+  // ===== STRATEGY 6: Try www.facebook.com/adsmanager (different path) =====
   if (!token) {
     try {
       log(`Trying www.facebook.com/adsmanager...`)
