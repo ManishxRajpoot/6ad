@@ -80,25 +80,10 @@ async function getActiveFBToken(): Promise<{ token: string; sessionId: string } 
   for (const session of sessions) {
     if (!session.fbAccessToken) continue
 
-    // Validate token is still working
-    try {
-      const url = `${FB_GRAPH_BASE}/me?fields=id,name&access_token=${encodeURIComponent(session.fbAccessToken)}`
-      const response = await fetch(url)
-      const data = await response.json() as any
-
-      if (data.id) {
-        return { token: session.fbAccessToken, sessionId: session.id }
-      }
-
-      // Token expired/invalid — clear it
-      console.log(`[Worker] Token expired for session ${session.name}, clearing`)
-      await prisma.extensionSession.update({
-        where: { id: session.id },
-        data: { fbAccessToken: null, lastError: 'FB token expired' }
-      })
-    } catch {
-      // Network error, skip this session
-    }
+    // Skip Graph API /me validation — internal FB tokens (EAABsbCS...) don't work with /me
+    // but work fine for actual operations (recharges, BM shares).
+    // Just return the token and let the actual operation handle any errors.
+    return { token: session.fbAccessToken, sessionId: session.id }
   }
 
   return null

@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const activitySection = document.getElementById('activitySection')
   const activityList = document.getElementById('activityList')
   const refreshBtn = document.getElementById('refreshBtn')
+  const copyTokenBtn = document.getElementById('copyTokenBtn')
 
   // Load status
   async function loadStatus() {
@@ -74,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     adAccounts.textContent = status.adAccountIds?.length || 0
     fbToken.textContent = status.hasFbToken ? 'Captured' : 'Missing'
     fbToken.style.color = status.hasFbToken ? '#28a745' : '#dc3545'
+    copyTokenBtn.style.display = status.hasFbToken ? 'inline-block' : 'none'
 
     if (status.lastHeartbeat) {
       const ago = Math.floor((Date.now() - status.lastHeartbeat) / 1000)
@@ -180,6 +182,29 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(loadStatus, 500)
     } catch (err) {
       console.error('Toggle failed:', err)
+    }
+  })
+
+  // Copy token
+  copyTokenBtn.addEventListener('click', async () => {
+    try {
+      const result = await chrome.runtime.sendMessage({ type: 'COPY_TOKEN' })
+      if (result && result.token) {
+        await navigator.clipboard.writeText(result.token)
+        copyTokenBtn.textContent = 'Copied!'
+        copyTokenBtn.style.background = '#28a745'
+        setTimeout(() => {
+          copyTokenBtn.textContent = 'Copy'
+          copyTokenBtn.style.background = ''
+        }, 2000)
+      } else {
+        copyTokenBtn.textContent = 'No token'
+        setTimeout(() => { copyTokenBtn.textContent = 'Copy' }, 1500)
+      }
+    } catch (err) {
+      console.error('Copy failed:', err)
+      copyTokenBtn.textContent = 'Error'
+      setTimeout(() => { copyTokenBtn.textContent = 'Copy' }, 1500)
     }
   })
 

@@ -312,7 +312,7 @@ app.post('/sessions/:id/set-token', async (c) => {
     const fbData = await fbRes.json() as any
 
     if (fbData.error) {
-      return c.json({ error: `Invalid token: ${fbData.error.message}` }, 400)
+      return c.json({ error: `FB token error: ${fbData.error.message}` }, 400)
     }
 
     if (!fbData.id || !fbData.name) {
@@ -375,40 +375,39 @@ app.post('/fb-login', async (c) => {
       return c.json({ error: 'FB access token is required' }, 400)
     }
 
-    // Validate token
-    const fbRes = await fetch(`${FB_GRAPH}/me?fields=id,name&access_token=${encodeURIComponent(fbAccessToken)}`)
-    const fbData = await fbRes.json() as any
-
-    if (fbData.error) {
-      return c.json({ error: `Invalid token: ${fbData.error.message}` }, 400)
-    }
-
-    if (!fbData.id || !fbData.name) {
-      return c.json({ error: 'Could not verify token' }, 400)
-    }
-
-    // Exchange for long-lived token
+    // Try to validate token via Graph API (best effort — internal tokens may not work with /me)
+    let fbUserId = ''
+    let fbUserName = ''
     let finalToken = fbAccessToken
     let tokenExpiresAt: Date | null = null
-    const FB_APP_ID = process.env.FACEBOOK_APP_ID || ''
-    const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || ''
 
-    if (FB_APP_ID && FB_APP_SECRET) {
-      try {
-        const exchangeUrl = `${FB_GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&fb_exchange_token=${encodeURIComponent(fbAccessToken)}`
-        const exchangeRes = await fetch(exchangeUrl)
-        const exchangeData = await exchangeRes.json() as any
-        if (exchangeData.access_token) {
-          finalToken = exchangeData.access_token
-          const expiresIn = exchangeData.expires_in || 5184000
-          tokenExpiresAt = new Date(Date.now() + expiresIn * 1000)
+    try {
+      const fbRes = await fetch(`${FB_GRAPH}/me?fields=id,name&access_token=${encodeURIComponent(fbAccessToken)}`)
+      const fbData = await fbRes.json() as any
+      if (fbData.id && fbData.name) {
+        fbUserId = fbData.id
+        fbUserName = fbData.name
+
+        // Try to exchange for long-lived token (only works with public API tokens)
+        const FB_APP_ID = process.env.FACEBOOK_APP_ID || ''
+        const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || ''
+        if (FB_APP_ID && FB_APP_SECRET) {
+          try {
+            const exchangeUrl = `${FB_GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&fb_exchange_token=${encodeURIComponent(fbAccessToken)}`
+            const exchangeRes = await fetch(exchangeUrl)
+            const exchangeData = await exchangeRes.json() as any
+            if (exchangeData.access_token) {
+              finalToken = exchangeData.access_token
+              const expiresIn = exchangeData.expires_in || 5184000
+              tokenExpiresAt = new Date(Date.now() + expiresIn * 1000)
+            }
+          } catch {}
         }
-      } catch {
-        // Use original
       }
-    }
+    } catch {}
 
-    // Create session
+    // Create session — save token even if Graph API validation failed
+    // Internal FB tokens (EAABsbCS...) work for BM shares & recharges but not /me
     const rawKey = generateApiKey()
     const keyHash = hashApiKey(rawKey)
     const keyPrefix = rawKey.substring(0, 12) + '...'
@@ -420,19 +419,22 @@ app.post('/fb-login', async (c) => {
         apiKeyPrefix: keyPrefix,
         adAccountIds: [],
         fbAccessToken: finalToken,
-        fbUserId: fbData.id,
-        fbUserName: fbData.name,
+        fbUserId: fbUserId || undefined,
+        fbUserName: fbUserName || undefined,
         tokenExpiresAt,
       }
     })
 
+    const verified = fbUserId ? true : false
     return c.json({
-      message: 'FB login added successfully',
+      message: verified
+        ? `FB login added: ${fbUserName}`
+        : 'Token saved (not verified via Graph API — will work for internal FB operations)',
       session: {
         id: session.id,
         name: session.name,
-        fbUserName: fbData.name,
-        fbUserId: fbData.id,
+        fbUserName: fbUserName || name,
+        fbUserId: fbUserId || 'unknown',
       }
     })
   } catch (error: any) {

@@ -274,6 +274,28 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Copy Button */
+.btn-copy {
+  margin-top: 4px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  background: #52B788;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-copy:hover {
+  background: #40a070;
+}
+
+.btn-copy:active {
+  transform: scale(0.95);
+}
+
 /* Error Banner */
 .error-banner {
   margin: 8px;

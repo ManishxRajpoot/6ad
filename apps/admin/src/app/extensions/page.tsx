@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { extensionAdminApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
+import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Zap,
   Plus,
@@ -29,6 +30,8 @@ import {
   Key,
   Facebook,
   Edit3,
+  LogIn,
+  CalendarClock,
 } from 'lucide-react'
 
 // Types
@@ -39,6 +42,7 @@ interface ExtensionSession {
   fbUserId: string | null
   fbUserName: string | null
   fbAccessToken: string | null
+  tokenExpiresAt: string | null
   adAccountIds: string[]
   isActive: boolean
   lastSeenAt: string
@@ -46,6 +50,13 @@ interface ExtensionSession {
   totalRecharges: number
   failedRecharges: number
   createdAt: string
+}
+
+interface ExpireSession {
+  id: string
+  name: string
+  fbUserName: string
+  daysRemaining: number
 }
 
 interface RechargeItem {
@@ -98,8 +109,18 @@ function isOnline(lastSeenAt: string): boolean {
   return (now.getTime() - lastSeen.getTime()) < 30000
 }
 
+// Helper: days until token expires
+function getDaysRemaining(tokenExpiresAt: string | null): number | null {
+  if (!tokenExpiresAt) return null
+  const expires = new Date(tokenExpiresAt)
+  const now = new Date()
+  return Math.max(0, Math.ceil((expires.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)))
+}
+
 export default function ExtensionsPage() {
   const toast = useToast()
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('sessions')
 
   // Sessions state
@@ -121,11 +142,17 @@ export default function ExtensionsPage() {
   // Worker status state
   const [workerStatus, setWorkerStatus] = useState<any>(null)
 
-  // FB Login modal state
+  // FB Login modal state (manual token paste — fallback)
   const [fbLoginModalOpen, setFbLoginModalOpen] = useState(false)
   const [fbLoginName, setFbLoginName] = useState('')
   const [fbLoginToken, setFbLoginToken] = useState('')
   const [isAddingFbLogin, setIsAddingFbLogin] = useState(false)
+
+  // OAuth redirect loading
+  const [isOAuthRedirecting, setIsOAuthRedirecting] = useState(false)
+
+  // Expiring sessions
+  const [expiringSessions, setExpiringSessions] = useState<ExpireSession[]>([])
 
   // Token update modal state
   const [tokenModalOpen, setTokenModalOpen] = useState(false)
@@ -133,6 +160,24 @@ export default function ExtensionsPage() {
   const [tokenSessionName, setTokenSessionName] = useState('')
   const [newToken, setNewToken] = useState('')
   const [isUpdatingToken, setIsUpdatingToken] = useState(false)
+
+  // Handle OAuth redirect result from URL params
+  useEffect(() => {
+    const fbLogin = searchParams.get('fb_login')
+    const name = searchParams.get('name')
+    const message = searchParams.get('message')
+
+    if (fbLogin === 'success') {
+      toast.success('FB Login Added', `Connected as ${name || 'Unknown'}`)
+      router.replace('/extensions')
+    } else if (fbLogin === 'refreshed') {
+      toast.success('Token Refreshed', `Token renewed for ${name || 'Unknown'}`)
+      router.replace('/extensions')
+    } else if (fbLogin === 'error') {
+      toast.error('FB Login Failed', message || 'Something went wrong')
+      router.replace('/extensions')
+    }
+  }, [searchParams])
 
   // Fetch sessions
   const fetchSessions = useCallback(async () => {
@@ -168,12 +213,23 @@ export default function ExtensionsPage() {
     }
   }, [])
 
+  // Fetch expiring sessions
+  const fetchExpiringSessions = useCallback(async () => {
+    try {
+      const res = await extensionAdminApi.getExpiringSessions()
+      setExpiringSessions(res.sessions || [])
+    } catch {
+      // silent
+    }
+  }, [])
+
   // Initial load
   useEffect(() => {
     fetchSessions()
     fetchRecharges()
     fetchWorkerStatus()
-  }, [fetchSessions, fetchRecharges, fetchWorkerStatus])
+    fetchExpiringSessions()
+  }, [fetchSessions, fetchRecharges, fetchWorkerStatus, fetchExpiringSessions])
 
   // Auto-refresh recharges every 10 seconds when on recharges tab
   useEffect(() => {
@@ -286,7 +342,19 @@ export default function ExtensionsPage() {
     }
   }
 
-  // Add FB Login
+  // FB OAuth Login — redirect to Facebook
+  const handleFbOAuth = async (sessionId?: string) => {
+    setIsOAuthRedirecting(true)
+    try {
+      const res = await extensionAdminApi.getFbOAuthUrl(sessionId)
+      window.location.href = res.url
+    } catch (err: any) {
+      toast.handleApiError(err, 'Failed to get Facebook login URL')
+      setIsOAuthRedirecting(false)
+    }
+  }
+
+  // Add FB Login (manual token paste — fallback)
   const handleAddFbLogin = async () => {
     if (!fbLoginName.trim() || !fbLoginToken.trim()) return
     setIsAddingFbLogin(true)
@@ -439,6 +507,40 @@ export default function ExtensionsPage() {
           </Card>
         )}
 
+        {/* Token Expiry Warnings */}
+        {expiringSessions.length > 0 && (
+          <Card className="!p-4 border-l-4 border-l-yellow-500">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                <CalendarClock className="w-5 h-5 text-yellow-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900">Token Expiring Soon</h3>
+                <div className="mt-2 space-y-2">
+                  {expiringSessions.map(s => (
+                    <div key={s.id} className="flex items-center justify-between bg-yellow-50 rounded-lg px-3 py-2">
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">{s.fbUserName || s.name}</span>
+                        <span className="text-xs text-yellow-700 ml-2">
+                          {s.daysRemaining === 0 ? 'Expired!' : `${s.daysRemaining} day${s.daysRemaining === 1 ? '' : 's'} left`}
+                        </span>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleFbOAuth(s.id)}
+                        loading={isOAuthRedirecting}
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Refresh Token
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="!p-4">
@@ -532,10 +634,20 @@ export default function ExtensionsPage() {
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => setFbLoginModalOpen(true)}
+                  onClick={() => handleFbOAuth()}
+                  loading={isOAuthRedirecting}
                 >
-                  <Facebook className="w-4 h-4" />
+                  <LogIn className="w-4 h-4" />
                   Add FB Login
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFbLoginModalOpen(true)}
+                  title="Paste token manually"
+                >
+                  <Key className="w-4 h-4" />
+                  Manual Token
                 </Button>
                 <Button
                   variant="outline"
@@ -568,6 +680,7 @@ export default function ExtensionsPage() {
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Name</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">FB Profile</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">FB Token</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Expires</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Recharges</th>
                       <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
                     </tr>
@@ -623,6 +736,24 @@ export default function ExtensionsPage() {
                             )}
                           </td>
                           <td className="py-3 px-3">
+                            {(() => {
+                              const days = getDaysRemaining(session.tokenExpiresAt)
+                              if (days === null) return <span className="text-gray-400 text-xs">—</span>
+                              if (days === 0) return (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Expired</span>
+                              )
+                              if (days <= 7) return (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">{days}d</span>
+                              )
+                              if (days <= 30) return (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">{days}d</span>
+                              )
+                              return (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{days}d</span>
+                              )
+                            })()}
+                          </td>
+                          <td className="py-3 px-3">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-green-600 font-medium">{session.totalRecharges}</span>
                               {session.failedRecharges > 0 && (
@@ -632,10 +763,19 @@ export default function ExtensionsPage() {
                           </td>
                           <td className="py-3 px-3 text-right">
                             <div className="flex items-center gap-1 justify-end">
+                              {hasToken && (
+                                <button
+                                  onClick={() => handleFbOAuth(session.id)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors"
+                                  title="Refresh token via Facebook OAuth"
+                                >
+                                  <RefreshCw className="w-4 h-4" />
+                                </button>
+                              )}
                               <button
                                 onClick={() => openTokenModal(session.id, session.name)}
                                 className="p-1.5 rounded-lg text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                title={hasToken ? 'Update FB token' : 'Add FB token'}
+                                title={hasToken ? 'Paste token manually' : 'Add FB token'}
                               >
                                 <Edit3 className="w-4 h-4" />
                               </button>
@@ -819,16 +959,16 @@ export default function ExtensionsPage() {
         )}
       </div>
 
-      {/* Add FB Login Modal */}
+      {/* Manual Token Paste Modal (Fallback) */}
       <Modal
         isOpen={fbLoginModalOpen}
         onClose={() => { setFbLoginModalOpen(false); setFbLoginName(''); setFbLoginToken('') }}
-        title="Add FB Login"
+        title="Manual Token Paste"
       >
         <div className="space-y-4">
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
             <p className="text-xs text-blue-700">
-              Paste a Facebook EAA access token. The server will use this token to auto-process recharges and BM shares 24/7 — no browser needed.
+              Paste a Facebook EAA access token manually. For easier login, use the "Add FB Login" button which redirects you to Facebook directly.
             </p>
           </div>
 

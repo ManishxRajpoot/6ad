@@ -602,6 +602,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.type === 'FORCE_HEARTBEAT') {
     sendHeartbeat().then(() => sendResponse({ done: true }))
     return true
+  } else if (message.type === 'COPY_TOKEN') {
+    getConfig().then(config => sendResponse({ token: config.fbAccessToken || '' }))
+    return true
   }
 })
 

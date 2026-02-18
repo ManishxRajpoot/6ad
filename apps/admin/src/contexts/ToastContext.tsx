@@ -37,7 +37,8 @@ const ERROR_MESSAGES: Record<string, { title: string; message: string }> = {
   // Auth Errors
   'Session expired': { title: 'Session Expired', message: 'Your session has expired. Please login again.' },
   'Unauthorized': { title: 'Access Denied', message: 'You are not authorized to perform this action.' },
-  'Invalid token': { title: 'Session Invalid', message: 'Your session is invalid. Please login again.' },
+  'Invalid token: jwt': { title: 'Session Invalid', message: 'Your session is invalid. Please login again.' },
+  'jwt expired': { title: 'Session Expired', message: 'Your session has expired. Please login again.' },
 
   // Server Errors
   'Internal Server Error': { title: 'Server Error', message: 'Something went wrong on our end. Please try again later.' },
