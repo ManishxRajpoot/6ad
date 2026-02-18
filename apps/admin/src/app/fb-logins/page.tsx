@@ -33,10 +33,11 @@ interface FbSession {
 
 interface LoginProgress {
   sessionId: string
-  status: 'launching' | 'logging_in' | 'needs_2fa' | 'submitting_2fa' | 'capturing_token' | 'success' | 'failed'
+  status: 'launching' | 'logging_in' | 'waiting_manual_login' | 'needs_2fa' | 'submitting_2fa' | 'capturing_token' | 'success' | 'failed'
   error?: string
   fbName?: string
   screenshot?: string
+  tokenCount?: number
 }
 
 export default function FbLoginsPage() {
@@ -47,10 +48,16 @@ export default function FbLoginsPage() {
 
   // Login modal state
   const [showLoginModal, setShowLoginModal] = useState(false)
+  const [modalTab, setModalTab] = useState<'paste' | 'browser'>('paste')
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginTwoFASecret, setLoginTwoFASecret] = useState('')
   const [isStartingLogin, setIsStartingLogin] = useState(false)
+
+  // Paste token state
+  const [pasteTokenName, setPasteTokenName] = useState('')
+  const [pasteTokenValue, setPasteTokenValue] = useState('')
+  const [isPastingToken, setIsPastingToken] = useState(false)
 
   // Active login progress
   const [loginProgress, setLoginProgress] = useState<LoginProgress | null>(null)
@@ -100,6 +107,7 @@ export default function FbLoginsPage() {
           error: status.error,
           fbName: status.fbName,
           screenshot: status.screenshot || undefined,
+          tokenCount: (status as any).tokenCount || 0,
         })
 
         if (status.status === 'success') {
@@ -120,16 +128,31 @@ export default function FbLoginsPage() {
     }
   }, [loginProgress, fetchSessions, fetchWorkerStatus])
 
+  // Paste token manually
+  const handlePasteToken = async () => {
+    if (!pasteTokenValue.trim()) return
+    setIsPastingToken(true)
+    try {
+      const name = pasteTokenName.trim() || 'FB Login'
+      const result = await extensionAdminApi.addFbLogin(name, pasteTokenValue.trim())
+      toast.success(result.message || 'Token added successfully!')
+      setShowLoginModal(false)
+      setPasteTokenName('')
+      setPasteTokenValue('')
+      fetchSessions()
+      fetchWorkerStatus()
+    } catch (err: any) {
+      toast.handleApiError(err, 'Failed to add token')
+    } finally {
+      setIsPastingToken(false)
+    }
+  }
+
   // Start browser login
   const handleStartLogin = async () => {
-    if (!loginEmail.trim() || !loginPassword.trim()) {
-      toast.error('Email and password are required')
-      return
-    }
-
     setIsStartingLogin(true)
     try {
-      const result = await extensionAdminApi.startBrowserLogin(loginEmail.trim(), loginPassword.trim(), loginTwoFASecret.trim() || undefined)
+      const result = await extensionAdminApi.startBrowserLogin(loginEmail.trim() || '', loginPassword.trim() || '', loginTwoFASecret.trim() || undefined)
       setLoginProgress({
         sessionId: result.sessionId,
         status: 'launching',
@@ -138,7 +161,7 @@ export default function FbLoginsPage() {
       setLoginEmail('')
       setLoginPassword('')
       setLoginTwoFASecret('')
-      toast.success('Login started, please wait...')
+      toast.success('Opening Chrome — login manually in the browser window')
     } catch (err: any) {
       toast.handleApiError(err, 'Failed to start login')
     } finally {
@@ -160,6 +183,26 @@ export default function FbLoginsPage() {
       toast.handleApiError(err, 'Failed to submit 2FA')
     } finally {
       setIsSubmitting2FA(false)
+    }
+  }
+
+  // Finish browsing & capture token
+  const [isFinishing, setIsFinishing] = useState(false)
+  const handleFinishCapture = async () => {
+    if (!loginProgress) return
+    setIsFinishing(true)
+    try {
+      const result = await extensionAdminApi.finishBrowserLogin(loginProgress.sessionId)
+      toast.success(result.message || 'Token captured!')
+      setLoginProgress(prev => prev ? { ...prev, status: 'success', fbName: result.fbName } : null)
+      fetchSessions()
+      fetchWorkerStatus()
+    } catch (err: any) {
+      const errorMsg = err?.response?.data?.error || err?.message || 'Failed to capture token'
+      toast.error(errorMsg)
+      // Don't close — user can browse more and try again
+    } finally {
+      setIsFinishing(false)
     }
   }
 
@@ -194,13 +237,15 @@ export default function FbLoginsPage() {
       case 'launching':
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700"><Loader2 className="w-3 h-3 animate-spin" /> Launching Browser</span>
       case 'logging_in':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700"><Loader2 className="w-3 h-3 animate-spin" /> Logging In</span>
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700"><Loader2 className="w-3 h-3 animate-spin" /> Opening Login</span>
+      case 'waiting_manual_login':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700"><User className="w-3 h-3" /> Waiting for Login</span>
       case 'needs_2fa':
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700"><Shield className="w-3 h-3" /> 2FA Required</span>
       case 'submitting_2fa':
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700"><Loader2 className="w-3 h-3 animate-spin" /> Submitting 2FA</span>
       case 'capturing_token':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700"><Loader2 className="w-3 h-3 animate-spin" /> Capturing Token</span>
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700"><User className="w-3 h-3" /> Browse &amp; Capture</span>
       case 'success':
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700"><CheckCircle className="w-3 h-3" /> Success</span>
       case 'failed':
@@ -319,15 +364,89 @@ export default function FbLoginsPage() {
             </div>
           )}
 
+          {/* Waiting for manual login */}
+          {loginProgress.status === 'waiting_manual_login' && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 bg-amber-50 rounded-lg p-4">
+                <User className="w-5 h-5 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-900">Login manually in the Chrome window</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    A Chrome browser has opened. Please login to Facebook there (solve CAPTCHA, enter 2FA, etc.).
+                    Once you are logged in, the system will automatically detect it and capture the token.
+                  </p>
+                  <p className="text-xs text-amber-600 mt-2">
+                    After logging in, browse to Ads Manager or Business Settings to trigger token capture.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCancelLogin}
+                className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {/* Manual browsing mode — user browses FB, then clicks Finish */}
+          {loginProgress.status === 'capturing_token' && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 bg-green-50 rounded-lg p-4">
+                <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-green-900">Logged in! Now browse Facebook pages</p>
+                  <p className="text-xs text-green-700 mt-1">
+                    The system is listening for tokens in the background. Please browse these pages in the Chrome window:
+                  </p>
+                  <ul className="list-disc list-inside text-xs text-green-700 mt-2 space-y-0.5">
+                    <li><strong>Ads Manager</strong> — adsmanager.facebook.com</li>
+                    <li><strong>Business Settings</strong> — business.facebook.com/settings</li>
+                    <li><strong>Ad Accounts</strong> — Business Settings → Ad Accounts</li>
+                    <li>Click around, open pages, scroll — this triggers API calls</li>
+                  </ul>
+                  {loginProgress.tokenCount !== undefined && loginProgress.tokenCount > 0 && (
+                    <p className="text-xs text-green-800 mt-2 bg-green-100 rounded px-2 py-1 inline-block">
+                      {loginProgress.tokenCount} token(s) captured so far
+                    </p>
+                  )}
+                  <p className="text-xs text-green-600 mt-2 font-medium">
+                    When done browsing, click "Finish &amp; Capture Token" below.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleFinishCapture}
+                  disabled={isFinishing}
+                  className="px-6 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                >
+                  {isFinishing ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Validating tokens...
+                    </span>
+                  ) : (
+                    'Finish & Capture Token'
+                  )}
+                </button>
+                <button
+                  onClick={handleCancelLogin}
+                  className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Loading states */}
-          {['launching', 'logging_in', 'submitting_2fa', 'capturing_token'].includes(loginProgress.status) && (
+          {['launching', 'logging_in', 'submitting_2fa'].includes(loginProgress.status) && (
             <div className="flex items-center gap-3 text-sm text-gray-600">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>
                 {loginProgress.status === 'launching' && 'Launching browser...'}
-                {loginProgress.status === 'logging_in' && 'Entering credentials and logging in...'}
+                {loginProgress.status === 'logging_in' && 'Opening Facebook login page...'}
                 {loginProgress.status === 'submitting_2fa' && 'Submitting 2FA code...'}
-                {loginProgress.status === 'capturing_token' && 'Capturing access token...'}
               </span>
             </div>
           )}
@@ -465,11 +584,11 @@ export default function FbLoginsPage() {
       <div className="mt-6 bg-blue-50 rounded-2xl border border-blue-100 p-6">
         <h4 className="text-sm font-semibold text-blue-900 mb-2">How it works</h4>
         <ol className="list-decimal list-inside text-sm text-blue-800 space-y-1">
-          <li>Click "Add FB Login" and enter your Facebook email & password</li>
-          <li>If 2FA is enabled, you'll be asked to enter the code</li>
-          <li>System logs in, captures the access token automatically</li>
-          <li>The background worker uses the token for BM shares & recharges</li>
-          <li>Token lasts ~60 days, then you'll need to login again</li>
+          <li>Click "Add FB Login" — a Chrome browser opens with Facebook login</li>
+          <li>Login manually in Chrome (solve CAPTCHA, enter 2FA, etc.)</li>
+          <li>Browse Ads Manager, Business Settings, Ad Accounts pages — click around</li>
+          <li>Click "Finish &amp; Capture Token" — system validates captured tokens</li>
+          <li>The background worker uses the token for BM shares &amp; recharges</li>
         </ol>
       </div>
 
@@ -479,85 +598,113 @@ export default function FbLoginsPage() {
           <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Facebook Login</h3>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Facebook Email / Phone
-                </label>
-                <input
-                  type="text"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="Enter Facebook email or phone"
-                  className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  autoFocus
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="Enter Facebook password"
-                  className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  onKeyDown={(e) => e.key === 'Enter' && handleStartLogin()}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  2FA Secret Key <span className="text-gray-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={loginTwoFASecret}
-                  onChange={(e) => setLoginTwoFASecret(e.target.value)}
-                  placeholder="e.g., JBSWY3DPEHPK3PXP"
-                  className="w-full border rounded-xl px-4 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  If provided, 2FA code will be generated automatically. No need to enter code manually.
-                </p>
-              </div>
-
-              <div className="bg-amber-50 rounded-lg p-3">
-                <p className="text-xs text-amber-800">
-                  Your credentials are only used to login once via a secure browser session on the server.
-                  They are NOT stored anywhere. Only the access token is saved.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200 mb-4">
               <button
-                onClick={() => {
-                  setShowLoginModal(false)
-                  setLoginEmail('')
-                  setLoginPassword('')
-                  setLoginTwoFASecret('')
-                }}
-                className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50"
+                onClick={() => setModalTab('paste')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${modalTab === 'paste' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
               >
-                Cancel
+                Paste Token
               </button>
               <button
-                onClick={handleStartLogin}
-                disabled={isStartingLogin || !loginEmail.trim() || !loginPassword.trim()}
-                className="px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                onClick={() => setModalTab('browser')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${modalTab === 'browser' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
               >
-                {isStartingLogin ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Starting...
-                  </span>
-                ) : (
-                  'Login'
-                )}
+                Open Browser
               </button>
             </div>
+
+            {/* Paste Token Tab */}
+            {modalTab === 'paste' && (
+              <div className="space-y-4">
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-xs text-blue-800">
+                    Get the token from the 6AD Chrome extension popup or from Facebook Graph API Explorer.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={pasteTokenName}
+                    onChange={(e) => setPasteTokenName(e.target.value)}
+                    placeholder="e.g. Main FB Account"
+                    className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Access Token</label>
+                  <textarea
+                    value={pasteTokenValue}
+                    onChange={(e) => setPasteTokenValue(e.target.value)}
+                    placeholder="Paste EAA... token here"
+                    rows={3}
+                    className="w-full border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-xs"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => { setShowLoginModal(false); setPasteTokenName(''); setPasteTokenValue('') }}
+                    className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePasteToken}
+                    disabled={isPastingToken || !pasteTokenValue.trim()}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {isPastingToken ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Validating...
+                      </span>
+                    ) : (
+                      'Add Token'
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Browser Tab */}
+            {modalTab === 'browser' && (
+              <div className="space-y-4">
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <p className="text-sm text-blue-800 font-medium mb-2">How it works:</p>
+                  <ol className="list-decimal list-inside text-xs text-blue-700 space-y-1">
+                    <li>A Chrome browser will open with Facebook login page</li>
+                    <li>Login manually (solve CAPTCHA, 2FA, etc.)</li>
+                    <li>Browse Ads Manager, BM Settings — click around pages</li>
+                    <li>Click "Finish &amp; Capture Token" when done browsing</li>
+                  </ol>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowLoginModal(false)}
+                    className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleStartLogin}
+                    disabled={isStartingLogin}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {isStartingLogin ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Opening...
+                      </span>
+                    ) : (
+                      'Open Chrome'
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

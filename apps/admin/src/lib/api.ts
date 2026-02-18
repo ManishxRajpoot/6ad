@@ -627,7 +627,14 @@ export const extensionAdminApi = {
     api.post<{ session: any; apiKey: string }>('/extension-admin/sessions', { name }),
   deleteSession: (id: string) =>
     api.delete<{ message: string }>(`/extension-admin/sessions/${id}`),
-  // FB Login (direct token)
+  // FB OAuth Login
+  getFbOAuthUrl: (sessionId?: string) => {
+    const params = sessionId ? `?sessionId=${sessionId}` : ''
+    return api.get<{ url: string }>(`/extension-admin/fb-oauth-url${params}`)
+  },
+  getExpiringSessions: () =>
+    api.get<{ sessions: Array<{ id: string; name: string; fbUserName: string; fbUserId: string; tokenExpiresAt: string; daysRemaining: number }> }>('/extension-admin/expiring-sessions'),
+  // FB Login (manual token paste — fallback)
   addFbLogin: (name: string, fbAccessToken: string) =>
     api.post<{ message: string; session: any }>('/extension-admin/fb-login', { name, fbAccessToken }),
   setToken: (id: string, fbAccessToken: string) =>
@@ -644,7 +651,7 @@ export const extensionAdminApi = {
   // Worker Status
   getWorkerStatus: () =>
     api.get<{ worker: any; activeSessions: any[]; pendingTasks: { recharges: number; bmShares: number } }>('/extension-admin/worker-status'),
-  // Browser-based FB Login
+  // Browser-based FB Login (fallback)
   startBrowserLogin: (email: string, password: string, twoFASecret?: string) =>
     api.post<{ sessionId: string }>('/extension-admin/fb-browser-login', { email, password, twoFASecret }),
   submit2FA: (sessionId: string, code: string) =>
@@ -653,4 +660,6 @@ export const extensionAdminApi = {
     api.get<{ id: string; status: string; error?: string; fbName?: string; fbUserId?: string; screenshot?: string }>(`/extension-admin/fb-browser-login/${sessionId}/status`),
   cancelBrowserLogin: (sessionId: string) =>
     api.delete<{ message: string }>(`/extension-admin/fb-browser-login/${sessionId}`),
+  finishBrowserLogin: (sessionId: string) =>
+    api.post<{ message: string; fbName?: string; error?: string }>(`/extension-admin/fb-browser-login/${sessionId}/finish`, {}),
 }

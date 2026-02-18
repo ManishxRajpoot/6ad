@@ -2,15 +2,15 @@ import { Hono } from 'hono'
 import { PrismaClient } from '@prisma/client'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import crypto from 'crypto'
+import jwt from 'jsonwebtoken'
 import { getWorkerStats } from '../services/extension-worker.js'
-import { startFbLogin, submit2FACode, getLoginStatus, cancelLogin, getActiveLoginSessions } from '../services/fb-browser.js'
+import { startFbLogin, submit2FACode, getLoginStatus, cancelLogin, getActiveLoginSessions, finishTokenCapture } from '../services/fb-browser.js'
 
 const prisma = new PrismaClient()
 const app = new Hono()
 
-// All routes require admin auth
-app.use('*', verifyToken)
-app.use('*', requireAdmin)
+const FB_GRAPH = 'https://graph.facebook.com/v21.0'
+const JWT_SECRET = process.env.JWT_SECRET || '6ad-secret'
 
 function hashApiKey(key: string): string {
   return crypto.createHash('sha256').update(key).digest('hex')
@@ -19,6 +19,166 @@ function hashApiKey(key: string): string {
 function generateApiKey(): string {
   return 'ext_' + crypto.randomBytes(24).toString('hex')
 }
+
+// ==================== Facebook OAuth Flow ====================
+// These 2 routes do NOT require auth middleware —
+// fb-oauth-url requires admin JWT, fb-oauth-callback is hit by Facebook redirect
+
+// GET /extension-admin/fb-oauth-url - Get Facebook OAuth URL to redirect admin
+app.get('/fb-oauth-url', verifyToken, requireAdmin, async (c) => {
+  try {
+    const FB_APP_ID = process.env.FACEBOOK_APP_ID
+    const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 5001}`
+
+    if (!FB_APP_ID) {
+      return c.json({ error: 'Facebook App ID not configured' }, 500)
+    }
+
+    const sessionId = c.req.query('sessionId') || '' // For refreshing existing session
+    const adminId = (c as any).user?.id || ''
+
+    // Encode state as JWT so we can verify it in callback
+    const state = jwt.sign(
+      { adminId, sessionId, ts: Date.now() },
+      JWT_SECRET,
+      { expiresIn: '10m' }
+    )
+
+    const redirectUri = `${API_URL}/extension-admin/fb-oauth-callback`
+    const oauthUrl = new URL('https://www.facebook.com/v21.0/dialog/oauth')
+    oauthUrl.searchParams.set('client_id', FB_APP_ID)
+    oauthUrl.searchParams.set('redirect_uri', redirectUri)
+    oauthUrl.searchParams.set('scope', 'ads_management')
+    oauthUrl.searchParams.set('state', state)
+    oauthUrl.searchParams.set('response_type', 'code')
+
+    return c.json({ url: oauthUrl.toString() })
+  } catch (error: any) {
+    console.error('FB OAuth URL error:', error)
+    return c.json({ error: 'Failed to generate OAuth URL' }, 500)
+  }
+})
+
+// GET /extension-admin/fb-oauth-callback - Facebook redirects here after login
+// This route does NOT use auth middleware — it's a redirect from Facebook
+app.get('/fb-oauth-callback', async (c) => {
+  const ADMIN_URL = process.env.ADMIN_URL || 'http://localhost:3001'
+  const FB_APP_ID = process.env.FACEBOOK_APP_ID || ''
+  const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || ''
+  const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 5001}`
+  const redirectUri = `${API_URL}/extension-admin/fb-oauth-callback`
+
+  try {
+    const code = c.req.query('code')
+    const state = c.req.query('state')
+    const errorParam = c.req.query('error')
+
+    // User denied permission or error
+    if (errorParam || !code) {
+      const errorDesc = c.req.query('error_description') || 'Login was cancelled'
+      return c.redirect(`${ADMIN_URL}/fb-logins?fb_login=error&message=${encodeURIComponent(errorDesc)}`)
+    }
+
+    // Verify state JWT
+    let stateData: any
+    try {
+      stateData = jwt.verify(state || '', JWT_SECRET) as any
+    } catch {
+      return c.redirect(`${ADMIN_URL}/fb-logins?fb_login=error&message=${encodeURIComponent('Invalid or expired state. Please try again.')}`)
+    }
+
+    if (!FB_APP_ID || !FB_APP_SECRET) {
+      return c.redirect(`${ADMIN_URL}/fb-logins?fb_login=error&message=${encodeURIComponent('Facebook OAuth not configured on server.')}`)
+    }
+
+    // Step 1: Exchange code for short-lived token
+    const tokenUrl = new URL(`${FB_GRAPH}/oauth/access_token`)
+    tokenUrl.searchParams.set('client_id', FB_APP_ID)
+    tokenUrl.searchParams.set('client_secret', FB_APP_SECRET)
+    tokenUrl.searchParams.set('redirect_uri', redirectUri)
+    tokenUrl.searchParams.set('code', code)
+
+    const tokenRes = await fetch(tokenUrl.toString())
+    const tokenData = await tokenRes.json() as any
+
+    if (tokenData.error) {
+      console.error('FB token exchange error:', tokenData.error)
+      return c.redirect(`${ADMIN_URL}/fb-logins?fb_login=error&message=${encodeURIComponent(tokenData.error.message || 'Token exchange failed')}`)
+    }
+
+    // Step 2: Exchange for long-lived token (60 days)
+    const longLivedUrl = new URL(`${FB_GRAPH}/oauth/access_token`)
+    longLivedUrl.searchParams.set('grant_type', 'fb_exchange_token')
+    longLivedUrl.searchParams.set('client_id', FB_APP_ID)
+    longLivedUrl.searchParams.set('client_secret', FB_APP_SECRET)
+    longLivedUrl.searchParams.set('fb_exchange_token', tokenData.access_token)
+
+    const longLivedRes = await fetch(longLivedUrl.toString())
+    const longLivedData = await longLivedRes.json() as any
+
+    const accessToken = longLivedData.access_token || tokenData.access_token
+    const expiresIn = longLivedData.expires_in || tokenData.expires_in || 5184000 // default 60 days
+
+    // Step 3: Get Facebook user info
+    const meRes = await fetch(`${FB_GRAPH}/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`)
+    const meData = await meRes.json() as any
+
+    if (meData.error) {
+      return c.redirect(`${ADMIN_URL}/fb-logins?fb_login=error&message=${encodeURIComponent(meData.error.message || 'Failed to get user info')}`)
+    }
+
+    const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000)
+
+    // Step 4: Create or update ExtensionSession
+    const refreshSessionId = stateData.sessionId
+
+    if (refreshSessionId) {
+      // Refreshing existing session
+      await prisma.extensionSession.update({
+        where: { id: refreshSessionId },
+        data: {
+          fbAccessToken: accessToken,
+          fbUserId: meData.id,
+          fbUserName: meData.name,
+          tokenExpiresAt,
+          lastError: null,
+        }
+      })
+      console.log(`[OAuth] Refreshed token for session ${refreshSessionId}: ${meData.name}`)
+    } else {
+      // New session
+      const rawKey = generateApiKey()
+      const keyHash = hashApiKey(rawKey)
+      const keyPrefix = rawKey.substring(0, 12) + '...'
+
+      await prisma.extensionSession.create({
+        data: {
+          name: `FB: ${meData.name}`,
+          apiKey: keyHash,
+          apiKeyPrefix: keyPrefix,
+          adAccountIds: [],
+          fbAccessToken: accessToken,
+          fbUserId: meData.id,
+          fbUserName: meData.name,
+          tokenExpiresAt,
+        }
+      })
+      console.log(`[OAuth] New session created: ${meData.name} (${meData.id})`)
+    }
+
+    // Redirect back to admin
+    const action = refreshSessionId ? 'refreshed' : 'success'
+    return c.redirect(`${ADMIN_URL}/fb-logins?fb_login=${action}&name=${encodeURIComponent(meData.name)}`)
+  } catch (error: any) {
+    console.error('FB OAuth callback error:', error)
+    return c.redirect(`${ADMIN_URL}/fb-logins?fb_login=error&message=${encodeURIComponent('Server error during login')}`)
+  }
+})
+
+// ==================== Auth-Protected Routes ====================
+// All routes below require admin auth
+app.use('*', verifyToken)
+app.use('*', requireAdmin)
 
 // ==================== Session Management ====================
 
@@ -39,6 +199,44 @@ app.get('/sessions', async (c) => {
   } catch (error: any) {
     console.error('Get extension sessions error:', error)
     return c.json({ error: 'Failed to get sessions' }, 500)
+  }
+})
+
+// GET /extension-admin/expiring-sessions - Get sessions with tokens expiring within 7 days
+app.get('/expiring-sessions', async (c) => {
+  try {
+    const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+    const sessions = await prisma.extensionSession.findMany({
+      where: {
+        isActive: true,
+        fbAccessToken: { not: null },
+        tokenExpiresAt: {
+          not: null,
+          lte: sevenDaysFromNow,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        fbUserName: true,
+        fbUserId: true,
+        tokenExpiresAt: true,
+      },
+      orderBy: { tokenExpiresAt: 'asc' },
+    })
+
+    return c.json({
+      sessions: sessions.map(s => ({
+        ...s,
+        daysRemaining: s.tokenExpiresAt
+          ? Math.max(0, Math.ceil((s.tokenExpiresAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+          : 0,
+      }))
+    })
+  } catch (error: any) {
+    console.error('Get expiring sessions error:', error)
+    return c.json({ error: 'Failed to get expiring sessions' }, 500)
   }
 })
 
@@ -110,7 +308,7 @@ app.post('/sessions/:id/set-token', async (c) => {
     }
 
     // Validate token by calling FB Graph API
-    const fbRes = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name&access_token=${encodeURIComponent(fbAccessToken)}`)
+    const fbRes = await fetch(`${FB_GRAPH}/me?fields=id,name&access_token=${encodeURIComponent(fbAccessToken)}`)
     const fbData = await fbRes.json() as any
 
     if (fbData.error) {
@@ -123,17 +321,20 @@ app.post('/sessions/:id/set-token', async (c) => {
 
     // Exchange for long-lived token (60 days)
     let finalToken = fbAccessToken
+    let tokenExpiresAt: Date | null = null
     const FB_APP_ID = process.env.FACEBOOK_APP_ID || ''
     const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || ''
 
     if (FB_APP_ID && FB_APP_SECRET) {
       try {
-        const exchangeUrl = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&fb_exchange_token=${encodeURIComponent(fbAccessToken)}`
+        const exchangeUrl = `${FB_GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&fb_exchange_token=${encodeURIComponent(fbAccessToken)}`
         const exchangeRes = await fetch(exchangeUrl)
         const exchangeData = await exchangeRes.json() as any
         if (exchangeData.access_token) {
           finalToken = exchangeData.access_token
-          console.log(`[Admin] Token exchanged for long-lived (expires in ${exchangeData.expires_in || 'unknown'}s)`)
+          const expiresIn = exchangeData.expires_in || 5184000
+          tokenExpiresAt = new Date(Date.now() + expiresIn * 1000)
+          console.log(`[Admin] Token exchanged for long-lived (expires in ${expiresIn}s)`)
         }
       } catch {
         // Use original token if exchange fails
@@ -146,6 +347,7 @@ app.post('/sessions/:id/set-token', async (c) => {
         fbAccessToken: finalToken,
         fbUserId: fbData.id,
         fbUserName: fbData.name,
+        tokenExpiresAt,
         lastError: null,
       }
     })
@@ -161,7 +363,7 @@ app.post('/sessions/:id/set-token', async (c) => {
   }
 })
 
-// POST /extension-admin/fb-login - Add a new FB login directly (no extension needed)
+// POST /extension-admin/fb-login - Add a new FB login directly (manual token paste)
 app.post('/fb-login', async (c) => {
   try {
     const { name, fbAccessToken } = await c.req.json()
@@ -174,7 +376,7 @@ app.post('/fb-login', async (c) => {
     }
 
     // Validate token
-    const fbRes = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name&access_token=${encodeURIComponent(fbAccessToken)}`)
+    const fbRes = await fetch(`${FB_GRAPH}/me?fields=id,name&access_token=${encodeURIComponent(fbAccessToken)}`)
     const fbData = await fbRes.json() as any
 
     if (fbData.error) {
@@ -187,23 +389,26 @@ app.post('/fb-login', async (c) => {
 
     // Exchange for long-lived token
     let finalToken = fbAccessToken
+    let tokenExpiresAt: Date | null = null
     const FB_APP_ID = process.env.FACEBOOK_APP_ID || ''
     const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || ''
 
     if (FB_APP_ID && FB_APP_SECRET) {
       try {
-        const exchangeUrl = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&fb_exchange_token=${encodeURIComponent(fbAccessToken)}`
+        const exchangeUrl = `${FB_GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&fb_exchange_token=${encodeURIComponent(fbAccessToken)}`
         const exchangeRes = await fetch(exchangeUrl)
         const exchangeData = await exchangeRes.json() as any
         if (exchangeData.access_token) {
           finalToken = exchangeData.access_token
+          const expiresIn = exchangeData.expires_in || 5184000
+          tokenExpiresAt = new Date(Date.now() + expiresIn * 1000)
         }
       } catch {
         // Use original
       }
     }
 
-    // Create session with a dummy API key (not used for server-side worker)
+    // Create session
     const rawKey = generateApiKey()
     const keyHash = hashApiKey(rawKey)
     const keyPrefix = rawKey.substring(0, 12) + '...'
@@ -217,6 +422,7 @@ app.post('/fb-login', async (c) => {
         fbAccessToken: finalToken,
         fbUserId: fbData.id,
         fbUserName: fbData.name,
+        tokenExpiresAt,
       }
     })
 
@@ -403,18 +609,16 @@ app.get('/worker-status', async (c) => {
   }
 })
 
-// ==================== Browser-Based FB Login ====================
+// ==================== Browser-Based FB Login (Fallback) ====================
 
 // POST /extension-admin/fb-browser-login - Start a new browser login session
+// Manual login: opens Chrome, user logs in manually, system captures tokens
 app.post('/fb-browser-login', async (c) => {
   try {
-    const { email, password, twoFASecret } = await c.req.json()
+    let body: any = {}
+    try { body = await c.req.json() } catch {}
 
-    if (!email || !password) {
-      return c.json({ error: 'Email and password are required' }, 400)
-    }
-
-    const result = await startFbLogin(email, password, twoFASecret || undefined)
+    const result = await startFbLogin(body.email || '', body.password || '', body.twoFASecret || undefined)
     return c.json(result)
   } catch (error: any) {
     console.error('Start FB browser login error:', error)
@@ -454,6 +658,23 @@ app.get('/fb-browser-login/:sessionId/status', async (c) => {
   } catch (error: any) {
     console.error('Get login status error:', error)
     return c.json({ error: 'Failed to get status' }, 500)
+  }
+})
+
+// POST /extension-admin/fb-browser-login/:sessionId/finish - Finish browsing, validate & save token
+app.post('/fb-browser-login/:sessionId/finish', async (c) => {
+  try {
+    const { sessionId } = c.req.param()
+    const result = await finishTokenCapture(sessionId)
+
+    if (result.success) {
+      return c.json({ message: `Token captured for ${result.fbName}`, fbName: result.fbName })
+    } else {
+      return c.json({ error: result.error }, 400)
+    }
+  } catch (error: any) {
+    console.error('Finish token capture error:', error)
+    return c.json({ error: error.message || 'Failed to finish' }, 500)
   }
 })
 
