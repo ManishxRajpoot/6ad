@@ -660,168 +660,207 @@ async function captureTokenAfterLogin(sessionId: string) {
   const xsCookie = allCookies.find(c => c.name === 'xs')
   log(`Auth cookies: c_user=${cUserCookie ? `${cUserCookie.value}@${cUserCookie.domain}` : 'NONE'}, xs=${xsCookie ? `present@${xsCookie.domain}` : 'NONE'}`)
 
-  // If we logged in on m.facebook.com, cookies are set for .facebook.com root domain
-  // BUT we need to navigate to www.facebook.com to get the token
-  // First, let's try to set cookies on www.facebook.com explicitly
-  if (loginDomain === 'm.facebook.com' && cUserCookie) {
-    log(`Logged in on m.facebook.com, transferring cookies to www.facebook.com...`)
+  if (!cUserCookie) {
+    log(`No c_user cookie — not logged in. Trying cookie domain fix...`)
+    // Try to get cookies from any facebook domain and set to root
     try {
-      // Get ALL cookies and re-set them for www.facebook.com with .facebook.com domain
-      const mCookies = await page.cookies('https://m.facebook.com')
-      const importantCookies = mCookies.filter(c =>
-        ['c_user', 'xs', 'fr', 'datr', 'sb', 'wd', 'spin', 'presence'].includes(c.name)
-      )
-
-      for (const cookie of importantCookies) {
-        try {
-          await page.setCookie({
-            name: cookie.name,
-            value: cookie.value,
-            domain: '.facebook.com',
-            path: cookie.path,
-            httpOnly: cookie.httpOnly,
-            secure: cookie.secure,
-            sameSite: cookie.sameSite as any,
-            expires: cookie.expires,
-          })
-        } catch {}
-      }
-      log(`Transferred ${importantCookies.length} auth cookies to .facebook.com`)
-    } catch (e: any) {
-      log(`Cookie transfer error: ${e.message}`)
-    }
-  }
-
-  // Step 1: Try extracting token from current page
-  if (!token) {
-    token = await extractTokenFromPage(page)
-  }
-
-  // Step 2: Navigate to www.facebook.com homepage
-  if (!token) {
-    try {
-      log(`Navigating to www.facebook.com...`)
-      await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 20000 })
-      await sleep(3000)
-      await takeScreenshot(session, page)
-
-      // Check if we're actually logged in
-      const afterUrl = page.url()
-      const afterContent = await page.content()
-      const isLoggedIn = !afterUrl.includes('/login') && !afterContent.includes('Log in to Facebook') && !afterContent.includes('Log Into Facebook')
-      log(`www.facebook.com loaded: ${afterUrl}, logged in: ${isLoggedIn}`)
-
-      if (isLoggedIn) {
-        token = await extractTokenFromPage(page)
-      } else {
-        log(`NOT logged in on www.facebook.com — cookie transfer may have failed`)
-      }
-    } catch (e: any) {
-      log(`www.facebook.com navigation failed: ${e.message}`)
-    }
-  }
-
-  // Step 3: Try Ads Manager (most reliable for EAA tokens)
-  if (!token) {
-    try {
-      log(`Navigating to www.facebook.com/adsmanager...`)
-      await page.goto('https://www.facebook.com/adsmanager/manage/campaigns', { waitUntil: 'networkidle2', timeout: 25000 })
-      await sleep(5000)
-      await takeScreenshot(session, page)
-      token = await extractTokenFromPage(page)
-
-      // Also check the network interceptor
-      if (!token && session.networkToken) {
-        token = session.networkToken
-        log(`Got token from network interceptor during ads manager load`)
-      }
-    } catch (e: any) {
-      log(`Ads Manager failed: ${e.message}`)
-    }
-  }
-
-  // Step 4: Try inline fetch from page context (uses cookies automatically)
-  if (!token) {
-    try {
-      log(`Trying inline fetch from page context...`)
-      const fetchedToken = await page.evaluate(async () => {
-        try {
-          // Try Ads Manager API
-          const resp = await fetch('/adsmanager/manage/campaigns', {
-            credentials: 'include',
-            redirect: 'follow',
-          })
-          const text = await resp.text()
-          const match = text.match(/(EAA[A-Za-z0-9]{30,})/)
-          if (match) return match[1]
-        } catch {}
-
-        try {
-          // Try the home page
-          const resp2 = await fetch('/', { credentials: 'include' })
-          const text2 = await resp2.text()
-          const match2 = text2.match(/(EAA[A-Za-z0-9]{30,})/)
-          if (match2) return match2[1]
-        } catch {}
-
-        return null
-      })
-
-      if (fetchedToken) {
-        token = fetchedToken
-        log(`Got token via inline fetch: ${token.substring(0, 20)}...`)
+      const allC = await page.cookies('https://m.facebook.com', 'https://www.facebook.com')
+      const cUser = allC.find(c => c.name === 'c_user')
+      if (cUser) {
+        log(`Found c_user on ${cUser.domain}, fixing domain...`)
+        const importantNames = ['c_user', 'xs', 'fr', 'datr', 'sb']
+        for (const c of allC.filter(c => importantNames.includes(c.name))) {
+          try {
+            await page.setCookie({
+              name: c.name,
+              value: c.value,
+              domain: '.facebook.com',
+              path: '/',
+              httpOnly: c.httpOnly,
+              secure: c.secure,
+              expires: c.expires,
+            })
+          } catch {}
+        }
       }
     } catch {}
   }
 
-  // Step 5: Try business.facebook.com
+  // =====================================================
+  // STRATEGY 1: Check network interceptor first (best source)
+  // =====================================================
+  if (token) {
+    log(`Already have token from network interceptor`)
+  }
+
+  // =====================================================
+  // STRATEGY 2: Navigate to www.facebook.com and load Ads Manager
+  // The Ads Manager SPA is the MOST RELIABLE source of EAA tokens
+  // because it loads them via XHR which our interceptor catches
+  // =====================================================
+  if (!token) {
+    try {
+      // First ensure we're on www.facebook.com
+      if (!currentUrl.includes('www.facebook.com')) {
+        log(`Navigating to www.facebook.com...`)
+        await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 20000 })
+        await sleep(2000)
+        await takeScreenshot(session, page)
+      }
+
+      // Now load Ads Manager — this triggers XHR calls that contain EAA tokens
+      log(`Loading Ads Manager to trigger token XHRs...`)
+      await page.goto('https://www.facebook.com/adsmanager/manage/campaigns', { waitUntil: 'networkidle2', timeout: 30000 })
+      // Wait extra time for AJAX calls that contain tokens
+      await sleep(8000)
+      await takeScreenshot(session, page)
+
+      // Check network interceptor
+      if (session.networkToken) {
+        token = session.networkToken
+        log(`Got token from network interceptor after Ads Manager load: ${token.substring(0, 20)}...`)
+      }
+
+      // Also check page HTML
+      if (!token) {
+        token = await extractTokenFromPage(page)
+      }
+    } catch (e: any) {
+      log(`Ads Manager approach failed: ${e.message}`)
+    }
+  }
+
+  // =====================================================
+  // STRATEGY 3: Use DTSG token to call Facebook's internal API
+  // Extract fb_dtsg from page and use it to get access token
+  // =====================================================
+  if (!token) {
+    try {
+      log(`Trying DTSG + internal API approach...`)
+      // Make sure we're on facebook.com
+      const curUrl = page.url()
+      if (!curUrl.includes('facebook.com') || curUrl.includes('login')) {
+        await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 15000 })
+        await sleep(3000)
+      }
+
+      const dtsgToken = await page.evaluate(() => {
+        try {
+          // Method 1: Find in page HTML
+          const html = document.documentElement.innerHTML
+          const dtsgMatch = html.match(/"DTSGInitData".*?"token":"([^"]+)"/) ||
+                           html.match(/name="fb_dtsg" value="([^"]+)"/) ||
+                           html.match(/"dtsg":\{"token":"([^"]+)"/) ||
+                           html.match(/\["DTSGInitialData",\[\],\{"token":"([^"]+)"/)
+          if (dtsgMatch) return dtsgMatch[1]
+
+          // Method 2: Check require calls
+          const scripts = document.querySelectorAll('script')
+          for (const script of scripts) {
+            const text = script.textContent || ''
+            const m = text.match(/"DTSGInitialData".*?"token":"([^"]+)"/) ||
+                     text.match(/"token":"(AQ[^"]{20,})"/)
+            if (m) return m[1]
+          }
+        } catch {}
+        return null
+      })
+
+      if (dtsgToken) {
+        log(`Found DTSG token: ${dtsgToken.substring(0, 20)}...`)
+
+        // Use DTSG to get access token via Facebook's internal endpoint
+        const accessToken = await page.evaluate(async (dtsg: string) => {
+          try {
+            // Method: Call the business integrations API which returns an access token
+            const formData = new URLSearchParams()
+            formData.append('fb_dtsg', dtsg)
+            formData.append('fb_api_caller_class', 'RelayModern')
+            formData.append('fb_api_req_friendly_name', 'AdAccountAccessTokenQuery')
+            formData.append('variables', '{}')
+            formData.append('doc_id', '0') // placeholder
+
+            // Try getting token from ads API endpoint
+            const resp = await fetch('https://www.facebook.com/api/graphql/', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: formData.toString(),
+            })
+            const text = await resp.text()
+            const tokenMatch = text.match(/(EAA[A-Za-z0-9]{30,})/)
+            if (tokenMatch) return tokenMatch[1]
+          } catch {}
+
+          try {
+            // Alternative: hit the business account selection which returns tokens
+            const resp2 = await fetch('https://www.facebook.com/ajax/bootloader-endpoint/?modules=AdsLWIManagerContainer', {
+              credentials: 'include',
+            })
+            const text2 = await resp2.text()
+            const tokenMatch2 = text2.match(/(EAA[A-Za-z0-9]{30,})/)
+            if (tokenMatch2) return tokenMatch2[1]
+          } catch {}
+
+          return null
+        }, dtsgToken)
+
+        if (accessToken) {
+          token = accessToken
+          log(`Got token via DTSG API call: ${token.substring(0, 20)}...`)
+        }
+      } else {
+        log(`Could not find DTSG token in page`)
+      }
+    } catch (e: any) {
+      log(`DTSG approach failed: ${e.message}`)
+    }
+  }
+
+  // =====================================================
+  // STRATEGY 4: Navigate to business.facebook.com (triggers different XHRs)
+  // =====================================================
   if (!token) {
     try {
       log(`Trying business.facebook.com...`)
-      await page.goto('https://business.facebook.com/latest/home', { waitUntil: 'networkidle2', timeout: 20000 })
-      await sleep(3000)
+      await page.goto('https://business.facebook.com/latest/home', { waitUntil: 'networkidle2', timeout: 25000 })
+      await sleep(5000)
       await takeScreenshot(session, page)
-      token = await extractTokenFromPage(page)
 
-      if (!token && session.networkToken) {
+      // Check network interceptor
+      if (session.networkToken) {
         token = session.networkToken
+        log(`Got token from network interceptor on business.facebook.com`)
+      }
+
+      if (!token) {
+        token = await extractTokenFromPage(page)
       }
     } catch (e: any) {
       log(`business.facebook.com failed: ${e.message}`)
     }
   }
 
-  // Step 6: If we were on m.facebook.com, try mobile-specific pages
-  if (!token && loginDomain === 'm.facebook.com') {
-    try {
-      log(`Trying m.facebook.com pages for token...`)
-      await page.goto('https://m.facebook.com/', { waitUntil: 'networkidle2', timeout: 15000 })
-      await sleep(2000)
-      token = await extractTokenFromPage(page)
-    } catch {}
-  }
-
-  // Step 7: Try extracting from script tags explicitly
+  // =====================================================
+  // STRATEGY 5: Navigate to adsmanager on business domain
+  // =====================================================
   if (!token) {
     try {
-      log(`Scanning all script tags for EAA tokens...`)
-      const scriptToken = await page.evaluate(() => {
-        const scripts = document.querySelectorAll('script')
-        for (const script of scripts) {
-          const text = script.textContent || ''
-          const match = text.match(/(EAA[A-Za-z0-9]{30,})/)
-          if (match) return match[1]
-        }
-        // Check window globals
-        const w = window as any
-        if (w.__accessToken) return w.__accessToken
-        return null
-      })
-      if (scriptToken) {
-        token = scriptToken
-        log(`Got token from script tags: ${token.substring(0, 20)}...`)
+      log(`Trying business.facebook.com/adsmanager...`)
+      await page.goto('https://adsmanager.facebook.com/adsmanager/manage/campaigns', { waitUntil: 'networkidle2', timeout: 25000 })
+      await sleep(5000)
+      await takeScreenshot(session, page)
+
+      if (session.networkToken) {
+        token = session.networkToken
+        log(`Got token from adsmanager.facebook.com`)
       }
-    } catch {}
+      if (!token) {
+        token = await extractTokenFromPage(page)
+      }
+    } catch (e: any) {
+      log(`adsmanager.facebook.com failed: ${e.message}`)
+    }
   }
 
   // Final: check network interceptor one more time
