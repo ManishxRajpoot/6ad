@@ -576,6 +576,32 @@ async function takeScreenshot(session: LoginSession, page: Page) {
   } catch {}
 }
 
+// ==================== Copy Cookies Between Domains ====================
+
+async function copyCookiesToDomain(page: Page, fromDomain: string, toDomains: string[]) {
+  try {
+    // Get all cookies from the source domain
+    const cookies = await page.cookies(`https://${fromDomain}`)
+    log(`Found ${cookies.length} cookies from ${fromDomain}`)
+
+    if (cookies.length === 0) return
+
+    // Copy cookies to each target domain
+    for (const targetDomain of toDomains) {
+      const newCookies = cookies.map(cookie => ({
+        ...cookie,
+        domain: `.facebook.com`, // Set to root domain so all subdomains can access
+        url: `https://${targetDomain}`,
+      }))
+
+      await page.setCookie(...newCookies)
+      log(`Copied ${newCookies.length} cookies to ${targetDomain}`)
+    }
+  } catch (e: any) {
+    log(`Cookie copy error: ${e.message}`)
+  }
+}
+
 // ==================== Capture Token After Login ====================
 
 async function captureTokenAfterLogin(sessionId: string, preExistingToken: string | null) {
@@ -586,14 +612,26 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
   const page = session.page
 
   let token = preExistingToken
-  log(`Capturing token, pre-existing: ${token ? 'yes' : 'no'}, current URL: ${page.url()}`)
+  const currentUrl = page.url()
+  log(`Capturing token, pre-existing: ${token ? 'yes' : 'no'}, current URL: ${currentUrl}`)
 
   // Step 1: Try extracting token from current page (wherever we are after login/2FA)
   if (!token) {
     token = await extractTokenFromPage(page)
   }
 
-  // Step 2: Navigate to www.facebook.com homepage (SAME domain, cookies preserved)
+  // Step 1.5: Copy cookies from m.facebook.com to www/business subdomains
+  // This is critical — login on m.facebook.com sets cookies for m.facebook.com,
+  // but www.facebook.com and business.facebook.com need their own cookies
+  const sourceDomain = currentUrl.includes('m.facebook.com') ? 'm.facebook.com' : 'www.facebook.com'
+  log(`Copying cookies from ${sourceDomain} to other FB domains...`)
+  await copyCookiesToDomain(page, sourceDomain, [
+    'www.facebook.com',
+    'business.facebook.com',
+    'web.facebook.com',
+  ])
+
+  // Step 2: Navigate to www.facebook.com homepage (cookies now copied)
   if (!token) {
     try {
       log(`Navigating to www.facebook.com...`)
@@ -646,7 +684,12 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
           log(`Captured token via inline fetch: ${token.substring(0, 20)}...`)
         }
       } else {
-        log(`Not logged in — no c_user cookie found`)
+        log(`Not logged in — no c_user cookie found on www.facebook.com`)
+
+        // Extra debug: list all cookies we have
+        const allCookies = await page.cookies()
+        const fbCookies = allCookies.filter(c => c.name === 'c_user' || c.name === 'xs' || c.name === 'fr')
+        log(`Available FB auth cookies: ${fbCookies.map(c => `${c.name}@${c.domain}`).join(', ') || 'NONE'}`)
       }
     } catch {}
   }
@@ -664,16 +707,66 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
     }
   }
 
-  // Step 5: Last resort — try business.facebook.com
+  // Step 5: Try business.facebook.com
   if (!token) {
     try {
-      log(`Last resort: navigating to business.facebook.com...`)
+      log(`Navigating to business.facebook.com...`)
       await page.goto('https://business.facebook.com/latest/home', { waitUntil: 'networkidle2', timeout: 20000 })
       await sleep(3000)
       await takeScreenshot(session, page)
       token = await extractTokenFromPage(page)
     } catch (e: any) {
       log(`business.facebook.com failed: ${e.message}`)
+    }
+  }
+
+  // Step 6: Try m.facebook.com specific pages that might have tokens
+  if (!token) {
+    try {
+      log(`Trying m.facebook.com/adsmanager...`)
+      await page.goto('https://m.facebook.com/adsmanager', { waitUntil: 'networkidle2', timeout: 20000 })
+      await sleep(3000)
+      await takeScreenshot(session, page)
+      token = await extractTokenFromPage(page)
+    } catch (e: any) {
+      log(`m.facebook.com/adsmanager failed: ${e.message}`)
+    }
+  }
+
+  // Step 7: Last resort — try www.facebook.com with direct Graph API call from page
+  if (!token) {
+    try {
+      log(`Last resort: trying Graph API discover from page context...`)
+      // Navigate back to www.facebook.com first
+      await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 15000 })
+      await sleep(2000)
+
+      // Try to extract the EAAG token from DTSGInitData or similar
+      const pageToken = await page.evaluate(() => {
+        try {
+          // Look through all script elements
+          const scripts = document.querySelectorAll('script')
+          for (const script of scripts) {
+            const text = script.textContent || ''
+            const match = text.match(/(EAA[A-Za-z0-9]{30,})/)
+            if (match) return match[1]
+          }
+          // Check window.__accessToken or similar globals
+          const w = window as any
+          if (w.__accessToken) return w.__accessToken
+          if (w.Env?.api_key) {
+            // Not the token but could help
+          }
+        } catch {}
+        return null
+      })
+
+      if (pageToken) {
+        token = pageToken
+        log(`Got token from script tags: ${token.substring(0, 20)}...`)
+      }
+    } catch (e: any) {
+      log(`Last resort failed: ${e.message}`)
     }
   }
 
