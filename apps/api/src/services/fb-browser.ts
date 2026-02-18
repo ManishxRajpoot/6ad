@@ -2,10 +2,10 @@
  * FB Browser Manager - Manages Puppeteer browser sessions for Facebook login
  *
  * Flow:
- * 1. Admin enters FB email/password in admin panel
- * 2. Puppeteer launches browser, navigates to facebook.com, enters credentials
- * 3. If 2FA is needed, waits for admin to provide code
- * 4. After login, captures EAA access token from network requests
+ * 1. Admin enters FB email/password (+ optional 2FA secret) in admin panel
+ * 2. Puppeteer launches stealth browser, navigates to facebook.com, enters credentials
+ * 3. If 2FA is needed and secret provided, auto-generates TOTP code and submits
+ * 4. After login, captures EAA access token from page scripts/network
  * 5. Token stored in ExtensionSession for the server-side worker to use
  */
 
@@ -17,6 +17,10 @@ import * as OTPAuth from 'otpauth'
 const prisma = new PrismaClient()
 
 const FB_GRAPH_BASE = 'https://graph.facebook.com/v18.0'
+
+function log(msg: string) {
+  console.log(`[FBBrowser] ${msg}`)
+}
 
 // Active login sessions being processed
 interface LoginSession {
@@ -39,7 +43,6 @@ const activeSessions = new Map<string, LoginSession>()
 setInterval(() => {
   const now = Date.now()
   for (const [id, session] of activeSessions.entries()) {
-    // Remove sessions older than 10 minutes
     if (now - session.createdAt.getTime() > 10 * 60 * 1000) {
       cleanupSession(id)
     }
@@ -60,6 +63,37 @@ function generateSessionId(): string {
   return 'fbl_' + crypto.randomBytes(8).toString('hex')
 }
 
+// ==================== Stealth Helpers ====================
+
+async function applyStealthToPage(page: Page) {
+  // Override navigator.webdriver
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => false })
+    // Override chrome runtime
+    ;(window as any).chrome = { runtime: {} }
+    // Override permissions
+    const originalQuery = (window as any).navigator.permissions?.query
+    if (originalQuery) {
+      ;(window as any).navigator.permissions.query = (parameters: any) =>
+        parameters.name === 'notifications'
+          ? Promise.resolve({ state: Notification.permission } as any)
+          : originalQuery(parameters)
+    }
+    // Override plugins
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [1, 2, 3, 4, 5],
+    })
+    // Override languages
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-US', 'en'],
+    })
+    // Remove headless indicators from user agent
+    Object.defineProperty(navigator, 'platform', {
+      get: () => 'Win32',
+    })
+  })
+}
+
 // ==================== Start Login ====================
 
 export async function startFbLogin(email: string, password: string, twoFASecret?: string): Promise<{ sessionId: string }> {
@@ -77,9 +111,9 @@ export async function startFbLogin(email: string, password: string, twoFASecret?
 
   // Launch browser in background (don't await)
   performLogin(sessionId, email, password).catch(err => {
-    console.error(`[FBBrowser] Login error for ${sessionId}:`, err.message)
+    log(`Login error for ${sessionId}: ${err.message}`)
     const s = activeSessions.get(sessionId)
-    if (s) {
+    if (s && s.status !== 'failed' && s.status !== 'success') {
       s.status = 'failed'
       s.error = err.message
     }
@@ -92,15 +126,20 @@ async function performLogin(sessionId: string, email: string, password: string) 
   const session = activeSessions.get(sessionId)
   if (!session) return
 
-  // Launch browser
+  log(`Starting login for ${sessionId}`)
+
+  // Launch browser with stealth args
   const browser = await puppeteer.launch({
-    headless: true,
+    headless: 'shell',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-notifications',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-infobars',
       '--window-size=1280,800',
+      '--lang=en-US',
     ],
   })
 
@@ -108,9 +147,20 @@ async function performLogin(sessionId: string, email: string, password: string) 
   const page = await browser.newPage()
   session.page = page
 
+  // Apply stealth
+  await applyStealthToPage(page)
+
   // Set realistic viewport and user agent
   await page.setViewport({ width: 1280, height: 800 })
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+
+  // Set extra headers to look more realistic
+  await page.setExtraHTTPHeaders({
+    'Accept-Language': 'en-US,en;q=0.9',
+    'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+  })
 
   // Intercept network requests to capture access tokens
   let capturedToken: string | null = null
@@ -123,26 +173,24 @@ async function performLogin(sessionId: string, email: string, password: string) 
   page.on('response', async (response) => {
     try {
       const url = response.url()
-      // Look for Graph API calls or token in URL params
       if (url.includes('access_token=EAA') || url.includes('graph.facebook.com')) {
         const urlObj = new URL(url)
         const tokenFromUrl = urlObj.searchParams.get('access_token')
         if (tokenFromUrl && tokenFromUrl.startsWith('EAA')) {
           capturedToken = tokenFromUrl
-          console.log(`[FBBrowser] Captured token from URL: ${tokenFromUrl.substring(0, 20)}...`)
+          log(`Captured token from URL: ${tokenFromUrl.substring(0, 20)}...`)
         }
       }
 
-      // Check response body for tokens
       if (url.includes('facebook.com') && response.headers()['content-type']?.includes('json')) {
         try {
           const text = await response.text()
-          const tokenMatch = text.match(/(EAA[A-Za-z0-9]+)/g)
+          const tokenMatch = text.match(/(EAA[A-Za-z0-9]{30,})/g)
           if (tokenMatch) {
             for (const t of tokenMatch) {
               if (t.length > 30) {
                 capturedToken = t
-                console.log(`[FBBrowser] Captured token from response: ${t.substring(0, 20)}...`)
+                log(`Captured token from response: ${t.substring(0, 20)}...`)
               }
             }
           }
@@ -153,40 +201,65 @@ async function performLogin(sessionId: string, email: string, password: string) 
 
   session.status = 'logging_in'
 
-  // Navigate to Facebook
+  // Navigate to Facebook mobile login (less bot detection than desktop)
   await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 })
+  log(`Page loaded: ${page.url()}`)
 
   // Close cookie dialog if present
   try {
     const cookieBtn = await page.$('[data-cookiebanner="accept_button"]')
-    if (cookieBtn) await cookieBtn.click()
+    if (cookieBtn) {
+      await cookieBtn.click()
+      await sleep(1000)
+    }
   } catch {}
 
-  await sleep(1000)
+  await sleep(1500)
 
-  // Enter email
+  // Enter email with random delays to look human
   await page.waitForSelector('#email', { timeout: 10000 })
-  await page.type('#email', email, { delay: 50 })
-  await sleep(500)
+  await page.click('#email')
+  await sleep(300)
+  await page.type('#email', email, { delay: 80 + Math.random() * 40 })
+  await sleep(800)
 
   // Enter password
-  await page.type('#pass', password, { delay: 50 })
-  await sleep(500)
+  await page.click('#pass')
+  await sleep(200)
+  await page.type('#pass', password, { delay: 70 + Math.random() * 50 })
+  await sleep(1000)
 
   // Click login button
   await page.click('[name="login"]')
+  log(`Login button clicked, waiting for response...`)
 
   // Wait for navigation
-  await sleep(5000)
+  await sleep(6000)
 
-  // Take screenshot to see current state
-  const screenshot = await page.screenshot({ encoding: 'base64' })
-  session.screenshotBase64 = screenshot as string
+  // Take screenshot
+  await takeScreenshot(session, page)
 
-  // Check if we landed on a 2FA page
+  // Analyze current page
   const currentUrl = page.url()
   const pageContent = await page.content()
+  log(`After login URL: ${currentUrl}`)
 
+  // Check for login failure
+  const loginFailed = pageContent.includes('Wrong credentials') ||
+    pageContent.includes('The password that you') ||
+    pageContent.includes('incorrect password') ||
+    pageContent.includes('The email address you entered') ||
+    pageContent.includes('Please re-enter your password')
+
+  if (loginFailed) {
+    session.status = 'failed'
+    session.error = 'Invalid email or password'
+    log(`Login failed: invalid credentials`)
+    await cleanupSession(sessionId)
+    return
+  }
+
+  // Check for 2FA / checkpoint
   const needs2FA = currentUrl.includes('checkpoint') ||
     currentUrl.includes('two_step_verification') ||
     pageContent.includes('approvals_code') ||
@@ -194,47 +267,58 @@ async function performLogin(sessionId: string, email: string, password: string) 
     pageContent.includes('Two-factor authentication') ||
     pageContent.includes('Login code') ||
     pageContent.includes('Enter Code') ||
-    pageContent.includes('security code')
+    pageContent.includes('security code') ||
+    pageContent.includes('login approval') ||
+    pageContent.includes('Code Generator')
 
-  const loginFailed = pageContent.includes('Wrong credentials') ||
-    pageContent.includes('The password that you') ||
-    pageContent.includes('incorrect password') ||
-    pageContent.includes('The email address you entered')
+  if (needs2FA) {
+    log(`2FA/checkpoint detected at: ${currentUrl}`)
 
-  if (loginFailed) {
-    session.status = 'failed'
-    session.error = 'Invalid email or password'
-    await browser.close()
-    session.browser = null
-    session.page = null
+    if (session.twoFASecret) {
+      // Auto-generate TOTP code
+      log(`Auto-generating TOTP code from secret`)
+      session.status = 'submitting_2fa'
+      const code = generateTOTPCode(session.twoFASecret)
+      log(`Generated TOTP code: ${code}`)
+
+      // Wait a bit more for the page to fully render
+      await sleep(2000)
+      await takeScreenshot(session, page)
+
+      const submitted = await submitCodeOnPage(page, code)
+      if (submitted) {
+        log(`2FA code submitted successfully, waiting...`)
+        await sleep(6000)
+        await takeScreenshot(session, page)
+
+        // Handle "Remember browser?" or "Continue" prompts
+        await handlePostCheckpointPrompts(page)
+
+        // Now capture token
+        await captureTokenAfterLogin(sessionId, capturedToken)
+      } else {
+        log(`Could not find 2FA input field, page may have CAPTCHA`)
+        // Don't fail — still try to capture token, maybe the page moved on
+        session.error = 'Could not find 2FA input field on page'
+        await captureTokenAfterLogin(sessionId, capturedToken)
+      }
+      return
+    }
+
+    // No secret — wait for manual 2FA code
+    session.status = 'needs_2fa'
+    log(`Waiting for manual 2FA code for ${sessionId}`)
     return
   }
 
-  if (needs2FA) {
-    if (session.twoFASecret) {
-      // Auto-generate TOTP code from secret key
-      console.log(`[FBBrowser] 2FA required, auto-generating code from secret for session ${sessionId}`)
-      session.status = 'submitting_2fa'
-      const code = generateTOTPCode(session.twoFASecret)
-      console.log(`[FBBrowser] Generated TOTP code: ${code}`)
-      await autoSubmit2FA(session, page, code)
-      // After auto-submit, try to capture token
-      await captureTokenAfterLogin(sessionId, capturedToken)
-      return
-    }
-    session.status = 'needs_2fa'
-    console.log(`[FBBrowser] 2FA required for session ${sessionId}, waiting for code`)
-    return // Wait for manual 2FA code submission
-  }
-
-  // Login succeeded, try to capture token
+  // Check if we're on the homepage (login succeeded)
+  log(`No 2FA needed, checking if logged in...`)
   await captureTokenAfterLogin(sessionId, capturedToken)
 }
 
 // ==================== TOTP Code Generation ====================
 
 function generateTOTPCode(secret: string): string {
-  // Clean up the secret - remove spaces, dashes, and make uppercase
   const cleanSecret = secret.replace(/[\s-]/g, '').toUpperCase()
 
   const totp = new OTPAuth.TOTP({
@@ -249,89 +333,127 @@ function generateTOTPCode(secret: string): string {
   return totp.generate()
 }
 
-// Auto-submit 2FA code on the page
-async function autoSubmit2FA(session: LoginSession, page: Page, code: string) {
-  try {
-    // Try different 2FA input selectors
-    const selectors = [
-      'input[name="approvals_code"]',
-      'input[id="approvals_code"]',
-      '#approvals_code',
-      'input[type="text"][autocomplete]',
-      'input[type="tel"]',
-      'input[type="number"]',
-    ]
+// ==================== Submit Code on Page ====================
 
-    let inputFound = false
-    for (const selector of selectors) {
-      try {
-        const input = await page.$(selector)
-        if (input) {
-          await input.click({ clickCount: 3 })
-          await input.type(code, { delay: 50 })
-          inputFound = true
-          break
-        }
-      } catch {}
-    }
+async function submitCodeOnPage(page: Page, code: string): Promise<boolean> {
+  // Extended list of selectors for 2FA input
+  const inputSelectors = [
+    'input[name="approvals_code"]',
+    'input[id="approvals_code"]',
+    '#approvals_code',
+    'input[name="code"]',
+    'input[autocomplete="one-time-code"]',
+    'input[type="tel"]',
+    'input[type="number"]',
+    'input[type="text"][autocomplete]',
+    'input[type="text"]',
+  ]
 
-    if (!inputFound) {
-      const inputs = await page.$$('input[type="text"], input[type="tel"], input[type="number"]')
-      for (const input of inputs) {
-        const visible = await input.isVisible()
+  let inputFound = false
+
+  // First try specific selectors
+  for (const selector of inputSelectors) {
+    try {
+      const input = await page.$(selector)
+      if (input) {
+        const visible = await input.isVisible().catch(() => true)
         if (visible) {
           await input.click({ clickCount: 3 })
-          await input.type(code, { delay: 50 })
+          await sleep(200)
+          await input.type(code, { delay: 60 })
           inputFound = true
+          log(`Typed code into: ${selector}`)
           break
         }
       }
-    }
+    } catch {}
+  }
 
-    if (!inputFound) {
-      session.status = 'failed'
-      session.error = 'Could not find 2FA input field'
-      return
-    }
+  // Fallback: find any visible input
+  if (!inputFound) {
+    try {
+      const allInputs = await page.$$('input')
+      for (const input of allInputs) {
+        const visible = await input.isVisible().catch(() => false)
+        if (!visible) continue
+        const type = await input.evaluate((el: any) => el.type)
+        const name = await input.evaluate((el: any) => el.name)
+        // Skip hidden, password, email, submit inputs
+        if (['hidden', 'password', 'email', 'submit', 'checkbox', 'radio', 'file'].includes(type)) continue
+        log(`Fallback: typing into input[name=${name}, type=${type}]`)
+        await input.click({ clickCount: 3 })
+        await sleep(200)
+        await input.type(code, { delay: 60 })
+        inputFound = true
+        break
+      }
+    } catch {}
+  }
 
-    await sleep(500)
+  if (!inputFound) {
+    log(`No input field found for 2FA code`)
+    return false
+  }
 
-    // Click submit button
-    const buttonSelectors = [
-      '#checkpointSubmitButton',
-      'button[type="submit"]',
-      '[data-testid="checkpoint_submit_button"]',
-      'button[name="submit[Continue]"]',
-    ]
+  await sleep(500)
 
-    for (const selector of buttonSelectors) {
-      try {
-        const btn = await page.$(selector)
-        if (btn) {
+  // Click submit button
+  const buttonSelectors = [
+    '#checkpointSubmitButton',
+    'button[type="submit"]',
+    '[data-testid="checkpoint_submit_button"]',
+    'button[name="submit[Continue]"]',
+    'button[value="Continue"]',
+    'input[type="submit"]',
+    '[role="button"][tabindex="0"]',
+  ]
+
+  for (const selector of buttonSelectors) {
+    try {
+      const btn = await page.$(selector)
+      if (btn) {
+        const visible = await btn.isVisible().catch(() => true)
+        if (visible) {
           await btn.click()
+          log(`Clicked submit: ${selector}`)
           break
         }
-      } catch {}
-    }
+      }
+    } catch {}
+  }
 
-    await sleep(5000)
+  return true
+}
 
-    // Take screenshot
-    const screenshot = await page.screenshot({ encoding: 'base64' })
-    session.screenshotBase64 = screenshot as string
+// ==================== Handle Post-Checkpoint Prompts ====================
 
-    // Check for "Remember this browser?" prompt
-    const content = await page.content()
-    if (content.includes('Remember this browser') || content.includes('Save Browser') || content.includes('remember_browser')) {
-      try {
-        const continueBtn = await page.$('button[type="submit"]')
-        if (continueBtn) await continueBtn.click()
+async function handlePostCheckpointPrompts(page: Page) {
+  const content = await page.content()
+  const url = page.url()
+
+  // "Remember this browser?"
+  if (content.includes('Remember') || content.includes('Save Browser') || content.includes('remember_browser') || content.includes('Don\'t Save')) {
+    log(`"Remember browser?" prompt detected, clicking continue...`)
+    try {
+      // Try to click "Continue" / "Save" / first submit button
+      const btn = await page.$('button[type="submit"]')
+      if (btn) {
+        await btn.click()
         await sleep(3000)
-      } catch {}
-    }
-  } catch (err: any) {
-    session.status = 'failed'
-    session.error = `Auto 2FA failed: ${err.message}`
+      }
+    } catch {}
+  }
+
+  // "Check Notifications" or "Where You're Logged In" or other checkpoint follow-ups
+  if (url.includes('checkpoint')) {
+    log(`Still on checkpoint, trying to continue...`)
+    try {
+      const submitBtn = await page.$('button[type="submit"]')
+      if (submitBtn) {
+        await submitBtn.click()
+        await sleep(3000)
+      }
+    } catch {}
   }
 }
 
@@ -344,96 +466,29 @@ export async function submit2FACode(sessionId: string, code: string): Promise<vo
   if (session.status !== 'needs_2fa') throw new Error(`Session is not waiting for 2FA (status: ${session.status})`)
 
   session.status = 'submitting_2fa'
-
   const page = session.page
 
   try {
-    // Try different 2FA input selectors
-    const selectors = [
-      'input[name="approvals_code"]',
-      'input[id="approvals_code"]',
-      '#approvals_code',
-      'input[type="text"][autocomplete]',
-      'input[type="tel"]',
-      'input[type="number"]',
-    ]
+    const submitted = await submitCodeOnPage(page, code)
 
-    let inputFound = false
-    for (const selector of selectors) {
-      try {
-        const input = await page.$(selector)
-        if (input) {
-          await input.click({ clickCount: 3 }) // Select all
-          await input.type(code, { delay: 50 })
-          inputFound = true
-          break
-        }
-      } catch {}
-    }
-
-    if (!inputFound) {
-      // Try to find any visible text input
-      const inputs = await page.$$('input[type="text"], input[type="tel"], input[type="number"]')
-      for (const input of inputs) {
-        const visible = await input.isVisible()
-        if (visible) {
-          await input.click({ clickCount: 3 })
-          await input.type(code, { delay: 50 })
-          inputFound = true
-          break
-        }
-      }
-    }
-
-    if (!inputFound) {
+    if (!submitted) {
       throw new Error('Could not find 2FA input field')
     }
 
-    await sleep(500)
-
-    // Click submit/continue button
-    const buttonSelectors = [
-      '#checkpointSubmitButton',
-      'button[type="submit"]',
-      '[data-testid="checkpoint_submit_button"]',
-      'button[name="submit[Continue]"]',
-    ]
-
-    for (const selector of buttonSelectors) {
-      try {
-        const btn = await page.$(selector)
-        if (btn) {
-          await btn.click()
-          break
-        }
-      } catch {}
-    }
-
-    await sleep(5000)
-
-    // Take screenshot
-    const screenshot = await page.screenshot({ encoding: 'base64' })
-    session.screenshotBase64 = screenshot as string
+    await sleep(6000)
+    await takeScreenshot(session, page)
 
     // Check if still on checkpoint
     const url = page.url()
     const content = await page.content()
 
-    if (url.includes('checkpoint') && (content.includes('approvals_code') || content.includes('Enter Code'))) {
+    if (url.includes('checkpoint') && (content.includes('approvals_code') || content.includes('Enter Code') || content.includes('Enter the code'))) {
       session.status = 'needs_2fa'
       session.error = 'Invalid 2FA code, please try again'
       return
     }
 
-    // Sometimes FB asks "Remember this browser?"
-    if (content.includes('Remember this browser') || content.includes('Save Browser') || content.includes('remember_browser')) {
-      try {
-        // Click "Continue" or "Save" to remember
-        const continueBtn = await page.$('button[type="submit"]')
-        if (continueBtn) await continueBtn.click()
-        await sleep(3000)
-      } catch {}
-    }
+    await handlePostCheckpointPrompts(page)
 
     // Capture token
     await captureTokenAfterLogin(sessionId, null)
@@ -442,6 +497,15 @@ export async function submit2FACode(sessionId: string, code: string): Promise<vo
     session.error = err.message
     await cleanupSession(sessionId)
   }
+}
+
+// ==================== Take Screenshot Helper ====================
+
+async function takeScreenshot(session: LoginSession, page: Page) {
+  try {
+    const screenshot = await page.screenshot({ encoding: 'base64' })
+    session.screenshotBase64 = screenshot as string
+  } catch {}
 }
 
 // ==================== Capture Token After Login ====================
@@ -454,94 +518,69 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
   const page = session.page
 
   let token = preExistingToken
+  log(`Capturing token, pre-existing: ${token ? 'yes' : 'no'}`)
 
-  // If we don't have a token yet, navigate to pages that trigger Graph API calls
+  // Try extracting token from current page scripts first
+  if (!token) {
+    token = await extractTokenFromPage(page)
+  }
+
+  // Navigate to business.facebook.com
   if (!token) {
     try {
-      // Navigate to business.facebook.com to trigger API calls with tokens
+      log(`Navigating to business.facebook.com...`)
       await page.goto('https://business.facebook.com/latest/home', { waitUntil: 'networkidle2', timeout: 20000 })
       await sleep(3000)
+      await takeScreenshot(session, page)
+      token = await extractTokenFromPage(page)
+    } catch (e: any) {
+      log(`business.facebook.com failed: ${e.message}`)
+    }
+  }
+
+  // Navigate to Ads Manager
+  if (!token) {
+    try {
+      log(`Navigating to Ads Manager...`)
+      await page.goto('https://www.facebook.com/adsmanager', { waitUntil: 'networkidle2', timeout: 20000 })
+      await sleep(5000)
+      await takeScreenshot(session, page)
+      token = await extractTokenFromPage(page)
+    } catch (e: any) {
+      log(`Ads Manager failed: ${e.message}`)
+    }
+  }
+
+  // Try facebook.com/me page (simpler, should trigger token)
+  if (!token) {
+    try {
+      log(`Navigating to facebook.com for token extraction...`)
+      await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 15000 })
+      await sleep(3000)
+      token = await extractTokenFromPage(page)
     } catch {}
   }
 
-  // Try getting token from cookies
+  // Check if logged in via c_user cookie
   if (!token) {
     try {
       const cookies = await page.cookies('https://www.facebook.com')
-      // Check for access token in cookies/localStorage
-      const accessToken = await page.evaluate(() => {
-        // Try to get token from various sources
-        try {
-          // Try __accessToken
-          const scripts = document.querySelectorAll('script')
-          for (const script of scripts) {
-            const text = script.textContent || ''
-            const match = text.match(/"accessToken":"(EAA[^"]+)"/)
-            if (match) return match[1]
-            const match2 = text.match(/"access_token":"(EAA[^"]+)"/)
-            if (match2) return match2[1]
-          }
-        } catch {}
-        return null
-      })
-      if (accessToken) {
-        token = accessToken
-        console.log(`[FBBrowser] Captured token from page scripts: ${token.substring(0, 20)}...`)
-      }
-    } catch {}
-  }
+      const cUser = cookies.find(c => c.name === 'c_user')
 
-  // Try making a direct Graph API call using the cookies session
-  if (!token) {
-    try {
-      // Use Ads Manager which requires and provides access tokens
-      await page.goto('https://adsmanager.facebook.com/adsmanager/manage/campaigns', { waitUntil: 'networkidle2', timeout: 20000 })
-      await sleep(5000)
+      if (cUser) {
+        log(`Logged in as c_user=${cUser.value}, trying inline fetch for token...`)
 
-      // Try to extract token from the page
-      const tokenFromPage = await page.evaluate(() => {
-        try {
-          const scripts = document.querySelectorAll('script')
-          for (const script of scripts) {
-            const text = script.textContent || ''
-            const match = text.match(/(EAA[A-Za-z0-9]{30,})/)
-            if (match) return match[1]
-          }
-          // Try window.__accessToken or similar globals
-          const win = window as any
-          if (win.__accessToken) return win.__accessToken
-          if (win.__eaaid) return win.__eaaid
-        } catch {}
-        return null
-      })
-
-      if (tokenFromPage) {
-        token = tokenFromPage
-        console.log(`[FBBrowser] Captured token from Ads Manager: ${token.substring(0, 20)}...`)
-      }
-    } catch {}
-  }
-
-  // Take final screenshot
-  try {
-    const screenshot = await page.screenshot({ encoding: 'base64' })
-    session.screenshotBase64 = screenshot as string
-  } catch {}
-
-  if (!token) {
-    // Check if we're actually logged in by checking cookies
-    const cookies = await page.cookies('https://www.facebook.com')
-    const cUser = cookies.find(c => c.name === 'c_user')
-
-    if (cUser) {
-      // We're logged in but couldn't capture token — try the access token endpoint
-      try {
-        const fbUserId = cUser.value
-        // Try getting an access token through the graph API debug endpoint
-        const result = await page.evaluate(async (userId: string) => {
+        // Try fetching a Graph API endpoint from within the page context
+        const fetchedToken = await page.evaluate(async () => {
           try {
-            const resp = await fetch(`https://www.facebook.com/ajax/bootloader-endpoint/?modules=fb-lite-bootstrapping`, {
-              credentials: 'include'
+            // Try to get DTSGs and access tokens from the page
+            const html = document.documentElement.innerHTML
+            const match = html.match(/(EAA[A-Za-z0-9]{30,})/)
+            if (match) return match[1]
+
+            // Try fetching a lightweight endpoint
+            const resp = await fetch('https://www.facebook.com/ajax/browser/list/homesidebar/', {
+              credentials: 'include',
             })
             const text = await resp.text()
             const tokenMatch = text.match(/(EAA[A-Za-z0-9]{30,})/)
@@ -549,24 +588,32 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
           } catch {
             return null
           }
-        }, fbUserId)
+        })
 
-        if (result) {
-          token = result
+        if (fetchedToken) {
+          token = fetchedToken
+          log(`Captured token from inline fetch: ${token.substring(0, 20)}...`)
         }
-      } catch {}
-    }
+      } else {
+        log(`Not logged in — no c_user cookie found`)
+      }
+    } catch {}
+  }
 
-    if (!token) {
-      session.status = 'failed'
-      session.error = 'Logged in but could not capture access token. Try using the Ads Manager URL method or paste token manually.'
-      await cleanupSession(sessionId)
-      return
-    }
+  // Final screenshot
+  await takeScreenshot(session, page)
+
+  if (!token) {
+    session.status = 'failed'
+    session.error = 'Logged in but could not capture access token. Try pasting the token manually on the Extensions page.'
+    log(`Failed to capture token for ${sessionId}`)
+    await cleanupSession(sessionId)
+    return
   }
 
   // Validate and exchange token
   try {
+    log(`Validating token...`)
     const validateRes = await fetch(`${FB_GRAPH_BASE}/me?fields=id,name&access_token=${encodeURIComponent(token)}`)
     const validateData = await validateRes.json() as any
 
@@ -579,6 +626,7 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
 
     session.fbName = validateData.name
     session.fbUserId = validateData.id
+    log(`Token valid: ${validateData.name} (${validateData.id})`)
 
     // Exchange for long-lived token
     let finalToken = token
@@ -592,7 +640,7 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
         const exchangeData = await exchangeRes.json() as any
         if (exchangeData.access_token) {
           finalToken = exchangeData.access_token
-          console.log(`[FBBrowser] Token exchanged for long-lived`)
+          log(`Token exchanged for long-lived`)
         }
       } catch {}
     }
@@ -617,15 +665,46 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
     })
 
     session.status = 'success'
-    console.log(`[FBBrowser] Login complete: ${validateData.name} (${validateData.id})`)
-
+    log(`Login complete: ${validateData.name} (${validateData.id})`)
   } catch (err: any) {
     session.status = 'failed'
     session.error = err.message
+    log(`Token validation error: ${err.message}`)
   }
 
   // Close browser
   await cleanupSession(sessionId)
+}
+
+// ==================== Extract Token From Page ====================
+
+async function extractTokenFromPage(page: Page): Promise<string | null> {
+  try {
+    const token = await page.evaluate(() => {
+      try {
+        const html = document.documentElement.innerHTML
+        // Look for access token patterns in the page source
+        const patterns = [
+          /"accessToken":"(EAA[^"]+)"/,
+          /"access_token":"(EAA[^"]+)"/,
+          /access_token=(EAA[A-Za-z0-9]+)/,
+          /(EAA[A-Za-z0-9]{30,})/,
+        ]
+        for (const pattern of patterns) {
+          const match = html.match(pattern)
+          if (match) return match[1]
+        }
+      } catch {}
+      return null
+    })
+
+    if (token) {
+      log(`Extracted token from page: ${token.substring(0, 20)}...`)
+    }
+    return token
+  } catch {
+    return null
+  }
 }
 
 // ==================== Get Login Status ====================
