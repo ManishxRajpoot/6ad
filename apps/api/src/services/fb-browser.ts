@@ -193,6 +193,42 @@ async function setupCDPTokenCapture(page: Page, session: LoginSession): Promise<
   const client = await page.createCDPSession()
   await client.send('Network.enable')
 
+  // PRIMARY: Listen to outgoing REQUESTS — this is where tokens appear
+  // (matching how the Chrome extension captures tokens)
+  client.on('Network.requestWillBeSent', (params: any) => {
+    try {
+      const url = params.request?.url || ''
+      const postData = params.request?.postData || ''
+
+      // Check URL params for token
+      const urlMatch = url.match(/access_token=(EAA[a-zA-Z0-9%_-]+)/)
+      if (urlMatch) {
+        try {
+          const token = decodeURIComponent(urlMatch[1])
+          if (token.startsWith('EAA') && token.length > 30 && token.length < 500) {
+            session.networkToken = token
+            log(`[CDP] Token from request URL: ${token.substring(0, 25)}...`)
+          }
+        } catch {}
+      }
+
+      // Check POST body for token (most common — FB sends tokens in POST data)
+      if (postData && postData.includes('access_token=EAA')) {
+        const bodyMatch = postData.match(/access_token=(EAA[a-zA-Z0-9%_-]+)/)
+        if (bodyMatch) {
+          try {
+            const token = decodeURIComponent(bodyMatch[1])
+            if (token.startsWith('EAA') && token.length > 30 && token.length < 500) {
+              session.networkToken = token
+              log(`[CDP] Token from request body: ${token.substring(0, 25)}...`)
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  })
+
+  // SECONDARY: Also check response bodies (belt and suspenders)
   client.on('Network.responseReceived', async (params: any) => {
     const url = params.response.url || ''
 
@@ -203,7 +239,7 @@ async function setupCDPTokenCapture(page: Page, session: LoginSession): Promise<
         const t = urlObj.searchParams.get('access_token')
         if (t && t.startsWith('EAA') && t.length > 30) {
           session.networkToken = t
-          log(`[CDP] Token from URL param: ${t.substring(0, 25)}...`)
+          log(`[CDP] Token from response URL: ${t.substring(0, 25)}...`)
         }
       } catch {}
     }
@@ -219,7 +255,7 @@ async function setupCDPTokenCapture(page: Page, session: LoginSession): Promise<
           for (const t of matches) {
             if (t.length > 30 && t.length < 500) {
               session.networkToken = t
-              log(`[CDP] Token from response (${url.substring(0, 60)}): ${t.substring(0, 25)}...`)
+              log(`[CDP] Token from response body (${url.substring(0, 50)}): ${t.substring(0, 25)}...`)
             }
           }
         }
@@ -810,6 +846,65 @@ async function takeScreenshot(session: LoginSession, page: Page) {
   } catch {}
 }
 
+// ==================== BM Page Interaction Helper ====================
+// Facebook SPA pages only make token-containing API calls when the user interacts.
+// This simulates clicks/scrolls to trigger those AJAX calls.
+
+async function interactWithPage(page: Page, session: LoginSession) {
+  if (session.networkToken) return // Already got token
+
+  log(`Interacting with page to trigger API calls...`)
+
+  // Click on various tabs, links, buttons that trigger AJAX
+  const clickTargets = [
+    // Ads Manager tabs
+    'a[href*="campaigns"]',
+    'a[href*="adsets"]',
+    'a[href*="ads"]',
+    '[role="tab"]',
+    // BM navigation
+    'a[href*="settings"]',
+    'a[href*="ad_accounts"]',
+    'a[href*="business_users"]',
+    // Generic interactive elements
+    '[data-testid]',
+    'button[aria-label]',
+  ]
+
+  for (const sel of clickTargets) {
+    if (session.networkToken) {
+      log(`Token captured during interaction!`)
+      return
+    }
+    try {
+      const els = await page.$$(sel)
+      if (els.length > 0) {
+        // Click the first visible one
+        for (const el of els.slice(0, 2)) {
+          try {
+            const box = await el.boundingBox()
+            if (box && box.width > 0 && box.height > 0) {
+              await el.click()
+              log(`Clicked: ${sel}`)
+              await sleep(2000) // Wait for AJAX response
+              if (session.networkToken) return
+              break
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  // Scroll down to trigger lazy-loaded content
+  try {
+    await page.evaluate(() => window.scrollBy(0, 500))
+    await sleep(2000)
+    await page.evaluate(() => window.scrollBy(0, 500))
+    await sleep(2000)
+  } catch {}
+}
+
 // ==================== Capture Token After Login ====================
 
 async function captureTokenAfterLogin(sessionId: string) {
@@ -843,7 +938,7 @@ async function captureTokenAfterLogin(sessionId: string) {
     log(`Using CDP-intercepted token`)
   }
 
-  // ===== STRATEGY 2: Load Ads Manager (triggers XHR with tokens) =====
+  // ===== STRATEGY 2: Load Ads Manager + interact to trigger API calls =====
   if (!token) {
     try {
       const curUrl = page.url()
@@ -851,9 +946,12 @@ async function captureTokenAfterLogin(sessionId: string) {
         log(`Navigating to adsmanager.facebook.com...`)
         await page.goto('https://adsmanager.facebook.com/adsmanager/manage/campaigns', { waitUntil: 'networkidle2', timeout: 30000 })
       }
-      // Ads Manager is a SPA — wait for AJAX calls
-      log(`Waiting 12s for Ads Manager AJAX calls...`)
-      await sleep(12000)
+      // Wait for initial SPA load
+      log(`Waiting 8s for Ads Manager initial load...`)
+      await sleep(8000)
+
+      // Interact with the page to trigger AJAX calls containing tokens
+      await interactWithPage(page, session)
       await takeScreenshot(session, page)
 
       // Check CDP interceptor
@@ -876,7 +974,8 @@ async function captureTokenAfterLogin(sessionId: string) {
     try {
       log(`Trying business.facebook.com/settings/ad-accounts...`)
       await page.goto('https://business.facebook.com/latest/settings/ad_accounts', { waitUntil: 'networkidle2', timeout: 25000 })
-      await sleep(8000)
+      await sleep(5000)
+      await interactWithPage(page, session)
       await takeScreenshot(session, page)
 
       if (session.networkToken) {
@@ -896,7 +995,8 @@ async function captureTokenAfterLogin(sessionId: string) {
     try {
       log(`Trying business.facebook.com/settings/business_users...`)
       await page.goto('https://business.facebook.com/latest/settings/business_users', { waitUntil: 'networkidle2', timeout: 25000 })
-      await sleep(8000)
+      await sleep(5000)
+      await interactWithPage(page, session)
       await takeScreenshot(session, page)
 
       if (session.networkToken) {
