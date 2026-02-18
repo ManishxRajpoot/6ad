@@ -201,14 +201,17 @@ async function performLogin(sessionId: string, email: string, password: string) 
 
   session.status = 'logging_in'
 
-  // Use m.facebook.com (mobile) — simpler HTML, less bot detection, more reliable selectors
-  await page.goto('https://m.facebook.com/login/', { waitUntil: 'networkidle2', timeout: 30000 })
+  // ==========================================================
+  // LOGIN ON www.facebook.com (NOT mobile) — keeps cookies on same domain
+  // ==========================================================
+  log(`Navigating to www.facebook.com...`)
+  await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 })
   log(`Page loaded: ${page.url()}`)
 
   // Take screenshot to see what we got
   await takeScreenshot(session, page)
 
-  // Close cookie dialog if present (try multiple selectors)
+  // Close cookie dialog if present
   try {
     const cookieSelectors = [
       '[data-cookiebanner="accept_button"]',
@@ -216,12 +219,14 @@ async function performLogin(sessionId: string, email: string, password: string) 
       '[title="Allow all cookies"]',
       '[value="Accept All"]',
       'button[name="accept"]',
+      'button[title="Decline optional cookies"]',
+      'button[title="Only allow essential cookies"]',
     ]
     for (const sel of cookieSelectors) {
       const btn = await page.$(sel)
       if (btn) {
         await btn.click()
-        log(`Clicked cookie accept: ${sel}`)
+        log(`Clicked cookie button: ${sel}`)
         await sleep(1500)
         break
       }
@@ -230,9 +235,18 @@ async function performLogin(sessionId: string, email: string, password: string) 
 
   await sleep(1000)
 
-  // Find and fill email — try multiple selectors
-  const emailSelectors = ['#email', '#m_login_email', 'input[name="email"]', 'input[type="email"]', 'input[type="text"]']
+  // Find email input — robust approach with retries
+  const emailSelectors = [
+    '#email',
+    'input[name="email"]',
+    'input[type="email"]',
+    'input[data-testid="royal_email"]',
+    'input[type="text"]',
+  ]
+
   let emailInput = null
+
+  // First try: check existing DOM
   for (const sel of emailSelectors) {
     try {
       emailInput = await page.$(sel)
@@ -247,8 +261,46 @@ async function performLogin(sessionId: string, email: string, password: string) 
     } catch {}
   }
 
+  // Second try: wait up to 10s for #email to appear
   if (!emailInput) {
-    // Last resort: take screenshot and fail with useful error
+    log(`Email input not found immediately, waiting up to 10s...`)
+    try {
+      emailInput = await page.waitForSelector('#email, input[name="email"]', { visible: true, timeout: 10000 })
+      log(`Found email input after waiting`)
+    } catch {
+      log(`Still no email input after 10s wait`)
+    }
+  }
+
+  // Third try: navigate to /login page explicitly
+  if (!emailInput) {
+    log(`Trying /login page...`)
+    try {
+      await page.goto('https://www.facebook.com/login/', { waitUntil: 'networkidle2', timeout: 15000 })
+      await sleep(2000)
+      await takeScreenshot(session, page)
+
+      emailInput = await page.waitForSelector('#email, input[name="email"], input[type="text"]', { visible: true, timeout: 10000 })
+      log(`Found email input on /login page`)
+    } catch {
+      log(`/login page also failed`)
+    }
+  }
+
+  // Fourth try: use m.facebook.com as absolute last resort, but we'll handle cookies
+  if (!emailInput) {
+    log(`Falling back to m.facebook.com...`)
+    try {
+      await page.goto('https://m.facebook.com/login/', { waitUntil: 'networkidle2', timeout: 15000 })
+      await sleep(2000)
+      await takeScreenshot(session, page)
+
+      emailInput = await page.waitForSelector('#m_login_email, input[name="email"], input[type="text"]', { visible: true, timeout: 10000 })
+      log(`Found email input on m.facebook.com`)
+    } catch {}
+  }
+
+  if (!emailInput) {
     await takeScreenshot(session, page)
     const html = await page.content()
     log(`Could not find email input. Page URL: ${page.url()}, HTML length: ${html.length}`)
@@ -288,7 +340,11 @@ async function performLogin(sessionId: string, email: string, password: string) 
   await passInput.type(password, { delay: 70 + Math.random() * 50 })
   await sleep(1000)
 
-  // Click login button — try multiple selectors
+  // Remember which domain we logged in on (for cookie handling later)
+  const loginDomain = page.url().includes('m.facebook.com') ? 'm.facebook.com' : 'www.facebook.com'
+  log(`Login domain: ${loginDomain}`)
+
+  // Click login button
   const loginBtnSelectors = ['[name="login"]', 'button[data-testid="royal_login_button"]', 'button[type="submit"]', 'input[type="submit"]', '#loginbutton']
   for (const sel of loginBtnSelectors) {
     try {
@@ -363,12 +419,12 @@ async function performLogin(sessionId: string, email: string, password: string) 
         await handlePostCheckpointPrompts(page)
 
         // Now capture token
-        await captureTokenAfterLogin(sessionId, capturedToken)
+        await captureTokenAfterLogin(sessionId, capturedToken, loginDomain)
       } else {
         log(`Could not find 2FA input field, page may have CAPTCHA`)
         // Don't fail — still try to capture token, maybe the page moved on
         session.error = 'Could not find 2FA input field on page'
-        await captureTokenAfterLogin(sessionId, capturedToken)
+        await captureTokenAfterLogin(sessionId, capturedToken, loginDomain)
       }
       return
     }
@@ -381,7 +437,7 @@ async function performLogin(sessionId: string, email: string, password: string) 
 
   // Check if we're on the homepage (login succeeded)
   log(`No 2FA needed, checking if logged in...`)
-  await captureTokenAfterLogin(sessionId, capturedToken)
+  await captureTokenAfterLogin(sessionId, capturedToken, loginDomain)
 }
 
 // ==================== TOTP Code Generation ====================
@@ -496,32 +552,40 @@ async function submitCodeOnPage(page: Page, code: string): Promise<boolean> {
 // ==================== Handle Post-Checkpoint Prompts ====================
 
 async function handlePostCheckpointPrompts(page: Page) {
-  const content = await page.content()
-  const url = page.url()
+  // Multiple rounds of checkpoint prompts
+  for (let i = 0; i < 3; i++) {
+    const content = await page.content()
+    const url = page.url()
 
-  // "Remember this browser?"
-  if (content.includes('Remember') || content.includes('Save Browser') || content.includes('remember_browser') || content.includes('Don\'t Save')) {
-    log(`"Remember browser?" prompt detected, clicking continue...`)
-    try {
-      // Try to click "Continue" / "Save" / first submit button
-      const btn = await page.$('button[type="submit"]')
-      if (btn) {
-        await btn.click()
-        await sleep(3000)
-      }
-    } catch {}
-  }
+    if (!url.includes('checkpoint') && !content.includes('Remember') && !content.includes('Save Browser')) {
+      break
+    }
 
-  // "Check Notifications" or "Where You're Logged In" or other checkpoint follow-ups
-  if (url.includes('checkpoint')) {
-    log(`Still on checkpoint, trying to continue...`)
-    try {
-      const submitBtn = await page.$('button[type="submit"]')
-      if (submitBtn) {
-        await submitBtn.click()
-        await sleep(3000)
-      }
-    } catch {}
+    log(`Post-checkpoint prompt round ${i + 1}, URL: ${url}`)
+
+    // "Remember this browser?"
+    if (content.includes('Remember') || content.includes('Save Browser') || content.includes('remember_browser') || content.includes('Don\'t Save')) {
+      log(`"Remember browser?" prompt detected, clicking continue...`)
+      try {
+        const btn = await page.$('button[type="submit"]')
+        if (btn) {
+          await btn.click()
+          await sleep(3000)
+        }
+      } catch {}
+    }
+
+    // "Check Notifications" or "Where You're Logged In" or other checkpoint follow-ups
+    if (url.includes('checkpoint')) {
+      log(`Still on checkpoint, trying to continue...`)
+      try {
+        const submitBtn = await page.$('button[type="submit"]')
+        if (submitBtn) {
+          await submitBtn.click()
+          await sleep(3000)
+        }
+      } catch {}
+    }
   }
 }
 
@@ -558,8 +622,11 @@ export async function submit2FACode(sessionId: string, code: string): Promise<vo
 
     await handlePostCheckpointPrompts(page)
 
+    // Determine login domain from current URL
+    const loginDomain = page.url().includes('m.facebook.com') ? 'm.facebook.com' : 'www.facebook.com'
+
     // Capture token
-    await captureTokenAfterLogin(sessionId, null)
+    await captureTokenAfterLogin(sessionId, null, loginDomain)
   } catch (err: any) {
     session.status = 'failed'
     session.error = err.message
@@ -576,35 +643,9 @@ async function takeScreenshot(session: LoginSession, page: Page) {
   } catch {}
 }
 
-// ==================== Copy Cookies Between Domains ====================
-
-async function copyCookiesToDomain(page: Page, fromDomain: string, toDomains: string[]) {
-  try {
-    // Get all cookies from the source domain
-    const cookies = await page.cookies(`https://${fromDomain}`)
-    log(`Found ${cookies.length} cookies from ${fromDomain}`)
-
-    if (cookies.length === 0) return
-
-    // Copy cookies to each target domain
-    for (const targetDomain of toDomains) {
-      const newCookies = cookies.map(cookie => ({
-        ...cookie,
-        domain: `.facebook.com`, // Set to root domain so all subdomains can access
-        url: `https://${targetDomain}`,
-      }))
-
-      await page.setCookie(...newCookies)
-      log(`Copied ${newCookies.length} cookies to ${targetDomain}`)
-    }
-  } catch (e: any) {
-    log(`Cookie copy error: ${e.message}`)
-  }
-}
-
 // ==================== Capture Token After Login ====================
 
-async function captureTokenAfterLogin(sessionId: string, preExistingToken: string | null) {
+async function captureTokenAfterLogin(sessionId: string, preExistingToken: string | null, loginDomain: string) {
   const session = activeSessions.get(sessionId)
   if (!session || !session.page || !session.browser) return
 
@@ -613,161 +654,182 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
 
   let token = preExistingToken
   const currentUrl = page.url()
-  log(`Capturing token, pre-existing: ${token ? 'yes' : 'no'}, current URL: ${currentUrl}`)
+  log(`Capturing token, pre-existing: ${token ? 'yes' : 'no'}, current URL: ${currentUrl}, loginDomain: ${loginDomain}`)
 
-  // Step 1: Try extracting token from current page (wherever we are after login/2FA)
+  // Step 0: Check if we have a c_user cookie (confirms we're logged in)
+  const allCookies = await page.cookies()
+  const cUserCookie = allCookies.find(c => c.name === 'c_user')
+  const xsCookie = allCookies.find(c => c.name === 'xs')
+  log(`Auth cookies: c_user=${cUserCookie ? `${cUserCookie.value}@${cUserCookie.domain}` : 'NONE'}, xs=${xsCookie ? `present@${xsCookie.domain}` : 'NONE'}`)
+
+  // If we logged in on m.facebook.com, cookies are set for .facebook.com root domain
+  // BUT we need to navigate to www.facebook.com to get the token
+  // First, let's try to set cookies on www.facebook.com explicitly
+  if (loginDomain === 'm.facebook.com' && cUserCookie) {
+    log(`Logged in on m.facebook.com, transferring cookies to www.facebook.com...`)
+    try {
+      // Get ALL cookies and re-set them for www.facebook.com with .facebook.com domain
+      const mCookies = await page.cookies('https://m.facebook.com')
+      const importantCookies = mCookies.filter(c =>
+        ['c_user', 'xs', 'fr', 'datr', 'sb', 'wd', 'spin', 'presence'].includes(c.name)
+      )
+
+      for (const cookie of importantCookies) {
+        try {
+          await page.setCookie({
+            name: cookie.name,
+            value: cookie.value,
+            domain: '.facebook.com',
+            path: cookie.path,
+            httpOnly: cookie.httpOnly,
+            secure: cookie.secure,
+            sameSite: cookie.sameSite as any,
+            expires: cookie.expires,
+          })
+        } catch {}
+      }
+      log(`Transferred ${importantCookies.length} auth cookies to .facebook.com`)
+    } catch (e: any) {
+      log(`Cookie transfer error: ${e.message}`)
+    }
+  }
+
+  // Step 1: Try extracting token from current page
   if (!token) {
     token = await extractTokenFromPage(page)
   }
 
-  // Step 1.5: Copy cookies from m.facebook.com to www/business subdomains
-  // This is critical — login on m.facebook.com sets cookies for m.facebook.com,
-  // but www.facebook.com and business.facebook.com need their own cookies
-  const sourceDomain = currentUrl.includes('m.facebook.com') ? 'm.facebook.com' : 'www.facebook.com'
-  log(`Copying cookies from ${sourceDomain} to other FB domains...`)
-  await copyCookiesToDomain(page, sourceDomain, [
-    'www.facebook.com',
-    'business.facebook.com',
-    'web.facebook.com',
-  ])
-
-  // Step 2: Navigate to www.facebook.com homepage (cookies now copied)
+  // Step 2: Navigate to www.facebook.com homepage
   if (!token) {
     try {
       log(`Navigating to www.facebook.com...`)
       await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 20000 })
       await sleep(3000)
       await takeScreenshot(session, page)
-      token = await extractTokenFromPage(page)
+
+      // Check if we're actually logged in
+      const afterUrl = page.url()
+      const afterContent = await page.content()
+      const isLoggedIn = !afterUrl.includes('/login') && !afterContent.includes('Log in to Facebook') && !afterContent.includes('Log Into Facebook')
+      log(`www.facebook.com loaded: ${afterUrl}, logged in: ${isLoggedIn}`)
+
+      if (isLoggedIn) {
+        token = await extractTokenFromPage(page)
+      } else {
+        log(`NOT logged in on www.facebook.com — cookie transfer may have failed`)
+      }
     } catch (e: any) {
       log(`www.facebook.com navigation failed: ${e.message}`)
     }
   }
 
-  // Step 3: Check c_user cookie to confirm we're logged in, then try inline fetches
-  if (!token) {
-    try {
-      const cookies = await page.cookies('https://www.facebook.com')
-      const cUser = cookies.find(c => c.name === 'c_user')
-
-      if (cUser) {
-        log(`Logged in as c_user=${cUser.value}, trying inline fetches for token...`)
-
-        // Method A: Try fetching Facebook API endpoints from within the page (cookies auto-sent)
-        const fetchedToken = await page.evaluate(async () => {
-          try {
-            // Try fetching a page that always includes access token
-            const resp = await fetch('https://www.facebook.com/adsmanager/manage/campaigns', {
-              credentials: 'include',
-              redirect: 'follow',
-            })
-            const text = await resp.text()
-            const tokenMatch = text.match(/(EAA[A-Za-z0-9]{30,})/)
-            if (tokenMatch) return tokenMatch[1]
-
-            // Try another endpoint
-            const resp2 = await fetch('https://www.facebook.com/ajax/bootloader-endpoint/?modules=AdsLWIManagerContainer', {
-              credentials: 'include',
-            })
-            const text2 = await resp2.text()
-            const tokenMatch2 = text2.match(/(EAA[A-Za-z0-9]{30,})/)
-            if (tokenMatch2) return tokenMatch2[1]
-
-            return null
-          } catch {
-            return null
-          }
-        })
-
-        if (fetchedToken) {
-          token = fetchedToken
-          log(`Captured token via inline fetch: ${token.substring(0, 20)}...`)
-        }
-      } else {
-        log(`Not logged in — no c_user cookie found on www.facebook.com`)
-
-        // Extra debug: list all cookies we have
-        const allCookies = await page.cookies()
-        const fbCookies = allCookies.filter(c => c.name === 'c_user' || c.name === 'xs' || c.name === 'fr')
-        log(`Available FB auth cookies: ${fbCookies.map(c => `${c.name}@${c.domain}`).join(', ') || 'NONE'}`)
-      }
-    } catch {}
-  }
-
-  // Step 4: Navigate to Ads Manager on same domain (www.facebook.com/adsmanager)
+  // Step 3: Try Ads Manager (most reliable for EAA tokens)
   if (!token) {
     try {
       log(`Navigating to www.facebook.com/adsmanager...`)
-      await page.goto('https://www.facebook.com/adsmanager/manage/campaigns', { waitUntil: 'networkidle2', timeout: 20000 })
+      await page.goto('https://www.facebook.com/adsmanager/manage/campaigns', { waitUntil: 'networkidle2', timeout: 25000 })
       await sleep(5000)
       await takeScreenshot(session, page)
       token = await extractTokenFromPage(page)
+
+      // Also check the network interceptor
+      if (!token && capturedToken) {
+        token = capturedToken
+        log(`Got token from network interceptor during ads manager load`)
+      }
     } catch (e: any) {
       log(`Ads Manager failed: ${e.message}`)
     }
   }
 
+  // Step 4: Try inline fetch from page context (uses cookies automatically)
+  if (!token) {
+    try {
+      log(`Trying inline fetch from page context...`)
+      const fetchedToken = await page.evaluate(async () => {
+        try {
+          // Try Ads Manager API
+          const resp = await fetch('/adsmanager/manage/campaigns', {
+            credentials: 'include',
+            redirect: 'follow',
+          })
+          const text = await resp.text()
+          const match = text.match(/(EAA[A-Za-z0-9]{30,})/)
+          if (match) return match[1]
+        } catch {}
+
+        try {
+          // Try the home page
+          const resp2 = await fetch('/', { credentials: 'include' })
+          const text2 = await resp2.text()
+          const match2 = text2.match(/(EAA[A-Za-z0-9]{30,})/)
+          if (match2) return match2[1]
+        } catch {}
+
+        return null
+      })
+
+      if (fetchedToken) {
+        token = fetchedToken
+        log(`Got token via inline fetch: ${token.substring(0, 20)}...`)
+      }
+    } catch {}
+  }
+
   // Step 5: Try business.facebook.com
   if (!token) {
     try {
-      log(`Navigating to business.facebook.com...`)
+      log(`Trying business.facebook.com...`)
       await page.goto('https://business.facebook.com/latest/home', { waitUntil: 'networkidle2', timeout: 20000 })
       await sleep(3000)
       await takeScreenshot(session, page)
       token = await extractTokenFromPage(page)
+
+      if (!token && capturedToken) {
+        token = capturedToken
+      }
     } catch (e: any) {
       log(`business.facebook.com failed: ${e.message}`)
     }
   }
 
-  // Step 6: Try m.facebook.com specific pages that might have tokens
-  if (!token) {
+  // Step 6: If we were on m.facebook.com, try mobile-specific pages
+  if (!token && loginDomain === 'm.facebook.com') {
     try {
-      log(`Trying m.facebook.com/adsmanager...`)
-      await page.goto('https://m.facebook.com/adsmanager', { waitUntil: 'networkidle2', timeout: 20000 })
-      await sleep(3000)
-      await takeScreenshot(session, page)
+      log(`Trying m.facebook.com pages for token...`)
+      await page.goto('https://m.facebook.com/', { waitUntil: 'networkidle2', timeout: 15000 })
+      await sleep(2000)
       token = await extractTokenFromPage(page)
-    } catch (e: any) {
-      log(`m.facebook.com/adsmanager failed: ${e.message}`)
-    }
+    } catch {}
   }
 
-  // Step 7: Last resort — try www.facebook.com with direct Graph API call from page
+  // Step 7: Try extracting from script tags explicitly
   if (!token) {
     try {
-      log(`Last resort: trying Graph API discover from page context...`)
-      // Navigate back to www.facebook.com first
-      await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 15000 })
-      await sleep(2000)
-
-      // Try to extract the EAAG token from DTSGInitData or similar
-      const pageToken = await page.evaluate(() => {
-        try {
-          // Look through all script elements
-          const scripts = document.querySelectorAll('script')
-          for (const script of scripts) {
-            const text = script.textContent || ''
-            const match = text.match(/(EAA[A-Za-z0-9]{30,})/)
-            if (match) return match[1]
-          }
-          // Check window.__accessToken or similar globals
-          const w = window as any
-          if (w.__accessToken) return w.__accessToken
-          if (w.Env?.api_key) {
-            // Not the token but could help
-          }
-        } catch {}
+      log(`Scanning all script tags for EAA tokens...`)
+      const scriptToken = await page.evaluate(() => {
+        const scripts = document.querySelectorAll('script')
+        for (const script of scripts) {
+          const text = script.textContent || ''
+          const match = text.match(/(EAA[A-Za-z0-9]{30,})/)
+          if (match) return match[1]
+        }
+        // Check window globals
+        const w = window as any
+        if (w.__accessToken) return w.__accessToken
         return null
       })
-
-      if (pageToken) {
-        token = pageToken
+      if (scriptToken) {
+        token = scriptToken
         log(`Got token from script tags: ${token.substring(0, 20)}...`)
       }
-    } catch (e: any) {
-      log(`Last resort failed: ${e.message}`)
-    }
+    } catch {}
+  }
+
+  // Final: check network interceptor one more time
+  if (!token && capturedToken) {
+    token = capturedToken
+    log(`Using token from network interceptor: ${token.substring(0, 20)}...`)
   }
 
   // Final screenshot
@@ -783,7 +845,7 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
 
   // Validate and exchange token
   try {
-    log(`Validating token...`)
+    log(`Validating token: ${token.substring(0, 20)}...`)
     const validateRes = await fetch(`${FB_GRAPH_BASE}/me?fields=id,name&access_token=${encodeURIComponent(token)}`)
     const validateData = await validateRes.json() as any
 
