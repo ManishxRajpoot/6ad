@@ -28,7 +28,13 @@ app.get('/sessions', async (c) => {
       orderBy: { createdAt: 'desc' }
     })
 
-    return c.json({ sessions })
+    // Don't expose actual token, just whether one exists
+    const safeSessions = sessions.map(s => ({
+      ...s,
+      fbAccessToken: s.fbAccessToken ? 'has_token' : null,
+    }))
+
+    return c.json({ sessions: safeSessions })
   } catch (error: any) {
     console.error('Get extension sessions error:', error)
     return c.json({ error: 'Failed to get sessions' }, 500)
@@ -89,6 +95,142 @@ app.delete('/sessions/:id', async (c) => {
   } catch (error: any) {
     console.error('Deactivate extension session error:', error)
     return c.json({ error: 'Failed to deactivate session' }, 500)
+  }
+})
+
+// POST /extension-admin/sessions/:id/set-token - Admin manually sets FB token on a session
+app.post('/sessions/:id/set-token', async (c) => {
+  try {
+    const { id } = c.req.param()
+    const { fbAccessToken } = await c.req.json()
+
+    if (!fbAccessToken || typeof fbAccessToken !== 'string') {
+      return c.json({ error: 'FB access token is required' }, 400)
+    }
+
+    // Validate token by calling FB Graph API
+    const fbRes = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name&access_token=${encodeURIComponent(fbAccessToken)}`)
+    const fbData = await fbRes.json() as any
+
+    if (fbData.error) {
+      return c.json({ error: `Invalid token: ${fbData.error.message}` }, 400)
+    }
+
+    if (!fbData.id || !fbData.name) {
+      return c.json({ error: 'Could not verify token — no user info returned' }, 400)
+    }
+
+    // Exchange for long-lived token (60 days)
+    let finalToken = fbAccessToken
+    const FB_APP_ID = process.env.FACEBOOK_APP_ID || ''
+    const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || ''
+
+    if (FB_APP_ID && FB_APP_SECRET) {
+      try {
+        const exchangeUrl = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&fb_exchange_token=${encodeURIComponent(fbAccessToken)}`
+        const exchangeRes = await fetch(exchangeUrl)
+        const exchangeData = await exchangeRes.json() as any
+        if (exchangeData.access_token) {
+          finalToken = exchangeData.access_token
+          console.log(`[Admin] Token exchanged for long-lived (expires in ${exchangeData.expires_in || 'unknown'}s)`)
+        }
+      } catch {
+        // Use original token if exchange fails
+      }
+    }
+
+    await prisma.extensionSession.update({
+      where: { id },
+      data: {
+        fbAccessToken: finalToken,
+        fbUserId: fbData.id,
+        fbUserName: fbData.name,
+        lastError: null,
+      }
+    })
+
+    return c.json({
+      message: 'FB token set successfully',
+      fbUserName: fbData.name,
+      fbUserId: fbData.id,
+    })
+  } catch (error: any) {
+    console.error('Set token error:', error)
+    return c.json({ error: 'Failed to set token' }, 500)
+  }
+})
+
+// POST /extension-admin/fb-login - Add a new FB login directly (no extension needed)
+app.post('/fb-login', async (c) => {
+  try {
+    const { name, fbAccessToken } = await c.req.json()
+
+    if (!name || typeof name !== 'string') {
+      return c.json({ error: 'Name is required' }, 400)
+    }
+    if (!fbAccessToken || typeof fbAccessToken !== 'string') {
+      return c.json({ error: 'FB access token is required' }, 400)
+    }
+
+    // Validate token
+    const fbRes = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name&access_token=${encodeURIComponent(fbAccessToken)}`)
+    const fbData = await fbRes.json() as any
+
+    if (fbData.error) {
+      return c.json({ error: `Invalid token: ${fbData.error.message}` }, 400)
+    }
+
+    if (!fbData.id || !fbData.name) {
+      return c.json({ error: 'Could not verify token' }, 400)
+    }
+
+    // Exchange for long-lived token
+    let finalToken = fbAccessToken
+    const FB_APP_ID = process.env.FACEBOOK_APP_ID || ''
+    const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || ''
+
+    if (FB_APP_ID && FB_APP_SECRET) {
+      try {
+        const exchangeUrl = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&fb_exchange_token=${encodeURIComponent(fbAccessToken)}`
+        const exchangeRes = await fetch(exchangeUrl)
+        const exchangeData = await exchangeRes.json() as any
+        if (exchangeData.access_token) {
+          finalToken = exchangeData.access_token
+        }
+      } catch {
+        // Use original
+      }
+    }
+
+    // Create session with a dummy API key (not used for server-side worker)
+    const rawKey = generateApiKey()
+    const keyHash = hashApiKey(rawKey)
+    const keyPrefix = rawKey.substring(0, 12) + '...'
+
+    const session = await prisma.extensionSession.create({
+      data: {
+        name,
+        apiKey: keyHash,
+        apiKeyPrefix: keyPrefix,
+        adAccountIds: [],
+        fbAccessToken: finalToken,
+        fbUserId: fbData.id,
+        fbUserName: fbData.name,
+      }
+    })
+
+    return c.json({
+      message: 'FB login added successfully',
+      session: {
+        id: session.id,
+        name: session.name,
+        fbUserName: fbData.name,
+        fbUserId: fbData.id,
+      }
+    })
+  } catch (error: any) {
+    console.error('Add FB login error:', error)
+    return c.json({ error: 'Failed to add FB login' }, 500)
   }
 })
 

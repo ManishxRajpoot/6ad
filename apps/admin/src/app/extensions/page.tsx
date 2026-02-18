@@ -26,6 +26,9 @@ import {
   ClipboardCheck,
   Server,
   Share2,
+  Key,
+  Facebook,
+  Edit3,
 } from 'lucide-react'
 
 // Types
@@ -35,6 +38,7 @@ interface ExtensionSession {
   apiKeyPrefix: string
   fbUserId: string | null
   fbUserName: string | null
+  fbAccessToken: string | null
   adAccountIds: string[]
   isActive: boolean
   lastSeenAt: string
@@ -116,6 +120,19 @@ export default function ExtensionsPage() {
 
   // Worker status state
   const [workerStatus, setWorkerStatus] = useState<any>(null)
+
+  // FB Login modal state
+  const [fbLoginModalOpen, setFbLoginModalOpen] = useState(false)
+  const [fbLoginName, setFbLoginName] = useState('')
+  const [fbLoginToken, setFbLoginToken] = useState('')
+  const [isAddingFbLogin, setIsAddingFbLogin] = useState(false)
+
+  // Token update modal state
+  const [tokenModalOpen, setTokenModalOpen] = useState(false)
+  const [tokenSessionId, setTokenSessionId] = useState<string | null>(null)
+  const [tokenSessionName, setTokenSessionName] = useState('')
+  const [newToken, setNewToken] = useState('')
+  const [isUpdatingToken, setIsUpdatingToken] = useState(false)
 
   // Fetch sessions
   const fetchSessions = useCallback(async () => {
@@ -267,6 +284,52 @@ export default function ExtensionsPage() {
     } finally {
       setActionLoadingId(null)
     }
+  }
+
+  // Add FB Login
+  const handleAddFbLogin = async () => {
+    if (!fbLoginName.trim() || !fbLoginToken.trim()) return
+    setIsAddingFbLogin(true)
+    try {
+      const res = await extensionAdminApi.addFbLogin(fbLoginName.trim(), fbLoginToken.trim())
+      toast.success('FB Login Added', `Connected as ${res.session.fbUserName}`)
+      setFbLoginModalOpen(false)
+      setFbLoginName('')
+      setFbLoginToken('')
+      fetchSessions()
+      fetchWorkerStatus()
+    } catch (err: any) {
+      toast.handleApiError(err, 'Failed to add FB login')
+    } finally {
+      setIsAddingFbLogin(false)
+    }
+  }
+
+  // Update token on session
+  const handleUpdateToken = async () => {
+    if (!tokenSessionId || !newToken.trim()) return
+    setIsUpdatingToken(true)
+    try {
+      const res = await extensionAdminApi.setToken(tokenSessionId, newToken.trim())
+      toast.success('Token Updated', `Connected as ${res.fbUserName}`)
+      setTokenModalOpen(false)
+      setTokenSessionId(null)
+      setNewToken('')
+      fetchSessions()
+      fetchWorkerStatus()
+    } catch (err: any) {
+      toast.handleApiError(err, 'Failed to update token')
+    } finally {
+      setIsUpdatingToken(false)
+    }
+  }
+
+  // Open token update modal
+  const openTokenModal = (sessionId: string, sessionName: string) => {
+    setTokenSessionId(sessionId)
+    setTokenSessionName(sessionName)
+    setNewToken('')
+    setTokenModalOpen(true)
   }
 
   // Status badge for recharges
@@ -458,7 +521,7 @@ export default function ExtensionsPage() {
           <Card>
             {/* Sessions Header */}
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Chrome Extension Sessions</h2>
+              <h2 className="text-lg font-semibold text-gray-900">FB Logins & Extension Sessions</h2>
               <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
@@ -468,6 +531,14 @@ export default function ExtensionsPage() {
                   <RefreshCw className="w-4 h-4" />
                 </Button>
                 <Button
+                  size="sm"
+                  onClick={() => setFbLoginModalOpen(true)}
+                >
+                  <Facebook className="w-4 h-4" />
+                  Add FB Login
+                </Button>
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => setCreateModalOpen(true)}
                 >
@@ -496,29 +567,28 @@ export default function ExtensionsPage() {
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Name</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">FB Profile</th>
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Ad Accounts</th>
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Last Seen</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">FB Token</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Recharges</th>
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase">API Key</th>
                       <th className="text-right py-3 px-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sessions.map((session) => {
                       const online = session.isActive && isOnline(session.lastSeenAt)
+                      const hasToken = !!session.fbAccessToken
                       return (
                         <tr key={session.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                           <td className="py-3 px-3">
                             {session.isActive ? (
-                              online ? (
+                              hasToken ? (
                                 <span className="inline-flex items-center gap-1.5 text-green-600">
                                   <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                  <span className="text-xs font-medium">Online</span>
+                                  <span className="text-xs font-medium">Active</span>
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1.5 text-yellow-600">
                                   <span className="w-2 h-2 rounded-full bg-yellow-500" />
-                                  <span className="text-xs font-medium">Offline</span>
+                                  <span className="text-xs font-medium">No Token</span>
                                 </span>
                               )
                             ) : (
@@ -542,14 +612,15 @@ export default function ExtensionsPage() {
                             )}
                           </td>
                           <td className="py-3 px-3">
-                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-blue-50 text-blue-600 text-xs font-bold">
-                              {session.adAccountIds?.length || 0}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3">
-                            <span className={`text-xs ${online ? 'text-green-600' : 'text-gray-500'}`}>
-                              {timeAgo(session.lastSeenAt)}
-                            </span>
+                            {hasToken ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                <Key className="w-3 h-3" /> Active
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                                No token
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-2">
@@ -559,24 +630,28 @@ export default function ExtensionsPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-3 px-3">
-                            <code className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600">
-                              {session.apiKeyPrefix}...
-                            </code>
-                          </td>
                           <td className="py-3 px-3 text-right">
-                            <button
-                              onClick={() => handleDeleteSession(session.id)}
-                              disabled={deletingId === session.id}
-                              className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
-                              title="Deactivate session"
-                            >
-                              {deletingId === session.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
-                            </button>
+                            <div className="flex items-center gap-1 justify-end">
+                              <button
+                                onClick={() => openTokenModal(session.id, session.name)}
+                                className="p-1.5 rounded-lg text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                title={hasToken ? 'Update FB token' : 'Add FB token'}
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSession(session.id)}
+                                disabled={deletingId === session.id}
+                                className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
+                                title="Deactivate session"
+                              >
+                                {deletingId === session.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -744,7 +819,88 @@ export default function ExtensionsPage() {
         )}
       </div>
 
-      {/* Create Session Modal */}
+      {/* Add FB Login Modal */}
+      <Modal
+        isOpen={fbLoginModalOpen}
+        onClose={() => { setFbLoginModalOpen(false); setFbLoginName(''); setFbLoginToken('') }}
+        title="Add FB Login"
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
+            <p className="text-xs text-blue-700">
+              Paste a Facebook EAA access token. The server will use this token to auto-process recharges and BM shares 24/7 — no browser needed.
+            </p>
+          </div>
+
+          <Input
+            label="Name"
+            placeholder="e.g., John's FB Profile"
+            value={fbLoginName}
+            onChange={(e) => setFbLoginName(e.target.value)}
+          />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">FB Access Token</label>
+            <textarea
+              placeholder="Paste EAA... token here"
+              value={fbLoginToken}
+              onChange={(e) => setFbLoginToken(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => { setFbLoginModalOpen(false); setFbLoginName(''); setFbLoginToken('') }} className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddFbLogin}
+              loading={isAddingFbLogin}
+              disabled={!fbLoginName.trim() || !fbLoginToken.trim()}
+              className="flex-1"
+            >
+              Add Login
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Update Token Modal */}
+      <Modal
+        isOpen={tokenModalOpen}
+        onClose={() => { setTokenModalOpen(false); setNewToken('') }}
+        title={`Update Token — ${tokenSessionName}`}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">New FB Access Token</label>
+            <textarea
+              placeholder="Paste EAA... token here"
+              value={newToken}
+              onChange={(e) => setNewToken(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => { setTokenModalOpen(false); setNewToken('') }} className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateToken}
+              loading={isUpdatingToken}
+              disabled={!newToken.trim()}
+              className="flex-1"
+            >
+              Update Token
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Create Extension Session Modal */}
       <Modal
         isOpen={createModalOpen}
         onClose={handleCloseCreateModal}
@@ -779,16 +935,6 @@ export default function ExtensionsPage() {
               </button>
             </div>
 
-            <div className="text-xs text-gray-500 space-y-1">
-              <p><strong>Next steps:</strong></p>
-              <ol className="list-decimal pl-4 space-y-0.5">
-                <li>Install the 6AD Recharge extension in Chrome</li>
-                <li>Click the extension icon and enter this API key</li>
-                <li>Navigate to Facebook/Business Manager to capture the session</li>
-                <li>The extension will auto-discover accessible ad accounts</li>
-              </ol>
-            </div>
-
             <Button onClick={handleCloseCreateModal} className="w-full">
               Done
             </Button>
@@ -803,7 +949,7 @@ export default function ExtensionsPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
             />
             <p className="text-xs text-gray-500">
-              Give this session a descriptive name to identify which Chrome profile / Facebook account it belongs to.
+              For Chrome extension usage. If you just want to add an FB token, use "Add FB Login" instead.
             </p>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleCloseCreateModal} className="flex-1">

@@ -627,6 +627,11 @@ export const extensionAdminApi = {
     api.post<{ session: any; apiKey: string }>('/extension-admin/sessions', { name }),
   deleteSession: (id: string) =>
     api.delete<{ message: string }>(`/extension-admin/sessions/${id}`),
+  // FB Login (direct token)
+  addFbLogin: (name: string, fbAccessToken: string) =>
+    api.post<{ message: string; session: any }>('/extension-admin/fb-login', { name, fbAccessToken }),
+  setToken: (id: string, fbAccessToken: string) =>
+    api.post<{ message: string; fbUserName: string; fbUserId: string }>(`/extension-admin/sessions/${id}/set-token`, { fbAccessToken }),
   // Recharge Queue
   getRecharges: (status?: string) => {
     const params = status && status !== 'all' ? `?status=${status}` : ''
