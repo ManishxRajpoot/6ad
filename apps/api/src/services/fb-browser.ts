@@ -984,24 +984,91 @@ async function captureTokenAfterLogin(sessionId: string) {
     return
   }
 
-  // Validate token
+  // Validate token via Graph API
   try {
     log(`Validating token: ${token.substring(0, 25)}...`)
-    const validateRes = await fetch(`${FB_GRAPH_BASE}/me?fields=id,name&access_token=${encodeURIComponent(token)}`)
-    const validateData = await validateRes.json() as any
+    let fbName = ''
+    let fbUserId = ''
+    let tokenValid = false
 
-    if (validateData.error) {
+    // Try Graph API validation
+    try {
+      const validateRes = await fetch(`${FB_GRAPH_BASE}/me?fields=id,name&access_token=${encodeURIComponent(token)}`)
+      const validateData = await validateRes.json() as any
+
+      if (validateData.id && validateData.name) {
+        fbName = validateData.name
+        fbUserId = validateData.id
+        tokenValid = true
+        log(`Token valid via Graph API: ${fbName} (${fbUserId})`)
+      } else if (validateData.error) {
+        log(`Graph API validation failed: ${validateData.error.message}`)
+        log(`Token may still work for internal APIs — trying fallback...`)
+      }
+    } catch (e: any) {
+      log(`Graph API request failed: ${e.message}`)
+    }
+
+    // Fallback: use c_user cookie as FB user ID and extract name from page
+    if (!tokenValid) {
+      const cookies = await page.cookies()
+      const cUser = cookies.find(c => c.name === 'c_user')
+      if (cUser) {
+        fbUserId = cUser.value
+        log(`Using c_user cookie as FB ID: ${fbUserId}`)
+
+        // Try to get name from page
+        try {
+          const pageName = await page.evaluate(() => {
+            // Try various places FB stores the user's name
+            const profileLink = document.querySelector('[data-pagelet="ProfileActions"] h1, [aria-label="Your profile"] span, span[dir="auto"]')
+            if (profileLink) return profileLink.textContent?.trim() || ''
+
+            // Check meta tag
+            const meta = document.querySelector('meta[property="og:title"]')
+            if (meta) return meta.getAttribute('content') || ''
+
+            return ''
+          })
+          if (pageName) {
+            fbName = pageName
+            log(`Got name from page: ${fbName}`)
+          }
+        } catch {}
+
+        if (!fbName) {
+          // Navigate to profile to get name
+          try {
+            await page.goto(`https://www.facebook.com/${fbUserId}`, { waitUntil: 'networkidle2', timeout: 15000 })
+            await sleep(3000)
+            const profileName = await page.evaluate(() => {
+              const h1 = document.querySelector('h1')
+              return h1?.textContent?.trim() || ''
+            })
+            if (profileName) {
+              fbName = profileName
+              log(`Got name from profile page: ${fbName}`)
+            }
+          } catch {}
+        }
+
+        if (!fbName) fbName = `FB User ${fbUserId}`
+        tokenValid = true
+        log(`Using fallback identity: ${fbName} (${fbUserId}) — token may be session-scoped`)
+      }
+    }
+
+    if (!tokenValid || !fbUserId) {
       session.status = 'failed'
-      session.error = `Token invalid: ${validateData.error.message}`
+      session.error = 'Token captured but could not validate identity'
       await cleanupSession(sessionId)
       return
     }
 
-    session.fbName = validateData.name
-    session.fbUserId = validateData.id
-    log(`Token valid: ${validateData.name} (${validateData.id})`)
+    session.fbName = fbName
+    session.fbUserId = fbUserId
 
-    // Exchange for long-lived token
+    // Try to exchange for long-lived token (only works if Graph API accepted the token)
     let finalToken = token
     const FB_APP_ID = process.env.FACEBOOK_APP_ID || ''
     const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || ''
@@ -1014,6 +1081,8 @@ async function captureTokenAfterLogin(sessionId: string) {
         if (exchangeData.access_token) {
           finalToken = exchangeData.access_token
           log(`Exchanged for long-lived token`)
+        } else {
+          log(`Token exchange failed — using original token`)
         }
       } catch {}
     }
@@ -1027,18 +1096,18 @@ async function captureTokenAfterLogin(sessionId: string) {
 
     await prisma.extensionSession.create({
       data: {
-        name: `FB: ${validateData.name}`,
+        name: `FB: ${fbName}`,
         apiKey: keyHash,
         apiKeyPrefix: keyPrefix,
         adAccountIds: [],
         fbAccessToken: finalToken,
-        fbUserId: validateData.id,
-        fbUserName: validateData.name,
+        fbUserId: fbUserId,
+        fbUserName: fbName,
       }
     })
 
     session.status = 'success'
-    log(`=== LOGIN COMPLETE: ${validateData.name} (${validateData.id}) ===`)
+    log(`=== LOGIN COMPLETE: ${fbName} (${fbUserId}) ===`)
   } catch (err: any) {
     session.status = 'failed'
     session.error = err.message
