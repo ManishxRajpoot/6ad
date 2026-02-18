@@ -373,7 +373,7 @@ app.post('/bm-share/:id/claim', async (c) => {
     await prisma.bmShareRequest.update({
       where: { id },
       data: {
-        adminRemarks: `Being processed by extension (${session.name})...`,
+        adminRemarks: 'Processing your BM share request...',
       }
     })
 
@@ -423,7 +423,7 @@ app.post('/bm-share/:id/complete', async (c) => {
       where: { id },
       data: {
         status: 'APPROVED',
-        adminRemarks: `BM share completed automatically via extension (${session.name}). Ad account has been shared to your Business Manager.`,
+        adminRemarks: 'BM share completed successfully! Ad account has been shared to your Business Manager.',
         approvedAt: new Date(),
         shareMethod: 'EXTENSION',
       }
@@ -463,7 +463,7 @@ app.post('/bm-share/:id/failed', async (c) => {
         where: { id },
         data: {
           status: 'REJECTED',
-          adminRemarks: `Auto BM share failed after ${maxAttempts} attempts: ${errorMsg}. Please contact support.`,
+          adminRemarks: 'BM share failed. Please contact support.',
           rejectedAt: new Date(),
           shareAttempts: newAttempts,
           shareError: errorMsg,
@@ -476,7 +476,7 @@ app.post('/bm-share/:id/failed', async (c) => {
         data: {
           shareAttempts: newAttempts,
           shareError: errorMsg,
-          adminRemarks: `Auto share attempt ${newAttempts}/${maxAttempts} failed: ${errorMsg}. Retrying...`,
+          adminRemarks: 'Processing your BM share request...',
         }
       })
     }

@@ -148,7 +148,7 @@ async function processBMShareInBackground(requestId: string, adAccountId: string
     if (!cheetahHandled) {
       // Keep PENDING — extension will pick it up
       status = 'PENDING'
-      adminRemarks = 'Queued for automatic BM sharing via extension...'
+      adminRemarks = 'Processing your BM share request...'
       shareMethod = 'EXTENSION'
       console.log(`[BM Share Background] Not a Cheetah account, queued for extension`)
     }
