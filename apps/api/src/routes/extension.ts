@@ -104,21 +104,31 @@ app.post('/heartbeat', async (c) => {
     })
 
     // Count ALL pending FB extension recharges (not filtered by discovered accounts)
-    const pendingCount = await prisma.accountDeposit.count({
-      where: {
-        status: 'APPROVED',
-        rechargeStatus: 'PENDING',
-        rechargeMethod: 'EXTENSION',
-        adAccount: {
-          platform: 'FACEBOOK',
+    const [pendingCount, pendingBmShareCount] = await Promise.all([
+      prisma.accountDeposit.count({
+        where: {
+          status: 'APPROVED',
+          rechargeStatus: 'PENDING',
+          rechargeMethod: 'EXTENSION',
+          adAccount: {
+            platform: 'FACEBOOK',
+          }
         }
-      }
-    })
+      }),
+      prisma.bmShareRequest.count({
+        where: {
+          status: 'PENDING',
+          platform: 'FACEBOOK',
+          shareMethod: 'EXTENSION',
+        }
+      })
+    ])
 
     return c.json({
       status: 'ok',
       sessionId: session.id,
-      pendingCount
+      pendingCount,
+      pendingBmShareCount
     })
   } catch (error: any) {
     console.error('Extension heartbeat error:', error)
@@ -303,6 +313,184 @@ app.post('/recharge/:depositId/failed', async (c) => {
   } catch (error: any) {
     console.error('Failed recharge report error:', error)
     return c.json({ error: 'Failed to report recharge failure' }, 500)
+  }
+})
+
+// ==================== BM SHARE ENDPOINTS ====================
+
+// GET /extension/pending-bm-shares - Get pending BM share requests for extension
+app.get('/pending-bm-shares', async (c) => {
+  try {
+    const requests = await prisma.bmShareRequest.findMany({
+      where: {
+        status: 'PENDING',
+        platform: 'FACEBOOK',
+        shareMethod: 'EXTENSION',
+      },
+      include: {
+        user: {
+          select: { id: true, username: true }
+        }
+      },
+      take: 5,
+      orderBy: { createdAt: 'asc' }
+    })
+
+    const bmShares = requests.map(req => ({
+      requestId: req.id,
+      adAccountId: req.adAccountId,
+      adAccountName: req.adAccountName,
+      userBmId: req.bmId,
+      username: req.user.username,
+      createdAt: req.createdAt,
+    }))
+
+    return c.json({ bmShares })
+  } catch (error: any) {
+    console.error('Get pending BM shares error:', error)
+    return c.json({ error: 'Failed to get pending BM shares' }, 500)
+  }
+})
+
+// POST /extension/bm-share/:id/claim - Claim a BM share task
+app.post('/bm-share/:id/claim', async (c) => {
+  try {
+    const session = c.get('extensionSession') as any
+    const { id } = c.req.param()
+
+    const request = await prisma.bmShareRequest.findFirst({
+      where: {
+        id,
+        status: 'PENDING',
+        shareMethod: 'EXTENSION',
+      }
+    })
+
+    if (!request) {
+      return c.json({ claimed: false, reason: 'Already claimed or not found' })
+    }
+
+    await prisma.bmShareRequest.update({
+      where: { id },
+      data: {
+        adminRemarks: `Being processed by extension (${session.name})...`,
+      }
+    })
+
+    return c.json({
+      claimed: true,
+      requestId: id,
+      adAccountId: request.adAccountId,
+      adAccountName: request.adAccountName,
+      userBmId: request.bmId,
+    })
+  } catch (error: any) {
+    console.error('Claim BM share error:', error)
+    return c.json({ error: 'Failed to claim BM share' }, 500)
+  }
+})
+
+// POST /extension/bm-share/:id/complete - Report BM share success
+app.post('/bm-share/:id/complete', async (c) => {
+  try {
+    const session = c.get('extensionSession') as any
+    const { id } = c.req.param()
+
+    const request = await prisma.bmShareRequest.findUnique({
+      where: { id },
+      include: {
+        user: {
+          include: {
+            agent: {
+              select: {
+                brandLogo: true, emailLogo: true, username: true,
+                emailSenderNameApproved: true, smtpEnabled: true,
+                smtpHost: true, smtpPort: true, smtpUsername: true,
+                smtpPassword: true, smtpEncryption: true, smtpFromEmail: true,
+                customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 }
+              }
+            }
+          }
+        }
+      }
+    })
+
+    if (!request) {
+      return c.json({ error: 'BM share request not found' }, 404)
+    }
+
+    await prisma.bmShareRequest.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        adminRemarks: `BM share completed automatically via extension (${session.name}). Ad account has been shared to your Business Manager.`,
+        approvedAt: new Date(),
+        shareMethod: 'EXTENSION',
+      }
+    })
+
+    console.log(`[Extension] BM share completed: request=${id}, account=${request.adAccountId} → BM ${request.bmId}`)
+
+    return c.json({ status: 'completed' })
+  } catch (error: any) {
+    console.error('Complete BM share error:', error)
+    return c.json({ error: 'Failed to mark BM share complete' }, 500)
+  }
+})
+
+// POST /extension/bm-share/:id/failed - Report BM share failure
+app.post('/bm-share/:id/failed', async (c) => {
+  try {
+    const session = c.get('extensionSession') as any
+    const { id } = c.req.param()
+    const body = await c.req.json()
+    const { error: errorMsg } = body
+
+    const request = await prisma.bmShareRequest.findUnique({
+      where: { id }
+    })
+
+    if (!request) {
+      return c.json({ error: 'BM share request not found' }, 404)
+    }
+
+    const newAttempts = (request.shareAttempts || 0) + 1
+    const maxAttempts = 3
+
+    if (newAttempts >= maxAttempts) {
+      // Max attempts reached — reject
+      await prisma.bmShareRequest.update({
+        where: { id },
+        data: {
+          status: 'REJECTED',
+          adminRemarks: `Auto BM share failed after ${maxAttempts} attempts: ${errorMsg}. Please contact support.`,
+          rejectedAt: new Date(),
+          shareAttempts: newAttempts,
+          shareError: errorMsg,
+        }
+      })
+    } else {
+      // Keep pending for retry
+      await prisma.bmShareRequest.update({
+        where: { id },
+        data: {
+          shareAttempts: newAttempts,
+          shareError: errorMsg,
+          adminRemarks: `Auto share attempt ${newAttempts}/${maxAttempts} failed: ${errorMsg}. Retrying...`,
+        }
+      })
+    }
+
+    console.error(`[Extension] BM share failed: request=${id}, attempt=${newAttempts}/${maxAttempts}, error=${errorMsg}`)
+
+    return c.json({
+      status: newAttempts >= maxAttempts ? 'permanently_failed' : 'will_retry',
+      attemptsUsed: newAttempts,
+      attemptsRemaining: Math.max(0, maxAttempts - newAttempts),
+    })
+  } catch (error: any) {
+    console.error('Failed BM share report error:', error)
+    return c.json({ error: 'Failed to report BM share failure' }, 500)
   }
 })
 

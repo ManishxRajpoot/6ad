@@ -91,12 +91,14 @@ const createBmShareSchema = z.object({
 async function processBMShareInBackground(requestId: string, adAccountId: string, bmId: string, platform: string) {
   console.log(`[BM Share Background] Processing request ${requestId}`)
 
-  let status: 'APPROVED' | 'REJECTED' = 'REJECTED'
+  let status: 'APPROVED' | 'REJECTED' | 'PENDING' = 'REJECTED'
   let adminRemarks: string | null = null
   let approvedAt: Date | null = null
+  let shareMethod: string | null = null
 
   if (platform === 'FACEBOOK') {
-    // Try Cheetah API first
+    // ===== STEP 1: Try Cheetah API first =====
+    let cheetahHandled = false
     try {
       const configLoaded = await loadCheetahConfig()
 
@@ -106,55 +108,109 @@ async function processBMShareInBackground(requestId: string, adAccountId: string
         console.log(`[BM Share Background] Cheetah Response:`, JSON.stringify(result))
 
         if (result.code === 0) {
-          // Success!
           status = 'APPROVED'
           approvedAt = new Date()
           adminRemarks = 'BM share completed successfully! Ad account has been shared to your Business Manager.'
-          console.log(`[BM Share Background] SUCCESS!`)
+          shareMethod = 'CHEETAH'
+          cheetahHandled = true
+          console.log(`[BM Share Background] SUCCESS via Cheetah!`)
         } else if (result.code === 999) {
-          // Account doesn't belong to Cheetah or BM already has agency ad account
+          // BM has agency account — this is a definitive rejection
           status = 'REJECTED'
           adminRemarks = 'This Business Manager already has an agency ad account or cannot receive this ad account. Please provide a fresh BM ID that does not have any existing agency ad accounts.'
-          console.log(`[BM Share Background] REJECTED - Account not owned or BM has agency account`)
+          shareMethod = 'CHEETAH'
+          cheetahHandled = true
         } else if (result.code === 110) {
-          // Account not found
-          status = 'REJECTED'
-          adminRemarks = 'This ad account was not found in our system. Please check the account ID and try again.'
-          console.log(`[BM Share Background] REJECTED - Account not found`)
+          // Account not found in Cheetah — not a Cheetah account, try other methods
+          console.log(`[BM Share Background] Not a Cheetah account, trying Facebook Graph API...`)
+          cheetahHandled = false
         } else {
-          // Other error - translate common Chinese messages to English
-          status = 'REJECTED'
-          let errorMsg = 'BM share failed. Please try again or contact support.'
-
-          // Translate common Cheetah API error messages
-          if (result.msg) {
-            if (result.msg.includes('不属于你') || result.msg.includes('不允许分享')) {
-              errorMsg = 'This Business Manager already has an agency ad account. Please provide a fresh BM ID without any existing agency ad accounts.'
-            } else if (result.msg.includes('不存在')) {
-              errorMsg = 'This ad account was not found in our system.'
-            } else if (result.msg.includes('参数')) {
-              errorMsg = 'Invalid BM ID format. Please check and try again.'
-            } else if (result.msg.includes('成功')) {
-              // This shouldn't happen but just in case
-              status = 'APPROVED'
-              approvedAt = new Date()
-              errorMsg = 'BM share completed successfully!'
-            } else {
-              errorMsg = `BM share failed: ${result.msg}. Please try again or contact support.`
-            }
+          // Other Cheetah error — account might not be Cheetah, try other methods
+          let errorMsg = result.msg || ''
+          if (errorMsg.includes('成功')) {
+            status = 'APPROVED'
+            approvedAt = new Date()
+            adminRemarks = 'BM share completed successfully!'
+            shareMethod = 'CHEETAH'
+            cheetahHandled = true
+          } else {
+            console.log(`[BM Share Background] Cheetah failed (${result.msg}), trying Facebook Graph API...`)
+            cheetahHandled = false
           }
-
-          adminRemarks = errorMsg
-          console.log(`[BM Share Background] REJECTED - ${result.msg}`)
         }
-      } else {
-        status = 'REJECTED'
-        adminRemarks = 'BM share service is not configured. Please contact support.'
       }
     } catch (apiError: any) {
-      status = 'REJECTED'
-      adminRemarks = `BM share failed: ${apiError.message}. Please try again.`
-      console.error(`[BM Share Background] Error:`, apiError)
+      console.log(`[BM Share Background] Cheetah API error: ${apiError.message}, trying Facebook Graph API...`)
+      cheetahHandled = false
+    }
+
+    // ===== STEP 2: Try Facebook Graph API server-side via BMConfig =====
+    if (!cheetahHandled) {
+      let serverHandled = false
+
+      try {
+        // Load all active Facebook BMConfigs
+        const bmConfigs = await prisma.bMConfig.findMany({
+          where: { apiType: 'facebook', isActive: true }
+        })
+
+        if (bmConfigs.length > 0) {
+          console.log(`[BM Share Background] Trying ${bmConfigs.length} BMConfig(s) for server-side share...`)
+
+          for (const config of bmConfigs) {
+            try {
+              console.log(`[BM Share Background] Trying BMConfig: ${config.bmName} (${config.bmId})`)
+              const result = await facebookBMApi.shareAdAccountToBM(
+                adAccountId,
+                bmId,
+                config.bmId
+              )
+
+              if (result.success) {
+                status = 'APPROVED'
+                approvedAt = new Date()
+                adminRemarks = `BM share completed successfully via ${config.bmName}! Ad account has been shared to your Business Manager.`
+                shareMethod = 'SERVER'
+                serverHandled = true
+                console.log(`[BM Share Background] SUCCESS via server-side (${config.bmName})!`)
+                break
+              } else {
+                console.log(`[BM Share Background] BMConfig ${config.bmName} failed: ${result.error}`)
+              }
+            } catch (configError: any) {
+              console.log(`[BM Share Background] BMConfig ${config.bmName} error: ${configError.message}`)
+            }
+          }
+        }
+      } catch (dbError: any) {
+        console.error(`[BM Share Background] DB error loading BMConfigs:`, dbError)
+      }
+
+      // ===== STEP 3: Queue for extension if server-side failed =====
+      if (!serverHandled) {
+        // Check if any extension is online
+        const activeExtension = await prisma.extensionSession.findFirst({
+          where: {
+            isActive: true,
+            fbAccessToken: { not: null },
+            lastSeenAt: { gte: new Date(Date.now() - 60 * 1000) } // seen in last 60s
+          }
+        })
+
+        if (activeExtension) {
+          // Keep PENDING — extension will pick it up
+          status = 'PENDING'
+          adminRemarks = 'Queued for automatic BM sharing via extension...'
+          shareMethod = 'EXTENSION'
+          console.log(`[BM Share Background] Queued for extension (${activeExtension.name})`)
+        } else {
+          // No extension online — still keep PENDING, extension may come online later
+          status = 'PENDING'
+          adminRemarks = 'Waiting for BM share processing. Please ensure the Chrome extension is active.'
+          shareMethod = 'EXTENSION'
+          console.log(`[BM Share Background] No extension online, keeping PENDING`)
+        }
+      }
     }
   } else {
     // Non-Facebook - reject with message
@@ -170,9 +226,11 @@ async function processBMShareInBackground(requestId: string, adAccountId: string
         status,
         adminRemarks,
         approvedAt,
+        shareMethod,
+        shareAttempts: { increment: 1 },
       }
     })
-    console.log(`[BM Share Background] Request ${requestId} updated to ${status}`)
+    console.log(`[BM Share Background] Request ${requestId} updated to ${status} (method: ${shareMethod})`)
   } catch (updateError) {
     console.error(`[BM Share Background] Failed to update request:`, updateError)
   }

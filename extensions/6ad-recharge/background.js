@@ -379,6 +379,10 @@ async function sendHeartbeat() {
     if (result.pendingCount > 0) {
       await checkAndProcessRecharges()
     }
+
+    if (result.pendingBmShareCount > 0) {
+      await checkAndProcessBmShares()
+    }
   } catch (err) {
     console.error('[6AD] Heartbeat failed:', err.message)
     await updateConfig({ lastError: err.message })
@@ -461,6 +465,88 @@ async function processRecharge(recharge) {
       })
     } catch (reportErr) {
       console.error('[6AD] Failed to report failure:', reportErr.message)
+    }
+  }
+}
+
+// ==================== BM SHARE PROCESSING ====================
+
+let isBmShareProcessing = false
+
+async function checkAndProcessBmShares() {
+  if (isBmShareProcessing) return
+  isBmShareProcessing = true
+
+  try {
+    const config = await getConfig()
+    if (!config.apiKey || !config.isEnabled || !config.fbAccessToken) return
+
+    const result = await apiRequest('/extension/pending-bm-shares', 'GET')
+    const bmShares = result.bmShares || []
+
+    for (const share of bmShares) {
+      await processBmShare(share)
+    }
+  } catch (err) {
+    console.error('[6AD] BM share check failed:', err.message)
+    await addActivity('error', `BM share check failed: ${err.message}`)
+  } finally {
+    isBmShareProcessing = false
+  }
+}
+
+async function processBmShare(share) {
+  // API returns: requestId, adAccountId, adAccountName, userBmId, username
+  const requestId = share.requestId
+  const accountId = share.adAccountId
+  const userBmId = share.userBmId
+  const username = share.username
+
+  if (!requestId || !accountId || !userBmId) {
+    console.error('[6AD] Invalid BM share data:', share)
+    return
+  }
+
+  try {
+    await addActivity('info', `Claiming BM share: act_${accountId} → BM ${userBmId} (${username})`)
+    await apiRequest(`/extension/bm-share/${requestId}/claim`, 'POST')
+
+    // Call Facebook Graph API to share the ad account to user's BM
+    // POST /{userBmId}/client_ad_accounts
+    const config = await getConfig()
+    const url = `${FB_GRAPH_BASE}/${userBmId}/client_ad_accounts`
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        adaccount_id: `act_${accountId}`,
+        permitted_tasks: JSON.stringify(['MANAGE', 'ADVERTISE', 'ANALYZE']),
+        access_token: config.fbAccessToken
+      }).toString()
+    })
+
+    const result = await response.json()
+
+    if (result.error) {
+      throw new Error(result.error.message || 'Facebook API error')
+    }
+
+    // Success!
+    await apiRequest(`/extension/bm-share/${requestId}/complete`, 'POST')
+    await addActivity('success', `BM shared: act_${accountId} → BM ${userBmId} (${username})`)
+    console.log(`[6AD] Successfully shared act_${accountId} to BM ${userBmId}`)
+
+  } catch (err) {
+    console.error(`[6AD] BM share failed for act_${accountId}:`, err.message)
+    await addActivity('error', `BM share failed for act_${accountId}: ${err.message}`)
+
+    try {
+      await apiRequest(`/extension/bm-share/${requestId}/failed`, 'POST', {
+        error: err.message
+      })
+    } catch (reportErr) {
+      console.error('[6AD] Failed to report BM share failure:', reportErr.message)
     }
   }
 }

@@ -499,6 +499,11 @@ model BmShareRequest {
   message           String?
   adminRemarks      String?
 
+  // Share tracking (for auto BM share)
+  shareMethod       String?           // "CHEETAH", "SERVER", "EXTENSION"
+  shareAttempts     Int               @default(0)
+  shareError        String?
+
   approvedAt        DateTime?
   rejectedAt        DateTime?
 
