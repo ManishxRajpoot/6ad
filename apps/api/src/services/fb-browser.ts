@@ -32,8 +32,10 @@ interface LoginSession {
   fbName?: string
   fbUserId?: string
   capturedToken?: string
+  networkToken?: string // Token captured from network interceptor
   screenshotBase64?: string
   twoFASecret?: string
+  loginDomain?: string // Which domain we logged in on
   createdAt: Date
 }
 
@@ -163,8 +165,6 @@ async function performLogin(sessionId: string, email: string, password: string) 
   })
 
   // Intercept network requests to capture access tokens
-  let capturedToken: string | null = null
-
   await page.setRequestInterception(true)
   page.on('request', (req) => {
     req.continue()
@@ -177,7 +177,7 @@ async function performLogin(sessionId: string, email: string, password: string) 
         const urlObj = new URL(url)
         const tokenFromUrl = urlObj.searchParams.get('access_token')
         if (tokenFromUrl && tokenFromUrl.startsWith('EAA')) {
-          capturedToken = tokenFromUrl
+          session.networkToken = tokenFromUrl
           log(`Captured token from URL: ${tokenFromUrl.substring(0, 20)}...`)
         }
       }
@@ -189,7 +189,7 @@ async function performLogin(sessionId: string, email: string, password: string) 
           if (tokenMatch) {
             for (const t of tokenMatch) {
               if (t.length > 30) {
-                capturedToken = t
+                session.networkToken = t
                 log(`Captured token from response: ${t.substring(0, 20)}...`)
               }
             }
@@ -341,8 +341,8 @@ async function performLogin(sessionId: string, email: string, password: string) 
   await sleep(1000)
 
   // Remember which domain we logged in on (for cookie handling later)
-  const loginDomain = page.url().includes('m.facebook.com') ? 'm.facebook.com' : 'www.facebook.com'
-  log(`Login domain: ${loginDomain}`)
+  session.loginDomain = page.url().includes('m.facebook.com') ? 'm.facebook.com' : 'www.facebook.com'
+  log(`Login domain: ${session.loginDomain}`)
 
   // Click login button
   const loginBtnSelectors = ['[name="login"]', 'button[data-testid="royal_login_button"]', 'button[type="submit"]', 'input[type="submit"]', '#loginbutton']
@@ -419,12 +419,12 @@ async function performLogin(sessionId: string, email: string, password: string) 
         await handlePostCheckpointPrompts(page)
 
         // Now capture token
-        await captureTokenAfterLogin(sessionId, capturedToken, loginDomain)
+        await captureTokenAfterLogin(sessionId)
       } else {
         log(`Could not find 2FA input field, page may have CAPTCHA`)
         // Don't fail — still try to capture token, maybe the page moved on
         session.error = 'Could not find 2FA input field on page'
-        await captureTokenAfterLogin(sessionId, capturedToken, loginDomain)
+        await captureTokenAfterLogin(sessionId)
       }
       return
     }
@@ -437,7 +437,7 @@ async function performLogin(sessionId: string, email: string, password: string) 
 
   // Check if we're on the homepage (login succeeded)
   log(`No 2FA needed, checking if logged in...`)
-  await captureTokenAfterLogin(sessionId, capturedToken, loginDomain)
+  await captureTokenAfterLogin(sessionId)
 }
 
 // ==================== TOTP Code Generation ====================
@@ -622,11 +622,8 @@ export async function submit2FACode(sessionId: string, code: string): Promise<vo
 
     await handlePostCheckpointPrompts(page)
 
-    // Determine login domain from current URL
-    const loginDomain = page.url().includes('m.facebook.com') ? 'm.facebook.com' : 'www.facebook.com'
-
     // Capture token
-    await captureTokenAfterLogin(sessionId, null, loginDomain)
+    await captureTokenAfterLogin(sessionId)
   } catch (err: any) {
     session.status = 'failed'
     session.error = err.message
@@ -645,16 +642,17 @@ async function takeScreenshot(session: LoginSession, page: Page) {
 
 // ==================== Capture Token After Login ====================
 
-async function captureTokenAfterLogin(sessionId: string, preExistingToken: string | null, loginDomain: string) {
+async function captureTokenAfterLogin(sessionId: string) {
   const session = activeSessions.get(sessionId)
   if (!session || !session.page || !session.browser) return
 
   session.status = 'capturing_token'
   const page = session.page
+  const loginDomain = session.loginDomain || 'www.facebook.com'
 
-  let token = preExistingToken
+  let token = session.networkToken || null
   const currentUrl = page.url()
-  log(`Capturing token, pre-existing: ${token ? 'yes' : 'no'}, current URL: ${currentUrl}, loginDomain: ${loginDomain}`)
+  log(`Capturing token, networkToken: ${token ? 'yes' : 'no'}, current URL: ${currentUrl}, loginDomain: ${loginDomain}`)
 
   // Step 0: Check if we have a c_user cookie (confirms we're logged in)
   const allCookies = await page.cookies()
@@ -733,8 +731,8 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
       token = await extractTokenFromPage(page)
 
       // Also check the network interceptor
-      if (!token && capturedToken) {
-        token = capturedToken
+      if (!token && session.networkToken) {
+        token = session.networkToken
         log(`Got token from network interceptor during ads manager load`)
       }
     } catch (e: any) {
@@ -785,8 +783,8 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
       await takeScreenshot(session, page)
       token = await extractTokenFromPage(page)
 
-      if (!token && capturedToken) {
-        token = capturedToken
+      if (!token && session.networkToken) {
+        token = session.networkToken
       }
     } catch (e: any) {
       log(`business.facebook.com failed: ${e.message}`)
@@ -827,8 +825,8 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
   }
 
   // Final: check network interceptor one more time
-  if (!token && capturedToken) {
-    token = capturedToken
+  if (!token && session.networkToken) {
+    token = session.networkToken
     log(`Using token from network interceptor: ${token.substring(0, 20)}...`)
   }
 
