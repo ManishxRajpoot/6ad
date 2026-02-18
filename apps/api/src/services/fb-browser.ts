@@ -1,23 +1,28 @@
 /**
- * FB Browser Manager - Manages Puppeteer browser sessions for Facebook login
+ * FB Browser Manager - Manages browser sessions for Facebook login
  *
- * Flow:
- * 1. Admin enters FB email/password (+ optional 2FA secret) in admin panel
- * 2. Puppeteer launches browser, navigates to facebook.com/adsmanager
- * 3. Facebook redirects to login, we enter credentials
- * 4. If 2FA is needed and secret provided, auto-generates TOTP code and submits
- * 5. Facebook redirects back to adsmanager — we capture EAA token from XHR/page
- * 6. Token stored in ExtensionSession for the server-side worker to use
+ * Anti-detection stack:
+ * 1. rebrowser-puppeteer — patches CDP Runtime.Enable leak + sourceURL leak
+ * 2. headless: false + Xvfb on VPS — real WebGL, real screen metrics
+ * 3. Persistent --user-data-dir — cookies persist, FB sees returning user
+ * 4. Real Google Chrome (not Chromium) — proper codecs, real UA
+ * 5. Stripped automation flags — no navigator.webdriver
+ * 6. CDP Network.enable for token capture (not request interception)
+ * 7. Human-like mouse movements, variable typing speed
  */
 
-import puppeteer, { Browser, Page } from 'puppeteer'
+import puppeteer, { Browser, Page, CDPSession } from 'rebrowser-puppeteer'
 import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
 import * as OTPAuth from 'otpauth'
 
 const prisma = new PrismaClient()
 
-const FB_GRAPH_BASE = 'https://graph.facebook.com/v18.0'
+const FB_GRAPH_BASE = 'https://graph.facebook.com/v21.0'
+
+// Chrome config from env
+const CHROME_PATH = process.env.CHROME_PATH || undefined // undefined = use bundled Chromium
+const CHROME_PROFILE_DIR = process.env.CHROME_PROFILE_DIR || undefined // undefined = temp profile
 
 function log(msg: string) {
   console.log(`[FBBrowser] ${msg}`)
@@ -29,6 +34,7 @@ interface LoginSession {
   status: 'launching' | 'logging_in' | 'needs_2fa' | 'submitting_2fa' | 'capturing_token' | 'success' | 'failed'
   browser: Browser | null
   page: Page | null
+  cdpClient: CDPSession | null
   error?: string
   fbName?: string
   fbUserId?: string
@@ -56,6 +62,7 @@ async function cleanupSession(id: string) {
   const session = activeSessions.get(id)
   if (session) {
     try {
+      if (session.cdpClient) await session.cdpClient.detach().catch(() => {})
       if (session.browser) await session.browser.close()
     } catch {}
     activeSessions.delete(id)
@@ -66,60 +73,163 @@ function generateSessionId(): string {
   return 'fbl_' + crypto.randomBytes(8).toString('hex')
 }
 
-// ==================== Stealth Helpers ====================
+// ==================== Human-Like Helpers ====================
 
-async function applyStealthToPage(page: Page) {
+function randomDelay(min: number, max: number): Promise<void> {
+  const ms = min + Math.random() * (max - min)
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+// Move mouse to element with natural curve before clicking
+async function humanClick(page: Page, selector: string): Promise<boolean> {
+  const el = await page.$(selector)
+  if (!el) return false
+
+  const box = await el.boundingBox()
+  if (!box) return false
+
+  // Random point within the element (not dead center)
+  const x = box.x + box.width * (0.3 + Math.random() * 0.4)
+  const y = box.y + box.height * (0.3 + Math.random() * 0.4)
+
+  // Move mouse with small steps (natural curve)
+  await page.mouse.move(x, y, { steps: 5 + Math.floor(Math.random() * 10) })
+  await randomDelay(50, 150)
+  await page.mouse.click(x, y)
+  return true
+}
+
+// Type text with variable speed like a human
+async function humanType(page: Page, text: string) {
+  for (const char of text) {
+    await page.keyboard.type(char)
+    // Vary delay per character — faster for common letters, slower for special chars
+    const isSpecial = /[^a-zA-Z0-9]/.test(char)
+    await randomDelay(isSpecial ? 80 : 30, isSpecial ? 200 : 120)
+  }
+}
+
+// Random mouse movements to look human
+async function randomMouseMovement(page: Page) {
+  // With defaultViewport: null, viewport() may be null — use safe defaults
+  const viewport = page.viewport()
+  const w = viewport?.width || 1920
+  const h = viewport?.height || 1080
+  const x = 100 + Math.random() * (w - 200)
+  const y = 100 + Math.random() * (h - 200)
+  await page.mouse.move(x, y, { steps: 3 + Math.floor(Math.random() * 5) })
+}
+
+// ==================== Anti-Fingerprint Injection ====================
+
+async function injectAntiFingerprint(page: Page) {
   await page.evaluateOnNewDocument(() => {
-    // Core: remove webdriver flag
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined })
+    // 1. Override navigator.webdriver
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined,
+    })
 
-    // Chrome runtime
-    const chrome = { runtime: {}, loadTimes: () => {}, csi: () => {} }
-    Object.defineProperty(window, 'chrome', { get: () => chrome })
-
-    // Permissions
-    const originalQuery = window.navigator.permissions?.query?.bind(window.navigator.permissions)
-    if (originalQuery) {
-      (window.navigator.permissions as any).query = (parameters: any) =>
-        parameters.name === 'notifications'
-          ? Promise.resolve({ state: Notification.permission } as any)
-          : originalQuery(parameters)
+    // 2. Spoof WebGL renderer (headless returns SwiftShader)
+    const getParameter = WebGLRenderingContext.prototype.getParameter
+    WebGLRenderingContext.prototype.getParameter = function (parameter: number) {
+      if (parameter === 37445) return 'Intel Inc.' // UNMASKED_VENDOR_WEBGL
+      if (parameter === 37446) return 'Intel Iris OpenGL Engine' // UNMASKED_RENDERER_WEBGL
+      return getParameter.call(this, parameter)
     }
 
-    // Plugins — make it look like real Chrome
+    // Also patch WebGL2
+    if (typeof WebGL2RenderingContext !== 'undefined') {
+      const getParameter2 = WebGL2RenderingContext.prototype.getParameter
+      WebGL2RenderingContext.prototype.getParameter = function (parameter: number) {
+        if (parameter === 37445) return 'Intel Inc.'
+        if (parameter === 37446) return 'Intel Iris OpenGL Engine'
+        return getParameter2.call(this, parameter)
+      }
+    }
+
+    // 3. Override navigator.plugins (headless has empty plugins)
     Object.defineProperty(navigator, 'plugins', {
       get: () => {
-        const plugins = [
+        return [
           { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
           { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
           { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
         ]
-        const arr: any = plugins
-        arr.item = (i: number) => plugins[i]
-        arr.namedItem = (name: string) => plugins.find(p => p.name === name)
-        arr.refresh = () => {}
-        return arr
       },
     })
 
-    // Languages
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] })
-    Object.defineProperty(navigator, 'language', { get: () => 'en-US' })
-    Object.defineProperty(navigator, 'platform', { get: () => 'Win32' })
+    // 4. Override navigator.languages
+    Object.defineProperty(navigator, 'languages', {
+      get: () => ['en-US', 'en'],
+    })
 
-    // Hardware concurrency
-    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 })
-    Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 })
-    Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 })
+    // 5. Fix chrome.runtime (missing in headless but present in real Chrome)
+    if (!(window as any).chrome) {
+      (window as any).chrome = {}
+    }
+    if (!(window as any).chrome.runtime) {
+      (window as any).chrome.runtime = {
+        connect: () => {},
+        sendMessage: () => {},
+      }
+    }
 
-    // WebGL vendor
-    const getParameter = WebGLRenderingContext.prototype.getParameter
-    WebGLRenderingContext.prototype.getParameter = function(parameter: number) {
-      if (parameter === 37445) return 'Intel Inc.'
-      if (parameter === 37446) return 'Intel Iris OpenGL Engine'
-      return getParameter.call(this, parameter)
+    // 6. Override permissions query (headless returns 'denied' for notifications)
+    const originalQuery = window.navigator.permissions.query
+    window.navigator.permissions.query = (parameters: any) => {
+      if (parameters.name === 'notifications') {
+        return Promise.resolve({ state: 'default', onchange: null } as PermissionStatus)
+      }
+      return originalQuery.call(window.navigator.permissions, parameters)
     }
   })
+}
+
+// ==================== CDP Token Interceptor ====================
+// Uses Chrome DevTools Protocol directly — NOT request interception
+// This is much harder for sites to detect
+
+async function setupCDPTokenCapture(page: Page, session: LoginSession): Promise<CDPSession> {
+  const client = await page.createCDPSession()
+  await client.send('Network.enable')
+
+  client.on('Network.responseReceived', async (params: any) => {
+    const url = params.response.url || ''
+
+    // Check URL for access_token param
+    if (url.includes('access_token=EAA')) {
+      try {
+        const urlObj = new URL(url)
+        const t = urlObj.searchParams.get('access_token')
+        if (t && t.startsWith('EAA') && t.length > 30) {
+          session.networkToken = t
+          log(`[CDP] Token from URL param: ${t.substring(0, 25)}...`)
+        }
+      } catch {}
+    }
+
+    // Check JSON response bodies for EAA tokens
+    const ct = params.response.headers?.['content-type'] || params.response.headers?.['Content-Type'] || ''
+    if (url.includes('facebook.com') && (ct.includes('json') || ct.includes('javascript'))) {
+      try {
+        const body = await client.send('Network.getResponseBody', { requestId: params.requestId })
+        const text = body.body || ''
+        const matches = text.match(/(EAA[A-Za-z0-9]{30,})/g)
+        if (matches) {
+          for (const t of matches) {
+            if (t.length > 30 && t.length < 500) {
+              session.networkToken = t
+              log(`[CDP] Token from response (${url.substring(0, 60)}): ${t.substring(0, 25)}...`)
+            }
+          }
+        }
+      } catch {
+        // Response body may not be available for all requests — that's fine
+      }
+    }
+  })
+
+  return client
 }
 
 // ==================== Start Login ====================
@@ -132,6 +242,7 @@ export async function startFbLogin(email: string, password: string, twoFASecret?
     status: 'launching',
     browser: null,
     page: null,
+    cdpClient: null,
     twoFASecret: twoFASecret || undefined,
     createdAt: new Date(),
   }
@@ -154,83 +265,85 @@ async function performLogin(sessionId: string, email: string, password: string) 
   if (!session) return
 
   log(`Starting login for ${sessionId}`)
+  if (CHROME_PATH) log(`Using Chrome: ${CHROME_PATH}`)
+  if (CHROME_PROFILE_DIR) log(`Using profile: ${CHROME_PROFILE_DIR}`)
 
-  // Launch with new headless mode (better stealth than 'shell')
-  const browser = await puppeteer.launch({
-    headless: 'shell',
+  // ==================== ANTI-DETECTION LAUNCH CONFIG ====================
+  const launchOptions: any = {
+    headless: false, // Layer 2: Real headed mode (use Xvfb on VPS)
+    ignoreDefaultArgs: ['--enable-automation'], // Layer 5: Remove automation flag
     args: [
       '--no-sandbox',
-      '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-notifications',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-infobars',
-      '--window-size=1366,768',
-      '--lang=en-US',
-      '--disable-extensions',
-      '--disable-component-extensions-with-background-pages',
-      '--disable-default-apps',
-      '--mute-audio',
+      '--window-size=1920,1080',
+      '--start-maximized',
       '--no-first-run',
       '--no-default-browser-check',
+      '--lang=en-US,en;q=0.9',
+      '--password-store=basic',
+      '--enable-webgl',
+      '--disable-infobars',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--mute-audio',
+      '--disable-blink-features=AutomationControlled',
     ],
-  })
+    defaultViewport: null, // Layer 5: Use actual window size, not artificial 800x600
+  }
 
+  // Layer 4: Use real Google Chrome if available
+  if (CHROME_PATH) {
+    launchOptions.executablePath = CHROME_PATH
+  }
+
+  // Layer 3: Persistent Chrome profile
+  if (CHROME_PROFILE_DIR) {
+    launchOptions.userDataDir = CHROME_PROFILE_DIR
+  }
+
+  const browser = await puppeteer.launch(launchOptions)
   session.browser = browser
   const page = await browser.newPage()
   session.page = page
 
-  await applyStealthToPage(page)
-  await page.setViewport({ width: 1366, height: 768 })
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36')
+  // Layer 5+6: Anti-fingerprint injection
+  await injectAntiFingerprint(page)
 
   await page.setExtraHTTPHeaders({
     'Accept-Language': 'en-US,en;q=0.9',
-    'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
   })
 
-  // Network interceptor for EAA tokens
-  await page.setRequestInterception(true)
-  page.on('request', (req) => { req.continue() })
-  page.on('response', async (response) => {
-    try {
-      const url = response.url()
-      // Check URL params
-      if (url.includes('access_token=EAA')) {
-        try {
-          const urlObj = new URL(url)
-          const t = urlObj.searchParams.get('access_token')
-          if (t && t.startsWith('EAA') && t.length > 30) {
-            session.networkToken = t
-            log(`[NET] Token from URL param: ${t.substring(0, 25)}...`)
-          }
-        } catch {}
-      }
-      // Check JSON response bodies
-      const ct = response.headers()['content-type'] || ''
-      if (url.includes('facebook.com') && (ct.includes('json') || ct.includes('javascript'))) {
-        try {
-          const text = await response.text()
-          const matches = text.match(/(EAA[A-Za-z0-9]{30,})/g)
-          if (matches) {
-            for (const t of matches) {
-              if (t.length > 30 && t.length < 500) {
-                session.networkToken = t
-                log(`[NET] Token from response body (${url.substring(0, 60)}): ${t.substring(0, 25)}...`)
-              }
-            }
-          }
-        } catch {}
-      }
-    } catch {}
-  })
+  // Setup CDP-based token capture
+  const cdpClient = await setupCDPTokenCapture(page, session)
+  session.cdpClient = cdpClient
 
   session.status = 'logging_in'
 
   // ==========================================================
-  // GO DIRECTLY TO ADS MANAGER — Facebook will redirect to login
+  // STEP 1: Check if already logged in (cookie persistence)
+  // ==========================================================
+  if (CHROME_PROFILE_DIR) {
+    log(`Checking persistent cookies — may already be logged in...`)
+    try {
+      await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 20000 })
+      await sleep(2000)
+      const cookies = await page.cookies()
+      const cUser = cookies.find(c => c.name === 'c_user')
+      if (cUser) {
+        log(`Already logged in from previous session! c_user: ${cUser.value}`)
+        log(`Skipping login form — going straight to token capture`)
+        await captureTokenAfterLogin(sessionId)
+        return
+      }
+      log(`Not logged in from cookies — proceeding with login form`)
+    } catch (e: any) {
+      log(`Cookie check failed: ${e.message} — proceeding with login`)
+    }
+  }
+
+  // ==========================================================
+  // STEP 2: Go to Ads Manager (redirects to login)
   // After login, it redirects BACK to adsmanager which loads EAA tokens
   // ==========================================================
   log(`Navigating to adsmanager.facebook.com (will redirect to login)...`)
@@ -243,9 +356,13 @@ async function performLogin(sessionId: string, email: string, password: string) 
   log(`Landing URL: ${landingUrl}`)
   await takeScreenshot(session, page)
 
+  // Small random mouse movement — looks more human
+  await randomMouseMovement(page)
+  await randomDelay(500, 1000)
+
   // Close cookie dialog if present
   await dismissCookieBanner(page)
-  await sleep(1000)
+  await randomDelay(800, 1500)
 
   // Find email input
   let emailInput = await findEmailInput(page)
@@ -262,7 +379,7 @@ async function performLogin(sessionId: string, email: string, password: string) 
     // Try navigating to login directly
     log(`No email input found, trying direct login page...`)
     await page.goto('https://www.facebook.com/login/', { waitUntil: 'networkidle2', timeout: 15000 })
-    await sleep(2000)
+    await randomDelay(1500, 2500)
     await takeScreenshot(session, page)
     emailInput = await findEmailInput(page)
   }
@@ -276,11 +393,24 @@ async function performLogin(sessionId: string, email: string, password: string) 
     return
   }
 
-  // Type email with human-like delays
-  await emailInput.click()
-  await sleep(200 + Math.random() * 300)
-  await emailInput.type(email, { delay: 50 + Math.random() * 80 })
-  await sleep(500 + Math.random() * 500)
+  // Random mouse move before interacting with form
+  await randomMouseMovement(page)
+  await randomDelay(300, 700)
+
+  // Click and type email with human-like behavior
+  const emailBox = await emailInput.boundingBox()
+  if (emailBox) {
+    const ex = emailBox.x + emailBox.width * (0.3 + Math.random() * 0.4)
+    const ey = emailBox.y + emailBox.height * (0.3 + Math.random() * 0.4)
+    await page.mouse.move(ex, ey, { steps: 8 + Math.floor(Math.random() * 6) })
+    await randomDelay(100, 250)
+    await page.mouse.click(ex, ey)
+  } else {
+    await emailInput.click()
+  }
+  await randomDelay(200, 500)
+  await humanType(page, email)
+  await randomDelay(400, 800)
 
   // Find and fill password
   let passInput = null
@@ -296,24 +426,43 @@ async function performLogin(sessionId: string, email: string, password: string) 
     return
   }
 
-  await passInput.click()
-  await sleep(200 + Math.random() * 200)
-  await passInput.type(password, { delay: 40 + Math.random() * 70 })
-  await sleep(500 + Math.random() * 500)
+  const passBox = await passInput.boundingBox()
+  if (passBox) {
+    const px = passBox.x + passBox.width * (0.3 + Math.random() * 0.4)
+    const py = passBox.y + passBox.height * (0.3 + Math.random() * 0.4)
+    await page.mouse.move(px, py, { steps: 6 + Math.floor(Math.random() * 8) })
+    await randomDelay(100, 200)
+    await page.mouse.click(px, py)
+  } else {
+    await passInput.click()
+  }
+  await randomDelay(200, 400)
+  await humanType(page, password)
+  await randomDelay(400, 900)
 
   session.loginDomain = 'www.facebook.com'
 
-  // Click login — use keyboard Enter (more natural than clicking button)
-  log(`Submitting login via Enter key...`)
-  await page.keyboard.press('Enter')
+  // Small pause before submit — humans don't submit instantly
+  await randomDelay(300, 800)
+
+  // Click login button with mouse (more natural than keyboard Enter)
+  const loginClicked = await humanClick(page, '#loginbutton') ||
+    await humanClick(page, 'button[name="login"]') ||
+    await humanClick(page, 'button[type="submit"]')
+
+  if (!loginClicked) {
+    // Fallback to Enter key
+    log(`No login button found, pressing Enter...`)
+    await page.keyboard.press('Enter')
+  }
 
   // Wait for navigation after login
   try {
-    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 })
+    await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 })
   } catch {
     // Navigation might not trigger if it's SPA-like
   }
-  await sleep(3000)
+  await randomDelay(2000, 4000)
 
   await takeScreenshot(session, page)
   const afterLoginUrl = page.url()
@@ -361,7 +510,6 @@ async function performLogin(sessionId: string, email: string, password: string) 
     }
 
     // No c_user and no 2FA — login silently failed
-    // Check if the page still has a login form
     const stillHasLoginForm = await page.$('input[name="email"], #email, input[name="pass"], #pass')
     if (stillHasLoginForm) {
       session.status = 'failed'
@@ -456,9 +604,9 @@ async function dismissCookieBanner(page: Page) {
     try {
       const btn = await page.$(sel)
       if (btn) {
-        await btn.click()
+        await humanClick(page, sel)
         log(`Dismissed cookie banner: ${sel}`)
-        await sleep(1000)
+        await randomDelay(800, 1500)
         return
       }
     } catch {}
@@ -474,13 +622,13 @@ async function handle2FA(sessionId: string, session: LoginSession, page: Page) {
     const code = generateTOTPCode(session.twoFASecret)
     log(`Generated TOTP code: ${code}`)
 
-    await sleep(2000)
+    await randomDelay(1500, 3000)
     await takeScreenshot(session, page)
 
     const submitted = await submitCodeOnPage(page, code)
     if (submitted) {
       log(`2FA code submitted, waiting...`)
-      await sleep(6000)
+      await randomDelay(4000, 7000)
       await takeScreenshot(session, page)
       await handlePostCheckpointPrompts(page)
 
@@ -490,7 +638,6 @@ async function handle2FA(sessionId: string, session: LoginSession, page: Page) {
       log(`After 2FA c_user: ${cUser ? cUser.value : 'NONE'}`)
 
       if (!cUser) {
-        // One more try
         await sleep(3000)
         const cookies2 = await page.cookies()
         const cUser2 = cookies2.find(c => c.name === 'c_user')
@@ -548,9 +695,19 @@ async function submitCodeOnPage(page: Page, code: string): Promise<boolean> {
       if (input) {
         const visible = await input.isVisible().catch(() => true)
         if (visible) {
-          await input.click({ clickCount: 3 })
-          await sleep(200)
-          await input.type(code, { delay: 60 })
+          // Human-like: move mouse to input then click
+          const box = await input.boundingBox()
+          if (box) {
+            const x = box.x + box.width * (0.3 + Math.random() * 0.4)
+            const y = box.y + box.height * (0.3 + Math.random() * 0.4)
+            await page.mouse.move(x, y, { steps: 5 + Math.floor(Math.random() * 5) })
+            await randomDelay(80, 200)
+            await page.mouse.click(x, y, { clickCount: 3 })
+          } else {
+            await input.click({ clickCount: 3 })
+          }
+          await randomDelay(150, 300)
+          await humanType(page, code)
           inputFound = true
           log(`Typed 2FA code into: ${selector}`)
           break
@@ -569,8 +726,8 @@ async function submitCodeOnPage(page: Page, code: string): Promise<boolean> {
         const type = await input.evaluate((el: any) => el.type)
         if (['hidden', 'password', 'email', 'submit', 'checkbox', 'radio', 'file'].includes(type)) continue
         await input.click({ clickCount: 3 })
-        await sleep(200)
-        await input.type(code, { delay: 60 })
+        await randomDelay(150, 300)
+        await humanType(page, code)
         inputFound = true
         log(`Typed 2FA into fallback input`)
         break
@@ -583,14 +740,14 @@ async function submitCodeOnPage(page: Page, code: string): Promise<boolean> {
     return false
   }
 
-  await sleep(500)
+  await randomDelay(400, 800)
 
   // Submit
   for (const sel of ['#checkpointSubmitButton', 'button[type="submit"]', 'input[type="submit"]']) {
     try {
       const btn = await page.$(sel)
       if (btn && await btn.isVisible().catch(() => true)) {
-        await btn.click()
+        await humanClick(page, sel)
         log(`Clicked 2FA submit: ${sel}`)
         break
       }
@@ -612,8 +769,8 @@ async function handlePostCheckpointPrompts(page: Page) {
     try {
       const btn = await page.$('button[type="submit"]')
       if (btn) {
-        await btn.click()
-        await sleep(3000)
+        await humanClick(page, 'button[type="submit"]')
+        await randomDelay(2000, 4000)
       }
     } catch {}
   }
@@ -634,7 +791,7 @@ export async function submit2FACode(sessionId: string, code: string): Promise<vo
     const submitted = await submitCodeOnPage(page, code)
     if (!submitted) throw new Error('Could not find 2FA input field')
 
-    await sleep(6000)
+    await randomDelay(4000, 7000)
     await takeScreenshot(session, page)
 
     const url = page.url()
@@ -691,9 +848,9 @@ async function captureTokenAfterLogin(sessionId: string) {
     return
   }
 
-  // ===== STRATEGY 1: Already have token from network interceptor =====
+  // ===== STRATEGY 1: Already have token from CDP interceptor =====
   if (token) {
-    log(`Using network-intercepted token`)
+    log(`Using CDP-intercepted token`)
   }
 
   // ===== STRATEGY 2: Load Ads Manager (triggers XHR with tokens) =====
@@ -709,10 +866,10 @@ async function captureTokenAfterLogin(sessionId: string) {
       await sleep(10000)
       await takeScreenshot(session, page)
 
-      // Check network interceptor
+      // Check CDP interceptor
       if (session.networkToken) {
         token = session.networkToken
-        log(`Got token from network after Ads Manager: ${token.substring(0, 25)}...`)
+        log(`Got token from CDP after Ads Manager: ${token.substring(0, 25)}...`)
       }
 
       // Also scan page
@@ -748,7 +905,6 @@ async function captureTokenAfterLogin(sessionId: string) {
   if (!token) {
     try {
       log(`Trying DTSG approach...`)
-      // Go to facebook.com home if needed
       if (!page.url().includes('facebook.com') || page.url().includes('login')) {
         await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 15000 })
         await sleep(3000)
@@ -766,7 +922,6 @@ async function captureTokenAfterLogin(sessionId: string) {
       if (dtsgToken) {
         log(`Found DTSG: ${dtsgToken.substring(0, 20)}...`)
 
-        // Try calling graphql API
         const result = await page.evaluate(async (dtsg: string) => {
           try {
             const resp = await fetch('/api/graphql/', {
@@ -792,10 +947,9 @@ async function captureTokenAfterLogin(sessionId: string) {
           log(`Got token via DTSG: ${token.substring(0, 25)}...`)
         }
 
-        // Also check if network interceptor caught something
         if (!token && session.networkToken) {
           token = session.networkToken
-          log(`Network interceptor caught token during DTSG call`)
+          log(`CDP interceptor caught token during DTSG call`)
         }
       }
     } catch (e: any) {
@@ -826,7 +980,7 @@ async function captureTokenAfterLogin(sessionId: string) {
   // ===== FINAL CHECK =====
   if (!token && session.networkToken) {
     token = session.networkToken
-    log(`Final: using network interceptor token`)
+    log(`Final: using CDP interceptor token`)
   }
 
   await takeScreenshot(session, page)
