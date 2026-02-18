@@ -201,37 +201,105 @@ async function performLogin(sessionId: string, email: string, password: string) 
 
   session.status = 'logging_in'
 
-  // Navigate to Facebook mobile login (less bot detection than desktop)
-  await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 30000 })
+  // Use m.facebook.com (mobile) — simpler HTML, less bot detection, more reliable selectors
+  await page.goto('https://m.facebook.com/login/', { waitUntil: 'networkidle2', timeout: 30000 })
   log(`Page loaded: ${page.url()}`)
 
-  // Close cookie dialog if present
+  // Take screenshot to see what we got
+  await takeScreenshot(session, page)
+
+  // Close cookie dialog if present (try multiple selectors)
   try {
-    const cookieBtn = await page.$('[data-cookiebanner="accept_button"]')
-    if (cookieBtn) {
-      await cookieBtn.click()
-      await sleep(1000)
+    const cookieSelectors = [
+      '[data-cookiebanner="accept_button"]',
+      'button[data-testid="cookie-policy-manage-dialog-accept-button"]',
+      '[title="Allow all cookies"]',
+      '[value="Accept All"]',
+      'button[name="accept"]',
+    ]
+    for (const sel of cookieSelectors) {
+      const btn = await page.$(sel)
+      if (btn) {
+        await btn.click()
+        log(`Clicked cookie accept: ${sel}`)
+        await sleep(1500)
+        break
+      }
     }
   } catch {}
 
-  await sleep(1500)
-
-  // Enter email with random delays to look human
-  await page.waitForSelector('#email', { timeout: 10000 })
-  await page.click('#email')
-  await sleep(300)
-  await page.type('#email', email, { delay: 80 + Math.random() * 40 })
-  await sleep(800)
-
-  // Enter password
-  await page.click('#pass')
-  await sleep(200)
-  await page.type('#pass', password, { delay: 70 + Math.random() * 50 })
   await sleep(1000)
 
-  // Click login button
-  await page.click('[name="login"]')
-  log(`Login button clicked, waiting for response...`)
+  // Find and fill email — try multiple selectors
+  const emailSelectors = ['#email', '#m_login_email', 'input[name="email"]', 'input[type="email"]', 'input[type="text"]']
+  let emailInput = null
+  for (const sel of emailSelectors) {
+    try {
+      emailInput = await page.$(sel)
+      if (emailInput) {
+        const visible = await emailInput.isVisible().catch(() => true)
+        if (visible) {
+          log(`Found email input: ${sel}`)
+          break
+        }
+        emailInput = null
+      }
+    } catch {}
+  }
+
+  if (!emailInput) {
+    // Last resort: take screenshot and fail with useful error
+    await takeScreenshot(session, page)
+    const html = await page.content()
+    log(`Could not find email input. Page URL: ${page.url()}, HTML length: ${html.length}`)
+    session.status = 'failed'
+    session.error = 'Could not find login form on Facebook. Facebook may be blocking the server IP.'
+    await cleanupSession(sessionId)
+    return
+  }
+
+  await emailInput.click()
+  await sleep(300)
+  await emailInput.type(email, { delay: 80 + Math.random() * 40 })
+  await sleep(800)
+
+  // Find and fill password
+  const passSelectors = ['#pass', '#m_login_password', 'input[name="pass"]', 'input[type="password"]']
+  let passInput = null
+  for (const sel of passSelectors) {
+    try {
+      passInput = await page.$(sel)
+      if (passInput) {
+        log(`Found password input: ${sel}`)
+        break
+      }
+    } catch {}
+  }
+
+  if (!passInput) {
+    session.status = 'failed'
+    session.error = 'Could not find password field'
+    await cleanupSession(sessionId)
+    return
+  }
+
+  await passInput.click()
+  await sleep(200)
+  await passInput.type(password, { delay: 70 + Math.random() * 50 })
+  await sleep(1000)
+
+  // Click login button — try multiple selectors
+  const loginBtnSelectors = ['[name="login"]', 'button[data-testid="royal_login_button"]', 'button[type="submit"]', 'input[type="submit"]', '#loginbutton']
+  for (const sel of loginBtnSelectors) {
+    try {
+      const btn = await page.$(sel)
+      if (btn) {
+        await btn.click()
+        log(`Clicked login button: ${sel}`)
+        break
+      }
+    } catch {}
+  }
 
   // Wait for navigation
   await sleep(6000)
