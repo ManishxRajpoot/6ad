@@ -12,6 +12,7 @@
 import puppeteer, { Browser, Page } from 'puppeteer'
 import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
+import * as OTPAuth from 'otpauth'
 
 const prisma = new PrismaClient()
 
@@ -28,6 +29,7 @@ interface LoginSession {
   fbUserId?: string
   capturedToken?: string
   screenshotBase64?: string
+  twoFASecret?: string
   createdAt: Date
 }
 
@@ -60,7 +62,7 @@ function generateSessionId(): string {
 
 // ==================== Start Login ====================
 
-export async function startFbLogin(email: string, password: string): Promise<{ sessionId: string }> {
+export async function startFbLogin(email: string, password: string, twoFASecret?: string): Promise<{ sessionId: string }> {
   const sessionId = generateSessionId()
 
   const loginSession: LoginSession = {
@@ -68,6 +70,7 @@ export async function startFbLogin(email: string, password: string): Promise<{ s
     status: 'launching',
     browser: null,
     page: null,
+    twoFASecret: twoFASecret || undefined,
     createdAt: new Date(),
   }
   activeSessions.set(sessionId, loginSession)
@@ -208,16 +211,131 @@ async function performLogin(sessionId: string, email: string, password: string) 
   }
 
   if (needs2FA) {
+    if (session.twoFASecret) {
+      // Auto-generate TOTP code from secret key
+      console.log(`[FBBrowser] 2FA required, auto-generating code from secret for session ${sessionId}`)
+      session.status = 'submitting_2fa'
+      const code = generateTOTPCode(session.twoFASecret)
+      console.log(`[FBBrowser] Generated TOTP code: ${code}`)
+      await autoSubmit2FA(session, page, code)
+      // After auto-submit, try to capture token
+      await captureTokenAfterLogin(sessionId, capturedToken)
+      return
+    }
     session.status = 'needs_2fa'
-    console.log(`[FBBrowser] 2FA required for session ${sessionId}`)
-    return // Wait for 2FA code submission
+    console.log(`[FBBrowser] 2FA required for session ${sessionId}, waiting for code`)
+    return // Wait for manual 2FA code submission
   }
 
   // Login succeeded, try to capture token
   await captureTokenAfterLogin(sessionId, capturedToken)
 }
 
-// ==================== Submit 2FA Code ====================
+// ==================== TOTP Code Generation ====================
+
+function generateTOTPCode(secret: string): string {
+  // Clean up the secret - remove spaces, dashes, and make uppercase
+  const cleanSecret = secret.replace(/[\s-]/g, '').toUpperCase()
+
+  const totp = new OTPAuth.TOTP({
+    issuer: 'Facebook',
+    label: 'FB',
+    algorithm: 'SHA1',
+    digits: 6,
+    period: 30,
+    secret: OTPAuth.Secret.fromBase32(cleanSecret),
+  })
+
+  return totp.generate()
+}
+
+// Auto-submit 2FA code on the page
+async function autoSubmit2FA(session: LoginSession, page: Page, code: string) {
+  try {
+    // Try different 2FA input selectors
+    const selectors = [
+      'input[name="approvals_code"]',
+      'input[id="approvals_code"]',
+      '#approvals_code',
+      'input[type="text"][autocomplete]',
+      'input[type="tel"]',
+      'input[type="number"]',
+    ]
+
+    let inputFound = false
+    for (const selector of selectors) {
+      try {
+        const input = await page.$(selector)
+        if (input) {
+          await input.click({ clickCount: 3 })
+          await input.type(code, { delay: 50 })
+          inputFound = true
+          break
+        }
+      } catch {}
+    }
+
+    if (!inputFound) {
+      const inputs = await page.$$('input[type="text"], input[type="tel"], input[type="number"]')
+      for (const input of inputs) {
+        const visible = await input.isVisible()
+        if (visible) {
+          await input.click({ clickCount: 3 })
+          await input.type(code, { delay: 50 })
+          inputFound = true
+          break
+        }
+      }
+    }
+
+    if (!inputFound) {
+      session.status = 'failed'
+      session.error = 'Could not find 2FA input field'
+      return
+    }
+
+    await sleep(500)
+
+    // Click submit button
+    const buttonSelectors = [
+      '#checkpointSubmitButton',
+      'button[type="submit"]',
+      '[data-testid="checkpoint_submit_button"]',
+      'button[name="submit[Continue]"]',
+    ]
+
+    for (const selector of buttonSelectors) {
+      try {
+        const btn = await page.$(selector)
+        if (btn) {
+          await btn.click()
+          break
+        }
+      } catch {}
+    }
+
+    await sleep(5000)
+
+    // Take screenshot
+    const screenshot = await page.screenshot({ encoding: 'base64' })
+    session.screenshotBase64 = screenshot as string
+
+    // Check for "Remember this browser?" prompt
+    const content = await page.content()
+    if (content.includes('Remember this browser') || content.includes('Save Browser') || content.includes('remember_browser')) {
+      try {
+        const continueBtn = await page.$('button[type="submit"]')
+        if (continueBtn) await continueBtn.click()
+        await sleep(3000)
+      } catch {}
+    }
+  } catch (err: any) {
+    session.status = 'failed'
+    session.error = `Auto 2FA failed: ${err.message}`
+  }
+}
+
+// ==================== Submit 2FA Code (Manual) ====================
 
 export async function submit2FACode(sessionId: string, code: string): Promise<void> {
   const session = activeSessions.get(sessionId)

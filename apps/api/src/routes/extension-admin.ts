@@ -408,13 +408,13 @@ app.get('/worker-status', async (c) => {
 // POST /extension-admin/fb-browser-login - Start a new browser login session
 app.post('/fb-browser-login', async (c) => {
   try {
-    const { email, password } = await c.req.json()
+    const { email, password, twoFASecret } = await c.req.json()
 
     if (!email || !password) {
       return c.json({ error: 'Email and password are required' }, 400)
     }
 
-    const result = await startFbLogin(email, password)
+    const result = await startFbLogin(email, password, twoFASecret || undefined)
     return c.json(result)
   } catch (error: any) {
     console.error('Start FB browser login error:', error)

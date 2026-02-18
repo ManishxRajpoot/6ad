@@ -49,6 +49,7 @@ export default function FbLoginsPage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
+  const [loginTwoFASecret, setLoginTwoFASecret] = useState('')
   const [isStartingLogin, setIsStartingLogin] = useState(false)
 
   // Active login progress
@@ -128,7 +129,7 @@ export default function FbLoginsPage() {
 
     setIsStartingLogin(true)
     try {
-      const result = await extensionAdminApi.startBrowserLogin(loginEmail.trim(), loginPassword.trim())
+      const result = await extensionAdminApi.startBrowserLogin(loginEmail.trim(), loginPassword.trim(), loginTwoFASecret.trim() || undefined)
       setLoginProgress({
         sessionId: result.sessionId,
         status: 'launching',
@@ -136,6 +137,7 @@ export default function FbLoginsPage() {
       setShowLoginModal(false)
       setLoginEmail('')
       setLoginPassword('')
+      setLoginTwoFASecret('')
       toast.success('Login started, please wait...')
     } catch (err: any) {
       toast.handleApiError(err, 'Failed to start login')
@@ -506,6 +508,22 @@ export default function FbLoginsPage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  2FA Secret Key <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={loginTwoFASecret}
+                  onChange={(e) => setLoginTwoFASecret(e.target.value)}
+                  placeholder="e.g., JBSWY3DPEHPK3PXP"
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  If provided, 2FA code will be generated automatically. No need to enter code manually.
+                </p>
+              </div>
+
               <div className="bg-amber-50 rounded-lg p-3">
                 <p className="text-xs text-amber-800">
                   Your credentials are only used to login once via a secure browser session on the server.
@@ -520,6 +538,7 @@ export default function FbLoginsPage() {
                   setShowLoginModal(false)
                   setLoginEmail('')
                   setLoginPassword('')
+                  setLoginTwoFASecret('')
                 }}
                 className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50"
               >
