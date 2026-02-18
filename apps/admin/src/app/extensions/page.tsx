@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -117,7 +117,15 @@ function getDaysRemaining(tokenExpiresAt: string | null): number | null {
   return Math.max(0, Math.ceil((expires.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)))
 }
 
-export default function ExtensionsPage() {
+export default function ExtensionsPageWrapper() {
+  return (
+    <Suspense>
+      <ExtensionsPage />
+    </Suspense>
+  )
+}
+
+function ExtensionsPage() {
   const toast = useToast()
   const searchParams = useSearchParams()
   const router = useRouter()
