@@ -3,7 +3,6 @@ import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import { verifyToken, requireUser, requireAdmin } from '../middleware/auth.js'
 import { cheetahApi } from '../services/cheetah-api.js'
-import { facebookBMApi } from '../services/facebook-bm-api.js'
 import {
   sendEmail,
   buildSmtpConfig,

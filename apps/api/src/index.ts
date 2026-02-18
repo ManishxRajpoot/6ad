@@ -30,6 +30,7 @@ import extensionRoutes from './routes/extension.js'
 import extensionAdminRoutes from './routes/extension-admin.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
+import { startExtensionWorker } from './services/extension-worker.js'
 
 const app = new Hono()
 
@@ -111,6 +112,11 @@ startBackgroundVerifier().catch(console.error)
 
 // Start SSE heartbeat for real-time event delivery
 startHeartbeat()
+
+// Start extension worker - processes recharges and BM shares server-side
+// Uses FB tokens captured by extension (stored in ExtensionSession)
+// No Chrome browser needed after initial token capture!
+startExtensionWorker()
 
 // Start server
 const port = Number(process.env.PORT) || 5001

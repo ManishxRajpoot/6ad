@@ -636,4 +636,7 @@ export const extensionAdminApi = {
     api.post<{ message: string }>(`/extension-admin/recharges/${depositId}/mark-manual`, {}),
   retryRecharge: (depositId: string) =>
     api.post<{ message: string }>(`/extension-admin/recharges/${depositId}/retry`, {}),
+  // Worker Status
+  getWorkerStatus: () =>
+    api.get<{ worker: any; activeSessions: any[]; pendingTasks: { recharges: number; bmShares: number } }>('/extension-admin/worker-status'),
 }

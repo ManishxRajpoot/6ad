@@ -24,6 +24,8 @@ import {
   AlertCircle,
   RotateCcw,
   ClipboardCheck,
+  Server,
+  Share2,
 } from 'lucide-react'
 
 // Types
@@ -112,6 +114,9 @@ export default function ExtensionsPage() {
   const [rechargeFilter, setRechargeFilter] = useState<string>('all')
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
 
+  // Worker status state
+  const [workerStatus, setWorkerStatus] = useState<any>(null)
+
   // Fetch sessions
   const fetchSessions = useCallback(async () => {
     try {
@@ -136,11 +141,22 @@ export default function ExtensionsPage() {
     }
   }, [rechargeFilter])
 
+  // Fetch worker status
+  const fetchWorkerStatus = useCallback(async () => {
+    try {
+      const res = await extensionAdminApi.getWorkerStatus()
+      setWorkerStatus(res)
+    } catch {
+      // silent
+    }
+  }, [])
+
   // Initial load
   useEffect(() => {
     fetchSessions()
     fetchRecharges()
-  }, [fetchSessions, fetchRecharges])
+    fetchWorkerStatus()
+  }, [fetchSessions, fetchRecharges, fetchWorkerStatus])
 
   // Auto-refresh recharges every 10 seconds when on recharges tab
   useEffect(() => {
@@ -159,6 +175,12 @@ export default function ExtensionsPage() {
     }, 15000)
     return () => clearInterval(interval)
   }, [activeTab, fetchSessions])
+
+  // Auto-refresh worker status every 15 seconds
+  useEffect(() => {
+    const interval = setInterval(fetchWorkerStatus, 15000)
+    return () => clearInterval(interval)
+  }, [fetchWorkerStatus])
 
   // Create session
   const handleCreateSession = async () => {
@@ -299,6 +321,60 @@ export default function ExtensionsPage() {
             <p className="text-sm text-gray-500 mt-1">Manage Chrome extension sessions and auto-recharge queue</p>
           </div>
         </div>
+
+        {/* Server Worker Status */}
+        {workerStatus && (
+          <Card className="!p-4 border-l-4 border-l-green-500">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                  <Server className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-gray-900">Server Worker</h3>
+                    {workerStatus.worker?.isRunning ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        Running 24/7
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                        Stopped
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Auto-processes recharges & BM shares using captured FB tokens — no browser needed
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-center">
+                  <p className="text-lg font-bold text-green-600">{workerStatus.worker?.totalRechargesProcessed || 0}</p>
+                  <p className="text-xs text-gray-500">Recharges</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-blue-600">{workerStatus.worker?.totalBmSharesProcessed || 0}</p>
+                  <p className="text-xs text-gray-500">BM Shares</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-yellow-600">{workerStatus.pendingTasks?.recharges || 0}</p>
+                  <p className="text-xs text-gray-500">Pending</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-purple-600">{workerStatus.activeSessions?.length || 0}</p>
+                  <p className="text-xs text-gray-500">FB Tokens</p>
+                </div>
+              </div>
+            </div>
+            {workerStatus.worker?.lastError && (
+              <div className="mt-2 p-2 bg-red-50 rounded-lg">
+                <p className="text-xs text-red-600">Last error: {workerStatus.worker.lastError}</p>
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

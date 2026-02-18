@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { PrismaClient } from '@prisma/client'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import crypto from 'crypto'
+import { getWorkerStats } from '../services/extension-worker.js'
 
 const prisma = new PrismaClient()
 const app = new Hono()
@@ -198,6 +199,64 @@ app.post('/recharges/:id/retry', async (c) => {
   } catch (error: any) {
     console.error('Retry recharge error:', error)
     return c.json({ error: 'Failed to retry recharge' }, 500)
+  }
+})
+
+// ==================== Worker Status ====================
+
+// GET /extension-admin/worker-status - Get server-side worker status
+app.get('/worker-status', async (c) => {
+  try {
+    const stats = getWorkerStats()
+
+    // Also get active sessions with valid tokens
+    const activeSessions = await prisma.extensionSession.findMany({
+      where: {
+        isActive: true,
+        fbAccessToken: { not: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        fbUserName: true,
+        fbUserId: true,
+        lastSeenAt: true,
+        totalRecharges: true,
+        failedRecharges: true,
+      },
+      orderBy: { lastSeenAt: 'desc' },
+    })
+
+    // Count pending tasks
+    const [pendingRecharges, pendingBmShares] = await Promise.all([
+      prisma.accountDeposit.count({
+        where: {
+          status: 'APPROVED',
+          rechargeStatus: 'PENDING',
+          rechargeMethod: 'EXTENSION',
+          adAccount: { platform: 'FACEBOOK' }
+        }
+      }),
+      prisma.bmShareRequest.count({
+        where: {
+          status: 'PENDING',
+          platform: 'FACEBOOK',
+          shareMethod: 'EXTENSION',
+        }
+      })
+    ])
+
+    return c.json({
+      worker: stats,
+      activeSessions,
+      pendingTasks: {
+        recharges: pendingRecharges,
+        bmShares: pendingBmShares,
+      }
+    })
+  } catch (error: any) {
+    console.error('Get worker status error:', error)
+    return c.json({ error: 'Failed to get worker status' }, 500)
   }
 })
 
