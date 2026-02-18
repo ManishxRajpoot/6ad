@@ -144,73 +144,13 @@ async function processBMShareInBackground(requestId: string, adAccountId: string
       cheetahHandled = false
     }
 
-    // ===== STEP 2: Try Facebook Graph API server-side via BMConfig =====
+    // ===== STEP 2: Queue for extension if Cheetah didn't handle it =====
     if (!cheetahHandled) {
-      let serverHandled = false
-
-      try {
-        // Load all active Facebook BMConfigs
-        const bmConfigs = await prisma.bMConfig.findMany({
-          where: { apiType: 'facebook', isActive: true }
-        })
-
-        if (bmConfigs.length > 0) {
-          console.log(`[BM Share Background] Trying ${bmConfigs.length} BMConfig(s) for server-side share...`)
-
-          for (const config of bmConfigs) {
-            try {
-              console.log(`[BM Share Background] Trying BMConfig: ${config.bmName} (${config.bmId})`)
-              const result = await facebookBMApi.shareAdAccountToBM(
-                adAccountId,
-                bmId,
-                config.bmId
-              )
-
-              if (result.success) {
-                status = 'APPROVED'
-                approvedAt = new Date()
-                adminRemarks = `BM share completed successfully via ${config.bmName}! Ad account has been shared to your Business Manager.`
-                shareMethod = 'SERVER'
-                serverHandled = true
-                console.log(`[BM Share Background] SUCCESS via server-side (${config.bmName})!`)
-                break
-              } else {
-                console.log(`[BM Share Background] BMConfig ${config.bmName} failed: ${result.error}`)
-              }
-            } catch (configError: any) {
-              console.log(`[BM Share Background] BMConfig ${config.bmName} error: ${configError.message}`)
-            }
-          }
-        }
-      } catch (dbError: any) {
-        console.error(`[BM Share Background] DB error loading BMConfigs:`, dbError)
-      }
-
-      // ===== STEP 3: Queue for extension if server-side failed =====
-      if (!serverHandled) {
-        // Check if any extension is online
-        const activeExtension = await prisma.extensionSession.findFirst({
-          where: {
-            isActive: true,
-            fbAccessToken: { not: null },
-            lastSeenAt: { gte: new Date(Date.now() - 60 * 1000) } // seen in last 60s
-          }
-        })
-
-        if (activeExtension) {
-          // Keep PENDING — extension will pick it up
-          status = 'PENDING'
-          adminRemarks = 'Queued for automatic BM sharing via extension...'
-          shareMethod = 'EXTENSION'
-          console.log(`[BM Share Background] Queued for extension (${activeExtension.name})`)
-        } else {
-          // No extension online — still keep PENDING, extension may come online later
-          status = 'PENDING'
-          adminRemarks = 'Waiting for BM share processing. Please ensure the Chrome extension is active.'
-          shareMethod = 'EXTENSION'
-          console.log(`[BM Share Background] No extension online, keeping PENDING`)
-        }
-      }
+      // Keep PENDING — extension will pick it up
+      status = 'PENDING'
+      adminRemarks = 'Queued for automatic BM sharing via extension...'
+      shareMethod = 'EXTENSION'
+      console.log(`[BM Share Background] Not a Cheetah account, queued for extension`)
     }
   } else {
     // Non-Facebook - reject with message
