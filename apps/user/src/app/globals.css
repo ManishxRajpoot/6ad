@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Scale down on smaller laptop screens (e.g. 1440x900) */
+@media (max-width: 1500px) {
+  html { font-size: 14px; }
+}
+
 body {
   background-color: #F6F6F6;
 }

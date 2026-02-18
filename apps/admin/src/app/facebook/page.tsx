@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
 import { Card } from '@/components/ui/Card'
 import { applicationsApi, usersApi, bmShareApi, accountDepositsApi, accountRefundsApi, balanceTransfersApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
@@ -1410,32 +1411,23 @@ export default function FacebookPage() {
         <p className="text-sm text-gray-500 mb-4">Create an account for the user directly add data</p>
 
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">User Name</label>
-            <select
-              value={createForm.userId}
-              onChange={(e) => setCreateForm({ ...createForm, userId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788]"
-            >
-              <option value="">Select User</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>{user.username}</option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="User Name"
+            options={users.map(user => ({ value: user.id, label: user.username }))}
+            value={createForm.userId}
+            onChange={(value) => setCreateForm({ ...createForm, userId: value })}
+            placeholder="Select User"
+            searchable
+            searchPlaceholder="Search user..."
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Ad Account Numbers</label>
-            <select
-              value={createForm.adAccountQty}
-              onChange={(e) => updateAccountQty(parseInt(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788]"
-            >
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>Select No of Accounts (for example {n})</option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Ad Account Numbers"
+            options={[1, 2, 3, 4, 5].map(n => ({ value: String(n), label: `Select No of Accounts (for example ${n})` }))}
+            value={String(createForm.adAccountQty)}
+            onChange={(value) => updateAccountQty(parseInt(value))}
+            placeholder="Select No of Accounts"
+          />
 
           {createForm.accounts.map((acc, index) => (
             <div key={index} className="grid grid-cols-2 gap-3">

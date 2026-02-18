@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronDown, Check, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SelectOption {
@@ -17,6 +17,8 @@ interface SelectProps {
   label?: string
   className?: string
   disabled?: boolean
+  searchable?: boolean
+  searchPlaceholder?: string
 }
 
 export function Select({
@@ -26,18 +28,27 @@ export function Select({
   placeholder = 'Select an option',
   label,
   className,
-  disabled = false
+  disabled = false,
+  searchable = false,
+  searchPlaceholder = 'Search...'
 }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const selectRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const selectedOption = options.find(opt => opt.value === value)
+
+  const filteredOptions = searchable && searchQuery
+    ? options.filter(opt => opt.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    : options
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
         setIsOpen(false)
+        setSearchQuery('')
       }
     }
 
@@ -50,12 +61,20 @@ export function Select({
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsOpen(false)
+        setSearchQuery('')
       }
     }
 
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [])
+
+  // Focus search input when dropdown opens
+  useEffect(() => {
+    if (isOpen && searchable && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [isOpen, searchable])
 
   return (
     <div className={cn('relative', className)} ref={selectRef}>
@@ -114,33 +133,55 @@ export function Select({
             }
           `}</style>
 
+          {/* Search Input */}
+          {searchable && (
+            <div className="p-2 border-b border-gray-100">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#52B788]/20 focus:border-[#52B788] focus:bg-white"
+                />
+              </div>
+            </div>
+          )}
+
           <div className="py-1 max-h-60 overflow-auto">
-            {options.map((option, index) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => {
-                  onChange(option.value)
-                  setIsOpen(false)
-                }}
-                className={cn(
-                  'w-full px-4 py-3 text-sm text-left flex items-center justify-between gap-2',
-                  'transition-all duration-150',
-                  'hover:bg-[#52B788]/10',
-                  value === option.value
-                    ? 'bg-[#52B788]/10 text-[#52B788] font-medium'
-                    : 'text-gray-700'
-                )}
-                style={{
-                  animation: `dropdownItemIn 0.15s ease-out ${index * 0.03}s both`
-                }}
-              >
-                <span>{option.label}</span>
-                {value === option.value && (
-                  <Check className="w-4 h-4 text-[#52B788]" />
-                )}
-              </button>
-            ))}
+            {filteredOptions.length === 0 ? (
+              <div className="px-4 py-3 text-sm text-gray-400 text-center">No results found</div>
+            ) : (
+              filteredOptions.map((option, index) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value)
+                    setIsOpen(false)
+                    setSearchQuery('')
+                  }}
+                  className={cn(
+                    'w-full px-4 py-3 text-sm text-left flex items-center justify-between gap-2',
+                    'transition-all duration-150',
+                    'hover:bg-[#52B788]/10',
+                    value === option.value
+                      ? 'bg-[#52B788]/10 text-[#52B788] font-medium'
+                      : 'text-gray-700'
+                  )}
+                  style={{
+                    animation: `dropdownItemIn 0.15s ease-out ${index * 0.03}s both`
+                  }}
+                >
+                  <span>{option.label}</span>
+                  {value === option.value && (
+                    <Check className="w-4 h-4 text-[#52B788]" />
+                  )}
+                </button>
+              ))
+            )}
           </div>
 
           <style jsx>{`

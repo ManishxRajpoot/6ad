@@ -339,6 +339,11 @@ export const agentWithdrawalsApi = {
     api.post<{ message: string; withdrawal: any }>('/agent-withdrawals', data),
 }
 
+// Announcements API
+export const announcementsApi = {
+  getAll: () => api.get<{ announcements: any[] }>('/announcements'),
+}
+
 // BM & AD Request API
 export const bmAdRequestApi = {
   getStats: () => api.get<{

@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/lib/api'
 import { Mandatory2FASetup } from '@/components/Mandatory2FASetup'
 import { ProfileSetupPrompt } from '@/components/ui/ProfileSetupPrompt'
+import { AnnouncementBanner } from '@/components/ui/AnnouncementBanner'
 
 type DashboardLayoutProps = {
   children: React.ReactNode
@@ -92,6 +93,9 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
 
       {/* Profile Picture Setup Prompt - Shows after 2FA setup is complete */}
       {!needs2FASetup && <ProfileSetupPrompt />}
+
+      {/* Announcement Banner - Shows admin announcements */}
+      <AnnouncementBanner />
     </div>
   )
 }

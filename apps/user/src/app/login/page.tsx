@@ -36,6 +36,12 @@ export default function LoginPage() {
   const [secretKey, setSecretKey] = useState('')
   const [copiedSecret, setCopiedSecret] = useState(false)
 
+  // Email OTP for 2FA login
+  const [emailOtpMode, setEmailOtpMode] = useState(false)
+  const [sendingEmailOtp, setSendingEmailOtp] = useState(false)
+  const [emailOtpCooldown, setEmailOtpCooldown] = useState(0)
+  const [maskedEmail, setMaskedEmail] = useState('')
+
   // Password change state (for users created by admin/agent)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -81,7 +87,9 @@ export default function LoginPage() {
         email,
         password,
         rememberMe,
-        ...(securityStep === '2fa-login' && code ? { totpCode: code } : {})
+        ...(securityStep === '2fa-login' && code
+          ? emailOtpMode ? { emailOtp: code } : { totpCode: code }
+          : {})
       })
 
       // If 2FA is required for existing user login
@@ -135,8 +143,43 @@ export default function LoginPage() {
       setSecurityStep('login')
       setTotpCode('')
       setError('')
+      setEmailOtpMode(false)
+      setEmailOtpCooldown(0)
     }
   }
+
+  // Handle sending email OTP for 2FA login
+  const handleSendEmailOtp = async () => {
+    setError('')
+    setEmailOtpMode(true)
+    setTotpCode('')
+    setEmailOtpCooldown(60)
+    setSendingEmailOtp(true)
+
+    try {
+      const response = await authApi.twoFactor.sendEmailCode(email, password)
+      if (response.maskedEmail) setMaskedEmail(response.maskedEmail)
+    } catch (err: any) {
+      setError(err.message || 'Failed to send email code')
+    } finally {
+      setSendingEmailOtp(false)
+    }
+  }
+
+  // Cooldown timer for email OTP
+  useEffect(() => {
+    if (emailOtpCooldown <= 0) return
+    const timer = setInterval(() => {
+      setEmailOtpCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [emailOtpCooldown])
 
   // Email verification handlers
   const handleSendEmailCode = async () => {
@@ -957,9 +1000,51 @@ export default function LoginPage() {
                   </div>
                 )}
 
-                <p className="text-sm text-gray-400">
-                  Open your authenticator app to get the code
-                </p>
+                {emailOtpMode ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-400">
+                      Check your email inbox for the code
+                    </p>
+                    {emailOtpCooldown > 0 ? (
+                      <p className="text-xs text-gray-400">
+                        Resend code in <span className="font-medium text-purple-600">{emailOtpCooldown}s</span>
+                      </p>
+                    ) : (
+                      <button
+                        onClick={handleSendEmailOtp}
+                        disabled={sendingEmailOtp}
+                        className="text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors disabled:opacity-50"
+                      >
+                        {sendingEmailOtp ? 'Sending...' : 'Resend code'}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-400">
+                      Open your authenticator app to get the code
+                    </p>
+                    <div className="border-t border-gray-100 pt-3">
+                      <button
+                        onClick={handleSendEmailOtp}
+                        disabled={sendingEmailOtp}
+                        className="text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {sendingEmailOtp ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Sending code...
+                          </>
+                        ) : (
+                          <>
+                            <Mail className="w-3.5 h-3.5" />
+                            Get code via email
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

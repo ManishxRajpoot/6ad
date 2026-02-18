@@ -414,7 +414,7 @@ export const tutorials: Tutorial[] = [
         id: 'step-4',
         target: '[data-tutorial="deposit-row-first"]',
         title: 'Select Ad Account & Amount',
-        description: 'Choose an ad account from the dropdown and enter the deposit amount. Minimum deposit is $100 and must be in $50 increments.',
+        description: 'Choose an ad account from the dropdown and enter the deposit amount. Minimum deposit is $50 and must be in $50 increments.',
         position: 'bottom',
         action: 'input',
       },
