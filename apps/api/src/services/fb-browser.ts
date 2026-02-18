@@ -343,11 +343,14 @@ async function performLogin(sessionId: string, email: string, password: string) 
   }
 
   // ==========================================================
-  // STEP 2: Go to Ads Manager (redirects to login)
-  // After login, it redirects BACK to adsmanager which loads EAA tokens
+  // STEP 2: Go to www.facebook.com/login/ directly
+  // Previously we went to adsmanager first (expecting redirect to login),
+  // but FB now redirects to business.facebook.com/business/loginpage/new/
+  // which uses a new React login form where classic selectors don't work.
+  // Going to facebook.com/login directly is reliable.
   // ==========================================================
-  log(`Navigating to adsmanager.facebook.com (will redirect to login)...`)
-  await page.goto('https://adsmanager.facebook.com/adsmanager/manage/campaigns', {
+  log(`Navigating to www.facebook.com/login...`)
+  await page.goto('https://www.facebook.com/login/', {
     waitUntil: 'networkidle2',
     timeout: 30000
   })
@@ -364,25 +367,20 @@ async function performLogin(sessionId: string, email: string, password: string) 
   await dismissCookieBanner(page)
   await randomDelay(800, 1500)
 
-  // Find email input
-  let emailInput = await findEmailInput(page)
-
-  // If no email input, we might already be logged in (or need to try other approaches)
-  if (!emailInput) {
-    // Check if we're already on adsmanager (already logged in)
-    if (page.url().includes('adsmanager')) {
-      log(`Already logged in! On adsmanager directly.`)
+  // Check if we're already logged in (FB redirected away from login page)
+  const currentUrl = page.url()
+  if (currentUrl.includes('facebook.com') && !currentUrl.includes('/login') && !currentUrl.includes('checkpoint')) {
+    const cookies = await page.cookies()
+    const cUserCheck = cookies.find(c => c.name === 'c_user')
+    if (cUserCheck) {
+      log(`Already logged in! Redirected to: ${currentUrl}`)
       await captureTokenAfterLogin(sessionId)
       return
     }
-
-    // Try navigating to login directly
-    log(`No email input found, trying direct login page...`)
-    await page.goto('https://www.facebook.com/login/', { waitUntil: 'networkidle2', timeout: 15000 })
-    await randomDelay(1500, 2500)
-    await takeScreenshot(session, page)
-    emailInput = await findEmailInput(page)
   }
+
+  // Find email input
+  let emailInput = await findEmailInput(page)
 
   if (!emailInput) {
     await takeScreenshot(session, page)
@@ -546,16 +544,8 @@ async function performLogin(sessionId: string, email: string, password: string) 
   // ===== LOGIN SUCCEEDED =====
   log(`Login succeeded! c_user cookie present.`)
 
-  // Check if we're already on adsmanager (Facebook redirected us back)
-  if (afterLoginUrl.includes('adsmanager')) {
-    log(`Already on adsmanager after login — perfect!`)
-    await sleep(5000) // Wait for XHR calls
-    await captureTokenAfterLogin(sessionId)
-    return
-  }
-
-  // Navigate to adsmanager now
-  log(`Navigating to adsmanager for token capture...`)
+  // Proceed to token capture (navigates to adsmanager internally)
+  log(`Login succeeded, proceeding to token capture...`)
   await captureTokenAfterLogin(sessionId)
 }
 
