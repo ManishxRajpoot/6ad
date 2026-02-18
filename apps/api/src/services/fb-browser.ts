@@ -518,31 +518,76 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
   const page = session.page
 
   let token = preExistingToken
-  log(`Capturing token, pre-existing: ${token ? 'yes' : 'no'}`)
+  log(`Capturing token, pre-existing: ${token ? 'yes' : 'no'}, current URL: ${page.url()}`)
 
-  // Try extracting token from current page scripts first
+  // Step 1: Try extracting token from current page (wherever we are after login/2FA)
   if (!token) {
     token = await extractTokenFromPage(page)
   }
 
-  // Navigate to business.facebook.com
+  // Step 2: Navigate to www.facebook.com homepage (SAME domain, cookies preserved)
   if (!token) {
     try {
-      log(`Navigating to business.facebook.com...`)
-      await page.goto('https://business.facebook.com/latest/home', { waitUntil: 'networkidle2', timeout: 20000 })
+      log(`Navigating to www.facebook.com...`)
+      await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 20000 })
       await sleep(3000)
       await takeScreenshot(session, page)
       token = await extractTokenFromPage(page)
     } catch (e: any) {
-      log(`business.facebook.com failed: ${e.message}`)
+      log(`www.facebook.com navigation failed: ${e.message}`)
     }
   }
 
-  // Navigate to Ads Manager
+  // Step 3: Check c_user cookie to confirm we're logged in, then try inline fetches
   if (!token) {
     try {
-      log(`Navigating to Ads Manager...`)
-      await page.goto('https://www.facebook.com/adsmanager', { waitUntil: 'networkidle2', timeout: 20000 })
+      const cookies = await page.cookies('https://www.facebook.com')
+      const cUser = cookies.find(c => c.name === 'c_user')
+
+      if (cUser) {
+        log(`Logged in as c_user=${cUser.value}, trying inline fetches for token...`)
+
+        // Method A: Try fetching Facebook API endpoints from within the page (cookies auto-sent)
+        const fetchedToken = await page.evaluate(async () => {
+          try {
+            // Try fetching a page that always includes access token
+            const resp = await fetch('https://www.facebook.com/adsmanager/manage/campaigns', {
+              credentials: 'include',
+              redirect: 'follow',
+            })
+            const text = await resp.text()
+            const tokenMatch = text.match(/(EAA[A-Za-z0-9]{30,})/)
+            if (tokenMatch) return tokenMatch[1]
+
+            // Try another endpoint
+            const resp2 = await fetch('https://www.facebook.com/ajax/bootloader-endpoint/?modules=AdsLWIManagerContainer', {
+              credentials: 'include',
+            })
+            const text2 = await resp2.text()
+            const tokenMatch2 = text2.match(/(EAA[A-Za-z0-9]{30,})/)
+            if (tokenMatch2) return tokenMatch2[1]
+
+            return null
+          } catch {
+            return null
+          }
+        })
+
+        if (fetchedToken) {
+          token = fetchedToken
+          log(`Captured token via inline fetch: ${token.substring(0, 20)}...`)
+        }
+      } else {
+        log(`Not logged in — no c_user cookie found`)
+      }
+    } catch {}
+  }
+
+  // Step 4: Navigate to Ads Manager on same domain (www.facebook.com/adsmanager)
+  if (!token) {
+    try {
+      log(`Navigating to www.facebook.com/adsmanager...`)
+      await page.goto('https://www.facebook.com/adsmanager/manage/campaigns', { waitUntil: 'networkidle2', timeout: 20000 })
       await sleep(5000)
       await takeScreenshot(session, page)
       token = await extractTokenFromPage(page)
@@ -551,53 +596,17 @@ async function captureTokenAfterLogin(sessionId: string, preExistingToken: strin
     }
   }
 
-  // Try facebook.com/me page (simpler, should trigger token)
+  // Step 5: Last resort — try business.facebook.com
   if (!token) {
     try {
-      log(`Navigating to facebook.com for token extraction...`)
-      await page.goto('https://www.facebook.com/', { waitUntil: 'networkidle2', timeout: 15000 })
+      log(`Last resort: navigating to business.facebook.com...`)
+      await page.goto('https://business.facebook.com/latest/home', { waitUntil: 'networkidle2', timeout: 20000 })
       await sleep(3000)
+      await takeScreenshot(session, page)
       token = await extractTokenFromPage(page)
-    } catch {}
-  }
-
-  // Check if logged in via c_user cookie
-  if (!token) {
-    try {
-      const cookies = await page.cookies('https://www.facebook.com')
-      const cUser = cookies.find(c => c.name === 'c_user')
-
-      if (cUser) {
-        log(`Logged in as c_user=${cUser.value}, trying inline fetch for token...`)
-
-        // Try fetching a Graph API endpoint from within the page context
-        const fetchedToken = await page.evaluate(async () => {
-          try {
-            // Try to get DTSGs and access tokens from the page
-            const html = document.documentElement.innerHTML
-            const match = html.match(/(EAA[A-Za-z0-9]{30,})/)
-            if (match) return match[1]
-
-            // Try fetching a lightweight endpoint
-            const resp = await fetch('https://www.facebook.com/ajax/browser/list/homesidebar/', {
-              credentials: 'include',
-            })
-            const text = await resp.text()
-            const tokenMatch = text.match(/(EAA[A-Za-z0-9]{30,})/)
-            return tokenMatch ? tokenMatch[1] : null
-          } catch {
-            return null
-          }
-        })
-
-        if (fetchedToken) {
-          token = fetchedToken
-          log(`Captured token from inline fetch: ${token.substring(0, 20)}...`)
-        }
-      } else {
-        log(`Not logged in — no c_user cookie found`)
-      }
-    } catch {}
+    } catch (e: any) {
+      log(`business.facebook.com failed: ${e.message}`)
+    }
   }
 
   // Final screenshot
