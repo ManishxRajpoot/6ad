@@ -644,4 +644,13 @@ export const extensionAdminApi = {
   // Worker Status
   getWorkerStatus: () =>
     api.get<{ worker: any; activeSessions: any[]; pendingTasks: { recharges: number; bmShares: number } }>('/extension-admin/worker-status'),
+  // Browser-based FB Login
+  startBrowserLogin: (email: string, password: string) =>
+    api.post<{ sessionId: string }>('/extension-admin/fb-browser-login', { email, password }),
+  submit2FA: (sessionId: string, code: string) =>
+    api.post<{ message: string }>(`/extension-admin/fb-browser-login/${sessionId}/2fa`, { code }),
+  getLoginStatus: (sessionId: string) =>
+    api.get<{ id: string; status: string; error?: string; fbName?: string; fbUserId?: string; screenshot?: string }>(`/extension-admin/fb-browser-login/${sessionId}/status`),
+  cancelBrowserLogin: (sessionId: string) =>
+    api.delete<{ message: string }>(`/extension-admin/fb-browser-login/${sessionId}`),
 }

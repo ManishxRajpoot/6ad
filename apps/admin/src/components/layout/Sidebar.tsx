@@ -18,6 +18,7 @@ import {
   Gift,
   Ticket,
   Zap,
+  KeyRound,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -120,6 +121,7 @@ const menuSections: MenuSection[] = [
   {
     label: 'System',
     items: [
+      { name: 'FB Logins', href: '/fb-logins', icon: KeyRound },
       { name: 'Extensions', href: '/extensions', icon: Zap },
       { name: 'Domains', href: '/domain-requests', icon: Globe },
       { name: 'Settings', href: '/settings', icon: Settings },

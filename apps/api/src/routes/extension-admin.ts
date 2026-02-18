@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import crypto from 'crypto'
 import { getWorkerStats } from '../services/extension-worker.js'
+import { startFbLogin, submit2FACode, getLoginStatus, cancelLogin, getActiveLoginSessions } from '../services/fb-browser.js'
 
 const prisma = new PrismaClient()
 const app = new Hono()
@@ -399,6 +400,83 @@ app.get('/worker-status', async (c) => {
   } catch (error: any) {
     console.error('Get worker status error:', error)
     return c.json({ error: 'Failed to get worker status' }, 500)
+  }
+})
+
+// ==================== Browser-Based FB Login ====================
+
+// POST /extension-admin/fb-browser-login - Start a new browser login session
+app.post('/fb-browser-login', async (c) => {
+  try {
+    const { email, password } = await c.req.json()
+
+    if (!email || !password) {
+      return c.json({ error: 'Email and password are required' }, 400)
+    }
+
+    const result = await startFbLogin(email, password)
+    return c.json(result)
+  } catch (error: any) {
+    console.error('Start FB browser login error:', error)
+    return c.json({ error: error.message || 'Failed to start login' }, 500)
+  }
+})
+
+// POST /extension-admin/fb-browser-login/:sessionId/2fa - Submit 2FA code
+app.post('/fb-browser-login/:sessionId/2fa', async (c) => {
+  try {
+    const { sessionId } = c.req.param()
+    const { code } = await c.req.json()
+
+    if (!code) {
+      return c.json({ error: '2FA code is required' }, 400)
+    }
+
+    await submit2FACode(sessionId, code)
+    return c.json({ message: '2FA submitted' })
+  } catch (error: any) {
+    console.error('Submit 2FA error:', error)
+    return c.json({ error: error.message || 'Failed to submit 2FA' }, 500)
+  }
+})
+
+// GET /extension-admin/fb-browser-login/:sessionId/status - Check login status
+app.get('/fb-browser-login/:sessionId/status', async (c) => {
+  try {
+    const { sessionId } = c.req.param()
+    const status = getLoginStatus(sessionId)
+
+    if (!status) {
+      return c.json({ error: 'Login session not found or expired' }, 404)
+    }
+
+    return c.json(status)
+  } catch (error: any) {
+    console.error('Get login status error:', error)
+    return c.json({ error: 'Failed to get status' }, 500)
+  }
+})
+
+// DELETE /extension-admin/fb-browser-login/:sessionId - Cancel a login session
+app.delete('/fb-browser-login/:sessionId', async (c) => {
+  try {
+    const { sessionId } = c.req.param()
+    await cancelLogin(sessionId)
+    return c.json({ message: 'Login cancelled' })
+  } catch (error: any) {
+    console.error('Cancel login error:', error)
+    return c.json({ error: 'Failed to cancel' }, 500)
+  }
+})
+
+// GET /extension-admin/fb-browser-login - Get all active login sessions
+app.get('/fb-browser-login', async (c) => {
+  try {
+    const sessions = getActiveLoginSessions()
+    return c.json({ sessions })
+  } catch (error: any) {
+    console.error('Get active login sessions error:', error)
+    return c.json({ error: 'Failed to get sessions' }, 500)
   }
 })
 
