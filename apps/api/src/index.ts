@@ -14,7 +14,6 @@ import dashboardRoutes from './routes/dashboard.js'
 import settingsRoutes from './routes/settings.js'
 import paymentMethodRoutes from './routes/payment-methods.js'
 import bmShareRoutes from './routes/bm-share.js'
-import bmConfigRoutes, { initializeBMConfigs } from './routes/bm-config.js'
 import domainRoutes from './routes/domains.js'
 import facebookRoutes from './routes/facebook.js'
 import referralRoutes from './routes/referrals.js'
@@ -26,11 +25,8 @@ import agentWithdrawalRoutes from './routes/agent-withdrawals.js'
 import bmAdRequestRoutes from './routes/bm-ad-request.js'
 import versionRoutes from './routes/version.js'
 import eventRoutes from './routes/events.js'
-import extensionRoutes from './routes/extension.js'
-import extensionAdminRoutes from './routes/extension-admin.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
-import { startExtensionWorker } from './services/extension-worker.js'
 
 const app = new Hono()
 
@@ -89,7 +85,6 @@ app.route('/dashboard', dashboardRoutes)
 app.route('/settings', settingsRoutes)
 app.route('/payment-methods', paymentMethodRoutes)
 app.route('/bm-share', bmShareRoutes)
-app.route('/bm-config', bmConfigRoutes)
 app.route('/domains', domainRoutes)
 app.route('/facebook', facebookRoutes)
 app.route('/referrals', referralRoutes)
@@ -101,22 +96,12 @@ app.route('/agent-withdrawals', agentWithdrawalRoutes)
 app.route('/bm-ad-request', bmAdRequestRoutes)
 app.route('/version', versionRoutes)
 app.route('/events', eventRoutes)
-app.route('/extension', extensionRoutes)
-app.route('/extension-admin', extensionAdminRoutes)
-
-// Initialize BM configurations from database
-initializeBMConfigs().catch(console.error)
 
 // Start background crypto verification service
 startBackgroundVerifier().catch(console.error)
 
 // Start SSE heartbeat for real-time event delivery
 startHeartbeat()
-
-// Start extension worker - processes recharges and BM shares server-side
-// Uses FB tokens captured by extension (stored in ExtensionSession)
-// No Chrome browser needed after initial token capture!
-startExtensionWorker()
 
 // Start server
 const port = Number(process.env.PORT) || 5001

@@ -143,13 +143,12 @@ async function processBMShareInBackground(requestId: string, adAccountId: string
       cheetahHandled = false
     }
 
-    // ===== STEP 2: Queue for extension if Cheetah didn't handle it =====
+    // ===== STEP 2: If Cheetah didn't handle it, keep pending for manual processing =====
     if (!cheetahHandled) {
-      // Keep PENDING — extension will pick it up
       status = 'PENDING'
-      adminRemarks = 'Processing your BM share request...'
-      shareMethod = 'EXTENSION'
-      console.log(`[BM Share Background] Not a Cheetah account, queued for extension`)
+      adminRemarks = 'Pending manual BM share processing.'
+      shareMethod = 'MANUAL'
+      console.log(`[BM Share Background] Not a Cheetah account, pending manual processing`)
     }
   } else {
     // Non-Facebook - reject with message

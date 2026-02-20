@@ -1303,76 +1303,7 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       }
     }
 
-    // STEP 2: For non-Cheetah FB accounts, try server-side recharge using stored extension token
-    let serverRechargeSuccess = false
-    let serverRechargeError: string | null = null
-    if (deposit.adAccount.platform === 'FACEBOOK' && !isCheetahAccount) {
-      try {
-        // Find any active extension session with a stored FB token
-        const extensionSession = await prisma.extensionSession.findFirst({
-          where: {
-            isActive: true,
-            fbAccessToken: { not: null },
-          },
-          orderBy: { lastSeenAt: 'desc' } // prefer most recently active session
-        })
-
-        if (extensionSession?.fbAccessToken) {
-          const fbToken = extensionSession.fbAccessToken
-          const accountId = deposit.adAccount.accountId
-          const depositAmount = Number(deposit.amount)
-
-          console.log(`[Server Recharge] Attempting for act_${accountId}, amount: $${depositAmount}, using session: ${extensionSession.name}`)
-
-          // GET current spend_cap from FB Graph API (value is in cents)
-          const getUrl = `https://graph.facebook.com/v18.0/act_${accountId}?fields=spend_cap,amount_spent&access_token=${encodeURIComponent(fbToken)}`
-          const getRes = await fetch(getUrl)
-          const accountData = await getRes.json()
-
-          if (accountData.error) {
-            serverRechargeError = accountData.error.message || 'FB API GET error'
-            console.error(`[Server Recharge] FB GET error for act_${accountId}:`, serverRechargeError)
-          } else {
-            // FB GET returns cents, POST accepts dollars
-            // new_cap = current_cap + deposit (add on top of existing)
-            const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
-            const currentCapDollars = currentCapCents / 100
-            const newCapDollars = currentCapDollars + depositAmount
-
-            console.log(`[Server Recharge] act_${accountId}: current cap $${currentCapDollars.toFixed(2)} + $${depositAmount} = $${newCapDollars.toFixed(2)}`)
-
-            // POST new spend_cap (in dollars)
-            const postUrl = `https://graph.facebook.com/v18.0/act_${accountId}`
-            const postRes = await fetch(postUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({
-                access_token: fbToken,
-                spend_cap: newCapDollars.toString()
-              }).toString()
-            })
-            const postData = await postRes.json()
-
-            if (postData.success || postData.id) {
-              serverRechargeSuccess = true
-              console.log(`[Server Recharge] ✅ Success: act_${accountId} spend_cap → $${newCapDollars.toFixed(2)}`)
-            } else if (postData.error) {
-              serverRechargeError = postData.error.message || 'FB API POST error'
-              console.error(`[Server Recharge] ❌ Failed for act_${accountId}:`, serverRechargeError)
-            }
-          }
-        } else {
-          serverRechargeError = 'No extension session with FB token found'
-          console.log('[Server Recharge] No stored FB token available')
-        }
-      } catch (err: any) {
-        serverRechargeError = err.message
-        console.error('[Server Recharge] Error:', err.message)
-        // Non-fatal — will fall back to EXTENSION PENDING
-      }
-    }
-
-    // STEP 3: Determine recharge method and status
+    // STEP 2: Determine recharge method and status
     let rechargeMethod = 'NONE'
     let rechargeStatus = 'NONE'
 
@@ -1380,24 +1311,10 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       if (isCheetahAccount && cheetahRechargeResult?.code === 0) {
         rechargeMethod = 'CHEETAH'
         rechargeStatus = 'COMPLETED'
-      } else if (serverRechargeSuccess) {
-        rechargeMethod = 'SERVER'
-        rechargeStatus = 'COMPLETED'
       } else if (!isCheetahAccount) {
-        // Neither Cheetah nor server recharge worked — queue for Chrome extension
-        rechargeMethod = 'EXTENSION'
+        // Not a Cheetah account — needs manual recharge
+        rechargeMethod = 'MANUAL'
         rechargeStatus = 'PENDING'
-
-        // Check if any extension is online (seen in last 60s)
-        const onlineSession = await prisma.extensionSession.findFirst({
-          where: {
-            isActive: true,
-            lastSeenAt: { gte: new Date(Date.now() - 60000) }
-          }
-        })
-        if (!onlineSession) {
-          serverRechargeError = 'Extension is offline. Recharge will process when browser opens.'
-        }
       }
     }
 
@@ -1411,7 +1328,7 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
           approvedAt: new Date(),
           rechargeMethod,
           rechargeStatus,
-          rechargedAt: (rechargeMethod === 'CHEETAH' || rechargeMethod === 'SERVER') ? new Date() : undefined,
+          rechargedAt: rechargeMethod === 'CHEETAH' ? new Date() : undefined,
         }
       })
 
@@ -1456,7 +1373,6 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       cheetahRecharge: cheetahRechargeResult?.code === 0 ? 'success' : (isCheetahAccount ? 'skipped' : 'not-cheetah'),
       cheetahError: cheetahError,
       isCheetahAccount: deposit.adAccount.platform === 'FACEBOOK' ? isCheetahAccount : null,
-      serverRechargeError: serverRechargeError,
       rechargeStatus,
       rechargeMethod,
     })

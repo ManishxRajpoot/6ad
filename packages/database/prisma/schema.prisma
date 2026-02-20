@@ -658,24 +658,6 @@ model Setting {
 }
 
 // Business Manager Configuration for auto BM sharing
-model BMConfig {
-  id                String    @id @default(auto()) @map("_id") @db.ObjectId
-
-  bmId              String    @unique  // Facebook Business Manager ID
-  bmName            String              // Display name (e.g., "Client ABC BM")
-  accessToken       String              // System User Access Token
-  apiType           String    @default("facebook")  // "facebook" or "cheetah"
-
-  isActive          Boolean   @default(true)
-
-  // Stats
-  totalAccounts     Int       @default(0)  // How many accounts in this BM
-  lastSyncAt        DateTime?             // Last time we synced accounts
-
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-}
-
 model SiteSettings {
   id                String    @id @default(auto()) @map("_id") @db.ObjectId
 
@@ -1300,29 +1282,3 @@ model AgentWithdrawal {
   @@index([createdAt])
 }
 
-model ExtensionSession {
-  id              String    @id @default(auto()) @map("_id") @db.ObjectId
-
-  name            String                    // Human-readable label e.g. "Chrome Profile - John's FB"
-  apiKey          String    @unique         // SHA-256 hash of the API key
-  apiKeyPrefix    String                    // First 8 chars for display e.g. "ext_a3f2..."
-
-  // FB session info (reported by extension)
-  fbUserId        String?
-  fbUserName      String?
-  fbAccessToken   String?                   // FB access token for server-side fallback recharge
-  tokenExpiresAt  DateTime?                 // When the FB token expires (60 days for long-lived)
-  adAccountIds    String[]                  // FB ad account IDs this profile can access
-
-  // Health
-  isActive        Boolean   @default(true)
-  lastSeenAt      DateTime  @default(now())
-  lastError       String?
-
-  // Stats
-  totalRecharges  Int       @default(0)
-  failedRecharges Int       @default(0)
-
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-}
