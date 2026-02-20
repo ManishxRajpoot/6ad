@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --external:@prisma/client --external:@hono/node-server --external:hono --external:bcryptjs --external:dotenv --external:jsonwebtoken --external:nodemailer --external:otpauth --external:zod --external:bs58check --external:sharp --external:rebrowser-puppeteer",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --external:@prisma/client --external:@hono/node-server --external:hono --external:bcryptjs --external:dotenv --external:jsonwebtoken --external:nodemailer --external:otpauth --external:zod --external:bs58check --external:sharp --external:rebrowser-puppeteer --external:imap --external:mailparser",
     "start": "node dist/index.js"
   },
   "dependencies": {
@@ -14,7 +14,9 @@
     "bs58check": "^4.0.0",
     "dotenv": "^17.2.3",
     "hono": "^4.6.0",
+    "imap": "^0.8.19",
     "jsonwebtoken": "^9.0.2",
+    "mailparser": "^3.9.3",
     "nodemailer": "^7.0.13",
     "otpauth": "^9.4.1",
     "rebrowser-puppeteer": "^24.8.1",
@@ -23,6 +25,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/imap": "^0.8.43",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.0.0",
     "@types/nodemailer": "^7.0.9",

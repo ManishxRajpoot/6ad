@@ -47,3 +47,6 @@ packages/database/prisma/*.db-journal
 # Cache
 .cache/
 *.tsbuildinfo
+
+# Browser automation profiles (contain session data)
+data/browser-profiles/

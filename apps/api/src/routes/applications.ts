@@ -539,8 +539,9 @@ applications.put('/:id', requireAdmin, async (c) => {
 applications.post('/:id/approve', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
-    const { accountIds, adminRemarks } = await c.req.json()
+    const { accountIds, adminRemarks, extensionProfileId } = await c.req.json()
     // accountIds is an array of { name, accountId }
+    // extensionProfileId: which AdsPower/extension profile manages these accounts
 
     const application = await prisma.adAccountApplication.findUnique({
       where: { id },
@@ -569,10 +570,11 @@ applications.post('/:id/approve', requireAdmin, async (c) => {
               platform: application.platform,
               accountId: acc.accountId,
               accountName: acc.name,
-              licenseName: application.licenseNo || undefined, // Copy license name from application
+              licenseName: application.licenseNo || undefined,
               status: 'APPROVED',
               userId: application.userId,
-              applicationId: application.id
+              applicationId: application.id,
+              extensionProfileId: extensionProfileId || null,
             }
           })
         }
@@ -671,7 +673,7 @@ applications.post('/:id/reject', requireAdmin, async (c) => {
 // POST /applications/bulk-approve - Bulk approve applications (Admin)
 applications.post('/bulk-approve', requireAdmin, async (c) => {
   try {
-    const { applicationIds, accountData } = await c.req.json()
+    const { applicationIds, accountData, extensionProfileId } = await c.req.json()
     // accountData is { [applicationId]: [{name, accountId}] }
 
     if (!applicationIds || !Array.isArray(applicationIds) || applicationIds.length === 0) {
@@ -701,10 +703,11 @@ applications.post('/bulk-approve', requireAdmin, async (c) => {
                   platform: application.platform,
                   accountId: acc.accountId,
                   accountName: acc.name,
-                  licenseName: application.licenseNo || undefined, // Copy license name from application
+                  licenseName: application.licenseNo || undefined,
                   status: 'APPROVED',
                   userId: application.userId,
-                  applicationId: application.id
+                  applicationId: application.id,
+                  extensionProfileId: extensionProfileId || null,
                 }
               })
             }
@@ -814,7 +817,7 @@ applications.post('/bulk-reject', requireAdmin, async (c) => {
 // POST /applications/create-direct - Admin creates account directly for user (without application)
 applications.post('/create-direct', requireAdmin, async (c) => {
   try {
-    const { userId, platform, accounts } = await c.req.json()
+    const { userId, platform, accounts, extensionProfileId } = await c.req.json()
     // accounts is array of { name, accountId }
 
     if (!userId || !platform || !accounts || !Array.isArray(accounts) || accounts.length === 0) {
@@ -836,7 +839,8 @@ applications.post('/create-direct', requireAdmin, async (c) => {
             accountName: acc.name,
             licenseName: acc.licenseName || undefined,
             status: 'APPROVED',
-            userId
+            userId,
+            extensionProfileId: extensionProfileId || null,
           }
         })
         createdAccounts.push(account)

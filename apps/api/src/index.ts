@@ -25,8 +25,10 @@ import agentWithdrawalRoutes from './routes/agent-withdrawals.js'
 import bmAdRequestRoutes from './routes/bm-ad-request.js'
 import versionRoutes from './routes/version.js'
 import eventRoutes from './routes/events.js'
+import extensionRoutes from './routes/extension.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
+import { startAdsPowerWorker } from './services/adspower-worker.js'
 
 const app = new Hono()
 
@@ -96,12 +98,16 @@ app.route('/agent-withdrawals', agentWithdrawalRoutes)
 app.route('/bm-ad-request', bmAdRequestRoutes)
 app.route('/version', versionRoutes)
 app.route('/events', eventRoutes)
+app.route('/extension', extensionRoutes)
 
 // Start background crypto verification service
 startBackgroundVerifier().catch(console.error)
 
 // Start SSE heartbeat for real-time event delivery
 startHeartbeat()
+
+// Start AdsPower on-demand browser worker
+startAdsPowerWorker()
 
 // Start server
 const port = Number(process.env.PORT) || 5001

@@ -883,6 +883,7 @@ accounts.post('/', requireUser, async (c) => {
         currency: data.currency,
         remarks: data.remarks,
         userId,
+        extensionProfileId: data.extensionProfileId || null,
       }
     })
 
@@ -1341,6 +1342,8 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
         }
       })
     })
+
+    // Recharges are handled by the Chrome extension (polls for PENDING recharges via heartbeat)
 
     // Get updated account balance
     const updatedAccount = await prisma.adAccount.findUnique({

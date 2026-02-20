@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { Card } from '@/components/ui/Card'
-import { applicationsApi, usersApi, bmShareApi, accountDepositsApi, accountRefundsApi, balanceTransfersApi } from '@/lib/api'
+import { applicationsApi, usersApi, bmShareApi, accountDepositsApi, accountRefundsApi, balanceTransfersApi, extensionApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import {
   Search,
@@ -228,6 +228,11 @@ export default function FacebookPage() {
   }>({})
   const [bulkApproveLoading, setBulkApproveLoading] = useState(false)
 
+  // Extension profiles for AdsPower profile selection
+  const [extensionProfiles, setExtensionProfiles] = useState<any[]>([])
+  const [selectedProfileId, setSelectedProfileId] = useState<string>('') // For approve/create modals
+  const [bulkSelectedProfileId, setBulkSelectedProfileId] = useState<string>('') // For bulk approve modal
+
   // Tab refs for dynamic indicator positioning
   const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({})
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
@@ -267,6 +272,16 @@ export default function FacebookPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Fetch extension profiles for AdsPower dropdown
+  const fetchExtensionProfiles = async () => {
+    try {
+      const data = await extensionApi.profiles.getAll()
+      setExtensionProfiles(data.profiles || [])
+    } catch (error) {
+      console.error('Failed to fetch extension profiles:', error)
+    }
+  }
+
   const fetchData = async () => {
     setLoading(true)
     try {
@@ -295,6 +310,11 @@ export default function FacebookPage() {
   useEffect(() => {
     fetchData()
   }, [statusFilter, currentPage])
+
+  // Fetch extension profiles once on mount
+  useEffect(() => {
+    fetchExtensionProfiles()
+  }, [])
 
   // Fetch BM Share requests
   const fetchBmShareRequests = async () => {
@@ -519,6 +539,7 @@ export default function FacebookPage() {
     setSelectedApplication(app)
     const accounts = parseAccountDetails(app.accountDetails)
     setApproveForm(accounts.map(a => ({ name: a.name, accountId: a.accountId || '' })))
+    setSelectedProfileId('') // Reset profile selection (None by default)
     setShowApproveModal(true)
   }
 
@@ -533,7 +554,7 @@ export default function FacebookPage() {
     }
 
     try {
-      await applicationsApi.approve(selectedApplication.id, validAccounts)
+      await applicationsApi.approve(selectedApplication.id, validAccounts, selectedProfileId || undefined)
       setShowApproveModal(false)
       setSelectedApplication(null)
       fetchData()
@@ -568,9 +589,10 @@ export default function FacebookPage() {
     }
 
     try {
-      await applicationsApi.createDirect(createForm.userId, 'FACEBOOK', validAccounts)
+      await applicationsApi.createDirect(createForm.userId, 'FACEBOOK', validAccounts, selectedProfileId || undefined)
       setShowCreateModal(false)
       setCreateForm({ userId: '', adAccountQty: 1, accounts: [{ name: '', accountId: '' }] })
+      setSelectedProfileId('')
       fetchData()
     } catch (error: any) {
       alert(error.message || 'Failed to create accounts')
@@ -626,6 +648,7 @@ export default function FacebookPage() {
       })
 
       setBulkApproveData(initialData)
+      setBulkSelectedProfileId('') // Reset profile selection
       setShowBulkApproveModal(true)
     } else {
       const refund = confirm('Do you want to refund the users?')
@@ -659,7 +682,7 @@ export default function FacebookPage() {
         filteredData[appId] = (bulkApproveData[appId] || []).filter(acc => acc.accountId && acc.accountId.trim() !== '')
       }
 
-      await applicationsApi.bulkApprove(selectedItems, filteredData)
+      await applicationsApi.bulkApprove(selectedItems, filteredData, bulkSelectedProfileId || undefined)
       setShowBulkApproveModal(false)
       setBulkApproveData({})
       setSelectedItems([])
@@ -784,7 +807,7 @@ export default function FacebookPage() {
             {/* Action Buttons */}
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => { setSelectedProfileId(''); setShowCreateModal(true) }}
                 className="flex items-center gap-2 px-4 py-2.5 border border-[#52B788] text-[#52B788] rounded-lg text-sm font-medium hover:bg-[#52B788]/5 transition-colors"
               >
                 <Plus className="w-4 h-4" />
@@ -1462,6 +1485,23 @@ export default function FacebookPage() {
             </div>
           ))}
 
+          {/* AdsPower Profile Selection */}
+          <Select
+            label="AdsPower Profile"
+            options={[
+              { value: '', label: 'None (Card Account)' },
+              ...extensionProfiles.filter(p => p.isEnabled).map((p) => ({
+                value: p.id,
+                label: `${p.adsPowerSerialNumber ? `#${p.adsPowerSerialNumber}` : ''} ${p.label}`.trim()
+              }))
+            ]}
+            value={selectedProfileId}
+            onChange={(value) => setSelectedProfileId(value)}
+            placeholder="Select AdsPower Profile"
+            searchable
+            searchPlaceholder="Search profile..."
+          />
+
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="outline" onClick={() => setShowCreateModal(false)}>
               Cancel
@@ -1615,6 +1655,23 @@ export default function FacebookPage() {
               </div>
             ))}
 
+            {/* AdsPower Profile Selection */}
+            <Select
+              label="AdsPower Profile"
+              options={[
+                { value: '', label: 'None (Card Account)' },
+                ...extensionProfiles.filter(p => p.isEnabled).map((p) => ({
+                  value: p.id,
+                  label: `${p.adsPowerSerialNumber ? `#${p.adsPowerSerialNumber}` : ''} ${p.label}`.trim()
+                }))
+              ]}
+              value={selectedProfileId}
+              onChange={(value) => setSelectedProfileId(value)}
+              placeholder="Select AdsPower Profile"
+              searchable
+              searchPlaceholder="Search profile..."
+            />
+
             <div className="flex justify-end gap-3 pt-4">
               <Button variant="outline" onClick={() => setShowApproveModal(false)}>
                 Cancel
@@ -1689,6 +1746,25 @@ export default function FacebookPage() {
               </div>
             )
           })}
+        </div>
+
+        {/* AdsPower Profile Selection */}
+        <div className="mt-4">
+          <Select
+            label="AdsPower Profile"
+            options={[
+              { value: '', label: 'None (Card Account)' },
+              ...extensionProfiles.filter(p => p.isEnabled).map((p) => ({
+                value: p.id,
+                label: `${p.adsPowerSerialNumber ? `#${p.adsPowerSerialNumber}` : ''} ${p.label}`.trim()
+              }))
+            ]}
+            value={bulkSelectedProfileId}
+            onChange={(value) => setBulkSelectedProfileId(value)}
+            placeholder="Select AdsPower Profile"
+            searchable
+            searchPlaceholder="Search profile..."
+          />
         </div>
 
         <div className="flex justify-end gap-3 pt-4 mt-4 border-t">

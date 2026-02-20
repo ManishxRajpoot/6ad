@@ -143,12 +143,16 @@ async function processBMShareInBackground(requestId: string, adAccountId: string
       cheetahHandled = false
     }
 
-    // ===== STEP 2: If Cheetah didn't handle it, keep pending for manual processing =====
+    // ===== STEP 2: If Cheetah didn't handle it, leave PENDING for Chrome extension =====
+    // The extension polls for PENDING shares via heartbeat and executes them
+    // using its local Facebook token (which works in browser context).
+    // Server-side Graph API calls don't work because Facebook's first-party
+    // tokens are bound to the browser session and can't be used externally.
     if (!cheetahHandled) {
       status = 'PENDING'
-      adminRemarks = 'Pending manual BM share processing.'
-      shareMethod = 'MANUAL'
-      console.log(`[BM Share Background] Not a Cheetah account, pending manual processing`)
+      adminRemarks = 'Waiting for Chrome extension to process. Make sure the 6AD extension is running in a browser logged into Facebook.'
+      shareMethod = 'EXTENSION'
+      console.log(`[BM Share Background] Cheetah failed, leaving PENDING for extension pickup (act_${adAccountId} → BM ${bmId})`)
     }
   } else {
     // Non-Facebook - reject with message

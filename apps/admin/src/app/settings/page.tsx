@@ -121,6 +121,7 @@ export default function SettingsPage() {
   const [cryptoWalletsLoading, setCryptoWalletsLoading] = useState(true)
   const [savingCryptoWallet, setSavingCryptoWallet] = useState<string | null>(null)
 
+
   const fetchPlatformSettings = async () => {
     try {
       const { platforms } = await settingsApi.platforms.get()

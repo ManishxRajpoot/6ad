@@ -226,6 +226,7 @@ model AdAccount {
   licenseName       String?       // License name from the application
   bmId              String?       // User's Business Manager ID (for sharing)
   sourceBmId        String?       // Source BM where this account is from (e.g., "cheetah" or actual BM ID)
+  extensionProfileId String?      // Which extension/AdsPower profile manages this ad account
   timezone          String?
   currency          String        @default("USD")
 
@@ -1280,5 +1281,143 @@ model AgentWithdrawal {
   @@index([agentId])
   @@index([status])
   @@index([createdAt])
+}
+
+// ============= BROWSER AUTOMATION SYSTEM =============
+
+enum AutomationProfileStatus {
+  IDLE
+  LOGIN_IN_PROGRESS
+  ACTIVE
+  SESSION_EXPIRED
+  ERROR
+}
+
+model FacebookAutomationProfile {
+  id                  String                    @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Identity
+  label               String                    // Human-readable name, e.g. "FB Profile - John BM1"
+
+  // Facebook info (populated after successful login)
+  fbUserId            String?                   // Facebook c_user ID
+  fbUserName          String?                   // Facebook display name
+
+  // Proxy configuration
+  proxyHost           String?
+  proxyPort           Int?
+  proxyUsername       String?
+  proxyPassword      String?
+  proxyProtocol       String?                   @default("http") // http, https, socks5
+
+  // Browser session
+  status              AutomationProfileStatus   @default(IDLE)
+  profileDirPath      String?                   // Filesystem path to Chrome user-data-dir
+
+  // Session backup (MongoDB hybrid storage)
+  cookiesBackup       String?                   // JSON stringified cookies array
+  localStorageBackup  String?                   // JSON stringified localStorage entries
+  sessionBackedUpAt   DateTime?                 // When last backup was taken
+
+  // Health tracking
+  lastLoginAt         DateTime?                 // Last successful login
+  lastHealthCheckAt   DateTime?                 // Last health check timestamp
+  lastError           String?                   // Last error message
+  healthStatus        String?                   @default("unknown") // healthy, unhealthy, unknown
+
+  // Browser fingerprint (consistent per profile)
+  userAgent           String?                   // Generated once, reused
+  viewportWidth       Int?                      @default(1920)
+  viewportHeight      Int?                      @default(1080)
+  timezone            String?                   @default("America/New_York")
+  locale              String?                   @default("en-US")
+
+  // Email / IMAP credentials (for auto-reading Facebook OTP codes)
+  emailAddress        String?                   // Email address associated with FB account
+  imapHost            String?                   // IMAP server host (e.g. imap.gmail.com)
+  imapPort            Int?                      @default(993)
+  imapUser            String?                   // IMAP login username (often same as emailAddress)
+  imapPassword        String?                   // IMAP login password or app-specific password
+  imapSecure          Boolean?                  @default(true) // Use TLS/SSL
+
+  // Which ad accounts this profile has access to (auto-populated from extension heartbeat)
+  managedAdAccountIds  String[]                 // e.g. ["123456789", "987654321"]
+
+  // AdsPower integration
+  adsPowerSerialNumber String?                  // AdsPower profile serial number (e.g. "1", "2")
+  adsPowerProfileId    String?                  // AdsPower profile ID (e.g. "jxxxxxx")
+
+  // Chrome Extension API key (unique per profile)
+  extensionApiKey     String?                   // ext_xxxx... key for this profile's extension
+  lastHeartbeatAt     DateTime?                 // Last heartbeat from extension
+
+  // Access token for Graph API (captured from browser session)
+  fbAccessToken       String?                   // Facebook EAA... access token
+  fbTokenCapturedAt   DateTime?                 // When token was last captured
+  fbTokenValidatedAt  DateTime?                 // When token was last validated
+
+  // Metadata
+  remarks             String?
+  isEnabled           Boolean                   @default(true)
+
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+}
+
+// ==========================================
+// Automation Job Queue
+// ==========================================
+
+enum AutomationJobType {
+  RECHARGE
+  BM_SHARE
+}
+
+enum AutomationJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  NEEDS_MANUAL_ACTION
+}
+
+model AutomationJob {
+  id                  String               @id @default(auto()) @map("_id") @db.ObjectId
+
+  // Job type and status
+  type                AutomationJobType
+  status              AutomationJobStatus  @default(PENDING)
+
+  // Source reference
+  sourceId            String               // AccountDeposit.id or BmShareRequest.id
+  sourceType          String               // "AccountDeposit" or "BmShareRequest"
+
+  // Payload — everything the worker needs (JSON)
+  payload             String               // JSON: { adAccountId, depositAmount, ... }
+
+  // Execution tracking
+  assignedProfileId   String?              @db.ObjectId
+  attempts            Int                  @default(0)
+  maxAttempts         Int                  @default(3)
+  lastAttemptAt       DateTime?
+  nextRetryAt         DateTime?
+
+  // Result
+  result              String?              // JSON: { previousSpendCap, newSpendCap, ... }
+  error               String?
+
+  // Logs + Screenshots (JSON arrays)
+  logs                String?              // JSON: [{ timestamp, level, message }]
+  screenshots         String?              // JSON: [{ label, base64, timestamp }]
+
+  // Timestamps
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([status])
+  @@index([type, status])
+  @@index([assignedProfileId])
 }
 

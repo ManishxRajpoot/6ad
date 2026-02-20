@@ -16,6 +16,7 @@ import {
   Bell,
   Gift,
   Ticket,
+  Plug,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -117,6 +118,7 @@ const menuSections: MenuSection[] = [
   {
     label: 'System',
     items: [
+      { name: 'Extension API', href: '/extension', icon: Plug },
       { name: 'Domains', href: '/domain-requests', icon: Globe },
       { name: 'Settings', href: '/settings', icon: Settings },
     ]

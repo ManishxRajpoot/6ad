@@ -286,6 +286,20 @@ export const settingsApi = {
   },
 }
 
+// Extension API
+export const extensionApi = {
+  profiles: {
+    getAll: () => api.get<{ profiles: any[] }>('/extension/admin/profiles'),
+    create: (data: { label: string; remarks?: string }) =>
+      api.post<{ profile: any }>('/extension/admin/profiles', data),
+    update: (id: string, data: { label?: string; remarks?: string; isEnabled?: boolean }) =>
+      api.patch<{ profile: any }>(`/extension/admin/profiles/${id}`, data),
+    delete: (id: string) => api.delete(`/extension/admin/profiles/${id}`),
+    regenerateKey: (id: string) =>
+      api.post<{ apiKey: string }>(`/extension/admin/profiles/${id}/regenerate-key`, {}),
+  },
+}
+
 // Payment Methods API
 export const paymentMethodsApi = {
   getAll: (showAll?: boolean) => api.get<{ paymentMethods: any[] }>(`/payment-methods${showAll ? '?all=true' : ''}`),
@@ -323,20 +337,20 @@ export const applicationsApi = {
   update: (id: string, data: any) => api.put<{ application: any }>(`/applications/${id}`, data),
 
   // Approve application with account IDs
-  approve: (id: string, accountIds: { name: string; accountId: string }[]) =>
-    api.post<{ application: any; accounts: any[] }>(`/applications/${id}/approve`, { accountIds }),
+  approve: (id: string, accountIds: { name: string; accountId: string }[], extensionProfileId?: string) =>
+    api.post<{ application: any; accounts: any[] }>(`/applications/${id}/approve`, { accountIds, extensionProfileId: extensionProfileId || null }),
 
   // Reject application
   reject: (id: string, refund: boolean, adminRemarks?: string) =>
     api.post<{ application: any }>(`/applications/${id}/reject`, { refund, adminRemarks }),
 
   // Create ad account directly (without application)
-  createDirect: (userId: string, platform: string, accounts: { name: string; accountId: string; bmId?: string; timezone?: string; currency?: string }[]) =>
-    api.post<{ accounts: any[] }>('/applications/create-direct', { userId, platform, accounts }),
+  createDirect: (userId: string, platform: string, accounts: { name: string; accountId: string; bmId?: string; timezone?: string; currency?: string }[], extensionProfileId?: string) =>
+    api.post<{ accounts: any[] }>('/applications/create-direct', { userId, platform, accounts, extensionProfileId: extensionProfileId || null }),
 
   // Bulk approve applications
-  bulkApprove: (ids: string[], accountData: { [applicationId: string]: { name: string; accountId: string }[] }) =>
-    api.post<{ message: string; count: number }>('/applications/bulk-approve', { applicationIds: ids, accountData }),
+  bulkApprove: (ids: string[], accountData: { [applicationId: string]: { name: string; accountId: string }[] }, extensionProfileId?: string) =>
+    api.post<{ message: string; count: number }>('/applications/bulk-approve', { applicationIds: ids, accountData, extensionProfileId: extensionProfileId || null }),
 
   // Bulk reject applications
   bulkReject: (ids: string[], refund: boolean, adminRemarks?: string) =>
@@ -574,4 +588,5 @@ export const cryptoApi = {
       api.patch<{ message: string; config: any }>(`/transactions/crypto/config/${network}`, data),
   },
 }
+
 

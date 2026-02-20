@@ -136,11 +136,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return div.innerHTML
   }
 
+  const fbTokenInput = document.getElementById('fbTokenInput')
+
   // Save config
   saveBtn.addEventListener('click', async () => {
     const config = {}
     if (apiKeyInput.value) config.apiKey = apiKeyInput.value.trim()
     if (apiUrlInput.value) config.apiUrl = apiUrlInput.value.trim()
+    if (fbTokenInput.value) config.fbAccessToken = fbTokenInput.value.trim()
 
     if (!config.apiKey && !apiKeyInput.placeholder.includes('ext_')) {
       apiKeyInput.style.borderColor = '#dc3545'
