@@ -1263,6 +1263,124 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
       sendEmail({ to: agentEmail, ...adminNotification }).catch(console.error)
     }
 
+    // ─── AUTO-APPROVE LOGIC FOR FACEBOOK ACCOUNTS ─────────────────
+    if (account.platform === 'FACEBOOK') {
+      let autoApproved = false
+      let isCheetahAccount = false
+      let rechargeMethod = 'NONE'
+      let rechargeStatus = 'NONE'
+
+      try {
+        const configLoaded = await loadCheetahConfig()
+        if (configLoaded) {
+          const accountResult = await cheetahApi.getAccount(account.accountId)
+          if (accountResult.code === 0 && accountResult.data && accountResult.data.length > 0) {
+            isCheetahAccount = true
+            const cheetahAccount = accountResult.data[0]
+            const currentSpendCap = parseFloat(cheetahAccount.spend_cap) || 0
+            const newSpendCap = currentSpendCap + amount
+
+            // Check quota
+            const quotaResult = await cheetahApi.getQuota()
+            if (quotaResult.code === 0) {
+              const availableQuota = parseFloat(quotaResult.data.available_quota) || 0
+              if (availableQuota >= amount) {
+                const rechargeResult = await cheetahApi.rechargeAccount(account.accountId, newSpendCap)
+                if (rechargeResult.code === 0) {
+                  rechargeMethod = 'CHEETAH'
+                  rechargeStatus = 'COMPLETED'
+                  autoApproved = true
+                  console.log(`[Auto-Approve] Cheetah recharge success for act_${account.accountId}: $${amount}`)
+                } else {
+                  console.log(`[Auto-Approve] Cheetah recharge failed for act_${account.accountId}: ${rechargeResult.msg}`)
+                }
+              } else {
+                console.log(`[Auto-Approve] Cheetah insufficient quota for act_${account.accountId}: available $${availableQuota}, need $${amount}`)
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        console.log(`[Auto-Approve] Cheetah check error for act_${account.accountId}: ${err.message}`)
+      }
+
+      // Non-Cheetah card account: auto-approve directly, extension handles recharge
+      if (!isCheetahAccount) {
+        rechargeMethod = 'EXTENSION'
+        rechargeStatus = 'PENDING'
+        autoApproved = true
+        console.log(`[Auto-Approve] Card account act_${account.accountId}: auto-approved, extension will recharge`)
+      }
+
+      if (autoApproved) {
+        try {
+          await prisma.$transaction(async (tx) => {
+            await tx.accountDeposit.update({
+              where: { id: accountDeposit.id },
+              data: {
+                status: 'APPROVED',
+                approvedAt: new Date(),
+                rechargeMethod,
+                rechargeStatus,
+                rechargedAt: rechargeMethod === 'CHEETAH' ? new Date() : undefined,
+              }
+            })
+            await tx.adAccount.update({
+              where: { id },
+              data: {
+                totalDeposit: { increment: amount },
+                balance: { increment: amount }
+              }
+            })
+          })
+
+          // Card wallet top-up tracking for non-Cheetah
+          if (!isCheetahAccount) {
+            try {
+              const existing = await prisma.setting.findUnique({ where: { key: 'card_wallet_pending_amount' } })
+              const currentPending = existing ? parseFloat(existing.value) : 0
+              const newPending = currentPending + amount
+              await prisma.setting.upsert({
+                where: { key: 'card_wallet_pending_amount' },
+                update: { value: newPending.toString() },
+                create: { key: 'card_wallet_pending_amount', value: newPending.toString(), description: 'Pending card account wallet top-up amount' }
+              })
+              console.log(`[Card Wallet] Added $${amount} to pending. New total: $${newPending}`)
+            } catch (err: any) {
+              console.error('[Card Wallet] Failed to update pending:', err.message)
+            }
+          }
+
+          // Send approval email
+          const approvedDomain2 = account.user.agent?.customDomains?.[0]
+          const agent2 = account.user.agent
+          const agentLogo2 = approvedDomain2?.emailLogo || approvedDomain2?.brandLogo || agent2?.emailLogo || agent2?.brandLogo || null
+          const agentBrandName2 = account.user.agent?.username || null
+          const updatedAcc = await prisma.adAccount.findUnique({ where: { id }, select: { balance: true } })
+          const approvalEmail = getAccountRechargeApprovedTemplate({
+            username: account.user.username,
+            applyId,
+            amount,
+            commission: commissionAmount,
+            totalCost: totalAmount,
+            platform: account.platform,
+            accountId: account.accountId,
+            accountName: account.accountName || undefined,
+            newBalance: Number(updatedAcc?.balance) || 0,
+            agentLogo: agentLogo2,
+            agentBrandName: agentBrandName2
+          })
+          sendEmail({ to: account.user.email, ...approvalEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(account.user.agent) }).catch(console.error)
+
+          console.log(`[Auto-Approve] Deposit ${accountDeposit.id} auto-approved (${rechargeMethod})`)
+          return c.json({ message: 'Deposit auto-approved', deposit: accountDeposit, autoApproved: true, rechargeMethod }, 201)
+        } catch (err: any) {
+          console.error('[Auto-Approve] Failed to auto-approve:', err.message)
+          // Fall through — deposit stays PENDING for admin
+        }
+      }
+    }
+
     return c.json({ message: 'Deposit request created', deposit: accountDeposit }, 201)
   } catch (error: any) {
     console.error('Account deposit error:', error)
