@@ -264,18 +264,27 @@ extension.post('/heartbeat', verifyExtensionKey, async (c) => {
 
 extension.get('/pending-bm-shares', verifyExtensionKey, async (c) => {
   try {
+    const profile = c.get('extensionProfile')
+    const managedIds = profile.managedAdAccountIds || []
+
     // Auto-reject requests that have failed too many times
     await prisma.bmShareRequest.updateMany({
       where: { status: 'PENDING', shareAttempts: { gte: 5 } },
       data: { status: 'REJECTED', adminRemarks: 'Auto-rejected: exceeded max retry attempts' }
     }).catch(() => {})
 
+    // Build filter: only return tasks for ad accounts this profile manages
+    const whereClause: any = {
+      status: 'PENDING',
+      platform: 'FACEBOOK',
+      shareAttempts: { lt: 5 },
+    }
+    if (managedIds.length > 0) {
+      whereClause.adAccountId = { in: managedIds }
+    }
+
     const shares = await prisma.bmShareRequest.findMany({
-      where: {
-        status: 'PENDING',
-        platform: 'FACEBOOK',
-        shareAttempts: { lt: 5 },
-      },
+      where: whereClause,
       orderBy: { createdAt: 'asc' },
       take: 5,
       select: {
@@ -369,11 +378,20 @@ extension.post('/bm-share/:id/failed', verifyExtensionKey, async (c) => {
 
 extension.get('/pending-recharges', verifyExtensionKey, async (c) => {
   try {
+    const profile = c.get('extensionProfile')
+    const managedIds = profile.managedAdAccountIds || []
+
+    // Build filter: only return tasks for ad accounts this profile manages
+    const whereClause: any = {
+      status: 'APPROVED',
+      rechargeStatus: { in: ['PENDING', 'NONE'] },
+    }
+    if (managedIds.length > 0) {
+      whereClause.adAccount = { accountId: { in: managedIds } }
+    }
+
     const deposits = await prisma.accountDeposit.findMany({
-      where: {
-        status: 'APPROVED',
-        rechargeStatus: { in: ['PENDING', 'NONE'] },
-      },
+      where: whereClause,
       orderBy: { approvedAt: 'asc' },
       take: 5,
       include: {
