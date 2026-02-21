@@ -312,6 +312,104 @@ async function cleanupIdleBrowsers(): Promise<void> {
   }
 }
 
+// ─── Account Discovery ──────────────────────────────────────────────
+
+/**
+ * Discover which AdsPower profile manages a given ad account.
+ *
+ * Opens each enabled profile one by one, waits for extension heartbeat
+ * (which calls FB /me/adaccounts and reports managedAdAccountIds),
+ * then checks if the target account appears. Stops as soon as found.
+ *
+ * Sets AdAccount.extensionProfileId when found.
+ *
+ * @returns profileId if found, null if not found in any profile
+ */
+export async function discoverAccountProfile(adAccountId: string): Promise<string | null> {
+  console.log(`[AdsPower Discovery] Starting discovery for act_${adAccountId}`)
+
+  // Get all enabled profiles with AdsPower config
+  const profiles = await prisma.facebookAutomationProfile.findMany({
+    where: {
+      isEnabled: true,
+      adsPowerSerialNumber: { not: null },
+      extensionApiKey: { not: null },
+    },
+  })
+
+  if (profiles.length === 0) {
+    console.log(`[AdsPower Discovery] No profiles available`)
+    return null
+  }
+
+  // First check if any profile already has it in managedAdAccountIds (from previous heartbeats)
+  for (const profile of profiles) {
+    if (profile.managedAdAccountIds?.includes(adAccountId)) {
+      console.log(`[AdsPower Discovery] Already known: act_${adAccountId} → "${profile.label}"`)
+      // Link it directly
+      await prisma.adAccount.updateMany({
+        where: { accountId: adAccountId },
+        data: { extensionProfileId: profile.id },
+      })
+      return profile.id
+    }
+  }
+
+  console.log(`[AdsPower Discovery] Account not in any cached heartbeat. Opening ${profiles.length} profiles to discover...`)
+
+  // Open each profile, wait for heartbeat, check if account discovered
+  for (const profile of profiles) {
+    const serialNumber = profile.adsPowerSerialNumber!
+    const wasAlreadyActive = activeBrowsers.has(profile.id) || await isBrowserActive(serialNumber)
+
+    console.log(`[AdsPower Discovery] Trying "${profile.label}" (serial=${serialNumber})...`)
+
+    const ok = await ensureBrowserRunning(profile)
+    if (!ok) {
+      console.log(`[AdsPower Discovery] Failed to start "${profile.label}", skipping`)
+      continue
+    }
+
+    // Give extension a moment to heartbeat with fresh ad account list
+    await sleep(10_000)
+
+    // Re-read profile to get updated managedAdAccountIds
+    const updatedProfile = await prisma.facebookAutomationProfile.findUnique({
+      where: { id: profile.id },
+      select: { managedAdAccountIds: true },
+    })
+
+    if (updatedProfile?.managedAdAccountIds?.includes(adAccountId)) {
+      console.log(`[AdsPower Discovery] FOUND: act_${adAccountId} → "${profile.label}"`)
+
+      // Link it
+      await prisma.adAccount.updateMany({
+        where: { accountId: adAccountId },
+        data: { extensionProfileId: profile.id },
+      })
+
+      // Close browser if we opened it
+      if (!wasAlreadyActive) {
+        await stopBrowser(serialNumber)
+        activeBrowsers.delete(profile.id)
+      }
+
+      return profile.id
+    }
+
+    console.log(`[AdsPower Discovery] act_${adAccountId} NOT in "${profile.label}"`)
+
+    // Close browser if we opened it just for discovery
+    if (!wasAlreadyActive) {
+      await stopBrowser(serialNumber)
+      activeBrowsers.delete(profile.id)
+    }
+  }
+
+  console.log(`[AdsPower Discovery] act_${adAccountId} not found in any profile`)
+  return null
+}
+
 // ─── Public API ────────────────────────────────────────────────────
 
 export function startAdsPowerWorker(): void {

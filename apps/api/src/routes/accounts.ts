@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import { cheetahApi } from '../services/cheetah-api.js'
+import { discoverAccountProfile } from '../services/adspower-worker.js'
 import {
   sendEmail,
   buildSmtpConfig,
@@ -952,13 +953,46 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
       return c.json({ error: 'Account already processed' }, 400)
     }
 
+    // For Facebook accounts: check Cheetah API and link to AdsPower profile
+    let isCheetahAccount = false
+    if (account.platform === 'FACEBOOK') {
+      try {
+        const configLoaded = await loadCheetahConfig()
+        if (configLoaded) {
+          const accountResult = await cheetahApi.getAccount(account.accountId)
+          if (accountResult.code === 0 && accountResult.data && accountResult.data.length > 0) {
+            isCheetahAccount = true
+            console.log(`[Account Approve] act_${account.accountId} found in Cheetah — marking sourceBmId=cheetah`)
+          }
+        }
+      } catch (err: any) {
+        console.log(`[Account Approve] Cheetah check failed for act_${account.accountId}: ${err.message}`)
+      }
+    }
+
     await prisma.adAccount.update({
       where: { id },
       data: {
         status: 'APPROVED',
-        adminRemarks
+        adminRemarks,
+        ...(isCheetahAccount ? { sourceBmId: 'cheetah' } : {}),
       }
     })
+
+    // For non-Cheetah Facebook accounts: trigger AdsPower profile discovery in background
+    if (account.platform === 'FACEBOOK' && !isCheetahAccount) {
+      console.log(`[Account Approve] act_${account.accountId} not in Cheetah — triggering AdsPower profile discovery`)
+      // Run in background so it doesn't block the approval response
+      discoverAccountProfile(account.accountId).then(profileId => {
+        if (profileId) {
+          console.log(`[Account Approve] Discovery complete: act_${account.accountId} → profile ${profileId}`)
+        } else {
+          console.log(`[Account Approve] Discovery: act_${account.accountId} not found in any AdsPower profile`)
+        }
+      }).catch(err => {
+        console.error(`[Account Approve] Discovery error for act_${account.accountId}:`, err.message)
+      })
+    }
 
     // Send approval email to user
     const approvedDomain = account.user.agent?.customDomains?.[0]
