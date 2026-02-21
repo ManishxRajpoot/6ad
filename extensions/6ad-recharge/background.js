@@ -544,18 +544,40 @@ async function processRecharge(recharge) {
     await addActivity('info', `Claiming recharge for act_${accountId} ($${depositAmount})`)
     await apiRequest(`/extension/recharge/${depositId}/claim`, 'POST')
 
-    const fbTab = await findFbTab()
-    const ctx = await getFbPageContext(fbTab)
-    console.log('[6AD] Got FB page context for recharge — token:', ctx.accessToken?.substring(0, 15) + '...')
+    // Get access token — try page context first, fall back to stored debugger token
+    let accessToken = null
+    let tokenSource = 'none'
+    try {
+      const fbTab = await findFbTab()
+      const ctx = await getFbPageContext(fbTab)
+      accessToken = ctx.accessToken
+      tokenSource = ctx.tokenSource
+    } catch (ctxErr) {
+      console.log('[6AD] Page context failed, trying stored token:', ctxErr.message)
+    }
 
-    // Execute recharge via injected script in Facebook tab context
-    // Uses page's own __accessToken which works with Graph API from same-origin
+    // Fallback: use stored debugger token if page context failed
+    if (!accessToken) {
+      const config = await getConfig()
+      if (config.fbAccessToken) {
+        accessToken = config.fbAccessToken
+        tokenSource = 'stored_debugger'
+      }
+    }
+
+    if (!accessToken) {
+      throw new Error('No access token available — open Facebook and browse around to capture a token')
+    }
+    console.log('[6AD] Got FB token for recharge via', tokenSource, ':', accessToken?.substring(0, 15) + '...')
+
+    // Execute recharge — Graph API only needs access_token, no dtsg needed
+    const fbTab = await findFbTab()
     const results = await chrome.scripting.executeScript({
       target: { tabId: fbTab.id },
       world: 'MAIN',
-      func: async (accountId, accessToken, dtsg, userId, depositAmount) => {
+      func: async (accountId, accessToken, depositAmount) => {
         try {
-          // Step 1: Get current spend cap using internal API
+          // Step 1: Get current spend cap
           const getUrl = `https://graph.facebook.com/v21.0/act_${accountId}?fields=spend_cap,amount_spent,name&access_token=${encodeURIComponent(accessToken)}`
           const getResp = await fetch(getUrl, { credentials: 'include' })
           const getText = await getResp.text()
@@ -563,24 +585,10 @@ async function processRecharge(recharge) {
           try {
             accountData = JSON.parse(getText)
           } catch {
-            // Try internal endpoint as fallback
-            const intResp = await fetch('https://business.facebook.com/api/graphql/', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              credentials: 'include',
-              body: new URLSearchParams({
-                fb_dtsg: dtsg,
-                __user: userId,
-                __a: '1',
-                variables: JSON.stringify({ adAccountId: `act_${accountId}`, fields: ['spend_cap', 'amount_spent', 'name'] }),
-              }).toString()
-            })
-            const intText = await intResp.text()
-            const clean = intText.replace(/^for\s*\(;;\);?\s*/, '')
-            accountData = JSON.parse(clean)
+            return { error: 'Invalid response from FB GET: ' + getText.substring(0, 200) }
           }
 
-          if (accountData.error) return { error: accountData.error.message }
+          if (accountData.error) return { error: accountData.error.message || JSON.stringify(accountData.error) }
 
           const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
           const spentCents = parseInt(accountData.amount_spent || '0', 10)
@@ -606,7 +614,7 @@ async function processRecharge(recharge) {
           } catch {
             return { error: 'Invalid response from spend_cap update: ' + postText.substring(0, 200) }
           }
-          if (postData.error) return { error: postData.error.message }
+          if (postData.error) return { error: postData.error.message || JSON.stringify(postData.error) }
 
           return {
             success: true,
@@ -618,7 +626,7 @@ async function processRecharge(recharge) {
           return { error: e.message }
         }
       },
-      args: [accountId, ctx.accessToken, ctx.dtsg, ctx.userId, depositAmount]
+      args: [accountId, accessToken, depositAmount]
     })
 
     const result = results?.[0]?.result
@@ -805,7 +813,7 @@ async function findFbTab() {
     throw new Error('No Facebook tab open — open business.facebook.com or adsmanager.facebook.com first')
   }
   // Filter out login/redirect pages that don't have valid tokens
-  const validTabs = tabs.filter(t => !t.url.includes('/loginpage') && !t.url.includes('/login') && !t.url.includes('login.php'))
+  const validTabs = tabs.filter(t => t.url && !t.url.includes('/loginpage') && !t.url.includes('/login') && !t.url.includes('login.php'))
   const searchTabs = validTabs.length > 0 ? validTabs : tabs
 
   // Prefer adsmanager > business.facebook.com > www.facebook.com
