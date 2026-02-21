@@ -823,9 +823,9 @@ async function findFbTab() {
   const searchTabs = validTabs.length > 0 ? validTabs : tabs
 
   // Prefer adsmanager > business.facebook.com > www.facebook.com
-  const adsTab = searchTabs.find(t => t.url.includes('adsmanager.facebook.com'))
+  const adsTab = searchTabs.find(t => t.url && t.url.includes('adsmanager.facebook.com'))
   if (adsTab) return adsTab
-  const bizTab = searchTabs.find(t => t.url.includes('business.facebook.com'))
+  const bizTab = searchTabs.find(t => t.url && t.url.includes('business.facebook.com'))
   if (bizTab) return bizTab
   return searchTabs[0]
 }
