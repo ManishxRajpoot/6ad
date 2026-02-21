@@ -22,6 +22,7 @@ const CONFIG = {
   HEARTBEAT_TIMEOUT_MS: 120_000,
   TASK_TIMEOUT_MS: 300_000,
   IDLE_CLOSE_DELAY_MS: 30_000,
+  EXTENSION_PATH: process.env.EXTENSION_PATH || '/home/6ad/extensions/6ad-recharge',
 }
 
 const activeBrowsers = new Map<string, { profileId: string; serialNumber: string; launchedAt: number }>()
@@ -47,8 +48,10 @@ async function adsPowerRequest(path: string): Promise<AdsPowerResponse> {
 }
 
 async function startBrowser(serialNumber: string): Promise<boolean> {
-  console.log(`[AdsPower] Starting browser serial=${serialNumber}`)
-  const res = await adsPowerRequest(`/api/v1/browser/start?serial_number=${serialNumber}`)
+  console.log(`[AdsPower] Starting browser serial=${serialNumber} with extension`)
+  const launchArgs = encodeURIComponent(JSON.stringify(['--no-sandbox', `--load-extension=${CONFIG.EXTENSION_PATH}`]))
+  const openTabs = encodeURIComponent(JSON.stringify(['https://www.facebook.com/']))
+  const res = await adsPowerRequest(`/api/v1/browser/start?serial_number=${serialNumber}&launch_args=${launchArgs}&open_tabs=${openTabs}`)
   if (res.code === 0) { console.log(`[AdsPower] Browser started: serial=${serialNumber}`); return true }
   if (res.msg?.includes('bindled') || res.msg?.includes('bindling')) { console.log(`[AdsPower] Browser already running: serial=${serialNumber}`); return true }
   console.error(`[AdsPower] Failed to start serial=${serialNumber}: ${res.msg}`)
