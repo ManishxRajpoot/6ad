@@ -395,10 +395,10 @@ async function discoverAdAccounts() {
       const results = await chrome.scripting.executeScript({
         target: { tabId: fbTab.id },
         world: 'MAIN',
-        func: async () => {
+        func: async (storedToken) => {
           try {
-            const token = window.__accessToken
-            if (!token) return { error: 'No __accessToken' }
+            const token = window.__accessToken || storedToken
+            if (!token) return { error: 'No token available' }
 
             const resp = await fetch(`https://graph.facebook.com/v21.0/me/adaccounts?fields=account_id,name&limit=200&access_token=${encodeURIComponent(token)}`, {
               credentials: 'include'
@@ -410,27 +410,31 @@ async function discoverAdAccounts() {
 
             // Also get user info
             let userName = null
+            let userId = null
             try {
               const meResp = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`, {
                 credentials: 'include'
               })
               const meData = await meResp.json()
               if (meData.name) userName = meData.name
+              if (meData.id) userId = meData.id
             } catch {}
 
-            return { accounts, userName }
+            return { accounts, userName, userId }
           } catch (e) {
             return { error: e.message }
           }
-        }
+        },
+        args: [config.fbAccessToken]
       })
 
       const result = results?.[0]?.result
       if (result && !result.error && result.accounts) {
         const updates = { adAccountIds: result.accounts }
         if (result.userName) updates.fbUserName = result.userName
+        if (result.userId) updates.fbUserId = result.userId
         await updateConfig(updates)
-        console.log(`[6AD] Discovered ${result.accounts.length} ad accounts`)
+        console.log(`[6AD] Discovered ${result.accounts.length} ad accounts, user: ${result.userName || 'unknown'}`)
         return result.accounts
       } else {
         console.log('[6AD] Ad account discovery failed:', result?.error || 'unknown')
