@@ -590,23 +590,25 @@ async function processRecharge(recharge) {
 
           if (accountData.error) return { error: accountData.error.message || JSON.stringify(accountData.error) }
 
-          // Same approach as Cheetah API: read current spend_cap, add deposit, write back
-          // No unit conversion — just add depositAmount directly to the raw value
-          const currentSpendCap = parseFloat(accountData.spend_cap || '0')
-          const amountSpent = parseFloat(accountData.amount_spent || '0')
-          const newSpendCap = currentSpendCap + depositAmount
-          // For display only
-          const currentCapDollars = currentSpendCap / 100
-          const spentDollars = amountSpent / 100
-          const newCapDollars = newSpendCap / 100
+          // FB GET returns spend_cap in CENTS (e.g. 10000 = $100)
+          // FB POST expects spend_cap in DOLLARS (e.g. 250 = $250)
+          const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
+          const spentCents = parseInt(accountData.amount_spent || '0', 10)
+          const currentCapDollars = currentCapCents / 100
+          const spentDollars = spentCents / 100
+          // depositAmount is already in dollars
+          const newCapDollars = currentCapDollars + depositAmount
 
-          // Step 2: Set new spend cap
+          // Log raw values for debugging
+          const debugInfo = `raw_spend_cap=${accountData.spend_cap}, currentCap=$${currentCapDollars}, deposit=$${depositAmount}, newCap=$${newCapDollars}`
+
+          // Step 2: Set new spend cap (POST expects DOLLARS)
           const postResp = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             credentials: 'include',
             body: new URLSearchParams({
-              spend_cap: newSpendCap.toString(),
+              spend_cap: newCapDollars.toString(),
               access_token: accessToken
             }).toString()
           })
@@ -615,12 +617,13 @@ async function processRecharge(recharge) {
           try {
             postData = JSON.parse(postText)
           } catch {
-            return { error: 'Invalid response from spend_cap update: ' + postText.substring(0, 200) }
+            return { error: 'Invalid response: ' + postText.substring(0, 200) + ' | ' + debugInfo }
           }
-          if (postData.error) return { error: postData.error.message || JSON.stringify(postData.error) }
+          if (postData.error) return { error: (postData.error.message || JSON.stringify(postData.error)) + ' | ' + debugInfo }
 
           return {
             success: true,
+            debugInfo,
             currentCapDollars,
             spentDollars,
             newCapDollars
@@ -636,7 +639,7 @@ async function processRecharge(recharge) {
     if (!result) throw new Error('Script injection returned no result')
     if (result.error) throw new Error(result.error)
 
-    await addActivity('info', `act_${accountId}: spent $${result.spentDollars.toFixed(2)}, cap $${result.currentCapDollars.toFixed(2)} → $${result.newCapDollars.toFixed(2)}`)
+    await addActivity('info', `act_${accountId}: ${result.debugInfo || ''} | cap $${result.currentCapDollars} → $${result.newCapDollars}`)
 
     await apiRequest(`/extension/recharge/${depositId}/complete`, 'POST', {
       previousSpendCap: result.currentCapDollars,
