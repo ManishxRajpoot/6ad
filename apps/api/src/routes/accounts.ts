@@ -757,6 +757,37 @@ accounts.get('/agent-all', async (c) => {
   }
 })
 
+// ==================== CARD WALLET TOP-UP TRACKER ====================
+
+// GET /accounts/card-wallet-pending - Get pending wallet top-up amount for card accounts
+accounts.get('/card-wallet-pending', requireAdmin, async (c) => {
+  try {
+    const setting = await prisma.setting.findUnique({
+      where: { key: 'card_wallet_pending_amount' }
+    })
+    const pendingAmount = setting ? parseFloat(setting.value) : 0
+    return c.json({ pendingAmount })
+  } catch (error) {
+    console.error('Get card wallet pending error:', error)
+    return c.json({ pendingAmount: 0 })
+  }
+})
+
+// POST /accounts/card-wallet-mark-added - Reset pending amount after admin adds money to wallet
+accounts.post('/card-wallet-mark-added', requireAdmin, async (c) => {
+  try {
+    await prisma.setting.upsert({
+      where: { key: 'card_wallet_pending_amount' },
+      update: { value: '0' },
+      create: { key: 'card_wallet_pending_amount', value: '0', description: 'Pending card account wallet top-up amount' }
+    })
+    return c.json({ message: 'Wallet top-up marked as added', pendingAmount: 0 })
+  } catch (error) {
+    console.error('Mark wallet added error:', error)
+    return c.json({ error: 'Failed to mark wallet as added' }, 500)
+  }
+})
+
 // GET /accounts/:platform - Get accounts by platform
 accounts.get('/:platform', requireUser, async (c) => {
   try {
@@ -2717,37 +2748,6 @@ accounts.get('/insights/monthly/:accountId', requireUser, async (c) => {
   } catch (error) {
     console.error('Get monthly insights error:', error)
     return c.json({ error: 'Failed to get monthly insights', monthlyData: [], totals: null }, 500)
-  }
-})
-
-// ==================== CARD WALLET TOP-UP TRACKER ====================
-
-// GET /accounts/card-wallet-pending - Get pending wallet top-up amount for card accounts
-accounts.get('/card-wallet-pending', requireAdmin, async (c) => {
-  try {
-    const setting = await prisma.setting.findUnique({
-      where: { key: 'card_wallet_pending_amount' }
-    })
-    const pendingAmount = setting ? parseFloat(setting.value) : 0
-    return c.json({ pendingAmount })
-  } catch (error) {
-    console.error('Get card wallet pending error:', error)
-    return c.json({ pendingAmount: 0 })
-  }
-})
-
-// POST /accounts/card-wallet-mark-added - Reset pending amount after admin adds money to wallet
-accounts.post('/card-wallet-mark-added', requireAdmin, async (c) => {
-  try {
-    await prisma.setting.upsert({
-      where: { key: 'card_wallet_pending_amount' },
-      update: { value: '0' },
-      create: { key: 'card_wallet_pending_amount', value: '0', description: 'Pending card account wallet top-up amount' }
-    })
-    return c.json({ message: 'Wallet top-up marked as added', pendingAmount: 0 })
-  } catch (error) {
-    console.error('Mark wallet added error:', error)
-    return c.json({ error: 'Failed to mark wallet as added' }, 500)
   }
 })
 
