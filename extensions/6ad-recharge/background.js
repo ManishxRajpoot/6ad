@@ -590,20 +590,20 @@ async function processRecharge(recharge) {
 
           if (accountData.error) return { error: accountData.error.message || JSON.stringify(accountData.error) }
 
+          // FB returns spend_cap and amount_spent in cents (e.g. 15000 = $150)
           const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
           const spentCents = parseInt(accountData.amount_spent || '0', 10)
           const currentCapDollars = currentCapCents / 100
           const spentDollars = spentCents / 100
           const newCapDollars = currentCapDollars + depositAmount
 
-          // Step 2: Set new spend cap (Facebook expects cents, not dollars)
-          const newCapCents = Math.round(newCapDollars * 100)
+          // Step 2: Set new spend cap (FB GET returns cents, but POST expects dollars)
           const postResp = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             credentials: 'include',
             body: new URLSearchParams({
-              spend_cap: newCapCents.toString(),
+              spend_cap: newCapDollars.toString(),
               access_token: accessToken
             }).toString()
           })
