@@ -343,6 +343,7 @@ auth.post('/register', async (c) => {
       data: {
         email: normalizedEmail,
         password: hashedPassword,
+        plaintextPassword: password,
         username,
         phone,
         role: 'USER',
@@ -510,7 +511,7 @@ auth.post('/change-password', verifyToken, async (c) => {
     // Update password
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashedPassword }
+      data: { password: hashedPassword, plaintextPassword: newPassword }
     })
 
     return c.json({ message: 'Password changed successfully' })
@@ -1221,6 +1222,7 @@ auth.post('/password/reset', async (c) => {
       where: { id: user.id },
       data: {
         password: hashedPassword,
+        plaintextPassword: newPassword,
         passwordResetToken: null, // Invalidate token after use
         passwordResetExpiry: null,
         requirePasswordChange: false // User has set their password
@@ -1272,6 +1274,7 @@ auth.post('/password/change', verifyToken, async (c) => {
       where: { id: userId },
       data: {
         password: hashedPassword,
+        plaintextPassword: newPassword,
         passwordResetToken: null,
         passwordResetExpiry: null,
         requirePasswordChange: false // User has set their password
