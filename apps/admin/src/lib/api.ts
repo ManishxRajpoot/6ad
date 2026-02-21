@@ -387,6 +387,10 @@ export const accountDepositsApi = {
     api.post<{ message: string; deposit: any }>(`/accounts/deposits/${id}/reject`, { adminRemarks }),
   checkCheetah: (accountIds: string[]) =>
     api.post<{ cheetahStatus: Record<string, boolean> }>('/accounts/deposits/check-cheetah', { accountIds }),
+  retryRecharge: (id: string) =>
+    api.post<{ message: string }>(`/accounts/deposits/${id}/retry-recharge`, {}),
+  forceApprove: (id: string) =>
+    api.post<{ message: string }>(`/accounts/deposits/${id}/force-approve`, {}),
 }
 
 // Account Refunds API (Admin)

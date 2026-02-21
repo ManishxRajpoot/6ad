@@ -1385,6 +1385,45 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
   }
 })
 
+// POST /accounts/deposits/:id/retry-recharge - Retry failed recharge
+accounts.post('/deposits/:id/retry-recharge', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+    await prisma.accountDeposit.update({
+      where: { id },
+      data: {
+        rechargeStatus: 'PENDING',
+        rechargeError: null,
+      }
+    })
+    return c.json({ message: 'Recharge queued for retry' })
+  } catch (error) {
+    console.error('Retry recharge error:', error)
+    return c.json({ error: 'Failed to retry recharge' }, 500)
+  }
+})
+
+// POST /accounts/deposits/:id/force-approve - Force approve (skip recharge)
+accounts.post('/deposits/:id/force-approve', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+    await prisma.accountDeposit.update({
+      where: { id },
+      data: {
+        rechargeStatus: 'COMPLETED',
+        rechargeMethod: 'MANUAL',
+        rechargedAt: new Date(),
+        rechargedBy: 'admin-force',
+        rechargeError: null,
+      }
+    })
+    return c.json({ message: 'Deposit force approved, recharge marked as completed' })
+  } catch (error) {
+    console.error('Force approve error:', error)
+    return c.json({ error: 'Failed to force approve' }, 500)
+  }
+})
+
 // POST /accounts/deposits/:id/reject - Reject account deposit
 // Note: Since money was deducted on submit, we need to refund it back to user's wallet
 accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {

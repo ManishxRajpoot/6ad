@@ -21,7 +21,9 @@ import {
   Check,
   Gift,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw,
+  ShieldCheck
 } from 'lucide-react'
 
 type Application = {
@@ -437,6 +439,27 @@ export default function FacebookPage() {
       fetchAccountDeposits()
     } catch (error: any) {
       toast.error('Failed to Reject', error.message || 'Failed to reject deposit')
+    }
+  }
+
+  const handleRetryRecharge = async (id: string) => {
+    try {
+      await accountDepositsApi.retryRecharge(id)
+      toast.success('Retry Queued', 'Recharge will be retried by the extension shortly')
+      fetchAccountDeposits()
+    } catch (error: any) {
+      toast.error('Retry Failed', error.message || 'Failed to queue retry')
+    }
+  }
+
+  const handleForceApprove = async (id: string) => {
+    if (!confirm('Force approve will mark recharge as completed WITHOUT updating the Facebook spending limit. Are you sure?')) return
+    try {
+      await accountDepositsApi.forceApprove(id)
+      toast.success('Force Approved', 'Deposit marked as completed. Update spending limit manually if needed.')
+      fetchAccountDeposits()
+    } catch (error: any) {
+      toast.error('Force Approve Failed', error.message || 'Failed to force approve')
     }
   }
 
@@ -1192,7 +1215,16 @@ export default function FacebookPage() {
                           </td>
                           <td className="py-4 px-4 text-sm text-gray-500 max-w-[150px] truncate">{dep.remarks || '---'}</td>
                           <td className="py-4 px-4 text-sm text-gray-500 whitespace-nowrap">{formatDate(dep.createdAt)}</td>
-                          <td className="py-4 px-4">{getStatusBadge(dep.status)}</td>
+                          <td className="py-4 px-4">
+                            {/* Show Failed badge when recharge failed, Approved otherwise */}
+                            {dep.status === 'APPROVED' && dep.rechargeStatus === 'FAILED' ? (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                                ❌ Failed
+                              </span>
+                            ) : (
+                              getStatusBadge(dep.status)
+                            )}
+                          </td>
                           <td className="py-4 px-4 whitespace-nowrap">
                             {dep.status === 'APPROVED' && dep.rechargeMethod === 'EXTENSION' && (
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -1214,8 +1246,8 @@ export default function FacebookPage() {
                               </span>
                             )}
                             {dep.status === 'APPROVED' && dep.rechargeMethod === 'MANUAL' && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-50 text-gray-600">
-                                ✋ Manual
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                                ✅ Done
                               </span>
                             )}
                             {dep.status === 'APPROVED' && (!dep.rechargeMethod || dep.rechargeMethod === 'NONE') && (
@@ -1247,6 +1279,24 @@ export default function FacebookPage() {
                                   title="Reject"
                                 >
                                   <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                            {dep.status === 'APPROVED' && dep.rechargeStatus === 'FAILED' && (
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleRetryRecharge(dep.id)}
+                                  className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                  title="Retry Recharge"
+                                >
+                                  <RefreshCw className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleForceApprove(dep.id)}
+                                  className="p-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors"
+                                  title="Force Approve (skip recharge)"
+                                >
+                                  <ShieldCheck className="w-4 h-4" />
                                 </button>
                               </div>
                             )}
