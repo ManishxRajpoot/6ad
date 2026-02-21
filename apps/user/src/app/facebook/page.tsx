@@ -3528,7 +3528,7 @@ export default function FacebookPage() {
         title="BM Share"
         className="max-w-md"
       >
-        <p className="text-xs text-gray-400 -mt-2 mb-4">
+        <p className="text-xs text-gray-400 mb-4">
           {selectedAccountForBmShare
             ? `Connect your Business Manager to ${selectedAccountForBmShare.adsAccountName}`
             : 'Share your BM ID to connect accounts'}

@@ -509,19 +509,19 @@ export default function DashboardPage() {
             <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center">
               <Plus className="w-5 h-5 text-[#8B5CF6]" />
             </div>
-            <span className="text-[11px] font-medium text-gray-600 text-center leading-tight">Create<br/>Deposit</span>
+            <span className="text-[11px] font-medium text-gray-600 text-center leading-tight">Ad<br/>Deposit</span>
           </Link>
           <Link href="/deposits" className="bg-white rounded-2xl p-3 flex flex-col items-center gap-2.5 border border-gray-100 active:scale-95 transition-transform">
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
               <Wallet className="w-5 h-5 text-[#52B788]" />
             </div>
-            <span className="text-[11px] font-medium text-gray-600 text-center leading-tight">Wallet<br/>Deposit</span>
+            <span className="text-[11px] font-medium text-gray-600 text-center leading-tight">Add<br/>Money</span>
           </Link>
           <Link href="/facebook?page=bm-share-log" className="bg-white rounded-2xl p-3 flex flex-col items-center gap-2.5 border border-gray-100 active:scale-95 transition-transform">
             <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
               <Upload className="w-5 h-5 text-[#3B82F6]" />
             </div>
-            <span className="text-[11px] font-medium text-gray-600 text-center leading-tight">BM<br/>Share</span>
+            <span className="text-[11px] font-medium text-gray-600 text-center leading-tight">Get<br/>Access</span>
           </Link>
         </div>
 
