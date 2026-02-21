@@ -391,6 +391,10 @@ export const accountDepositsApi = {
     api.post<{ message: string }>(`/accounts/deposits/${id}/retry-recharge`, {}),
   forceApprove: (id: string) =>
     api.post<{ message: string }>(`/accounts/deposits/${id}/force-approve`, {}),
+  getCardWalletPending: () =>
+    api.get<{ pendingAmount: number }>('/accounts/card-wallet-pending'),
+  markCardWalletAdded: () =>
+    api.post<{ message: string; pendingAmount: number }>('/accounts/card-wallet-mark-added', {}),
 }
 
 // Account Refunds API (Admin)

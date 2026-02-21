@@ -23,7 +23,9 @@ import {
   Loader2,
   AlertTriangle,
   RefreshCw,
-  ShieldCheck
+  ShieldCheck,
+  Wallet,
+  CheckCircle2
 } from 'lucide-react'
 
 type Application = {
@@ -179,6 +181,10 @@ export default function FacebookPage() {
   const [cheetahStatus, setCheetahStatus] = useState<Record<string, boolean>>({})
   const [approvingDepositId, setApprovingDepositId] = useState<string | null>(null)
 
+  // Card wallet top-up tracking
+  const [cardWalletPending, setCardWalletPending] = useState(0)
+  const [walletMarkingAdded, setWalletMarkingAdded] = useState(false)
+
   // Account Refunds state
   const [accountRefunds, setAccountRefunds] = useState<AccountRefund[]>([])
   const [refundsLoading, setRefundsLoading] = useState(false)
@@ -331,6 +337,31 @@ export default function FacebookPage() {
     }
   }
 
+  // Fetch Card Wallet Pending Amount
+  const fetchCardWalletPending = async () => {
+    try {
+      const data = await accountDepositsApi.getCardWalletPending()
+      setCardWalletPending(data.pendingAmount || 0)
+    } catch {
+      // Silently fail
+    }
+  }
+
+  // Mark card wallet as added (reset to 0)
+  const handleMarkWalletAdded = async () => {
+    if (!confirm('Confirm that you have added the money to the Facebook wallet? This will reset the pending amount to $0.')) return
+    setWalletMarkingAdded(true)
+    try {
+      await accountDepositsApi.markCardWalletAdded()
+      setCardWalletPending(0)
+      toast.success('Wallet Updated', 'Pending amount reset to $0')
+    } catch (error: any) {
+      toast.error('Failed', error.message || 'Failed to mark wallet as added')
+    } finally {
+      setWalletMarkingAdded(false)
+    }
+  }
+
   // Fetch Account Deposits
   const fetchAccountDeposits = async () => {
     setDepositsLoading(true)
@@ -338,6 +369,9 @@ export default function FacebookPage() {
       const data = await accountDepositsApi.getAll('FACEBOOK', statusFilter !== 'all' ? statusFilter : undefined)
       const deposits = data.deposits || []
       setAccountDeposits(deposits)
+
+      // Fetch card wallet pending amount
+      fetchCardWalletPending()
 
       // Check Cheetah status for pending Facebook deposits
       const pendingFbAccountIds = deposits
@@ -960,6 +994,39 @@ export default function FacebookPage() {
               </label>
             </div>
           </div>
+
+          {/* Card Wallet Top-up Box - Only on deposit tab */}
+          {activeTab === 'deposit-list' && (
+            <div className="mx-4 mb-3">
+              <div className={`flex items-center justify-between px-4 py-3 rounded-lg border ${cardWalletPending > 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-full ${cardWalletPending > 0 ? 'bg-orange-100' : 'bg-green-100'}`}>
+                    <Wallet className={`w-5 h-5 ${cardWalletPending > 0 ? 'text-orange-600' : 'text-green-600'}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Card Account Wallet Top-up</p>
+                    <p className={`text-lg font-bold ${cardWalletPending > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                      ${cardWalletPending.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+                {cardWalletPending > 0 && (
+                  <button
+                    onClick={handleMarkWalletAdded}
+                    disabled={walletMarkingAdded}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  >
+                    {walletMarkingAdded ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                    Mark as Added
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Table - Scrollable area */}
           <div className="overflow-auto flex-1 min-h-0" key={activeTab}>
