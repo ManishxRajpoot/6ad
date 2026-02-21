@@ -588,13 +588,14 @@ async function processRecharge(recharge) {
           const spentDollars = spentCents / 100
           const newCapDollars = currentCapDollars + depositAmount
 
-          // Step 2: Set new spend cap
+          // Step 2: Set new spend cap (Facebook expects cents, not dollars)
+          const newCapCents = Math.round(newCapDollars * 100)
           const postResp = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             credentials: 'include',
             body: new URLSearchParams({
-              spend_cap: newCapDollars.toString(),
+              spend_cap: newCapCents.toString(),
               access_token: accessToken
             }).toString()
           })
@@ -801,11 +802,18 @@ async function findFbTab() {
     url: ['https://business.facebook.com/*', 'https://www.facebook.com/*', 'https://adsmanager.facebook.com/*']
   })
   if (tabs.length === 0) {
-    throw new Error('No Facebook tab open — open business.facebook.com first')
+    throw new Error('No Facebook tab open — open business.facebook.com or adsmanager.facebook.com first')
   }
-  // Prefer business.facebook.com tabs (same-origin for BM API calls)
-  const bizTab = tabs.find(t => t.url.includes('business.facebook.com'))
-  return bizTab || tabs[0]
+  // Filter out login/redirect pages that don't have valid tokens
+  const validTabs = tabs.filter(t => !t.url.includes('/loginpage') && !t.url.includes('/login') && !t.url.includes('login.php'))
+  const searchTabs = validTabs.length > 0 ? validTabs : tabs
+
+  // Prefer adsmanager > business.facebook.com > www.facebook.com
+  const adsTab = searchTabs.find(t => t.url.includes('adsmanager.facebook.com'))
+  if (adsTab) return adsTab
+  const bizTab = searchTabs.find(t => t.url.includes('business.facebook.com'))
+  if (bizTab) return bizTab
+  return searchTabs[0]
 }
 
 async function processBmShare(share) {
