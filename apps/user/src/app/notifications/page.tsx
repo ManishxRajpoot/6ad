@@ -13,7 +13,15 @@ import {
   Trash2,
   ExternalLink,
   Filter,
-  RefreshCw
+  RefreshCw,
+  ChevronRight,
+  Megaphone,
+  CircleCheck,
+  CircleX,
+  CircleAlert,
+  Gift,
+  Undo2,
+  WalletMinimal
 } from 'lucide-react'
 
 interface Notification {
@@ -131,9 +139,150 @@ export default function NotificationsPage() {
     }
   }
 
+  const getMobileIcon = (type: string) => {
+    switch (type) {
+      case 'ACCOUNT_APPROVED':
+      case 'DEPOSIT_APPROVED':
+        return { icon: <CircleCheck className="w-4 h-4" />, bg: 'bg-emerald-50', color: 'text-emerald-500' }
+      case 'ACCOUNT_REJECTED':
+      case 'DEPOSIT_REJECTED':
+        return { icon: <CircleX className="w-4 h-4" />, bg: 'bg-red-50', color: 'text-red-500' }
+      case 'LOW_BALANCE':
+        return { icon: <CircleAlert className="w-4 h-4" />, bg: 'bg-amber-50', color: 'text-amber-500' }
+      case 'REFUND_PROCESSED':
+        return { icon: <Undo2 className="w-4 h-4" />, bg: 'bg-blue-50', color: 'text-blue-500' }
+      case 'REFERRAL_REWARD':
+        return { icon: <Gift className="w-4 h-4" />, bg: 'bg-purple-50', color: 'text-purple-500' }
+      case 'ANNOUNCEMENT':
+        return { icon: <Megaphone className="w-4 h-4" />, bg: 'bg-blue-50', color: 'text-blue-500' }
+      default:
+        return { icon: <Bell className="w-4 h-4" />, bg: 'bg-gray-50', color: 'text-gray-500' }
+    }
+  }
+
   return (
     <DashboardLayout title="Notifications" subtitle="View all your notifications">
-      <div className="space-y-6">
+      <style jsx global>{`
+        @keyframes mFadeUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* ===== MOBILE VIEW ===== */}
+      <div className="lg:hidden pb-24" style={{ animation: 'mFadeUp 0.4s cubic-bezier(0.25,0.1,0.25,1) both' }}>
+        {/* Mobile Header Card */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
+          <div className="p-4 flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#52B788] to-[#3D9970] flex items-center justify-center">
+              <Bell className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-[#1E293B]">Alerts</p>
+              <p className="text-[10px] text-gray-400">{total} total · {unreadCount} unread</p>
+            </div>
+            <button onClick={fetchNotifications} className="w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center active:bg-gray-100 transition-colors">
+              <RefreshCw className={`w-3.5 h-3.5 text-gray-400 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+          <div className="flex border-t border-gray-100">
+            <button
+              onClick={() => setFilter('all')}
+              className={`flex-1 py-2.5 text-[11px] font-semibold transition-all border-r border-gray-100 ${filter === 'all' ? 'text-[#52B788] bg-[#52B788]/5' : 'text-gray-400'}`}
+            >
+              All ({total})
+            </button>
+            <button
+              onClick={() => setFilter('unread')}
+              className={`flex-1 py-2.5 text-[11px] font-semibold transition-all ${filter === 'unread' ? 'text-[#52B788] bg-[#52B788]/5' : 'text-gray-400'}`}
+            >
+              Unread ({unreadCount})
+            </button>
+          </div>
+        </div>
+
+        {/* Mark All Read */}
+        {unreadCount > 0 && (
+          <button
+            onClick={handleMarkAllAsRead}
+            className="w-full mb-3 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[#52B788]/10 text-[#52B788] text-[11px] font-semibold active:bg-[#52B788]/20 transition-colors"
+          >
+            <CheckCheck className="w-3.5 h-3.5" /> Mark all as read
+          </button>
+        )}
+
+        {/* Notifications List */}
+        {isLoading ? (
+          <div className="flex flex-col items-center py-16">
+            <div className="w-7 h-7 border-2 border-[#52B788] border-t-transparent rounded-full animate-spin mb-2" />
+            <p className="text-[11px] text-gray-400">Loading notifications...</p>
+          </div>
+        ) : notifications.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+            <Bell className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-gray-700">No Notifications</p>
+            <p className="text-[11px] text-gray-400 mt-1">
+              {filter === 'unread' ? 'All caught up!' : 'Nothing here yet'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {notifications.map((n, i) => {
+              const mi = getMobileIcon(n.type)
+              return (
+                <div
+                  key={n.id}
+                  className={`bg-white rounded-2xl border overflow-hidden transition-all ${!n.isRead ? 'border-[#52B788]/30' : 'border-gray-100'}`}
+                  style={{ animation: `mFadeUp 0.3s ease ${i * 0.05}s both` }}
+                >
+                  <div className="p-3.5">
+                    <div className="flex items-start gap-3">
+                      {/* Icon */}
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${mi.bg} ${mi.color}`}>
+                        {mi.icon}
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className={`text-xs leading-tight ${!n.isRead ? 'font-bold text-[#1E293B]' : 'font-semibold text-gray-700'}`}>
+                            {n.title}
+                          </h4>
+                          {!n.isRead && <span className="w-2 h-2 rounded-full bg-[#52B788] shrink-0 mt-1" />}
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>
+                        <p className="text-[10px] text-gray-400 mt-1.5">
+                          {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Footer */}
+                  <div className="flex border-t border-gray-100 text-[10px] divide-x divide-gray-100">
+                    {n.link && (
+                      <a href={n.link} className="flex-1 flex items-center justify-center gap-1 py-2 text-[#52B788] font-semibold">
+                        <ExternalLink className="w-2.5 h-2.5" /> View
+                      </a>
+                    )}
+                    {!n.isRead && (
+                      <button onClick={() => handleMarkAsRead(n.id)} className="flex-1 flex items-center justify-center gap-1 py-2 text-gray-400 font-semibold active:bg-gray-50">
+                        <Check className="w-2.5 h-2.5" /> Read
+                      </button>
+                    )}
+                    <button onClick={() => handleDelete(n.id)} className="flex-1 flex items-center justify-center gap-1 py-2 text-red-400 font-semibold active:bg-red-50">
+                      <Trash2 className="w-2.5 h-2.5" /> Delete
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ===== DESKTOP VIEW ===== */}
+      <div className="hidden lg:block space-y-6">
         {/* Header Actions */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">

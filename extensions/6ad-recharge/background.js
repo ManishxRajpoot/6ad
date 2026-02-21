@@ -540,126 +540,172 @@ async function processRecharge(recharge) {
     return
   }
 
-  try {
-    await addActivity('info', `Claiming recharge for act_${accountId} ($${depositAmount})`)
-    await apiRequest(`/extension/recharge/${depositId}/claim`, 'POST')
+  const MAX_ATTEMPTS = 2  // Only 1 retry to avoid FB suspicion
+  const RETRY_DELAY_MS = 15000 // 15 seconds before retry — let page fully load
+  let lastError = null
 
-    // Get access token — try page context first, fall back to stored debugger token
-    let accessToken = null
-    let tokenSource = 'none'
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const fbTab = await findFbTab()
-      const ctx = await getFbPageContext(fbTab)
-      accessToken = ctx.accessToken
-      tokenSource = ctx.tokenSource
-    } catch (ctxErr) {
-      console.log('[6AD] Page context failed, trying stored token:', ctxErr.message)
-    }
-
-    // Fallback: use stored debugger token if page context failed
-    if (!accessToken) {
-      const config = await getConfig()
-      if (config.fbAccessToken) {
-        accessToken = config.fbAccessToken
-        tokenSource = 'stored_debugger'
+      if (attempt === 1) {
+        await addActivity('info', `Claiming recharge for act_${accountId} ($${depositAmount})`)
+        await apiRequest(`/extension/recharge/${depositId}/claim`, 'POST')
+        // Wait 5s for page to be fully ready before making API calls
+        await new Promise(r => setTimeout(r, 5000))
+      } else {
+        await addActivity('info', `Retrying recharge for act_${accountId} (page may not have been ready)`)
+        console.log(`[6AD] Retry for act_${accountId}, waiting ${RETRY_DELAY_MS/1000}s for page to load...`)
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
       }
-    }
 
-    if (!accessToken) {
-      throw new Error('No access token available — open Facebook and browse around to capture a token')
-    }
-    console.log('[6AD] Got FB token for recharge via', tokenSource, ':', accessToken?.substring(0, 15) + '...')
+      // Get access token — try page context first, fall back to stored debugger token
+      let accessToken = null
+      let tokenSource = 'none'
+      try {
+        const fbTab = await findFbTab()
+        const ctx = await getFbPageContext(fbTab)
+        accessToken = ctx.accessToken
+        tokenSource = ctx.tokenSource
+      } catch (ctxErr) {
+        console.log('[6AD] Page context failed, trying stored token:', ctxErr.message)
+      }
 
-    // Execute recharge — Graph API only needs access_token, no dtsg needed
-    const fbTab = await findFbTab()
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: fbTab.id },
-      world: 'MAIN',
-      func: async (accountId, accessToken, depositAmount) => {
-        try {
-          // Step 1: Get current spend cap
-          const getUrl = `https://graph.facebook.com/v21.0/act_${accountId}?fields=spend_cap,amount_spent,name&access_token=${encodeURIComponent(accessToken)}`
-          const getResp = await fetch(getUrl, { credentials: 'include' })
-          const getText = await getResp.text()
-          let accountData
-          try {
-            accountData = JSON.parse(getText)
-          } catch {
-            return { error: 'Invalid response from FB GET: ' + getText.substring(0, 200) }
-          }
-
-          if (accountData.error) return { error: accountData.error.message || JSON.stringify(accountData.error) }
-
-          // FB GET returns spend_cap in CENTS (e.g. 10000 = $100)
-          // FB POST expects spend_cap in DOLLARS (e.g. 250 = $250)
-          const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
-          const spentCents = parseInt(accountData.amount_spent || '0', 10)
-          const currentCapDollars = currentCapCents / 100
-          const spentDollars = spentCents / 100
-          // depositAmount is already in dollars
-          const newCapDollars = currentCapDollars + depositAmount
-
-          // Log raw values for debugging
-          const debugInfo = `raw_spend_cap=${accountData.spend_cap}, currentCap=$${currentCapDollars}, deposit=$${depositAmount}, newCap=$${newCapDollars}`
-
-          // Step 2: Set new spend cap (POST expects DOLLARS)
-          const postResp = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            credentials: 'include',
-            body: new URLSearchParams({
-              spend_cap: newCapDollars.toString(),
-              access_token: accessToken
-            }).toString()
-          })
-          const postText = await postResp.text()
-          let postData
-          try {
-            postData = JSON.parse(postText)
-          } catch {
-            return { error: 'Invalid response: ' + postText.substring(0, 200) + ' | ' + debugInfo }
-          }
-          if (postData.error) return { error: (postData.error.message || JSON.stringify(postData.error)) + ' | ' + debugInfo }
-
-          return {
-            success: true,
-            debugInfo,
-            currentCapDollars,
-            spentDollars,
-            newCapDollars
-          }
-        } catch (e) {
-          return { error: e.message }
+      // Fallback: use stored debugger token if page context failed
+      if (!accessToken) {
+        const config = await getConfig()
+        if (config.fbAccessToken) {
+          accessToken = config.fbAccessToken
+          tokenSource = 'stored_debugger'
         }
-      },
-      args: [accountId, accessToken, depositAmount]
-    })
+      }
 
-    const result = results?.[0]?.result
-    if (!result) throw new Error('Script injection returned no result')
-    if (result.error) throw new Error(result.error)
+      if (!accessToken) {
+        throw new Error('No access token available — open Facebook and browse around to capture a token')
+      }
+      console.log('[6AD] Got FB token for recharge via', tokenSource, ':', accessToken?.substring(0, 15) + '...')
 
-    await addActivity('info', `act_${accountId}: ${result.debugInfo || ''} | cap $${result.currentCapDollars} → $${result.newCapDollars}`)
+      // Execute recharge — Graph API only needs access_token, no dtsg needed
+      const fbTab = await findFbTab()
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: fbTab.id },
+        world: 'MAIN',
+        func: async (accountId, accessToken, depositAmount) => {
+          try {
+            // Step 1: Get current spend cap
+            const getUrl = `https://graph.facebook.com/v21.0/act_${accountId}?fields=spend_cap,amount_spent,name&access_token=${encodeURIComponent(accessToken)}`
+            const getResp = await fetch(getUrl, { credentials: 'include' })
+            const getText = await getResp.text()
+            let accountData
+            try {
+              accountData = JSON.parse(getText)
+            } catch {
+              return { error: 'Invalid response from FB GET: ' + getText.substring(0, 200), retryable: true }
+            }
 
-    await apiRequest(`/extension/recharge/${depositId}/complete`, 'POST', {
-      previousSpendCap: result.currentCapDollars,
-      newSpendCap: result.newCapDollars
-    })
+            if (accountData.error) return { error: accountData.error.message || JSON.stringify(accountData.error), retryable: false }
 
-    await addActivity('success', `Recharged act_${accountId} +$${depositAmount.toFixed(2)} (new cap: $${result.newCapDollars.toFixed(2)})`)
-    console.log(`[6AD] Successfully recharged act_${accountId}`)
+            // FB GET returns spend_cap in CENTS (e.g. 10000 = $100)
+            // FB POST expects spend_cap in DOLLARS (e.g. 250 = $250)
+            const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
+            const spentCents = parseInt(accountData.amount_spent || '0', 10)
+            const currentCapDollars = currentCapCents / 100
+            const spentDollars = spentCents / 100
+            // depositAmount is already in dollars
+            const newCapDollars = currentCapDollars + depositAmount
 
-  } catch (err) {
-    console.error(`[6AD] Recharge failed for act_${accountId}:`, err.message)
-    await addActivity('error', `Recharge failed for act_${accountId}: ${err.message}`)
+            // Log raw values for debugging
+            const debugInfo = `raw_spend_cap=${accountData.spend_cap}, currentCap=$${currentCapDollars}, deposit=$${depositAmount}, newCap=$${newCapDollars}`
 
-    try {
-      await apiRequest(`/extension/recharge/${depositId}/failed`, 'POST', {
-        error: err.message
+            // Step 2: Set new spend cap (POST expects DOLLARS)
+            const postResp = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              credentials: 'include',
+              body: new URLSearchParams({
+                spend_cap: newCapDollars.toString(),
+                access_token: accessToken
+              }).toString()
+            })
+            const postText = await postResp.text()
+            let postData
+            try {
+              postData = JSON.parse(postText)
+            } catch {
+              return { error: 'Invalid response: ' + postText.substring(0, 200) + ' | ' + debugInfo, retryable: true }
+            }
+            if (postData.error) return { error: (postData.error.message || JSON.stringify(postData.error)) + ' | ' + debugInfo, retryable: false }
+
+            return {
+              success: true,
+              debugInfo,
+              currentCapDollars,
+              spentDollars,
+              newCapDollars
+            }
+          } catch (e) {
+            // "Failed to fetch" and network errors are retryable
+            return { error: e.message, retryable: true }
+          }
+        },
+        args: [accountId, accessToken, depositAmount]
       })
-    } catch (reportErr) {
-      console.error('[6AD] Failed to report failure:', reportErr.message)
+
+      const result = results?.[0]?.result
+      if (!result) throw new Error('Script injection returned no result')
+      if (result.error) {
+        // Check if error is retryable (network/transient) vs permanent (FB API error)
+        const isRetryable = result.retryable || result.error.includes('Failed to fetch') || result.error.includes('NetworkError') || result.error.includes('Load failed')
+        if (isRetryable && attempt < MAX_ATTEMPTS) {
+          console.log(`[6AD] Retryable error for act_${accountId}: ${result.error}`)
+          lastError = result.error
+          continue // retry once
+        }
+        throw new Error(result.error)
+      }
+
+      await addActivity('info', `act_${accountId}: ${result.debugInfo || ''} | cap $${result.currentCapDollars} → $${result.newCapDollars}`)
+
+      await apiRequest(`/extension/recharge/${depositId}/complete`, 'POST', {
+        previousSpendCap: result.currentCapDollars,
+        newSpendCap: result.newCapDollars
+      })
+
+      await addActivity('success', `Recharged act_${accountId} +$${depositAmount.toFixed(2)} (new cap: $${result.newCapDollars.toFixed(2)})`)
+      console.log(`[6AD] Successfully recharged act_${accountId}`)
+      return // success — exit the retry loop
+
+    } catch (err) {
+      lastError = err.message
+      // Check if this is a retryable error
+      const isRetryable = err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('Load failed') || err.message.includes('No Facebook tab') || err.message.includes('Script injection returned no result')
+      if (isRetryable && attempt < MAX_ATTEMPTS) {
+        console.log(`[6AD] Retryable error (attempt ${attempt}/${MAX_ATTEMPTS}) for act_${accountId}: ${err.message}`)
+        continue // retry
+      }
+
+      // Final failure — report it
+      console.error(`[6AD] Recharge failed for act_${accountId} after ${attempt} attempt(s):`, err.message)
+      await addActivity('error', `Recharge failed for act_${accountId}: ${err.message}`)
+
+      try {
+        await apiRequest(`/extension/recharge/${depositId}/failed`, 'POST', {
+          error: err.message
+        })
+      } catch (reportErr) {
+        console.error('[6AD] Failed to report failure:', reportErr.message)
+      }
+      return // give up
     }
+  }
+
+  // Should not reach here, but just in case all attempts exhausted
+  console.error(`[6AD] Recharge failed for act_${accountId} after ${MAX_ATTEMPTS} attempts:`, lastError)
+  await addActivity('error', `Recharge failed for act_${accountId} after ${MAX_ATTEMPTS} attempts: ${lastError}`)
+  try {
+    await apiRequest(`/extension/recharge/${depositId}/failed`, 'POST', {
+      error: `Failed after ${MAX_ATTEMPTS} attempts: ${lastError}`
+    })
+  } catch (reportErr) {
+    console.error('[6AD] Failed to report failure:', reportErr.message)
   }
 }
 

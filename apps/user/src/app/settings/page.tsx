@@ -384,7 +384,7 @@ function SettingsPageContent() {
   ]
 
   return (
-    <DashboardLayout title="Settings" subtitle="Manage your account preferences">
+    <DashboardLayout title="My Account" subtitle="Manage your account preferences">
       {/* Success Toast - Centered Floating */}
       {toast && toast.type === 'success' && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
@@ -430,11 +430,68 @@ function SettingsPageContent() {
         .animate-tabFadeIn {
           animation: tabFadeIn 0.3s ease-out;
         }
+        @keyframes mFadeUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
       `}</style>
 
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 h-auto lg:h-[calc(100vh-140px)]">
-        {/* Left Sidebar Navigation */}
-        <div className="w-full lg:w-72 lg:flex-shrink-0">
+      {/* ===== MOBILE HEADER ===== */}
+      <div className="lg:hidden space-y-4 mb-4" style={{ animation: 'mFadeUp 0.4s cubic-bezier(0.25,0.1,0.25,1) both' }}>
+        {/* User Card */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="p-4 flex items-center gap-3">
+            <div className="relative">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#52B788] to-[#3D9970] flex items-center justify-center text-white text-lg font-bold overflow-hidden cursor-pointer active:opacity-80 transition-opacity"
+              >
+                {avatar ? (
+                  <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  getInitials()
+                )}
+              </div>
+              {twoFactorEnabled && emailVerified && (
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[#52B788] rounded-full flex items-center justify-center ring-2 ring-white">
+                  <Check className="w-2.5 h-2.5 text-white" />
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-[#1E293B] truncate">{(user as any)?.realName || user?.username || 'User'}</p>
+              <p className="text-[10px] text-gray-400 truncate">{user?.email}</p>
+            </div>
+          </div>
+          {/* Security Status Mini */}
+          <div className="flex border-t border-gray-100 divide-x divide-gray-100">
+            <div className="flex-1 py-2 flex items-center justify-center gap-1.5 text-[10px]">
+              <Mail className="w-3 h-3" />
+              <span className={emailVerified ? 'text-[#52B788] font-semibold' : 'text-amber-500 font-semibold'}>{emailVerified ? 'Verified' : 'Unverified'}</span>
+            </div>
+            <div className="flex-1 py-2 flex items-center justify-center gap-1.5 text-[10px]">
+              <Shield className="w-3 h-3" />
+              <span className={twoFactorEnabled ? 'text-[#52B788] font-semibold' : 'text-red-400 font-semibold'}>{twoFactorEnabled ? '2FA On' : '2FA Off'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Toggle */}
+        <div className="flex gap-1.5 bg-gray-100 rounded-xl p-1">
+          <button onClick={() => setActiveTab('profile')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-semibold transition-all ${activeTab === 'profile' ? 'bg-white text-[#1E293B] shadow-sm' : 'text-gray-400'}`}>
+            <UserCircle className="w-3.5 h-3.5" /> Profile
+          </button>
+          <button onClick={() => setActiveTab('security')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-semibold transition-all ${activeTab === 'security' ? 'bg-white text-[#1E293B] shadow-sm' : 'text-gray-400'}`}>
+            <ShieldCheck className="w-3.5 h-3.5" /> Security
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 h-auto lg:h-[calc(100vh-140px)] pb-24 lg:pb-0">
+        {/* Left Sidebar Navigation - Desktop Only */}
+        <div className="hidden lg:block w-72 flex-shrink-0">
           <Card className="p-4 h-full">
             {/* User Profile Card */}
             <div className="flex items-center gap-3 p-3 mb-4 bg-gradient-to-r from-[#52B788]/10 to-emerald-50/50 rounded-xl">
@@ -521,17 +578,17 @@ function SettingsPageContent() {
 
         {/* Right Content Area */}
         <div className="flex-1 min-w-0 overflow-y-auto">
-          <Card className="p-6 min-h-full">
+          <div className="lg:bg-white lg:rounded-xl lg:border lg:border-gray-200 lg:shadow-sm p-0 lg:p-6 min-h-full">
             {activeTab === 'profile' ? (
-              <div className="space-y-8 max-w-2xl animate-tabFadeIn">
-                {/* Section Header */}
-                <div>
+              <div className="space-y-5 lg:space-y-8 max-w-2xl animate-tabFadeIn">
+                {/* Section Header - Desktop Only */}
+                <div className="hidden lg:block">
                   <h2 className="text-lg font-semibold text-gray-900">Profile Settings</h2>
                   <p className="text-sm text-gray-500 mt-1">Update your personal information and contact details</p>
                 </div>
 
-                {/* Profile Picture */}
-                <div className="pb-6 border-b border-gray-100">
+                {/* Profile Picture - Desktop Only (mobile header has tappable avatar) */}
+                <div className="hidden lg:block pb-6 border-b border-gray-100">
                   <h3 className="text-sm font-medium text-gray-900 mb-4">Profile Picture</h3>
                   <div className="flex items-center gap-5">
                     <div className="relative flex-shrink-0">
@@ -568,8 +625,8 @@ function SettingsPageContent() {
                 </div>
 
                 {/* Personal Information */}
-                <div className="pb-6 border-b border-gray-100">
-                  <h3 className="text-sm font-medium text-gray-900 mb-4">Personal Information</h3>
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 lg:bg-transparent lg:border-0 lg:p-0 lg:pb-6 lg:border-b lg:border-gray-100">
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 lg:text-sm lg:font-medium lg:text-gray-900 lg:normal-case lg:tracking-normal lg:mb-4">Personal Information</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-gray-600 mb-1.5">Full Name</label>
@@ -688,7 +745,7 @@ function SettingsPageContent() {
                   <button
                     onClick={handleSaveProfile}
                     disabled={savingProfile}
-                    className="mt-4 flex items-center justify-center gap-2 bg-[#52B788] hover:bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="mt-4 w-full lg:w-auto flex items-center justify-center gap-2 bg-[#52B788] hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl lg:rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {savingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     {savingProfile ? 'Saving...' : 'Save Changes'}
@@ -696,8 +753,8 @@ function SettingsPageContent() {
                 </div>
 
                 {/* Contact Details */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-4">Contact Details</h3>
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 lg:bg-transparent lg:border-0 lg:p-0">
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 lg:text-sm lg:font-medium lg:text-gray-900 lg:normal-case lg:tracking-normal lg:mb-4">Contact Details</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-gray-600 mb-1.5">Primary Contact</label>
@@ -729,7 +786,7 @@ function SettingsPageContent() {
                   <button
                     onClick={handleSaveContact}
                     disabled={savingContact}
-                    className="mt-4 flex items-center justify-center gap-2 bg-[#52B788] hover:bg-emerald-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="mt-4 w-full lg:w-auto flex items-center justify-center gap-2 bg-[#52B788] hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl lg:rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {savingContact ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                     {savingContact ? 'Saving...' : 'Save Contact'}
@@ -737,15 +794,15 @@ function SettingsPageContent() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-8 max-w-2xl animate-tabFadeIn">
-                {/* Section Header */}
-                <div>
+              <div className="space-y-5 lg:space-y-8 max-w-2xl animate-tabFadeIn">
+                {/* Section Header - Desktop Only */}
+                <div className="hidden lg:block">
                   <h2 className="text-lg font-semibold text-gray-900">Security Settings</h2>
                   <p className="text-sm text-gray-500 mt-1">Manage your password and two-factor authentication</p>
                 </div>
 
                 {/* Change Password */}
-                <div className="pb-6 border-b border-gray-100">
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 lg:bg-transparent lg:border-0 lg:p-0 lg:pb-6 lg:border-b lg:border-gray-100">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-8 h-8 rounded-lg bg-[#52B788]/10 flex items-center justify-center">
                       <Key className="w-4 h-4 text-[#52B788]" />
@@ -824,7 +881,7 @@ function SettingsPageContent() {
                 </div>
 
                 {/* Email Verification */}
-                <div className="pb-6 border-b border-gray-100">
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 lg:bg-transparent lg:border-0 lg:p-0 lg:pb-6 lg:border-b lg:border-gray-100">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-lg bg-[#52B788]/10 flex items-center justify-center">
@@ -904,7 +961,7 @@ function SettingsPageContent() {
                 </div>
 
                 {/* Two-Factor Authentication */}
-                <div>
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 lg:bg-transparent lg:border-0 lg:p-0">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-lg bg-[#52B788]/10 flex items-center justify-center">
@@ -1064,7 +1121,7 @@ function SettingsPageContent() {
                 </div>
               </div>
             )}
-          </Card>
+          </div>
         </div>
       </div>
     </DashboardLayout>
@@ -1074,7 +1131,7 @@ function SettingsPageContent() {
 export default function SettingsPage() {
   return (
     <Suspense fallback={
-      <DashboardLayout title="Settings" subtitle="Manage your account preferences">
+      <DashboardLayout title="My Account" subtitle="Manage your account preferences">
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
         </div>

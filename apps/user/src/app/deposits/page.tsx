@@ -37,7 +37,9 @@ import {
   RefreshCw,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
+  CreditCard,
+  Eye
 } from 'lucide-react'
 
 type Tab = 'add-money' | 'pay-link' | 'wallet-flow'
@@ -193,7 +195,7 @@ export default function DepositsPage() {
     showToast('Export successful!', 'success')
   }
 
-  const { updateUser, isAuthenticated, isHydrated } = useAuthStore()
+  const { user, updateUser, isAuthenticated, isHydrated } = useAuthStore()
 
   // Fetch deposits from API and refresh user balance
   useEffect(() => {
@@ -718,9 +720,252 @@ export default function DepositsPage() {
           transform: translateY(-2px);
           box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
+
+        @keyframes mFadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes mScaleIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
       `}</style>
 
-      <Card className="p-0 rounded-2xl overflow-hidden shadow-sm border border-gray-100 animate-scaleIn flex flex-col" style={{ height: 'calc(100vh - 140px)' }}>
+      {/* ===== MOBILE VIEW ===== */}
+      <div className="lg:hidden space-y-4 pb-24" style={{ animation: 'mFadeUp 0.4s cubic-bezier(0.25,0.1,0.25,1) both' }}>
+        {/* Balance + Actions Card */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="p-4 flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#52B788] to-[#3D9970] flex items-center justify-center">
+              <Wallet className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-[10px] text-gray-400 font-medium">Available Balance</p>
+              <p className="text-[24px] font-bold text-[#1E293B] leading-tight">
+                ${user?.walletBalance != null ? parseFloat(String(user.walletBalance)).toLocaleString() : '0'}
+              </p>
+            </div>
+          </div>
+          <div className="flex border-t border-gray-100">
+            <button
+              onClick={() => setShowDepositModal(true)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold text-[#52B788] active:bg-green-50 transition-colors border-r border-gray-100"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Money
+            </button>
+            <button
+              onClick={() => { setActiveTab('pay-link'); setShowPayLinkModal(true) }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold text-gray-500 active:bg-gray-50 transition-colors"
+            >
+              <LinkIcon className="w-3.5 h-3.5" /> Pay Link
+            </button>
+          </div>
+        </div>
+
+        {/* Mini Stats */}
+        <div className="flex gap-2">
+          <div className="flex-1 bg-white rounded-xl border border-gray-100 p-3 flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-amber-50 flex items-center justify-center">
+              <Clock className="w-3 h-3 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-400">Pending</p>
+              <p className="text-xs font-bold text-[#1E293B]">
+                ${deposits.filter(d => d.status === 'PENDING').reduce((s, d) => s + d.amount, 0).toLocaleString()}
+              </p>
+            </div>
+          </div>
+          <div className="flex-1 bg-white rounded-xl border border-gray-100 p-3 flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-emerald-50 flex items-center justify-center">
+              <CheckCircle className="w-3 h-3 text-emerald-500" />
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-400">Approved</p>
+              <p className="text-xs font-bold text-[#1E293B]">
+                ${deposits.filter(d => d.status === 'APPROVED').reduce((s, d) => s + d.amount, 0).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Section Header with Tabs */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-bold text-[#1E293B]">Transactions</p>
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+            {(['add-money', 'pay-link', 'wallet-flow'] as Tab[]).map(t => (
+              <button key={t} onClick={() => setActiveTab(t)}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${activeTab === t ? 'bg-white text-[#1E293B] shadow-sm' : 'text-gray-400'}`}>
+                {t === 'add-money' ? 'Deposits' : t === 'pay-link' ? 'Links' : 'Flow'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Mobile: Deposits */}
+        {activeTab === 'add-money' && (
+          loadingDeposits ? (
+            <div className="flex flex-col items-center py-12">
+              <div className="w-7 h-7 border-2 border-[#52B788] border-t-transparent rounded-full animate-spin mb-2" />
+              <p className="text-[11px] text-gray-400">Loading deposits...</p>
+            </div>
+          ) : deposits.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+              <Wallet className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-gray-700">No Deposits Yet</p>
+              <p className="text-[11px] text-gray-400 mt-1 mb-3">Add your first deposit to get started</p>
+              <button onClick={() => setShowDepositModal(true)} className="text-[11px] font-semibold text-[#52B788]">+ Add Deposit</button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredDeposits.map(d => (
+                <div key={d.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden" style={{ animation: 'mFadeUp 0.3s ease both' }}>
+                  <div className="p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                          d.status === 'APPROVED' ? 'bg-emerald-50' : d.status === 'PENDING' ? 'bg-amber-50' : 'bg-red-50'
+                        }`}>
+                          <CreditCard className={`w-4 h-4 ${
+                            d.status === 'APPROVED' ? 'text-emerald-500' : d.status === 'PENDING' ? 'text-amber-500' : 'text-red-500'
+                          }`} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-[#1E293B]">${d.amount.toLocaleString()}</p>
+                          <p className="text-[10px] text-gray-400">{d.paymentMethod || 'N/A'}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {getStatusBadge(d.status)}
+                        <p className="text-[10px] text-gray-400 mt-1">{new Date(d.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    {/* Apply ID */}
+                    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-dashed border-gray-100">
+                      <span className="text-[10px] text-gray-400">ID:</span>
+                      <span className="text-[10px] font-mono text-gray-500">{d.applyId || `WD${d.id.slice(-8).toUpperCase()}`}</span>
+                      <button onClick={() => copyToClipboard(d.applyId || `WD${d.id.slice(-8).toUpperCase()}`, `m-apply-${d.id}`)} className="p-0.5">
+                        {copiedId === `m-apply-${d.id}` ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3 text-gray-300" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex border-t border-gray-100 text-[10px] text-gray-400 divide-x divide-gray-100">
+                    <span className="flex-1 px-3.5 py-2 font-mono truncate">
+                      {d.transactionId || '---'}
+                    </span>
+                    {d.paymentProof && (
+                      <button onClick={() => setSelectedImage(d.paymentProof!)} className="px-3 py-2 text-[#52B788] font-semibold flex items-center gap-1">
+                        <Eye className="w-2.5 h-2.5" /> View
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {/* Mobile: Pay Link */}
+        {activeTab === 'pay-link' && (
+          loadingPayLinks ? (
+            <div className="flex flex-col items-center py-12">
+              <div className="w-7 h-7 border-2 border-[#52B788] border-t-transparent rounded-full animate-spin mb-2" />
+              <p className="text-[11px] text-gray-400">Loading pay links...</p>
+            </div>
+          ) : payLinkRequests.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+              <LinkIcon className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-gray-700">No Pay Links Yet</p>
+              <p className="text-[11px] text-gray-400 mt-1 mb-3">Apply for a Pay Link to receive payments</p>
+              {payLinkEnabled && (
+                <button onClick={() => setShowPayLinkModal(true)} className="text-[11px] font-semibold text-[#52B788]">+ Apply Pay Link</button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {payLinkRequests.map((r: any) => (
+                <div key={r.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden" style={{ animation: 'mFadeUp 0.3s ease both' }}>
+                  <div className="p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${r.type === 'INDIVIDUAL' ? 'bg-blue-50' : 'bg-purple-50'}`}>
+                          {r.type === 'INDIVIDUAL' ? <User className="w-4 h-4 text-blue-500" /> : <Building2 className="w-4 h-4 text-purple-500" />}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-[#1E293B]">{r.fullName}</p>
+                          <p className="text-[10px] text-gray-400">${parseFloat(r.amount).toLocaleString()} · {r.type === 'INDIVIDUAL' ? 'Individual' : 'Company'}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {r.status === 'PENDING' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-amber-50 text-amber-700"><Clock className="w-3 h-3" />Pending</span>}
+                        {r.status === 'LINK_CREATED' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-blue-50 text-blue-700"><LinkIcon className="w-3 h-3" />Ready</span>}
+                        {r.status === 'COMPLETED' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-emerald-50 text-emerald-700"><CheckCircle className="w-3 h-3" />Done</span>}
+                        {r.status === 'REJECTED' && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-red-50 text-red-700"><XCircle className="w-3 h-3" />Rejected</span>}
+                        <p className="text-[10px] text-gray-400 mt-1">{new Date(r.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                  {r.payLink && (
+                    <div className="flex border-t border-gray-100 text-[10px] divide-x divide-gray-100">
+                      <a href={r.payLink} target="_blank" rel="noopener noreferrer" className="flex-1 px-3.5 py-2 text-blue-500 truncate">{r.payLink}</a>
+                      <button onClick={() => { navigator.clipboard.writeText(r.payLink); showToast('Link copied!', 'success') }} className="px-3 py-2 text-[#52B788] font-semibold flex items-center gap-1">
+                        <Copy className="w-2.5 h-2.5" /> Copy
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {/* Mobile: Wallet Flow */}
+        {activeTab === 'wallet-flow' && (
+          loadingWalletFlow ? (
+            <div className="flex flex-col items-center py-12">
+              <div className="w-7 h-7 border-2 border-[#52B788] border-t-transparent rounded-full animate-spin mb-2" />
+              <p className="text-[11px] text-gray-400">Loading transactions...</p>
+            </div>
+          ) : walletFlows.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+              <RefreshCw className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-gray-700">No Transactions Yet</p>
+              <p className="text-[11px] text-gray-400 mt-1">Your wallet history will appear here</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
+              {walletFlows.map((f: any) => (
+                <div key={f.id} className="px-4 py-3 flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    ['DEPOSIT', 'CREDIT', 'REFUND'].includes(f.type) ? 'bg-emerald-50' : 'bg-red-50'
+                  }`}>
+                    {['DEPOSIT', 'CREDIT', 'REFUND'].includes(f.type)
+                      ? <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-500" />
+                      : <ArrowUpRight className="w-3.5 h-3.5 text-red-500" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-[#1E293B]">
+                      {f.description || (
+                        f.referenceType === 'deposit' ? 'Deposit Added' :
+                        f.referenceType === 'withdrawal' ? 'Withdrawal' :
+                        f.referenceType === 'refund' ? 'Refund' :
+                        f.referenceType === 'ad_account_recharge' ? 'Ad Recharge' :
+                        'Transaction'
+                      )}
+                    </p>
+                    <p className="text-[10px] text-gray-400">{new Date(f.createdAt).toLocaleDateString()} · ${parseFloat(f.balanceBefore).toLocaleString()} → ${parseFloat(f.balanceAfter).toLocaleString()}</p>
+                  </div>
+                  <p className={`text-sm font-bold ${['DEPOSIT', 'CREDIT', 'REFUND'].includes(f.type) ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {['DEPOSIT', 'CREDIT', 'REFUND'].includes(f.type) ? '+' : '-'}${parseFloat(f.amount).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+
+      <Card className="p-0 rounded-2xl overflow-hidden shadow-sm border border-gray-100 animate-scaleIn hidden lg:flex flex-col" style={{ height: 'calc(100vh - 140px)' }}>
         {/* Header with Search and Actions - fixed at top */}
         <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-white to-gray-50/50">
           <div className="flex items-center justify-between gap-3">

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Wallet, ChevronDown, UserCircle, ShieldCheck, LogOut, Menu } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
+import { useDomainStore } from '@/store/domain'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { NotificationBell } from '@/components/ui/NotificationBell'
@@ -15,7 +16,16 @@ interface HeaderProps {
 
 export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
   const { user, logout } = useAuthStore()
+  const { isCustomDomain, branding } = useDomainStore()
   const router = useRouter()
+
+  // Brand logo/name for mobile header
+  const displayBrandLogo = isCustomDomain && branding?.brandLogo
+    ? branding.brandLogo
+    : user?.agent?.brandLogo
+  const displayBrandName = isCustomDomain && branding?.brandName
+    ? branding.brandName
+    : user?.agent?.brandName || 'COINEST'
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -47,7 +57,7 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
   }
 
   return (
-    <header className="bg-white px-4 lg:px-6 py-3 border-b border-gray-100 relative z-50">
+    <header className="bg-white px-4 lg:px-6 py-2 lg:py-3 border-b border-gray-100 sticky top-0 z-50">
       <style jsx>{`
         @keyframes wave {
           0%, 100% { transform: rotate(0deg); }
@@ -56,70 +66,95 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
           60% { transform: rotate(14deg); }
           80% { transform: rotate(-4deg); }
         }
-        @keyframes float {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-2px); }
-        }
         .animate-wave {
           animation: wave 2s ease-in-out infinite;
           transform-origin: 70% 70%;
           display: inline-block;
         }
-        .animate-float {
-          animation: float 3s ease-in-out infinite;
-        }
       `}</style>
 
-      {/* Subtle Background Line */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute left-[20%] right-[30%] top-1/2 -translate-y-1/2 h-px bg-gradient-to-r from-transparent via-gray-100 to-transparent" />
-      </div>
+      <div className="flex items-center justify-between">
+        {/* Left side */}
+        <div className="flex items-center">
+          {/* Mobile: Brand logo */}
+          <div className="lg:hidden">
+            <Link href="/dashboard" className="flex items-center">
+              {displayBrandLogo ? (
+                <img src={displayBrandLogo} alt={displayBrandName || 'Logo'} className="h-7 max-w-[130px] object-contain object-left" />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <svg viewBox="0 0 48 28" className="w-9 h-6" fill="none">
+                    <defs>
+                      <linearGradient id="hdrRibbonGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#6366F1"/>
+                        <stop offset="100%" stopColor="#8B5CF6"/>
+                      </linearGradient>
+                      <linearGradient id="hdrRibbonGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#8B5CF6"/>
+                        <stop offset="100%" stopColor="#EC4899"/>
+                      </linearGradient>
+                    </defs>
+                    <path d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14" fill="url(#hdrRibbonGrad1)" />
+                    <path d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14" fill="url(#hdrRibbonGrad2)" />
+                  </svg>
+                  <div className="flex flex-col leading-none">
+                    <span className="text-[15px] font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 bg-clip-text text-transparent tracking-tight">SIXMEDIA</span>
+                    <span className="text-[7px] font-semibold tracking-[0.15em] text-gray-400">ADVERTISING</span>
+                  </div>
+                </div>
+              )}
+            </Link>
+          </div>
 
-      <div className="flex items-center justify-between relative z-10">
-        {/* Left - Menu Button (mobile) + Welcome Message with Wave */}
-        <div className="flex items-center gap-2 lg:gap-3">
-          {/* Mobile menu button */}
-          <button
-            onClick={onMenuClick}
-            className="lg:hidden p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-
-          <span className="text-xl lg:text-2xl animate-wave">👋</span>
-          <div>
-            <p className="text-[10px] lg:text-xs text-gray-400">{getGreeting()}</p>
-            <h1 className="text-sm lg:text-lg font-semibold text-[#1E293B]">
-              {user?.username || 'User'}
-            </h1>
+          {/* Desktop: Greeting */}
+          <div className="hidden lg:flex items-center gap-3">
+            <span className="text-2xl animate-wave">👋</span>
+            <div>
+              <p className="text-xs text-gray-400">{getGreeting()}</p>
+              <h1 className="text-lg font-semibold text-[#1E293B]">
+                {user?.username || 'User'}
+              </h1>
+            </div>
           </div>
         </div>
 
-        {/* Right - Balance, Notifications, Profile */}
+        {/* Right side */}
         <div className="flex items-center gap-2 lg:gap-3">
-          {/* Balance Card */}
+          {/* Wallet Balance */}
           <Link href="/deposits" className="group">
-            <div className="flex items-center gap-1.5 lg:gap-2.5 px-2 lg:px-3 py-1.5 lg:py-2 bg-gradient-to-r from-[#52B788]/10 to-emerald-50 rounded-lg lg:rounded-xl border border-[#52B788]/20 hover:border-[#52B788]/40 transition-all duration-300 hover:shadow-md hover:shadow-[#52B788]/10 hover:-translate-y-0.5">
-              <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-md lg:rounded-lg bg-gradient-to-br from-[#52B788] to-emerald-600 flex items-center justify-center shadow-sm">
-                <Wallet className="w-3 h-3 lg:w-4 lg:h-4 text-white" />
+            {/* Mobile wallet */}
+            <div className="lg:hidden flex items-center gap-2 px-3 py-1.5 bg-[#F0FDF4] rounded-full border border-[#52B788]/20">
+              <div className="w-6 h-6 rounded-full bg-[#52B788] flex items-center justify-center">
+                <Wallet className="w-3 h-3 text-white" />
+              </div>
+              <span className="text-sm font-bold text-[#1E293B] tabular-nums">
+                ${walletBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            {/* Desktop wallet */}
+            <div className="hidden lg:flex items-center gap-2.5 px-3 py-2 bg-gradient-to-r from-[#52B788]/10 to-emerald-50 rounded-xl border border-[#52B788]/20 hover:border-[#52B788]/40 transition-all duration-300 hover:shadow-md hover:shadow-[#52B788]/10 hover:-translate-y-0.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#52B788] to-emerald-600 flex items-center justify-center shadow-sm">
+                <Wallet className="w-4 h-4 text-white" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[8px] lg:text-[10px] text-gray-400 font-medium leading-none hidden sm:block">Balance</span>
-                <span className="text-xs lg:text-base font-bold text-[#52B788] tabular-nums leading-tight">
+                <span className="text-[10px] text-gray-400 font-medium leading-none">Balance</span>
+                <span className="text-base font-bold text-[#52B788] tabular-nums leading-tight">
                   ${walletBalance.toLocaleString()}
                 </span>
               </div>
             </div>
           </Link>
 
-          {/* Notification Bell */}
-          <NotificationBell />
+          {/* Notification Bell - desktop only */}
+          <div className="hidden lg:block">
+            <NotificationBell />
+          </div>
 
-          {/* Divider */}
-          <div className="h-8 w-px bg-gray-200 hidden sm:block" />
+          {/* Divider - desktop only */}
+          <div className="h-8 w-px bg-gray-200 hidden lg:block" />
 
-          {/* Profile with Dropdown */}
-          <div className="relative" ref={dropdownRef}>
+          {/* Profile with Dropdown - desktop only */}
+          <div className="relative hidden lg:block" ref={dropdownRef}>
             <button
               onClick={() => setShowDropdown(!showDropdown)}
               className="group"

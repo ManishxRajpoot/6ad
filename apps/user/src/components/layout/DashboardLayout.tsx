@@ -10,6 +10,7 @@ import { Mandatory2FASetup } from '@/components/Mandatory2FASetup'
 import { AnnouncementBanner } from '@/components/ui/AnnouncementBanner'
 import { LiveChat } from '@/components/ui/LiveChat'
 import { ProfileSetupPrompt } from '@/components/ui/ProfileSetupPrompt'
+import { BottomNav } from './BottomNav'
 
 type DashboardLayoutProps = {
   children: React.ReactNode
@@ -70,17 +71,23 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
   const needs2FASetup = user && (!user.emailVerified || !user.twoFactorEnabled)
 
   return (
-    <div className="h-screen overflow-hidden bg-[#F8F9FA]">
+    <div className="min-h-screen bg-[#F8F9FA]">
       {/* Announcement Banner at top */}
       <div className="fixed top-0 left-0 right-0 z-40">
         <AnnouncementBanner />
       </div>
 
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="lg:ml-[240px] h-full flex flex-col">
-        <Header title={title} subtitle={subtitle} onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-4 lg:p-6 overflow-auto">{children}</main>
+      {/* Sidebar - desktop only */}
+      <div className="hidden lg:block">
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       </div>
+      <div className="lg:ml-[240px] min-h-screen flex flex-col">
+        <Header title={title} subtitle={subtitle} onMenuClick={() => setSidebarOpen(true)} />
+        <main className="flex-1 px-4 pt-3 pb-40 lg:p-6 lg:pb-6">{children}</main>
+      </div>
+
+      {/* Bottom Navigation - mobile only */}
+      <BottomNav />
 
       {/* Live Chat Widget */}
       <LiveChat />

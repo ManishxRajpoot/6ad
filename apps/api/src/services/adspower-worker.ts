@@ -18,6 +18,7 @@ const prisma = new PrismaClient()
 const CONFIG = {
   POLL_INTERVAL_MS: 30_000,
   ADSPOWER_API_BASE: process.env.ADSPOWER_API_BASE || 'http://localhost:50325',
+  ADSPOWER_API_KEY: process.env.ADSPOWER_API_KEY || '1c36652b562b009f94bb48545b3b091f00205f7c6f0c18b1',
   BROWSER_LAUNCH_WAIT_MS: 15_000,
   HEARTBEAT_TIMEOUT_MS: 120_000,
   TASK_TIMEOUT_MS: 300_000,
@@ -39,7 +40,10 @@ interface AdsPowerResponse {
 
 async function adsPowerRequest(path: string): Promise<AdsPowerResponse> {
   try {
-    const res = await fetch(`${CONFIG.ADSPOWER_API_BASE}${path}`)
+    // Append api_key to every request (required by AdsPower paid plans)
+    const separator = path.includes('?') ? '&' : '?'
+    const url = `${CONFIG.ADSPOWER_API_BASE}${path}${separator}api_key=${CONFIG.ADSPOWER_API_KEY}`
+    const res = await fetch(url)
     return await res.json() as AdsPowerResponse
   } catch (err: any) {
     return { code: -1, msg: `AdsPower API unreachable: ${err.message}` }
@@ -79,25 +83,30 @@ interface PendingTask {
 }
 
 /**
- * Get all pending tasks (just id + adAccountId)
+ * Get all pending tasks (just id + Facebook accountId)
+ *
+ * BmShareRequest.adAccountId = Facebook account ID string (e.g. "879772328363257")
+ * AccountDeposit.adAccountId = MongoDB ObjectID → need adAccount.accountId for Facebook ID
  */
 async function getPendingTasks(): Promise<PendingTask[]> {
   const tasks: PendingTask[] = []
 
+  // BM shares: adAccountId is already the Facebook account ID (no relation needed)
   const bmShares = await prisma.bmShareRequest.findMany({
     where: { status: 'PENDING', platform: 'FACEBOOK', shareAttempts: { lt: 5 } },
     select: { id: true, adAccountId: true },
     take: 20,
   }).catch(() => [] as any[])
 
+  // Recharges: adAccountId is MongoDB ObjectID, need adAccount.accountId for Facebook ID
   const recharges = await prisma.accountDeposit.findMany({
     where: { status: 'APPROVED', rechargeStatus: { in: ['PENDING', 'NONE'] } },
-    select: { id: true, adAccountId: true },
+    select: { id: true, adAccountId: true, adAccount: { select: { accountId: true } } },
     take: 20,
   }).catch(() => [] as any[])
 
   for (const s of bmShares) tasks.push({ type: 'bm_share', id: s.id, adAccountId: s.adAccountId })
-  for (const r of recharges) tasks.push({ type: 'recharge', id: r.id, adAccountId: r.adAccountId })
+  for (const r of recharges) tasks.push({ type: 'recharge', id: r.id, adAccountId: r.adAccount?.accountId || r.adAccountId })
 
   return tasks
 }

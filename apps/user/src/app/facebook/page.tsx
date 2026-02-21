@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -248,7 +249,10 @@ export default function FacebookPage() {
   const { updateUser } = useAuthStore()
   const { showConfetti, triggerConfetti } = useConfetti()
 
-  const [activeSubPage, setActiveSubPage] = useState<SubPage>('account-list')
+  const searchParams = useSearchParams()
+  const pageFromUrl = searchParams.get('page') as SubPage | null
+  const [activeSubPage, setActiveSubPage] = useState<SubPage>(pageFromUrl && ['apply-ads-account', 'account-list', 'account-applied-records', 'bm-share-log', 'deposit', 'deposit-report', 'transfer-balance', 'refund', 'refund-report'].includes(pageFromUrl) ? pageFromUrl : 'account-list')
+  const [mobileView, setMobileView] = useState<'accounts' | 'recharge'>('accounts')
   const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['account-manage', 'deposit-manage', 'after-sale'])
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
@@ -1132,6 +1136,7 @@ export default function FacebookPage() {
 
       // Show floating toast success
       setDepositToastSuccess(true)
+      setMobileView('accounts')
       setTimeout(() => {
         setDepositToastSuccess(false)
         setActiveSubPage('deposit-report')
@@ -1189,6 +1194,12 @@ export default function FacebookPage() {
   }
 
   const pageNumbers = generatePageNumbers()
+
+  // Handle mobile recharge - pre-select account and switch to recharge view
+  const handleMobileRecharge = (accountId: string) => {
+    setDepositRows([{ id: 1, accountId, amount: '' }])
+    setMobileView('recharge')
+  }
 
   // Handle Deposit click - redirect to Deposit section with optional pre-selected account
   const handleDepositClick = (accountId?: string) => {
@@ -1401,6 +1412,15 @@ export default function FacebookPage() {
         .table-row-animate:nth-child(8) { animation-delay: 0.24s; }
         .stat-card { transition: all 0.2s ease; }
         .stat-card:hover { transform: translateY(-1px); box-shadow: 0 4px 15px -3px rgba(139, 92, 246, 0.12); }
+        /* Mobile animations */
+        @keyframes mFadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes mScaleIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
         /* Smooth scrolling */
         .scroll-smooth { scroll-behavior: smooth; }
         /* Custom scrollbar */
@@ -1410,8 +1430,8 @@ export default function FacebookPage() {
         .scroll-smooth::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
       `}</style>
 
-      {/* Row 1: Header Bar - Responsive */}
-      <div className="flex flex-wrap items-center gap-1.5 lg:gap-2 mb-2 lg:mb-3 p-1.5 lg:p-2 bg-white rounded-lg lg:rounded-xl shadow-sm border border-gray-100/50">
+      {/* Row 1: Header Bar - Desktop Only */}
+      <div className="hidden lg:flex flex-wrap items-center gap-1.5 lg:gap-2 mb-2 lg:mb-3 p-1.5 lg:p-2 bg-white rounded-lg lg:rounded-xl shadow-sm border border-gray-100/50">
         <div className="relative w-32 lg:w-48">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 lg:w-3.5 h-3 lg:h-3.5 text-gray-400" />
           <input
@@ -1501,7 +1521,7 @@ export default function FacebookPage() {
           animation: chartPulse 2s ease-in-out infinite;
         }
       `}</style>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 lg:gap-3 mb-2 lg:mb-3">
+      <div className="hidden lg:grid grid-cols-2 lg:grid-cols-4 gap-1.5 lg:gap-3 mb-2 lg:mb-3">
         {statsData.map((stat, index) => (
           <Card key={index} className="stat-card p-2 lg:p-3 border border-gray-100 bg-white rounded-lg lg:rounded-xl relative overflow-hidden transition-all duration-300 hover:shadow-md hover:scale-[1.01]">
             {/* Top row: Title and Badge */}
@@ -1556,8 +1576,293 @@ export default function FacebookPage() {
         ))}
       </div>
 
-      {/* Row 3: Main Content */}
-      <div className="flex gap-3 flex-1 min-h-0 overflow-hidden">
+      {/* ===== MOBILE VIEW ===== */}
+      <div className="lg:hidden space-y-4 pb-4">
+        {/* Facebook Header */}
+        <div
+          className="rounded-2xl overflow-hidden border border-gray-100"
+          style={{ animation: 'mFadeUp 0.3s cubic-bezier(0.25,0.1,0.25,1) forwards' }}
+        >
+          {/* Blue header strip */}
+          <div className="bg-[#1877F2] px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="white">
+                  <path d="M9.198 21.5h4v-8.01h3.604l.396-3.98h-4V7.5a1 1 0 0 1 1-1h3v-4h-3a5 5 0 0 0-5 5v2.01h-2l-.396 3.98h2.396v8.01Z" />
+                </svg>
+              </div>
+              <h2 className="text-[15px] font-bold text-white">Facebook Ads</h2>
+            </div>
+            <span className="px-2.5 py-1 bg-white/20 rounded-lg text-[11px] font-semibold text-white">{userAccounts.length} accounts</span>
+          </div>
+
+          {/* Stats strip */}
+          <div className="bg-white px-4 py-3 flex items-center">
+            <div className="flex-1 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <div>
+                <p className="text-[10px] text-gray-400 leading-none">Pending</p>
+                <p className="text-sm font-bold text-[#1E293B] mt-0.5">{dashboardStats?.pendingApplications || 0}</p>
+              </div>
+            </div>
+            <div className="flex-1 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#8B5CF6]" />
+              <div>
+                <p className="text-[10px] text-gray-400 leading-none">BM Shares</p>
+                <p className="text-sm font-bold text-[#1E293B] mt-0.5">{dashboardStats?.pendingShares || 0}</p>
+              </div>
+            </div>
+            <div className="flex-1 flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#52B788]" />
+              <div>
+                <p className="text-[10px] text-gray-400 leading-none">Deposits</p>
+                <p className="text-sm font-bold text-[#1E293B] mt-0.5">{dashboardStats?.pendingDeposits || 0}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Content */}
+        {mobileView === 'accounts' ? (
+          <>
+            {/* Account List Header */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-[#1E293B]">Your Accounts</h3>
+              <span className="px-2 py-0.5 bg-[#8B5CF6]/10 text-[#8B5CF6] rounded-full text-[11px] font-semibold">{userAccounts.length}</span>
+            </div>
+
+            {/* Account Cards */}
+            {isLoading ? (
+              <div className="py-12 text-center">
+                <Loader2 className="w-6 h-6 animate-spin text-[#8B5CF6] mx-auto mb-2" />
+                <p className="text-xs text-gray-500">Loading accounts...</p>
+              </div>
+            ) : userAccounts.length === 0 ? (
+              <div
+                className="text-center py-10 bg-white rounded-2xl border border-gray-100"
+                style={{ animation: 'mFadeUp 0.4s cubic-bezier(0.25,0.1,0.25,1) 0.1s both' }}
+              >
+                <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-[#1877F2]/10 flex items-center justify-center">
+                  <svg viewBox="0 0 24 24" className="w-7 h-7" fill="#1877F2">
+                    <path d="M9.198 21.5h4v-8.01h3.604l.396-3.98h-4V7.5a1 1 0 0 1 1-1h3v-4h-3a5 5 0 0 0-5 5v2.01h-2l-.396 3.98h2.396v8.01Z" />
+                  </svg>
+                </div>
+                <p className="text-sm font-semibold text-gray-800 mb-1">No Ad Accounts</p>
+                <p className="text-xs text-gray-500">Your approved accounts will appear here</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {userAccounts.map((account: any, index: number) => {
+                  const cheetahData = cheetahBalances[account.accountId]
+                  const isCheetahAccount = cheetahData?.isCheetah
+                  const remainingBalance = cheetahData?.remainingBalance
+                  const accountStatusVal = cheetahData?.status
+
+                  const getStatusColor = (status: number) => {
+                    if (status === 1) return 'bg-emerald-500'
+                    if (status === 2) return 'bg-red-500'
+                    return 'bg-amber-500'
+                  }
+
+                  return (
+                    <div
+                      key={account.id}
+                      className="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+                      style={{ animation: `mFadeUp 0.4s cubic-bezier(0.25,0.1,0.25,1) ${0.1 + index * 0.06}s both` }}
+                    >
+                      <div className="p-3.5 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-[#EEF2FF] flex items-center justify-center flex-shrink-0">
+                            <span className="text-sm font-bold text-[#4F46E5]">
+                              {(account.accountName || 'A').charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-[13px] font-semibold text-gray-800 truncate">{account.accountName || 'Unknown'}</h4>
+                              {isCheetahAccount && (
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusColor(accountStatusVal)}`} />
+                              )}
+                            </div>
+                            <p className="text-[10px] text-gray-400 font-mono mt-0.5">{account.accountId}</p>
+                          </div>
+                          {isCheetahAccount && remainingBalance !== undefined && (
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-[9px] text-gray-400">Balance</p>
+                              <p className="text-sm font-bold text-gray-800">${Number(remainingBalance).toLocaleString()}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex border-t border-gray-100">
+                        <button
+                          onClick={() => handleBmShareClick(account)}
+                          className="flex-1 py-2.5 text-[11px] font-semibold text-gray-500 hover:bg-gray-50 active:bg-gray-100 transition-colors border-r border-gray-100"
+                        >
+                          BM Share
+                        </button>
+                        <button
+                          onClick={() => handleMobileRecharge(account.id)}
+                          className="flex-1 py-2.5 text-[11px] font-semibold text-[#1877F2] hover:bg-blue-50 active:bg-blue-100 transition-colors"
+                        >
+                          Recharge
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Recharge Panel */}
+            <div style={{ animation: 'mFadeUp 0.3s cubic-bezier(0.25,0.1,0.25,1) forwards' }}>
+              <button
+                onClick={() => {
+                  setMobileView('accounts')
+                  setDepositRows([{ id: 1, accountId: '', amount: '' }])
+                }}
+                className="flex items-center gap-1 text-xs text-gray-500 mb-3"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back to Accounts
+              </button>
+
+              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="p-4">
+                  <h3 className="text-[15px] font-bold text-[#1E293B] mb-1">Recharge</h3>
+                  <p className="text-xs text-gray-400 mb-4">Add funds to your ad account</p>
+
+                  {depositRows.map((row) => {
+                    const selectedAccount = userAccounts.find((a: any) => a.id === row.accountId)
+                    return (
+                      <div key={row.id}>
+                        {/* Account info row */}
+                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl mb-4">
+                          <div className="w-9 h-9 rounded-full bg-[#EEF2FF] flex items-center justify-center flex-shrink-0">
+                            <span className="text-sm font-bold text-[#4F46E5]">{(selectedAccount?.accountName || 'A').charAt(0)}</span>
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-semibold text-gray-800">{selectedAccount?.accountName || 'Select Account'}</p>
+                            <p className="text-[10px] text-gray-400 font-mono">{selectedAccount?.accountId || ''}</p>
+                          </div>
+                        </div>
+
+                        {/* Amount input */}
+                        <div className="mb-3">
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5">Amount</label>
+                          <div className="relative">
+                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">$</span>
+                            <input
+                              type="number"
+                              min={ADMIN_SETTINGS.minimumDeposit}
+                              step="50"
+                              value={row.amount}
+                              onChange={(e) => updateDepositRow(row.id, 'amount', e.target.value)}
+                              placeholder={`Min $${ADMIN_SETTINGS.minimumDeposit}`}
+                              className="w-full pl-7 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/20 focus:border-[#4F46E5] focus:bg-white transition-all"
+                            />
+                          </div>
+                          {row.amount && parseFloat(row.amount) < ADMIN_SETTINGS.minimumDeposit && (
+                            <p className="text-[11px] text-red-500 mt-1">Minimum ${ADMIN_SETTINGS.minimumDeposit}</p>
+                          )}
+                          {row.amount && parseFloat(row.amount) % 50 !== 0 && (
+                            <p className="text-[11px] text-red-500 mt-1">Must be in $50 increments</p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {/* Quick Amount Buttons */}
+                  <div className="grid grid-cols-4 gap-2 mb-4">
+                    {['100', '200', '500', '1000'].map((amt) => (
+                      <button
+                        key={amt}
+                        onClick={() => updateDepositRow(depositRows[0].id, 'amount', amt)}
+                        className={`py-2 rounded-xl text-xs font-semibold transition-all ${
+                          depositRows[0]?.amount === amt
+                            ? 'bg-[#4F46E5] text-white'
+                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        ${amt}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Cost Summary */}
+                  {depositRows[0]?.amount && parseFloat(depositRows[0].amount) >= ADMIN_SETTINGS.minimumDeposit && (
+                    <div
+                      className="bg-gray-50 rounded-xl divide-y divide-gray-200 mb-4"
+                      style={{ animation: 'mFadeUp 0.25s ease forwards' }}
+                    >
+                      <div className="flex justify-between px-3.5 py-2.5">
+                        <span className="text-xs text-gray-500">Deposit</span>
+                        <span className="text-xs text-gray-700 font-medium">${depositTotals.totalCharge.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between px-3.5 py-2.5">
+                        <span className="text-xs text-gray-500">Fee ({depositTotals.markupPercent}%)</span>
+                        <span className="text-xs text-[#4F46E5] font-medium">+${depositTotals.markupAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between px-3.5 py-2.5">
+                        <span className="text-xs font-semibold text-gray-700">Total</span>
+                        <span className="text-sm font-bold text-[#1E293B]">${depositTotals.totalCost.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Wallet Balance */}
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl mb-1">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-[#52B788]" />
+                      <span className="text-xs text-gray-500">Wallet Balance</span>
+                    </div>
+                    <span className="text-sm font-bold text-[#52B788]">${userBalance.toLocaleString()}</span>
+                  </div>
+
+                  {depositTotals.totalCost > userBalance && depositRows[0]?.amount && (
+                    <div className="p-2.5 bg-red-50 rounded-xl mt-2">
+                      <p className="text-[11px] text-red-600 font-medium text-center">Insufficient balance</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Split bottom bar */}
+                <div className="flex border-t border-gray-100">
+                  <button
+                    onClick={() => {
+                      setMobileView('accounts')
+                      setDepositRows([{ id: 1, accountId: '', amount: '' }])
+                    }}
+                    className="flex-1 py-3.5 text-sm font-medium text-gray-500 border-r border-gray-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={!isDepositFormValid || isSubmitting}
+                    onClick={handleDepositSubmit}
+                    className="flex-1 py-3.5 text-sm font-semibold text-[#4F46E5] disabled:text-gray-300"
+                  >
+                    {isSubmitting ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Processing...
+                      </span>
+                    ) : (
+                      'Submit'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Row 3: Main Content - Desktop Only */}
+      <div className="hidden lg:flex gap-3 flex-1 min-h-0 overflow-hidden">
         {/* Left Sidebar - Balanced size, scroll only on small screens */}
         <div className="w-56 lg:w-64 flex-shrink-0 hidden md:block">
           <Card className="p-3 h-full border border-gray-100/50 bg-gradient-to-b from-white to-gray-50/50 relative overflow-hidden flex flex-col">
@@ -3220,79 +3525,82 @@ export default function FacebookPage() {
       <Modal
         isOpen={showBmShareModal}
         onClose={() => setShowBmShareModal(false)}
-        title="Get Access to Ad Account"
+        title="BM Share"
         className="max-w-md"
       >
-        <p className="text-sm text-gray-500 -mt-2 mb-5">
+        <p className="text-xs text-gray-400 -mt-2 mb-4">
           {selectedAccountForBmShare
-            ? `Share your BM ID to get access to ${selectedAccountForBmShare.adsAccountName}`
+            ? `Connect your Business Manager to ${selectedAccountForBmShare.adsAccountName}`
             : 'Share your BM ID to connect accounts'}
         </p>
-        <div className="space-y-5">
-          {selectedAccountForBmShare && (
-            <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Ad Account Name:</span>
-                <span className="text-gray-700 font-medium">{selectedAccountForBmShare.adsAccountName}</span>
-              </div>
-              <div className="flex justify-between text-sm mt-1">
-                <span className="text-gray-500">Account ID:</span>
-                <span className="text-[#8B5CF6] font-mono font-medium">{selectedAccountForBmShare.adsAccountId}</span>
-              </div>
+
+        {selectedAccountForBmShare && (
+          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl mb-4">
+            <div className="w-9 h-9 rounded-full bg-[#EEF2FF] flex items-center justify-center flex-shrink-0">
+              <span className="text-sm font-bold text-[#4F46E5]">{selectedAccountForBmShare.adsAccountName.charAt(0)}</span>
             </div>
-          )}
-          <div className="space-y-1.5" data-tutorial="bm-id-input">
-            <label className="block text-sm font-medium text-gray-700">Business Manager ID (BM ID)</label>
+            <div>
+              <p className="text-[13px] font-semibold text-gray-800">{selectedAccountForBmShare.adsAccountName}</p>
+              <p className="text-[10px] text-gray-400 font-mono">{selectedAccountForBmShare.adsAccountId}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <div data-tutorial="bm-id-input">
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">BM ID</label>
             <input
               type="text"
               inputMode="numeric"
-              placeholder="Enter your BM ID (numbers only)"
+              placeholder="Enter Business Manager ID"
               value={bmShareForm.bmId}
               onChange={(e) => {
                 const value = e.target.value.replace(/\D/g, '')
                 setBmShareForm({...bmShareForm, bmId: value})
               }}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
+              className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/20 focus:border-[#4F46E5] focus:bg-white transition-all"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-gray-700">Message (Optional)</label>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">Message <span className="text-gray-300">(optional)</span></label>
             <textarea
-              placeholder="Enter any additional message for admin"
+              placeholder="Add a note..."
               value={bmShareForm.message}
               onChange={(e) => setBmShareForm({...bmShareForm, message: e.target.value})}
-              rows={3}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white resize-none transition-all"
+              rows={2}
+              className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/20 focus:border-[#4F46E5] focus:bg-white resize-none transition-all"
             />
           </div>
 
-          {/* Error Message */}
           {bmShareError && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600 font-medium">{bmShareError}</p>
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+              <p className="text-xs text-red-600 font-medium">{bmShareError}</p>
             </div>
           )}
+        </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button variant="outline" className="flex-1 border-gray-200 rounded-xl py-3 hover:bg-gray-50" onClick={() => setShowBmShareModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              data-tutorial="bm-share-submit"
-              className="flex-1 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] rounded-xl py-3 shadow-md shadow-purple-500/25"
-              disabled={!bmShareForm.bmId.trim() || bmShareSubmitting}
-              onClick={handleBmShareSubmit}
-            >
-              {bmShareSubmitting ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Submitting...
-                </span>
-              ) : (
-                'Get Access'
-              )}
-            </Button>
-          </div>
+        <div className="flex border-t border-gray-100 -mx-5 mt-5">
+          <button
+            className="flex-1 py-3.5 text-sm font-medium text-gray-500 border-r border-gray-100"
+            onClick={() => setShowBmShareModal(false)}
+          >
+            Cancel
+          </button>
+          <button
+            data-tutorial="bm-share-submit"
+            className="flex-1 py-3.5 text-sm font-semibold text-[#4F46E5] disabled:text-gray-300"
+            disabled={!bmShareForm.bmId.trim() || bmShareSubmitting}
+            onClick={handleBmShareSubmit}
+          >
+            {bmShareSubmitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Submitting...
+              </span>
+            ) : (
+              'Submit'
+            )}
+          </button>
         </div>
       </Modal>
 

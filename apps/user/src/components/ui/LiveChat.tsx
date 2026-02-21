@@ -125,7 +125,7 @@ export function LiveChat() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-50 hover:scale-110"
+          className="fixed bottom-[88px] lg:bottom-6 left-4 lg:left-auto lg:right-6 right-auto w-11 h-11 lg:w-14 lg:h-14 bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-40 hover:scale-110"
         >
           <MessageCircle className="w-6 h-6" />
           {unreadCount > 0 && (
@@ -139,8 +139,8 @@ export function LiveChat() {
       {/* Chat Window */}
       {isOpen && (
         <div
-          className={`fixed bottom-6 right-6 bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden z-50 transition-all duration-300 ${
-            isMinimized ? 'w-72 h-14' : 'w-96 h-[500px]'
+          className={`fixed bottom-[88px] lg:bottom-6 left-4 lg:left-auto lg:right-6 right-auto bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden z-[55] transition-all duration-300 ${
+            isMinimized ? 'w-72 h-14' : 'w-[calc(100%-2rem)] lg:w-96 h-[70vh] lg:h-[500px]'
           }`}
         >
           {/* Header */}

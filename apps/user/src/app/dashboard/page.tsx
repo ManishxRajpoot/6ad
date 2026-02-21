@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Plus, ChevronLeft, ChevronRight, Play, Loader2, Calendar } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Play, Loader2, Calendar, Wallet, Upload } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -440,6 +440,253 @@ export default function DashboardPage() {
         }
       `}</style>
 
+      {/* ==================== MOBILE VIEW ==================== */}
+      <div className="lg:hidden flex flex-col gap-3">
+
+        {/* Welcome Banner - Mobile */}
+        <div className="relative rounded-2xl overflow-hidden text-white" style={{ background: 'linear-gradient(135deg, #52B788 0%, #3A9D74 40%, #2D7A5F 70%, #1B5E4A 100%)' }}>
+          {/* Decorative shapes */}
+          <div className="absolute inset-0 overflow-hidden">
+            {/* Large soft circle top-right */}
+            <div className="absolute -right-8 -top-8 w-44 h-44 rounded-full bg-white/10" />
+            {/* Small circle bottom-left */}
+            <div className="absolute left-6 -bottom-6 w-20 h-20 rounded-full bg-white/[0.06]" />
+            {/* Diagonal line accent */}
+            <div className="absolute top-0 right-0 w-full h-full">
+              <svg className="absolute right-0 top-0 h-full w-1/2 opacity-[0.04]" viewBox="0 0 200 200" preserveAspectRatio="none">
+                <line x1="0" y1="200" x2="200" y2="0" stroke="white" strokeWidth="1" />
+                <line x1="40" y1="200" x2="200" y2="30" stroke="white" strokeWidth="0.5" />
+                <line x1="80" y1="200" x2="200" y2="60" stroke="white" strokeWidth="0.5" />
+              </svg>
+            </div>
+          </div>
+
+          <div className="relative z-10 p-5">
+            {/* Top: Badge + Greeting */}
+            <div className="flex items-start justify-between mb-1">
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-white/15 rounded-full">
+                <span className="w-1.5 h-1.5 bg-green-300 rounded-full animate-pulse" />
+                <span className="text-[10px] font-medium">Live</span>
+              </div>
+            </div>
+
+            <h2 className="text-[20px] font-bold leading-snug mt-2">Welcome Back! 👋</h2>
+            <p className="text-white/70 text-[12px] mt-1 mb-4">Scale your ads with premium accounts</p>
+
+            {/* Platform logos as horizontal scroll chips */}
+            <div className="flex items-center gap-2 mb-4">
+              <Link href="/facebook" className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/10 active:scale-95 transition-transform">
+                <div className="w-7 h-7 bg-[#1877F2] rounded-lg flex items-center justify-center">
+                  <FacebookLogo />
+                </div>
+                <span className="text-[11px] font-semibold">Facebook</span>
+              </Link>
+              <Link href="/google" className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/10 active:scale-95 transition-transform">
+                <div className="w-7 h-7 bg-white rounded-lg flex items-center justify-center">
+                  <GoogleLogo />
+                </div>
+                <span className="text-[11px] font-semibold">Google</span>
+              </Link>
+              <Link href="/tiktok" className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/10 active:scale-95 transition-transform">
+                <div className="w-7 h-7 bg-black rounded-lg flex items-center justify-center">
+                  <TikTokLogo />
+                </div>
+                <span className="text-[11px] font-semibold">TikTok</span>
+              </Link>
+            </div>
+
+            {/* CTA row */}
+            <button onClick={() => router.push('/guide')} className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/20 backdrop-blur-sm rounded-xl border border-white/15 active:scale-[0.98] transition-transform">
+              <Play className="w-3.5 h-3.5 text-white fill-white" />
+              <span className="text-[12px] font-semibold">Watch Getting Started Guide</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-3 gap-2.5">
+          <Link href="/facebook?page=deposit" className="bg-white rounded-2xl p-3 flex flex-col items-center gap-2.5 border border-gray-100 active:scale-95 transition-transform">
+            <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center">
+              <Plus className="w-5 h-5 text-[#8B5CF6]" />
+            </div>
+            <span className="text-[11px] font-medium text-gray-600 text-center leading-tight">Create<br/>Deposit</span>
+          </Link>
+          <Link href="/deposits" className="bg-white rounded-2xl p-3 flex flex-col items-center gap-2.5 border border-gray-100 active:scale-95 transition-transform">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+              <Wallet className="w-5 h-5 text-[#52B788]" />
+            </div>
+            <span className="text-[11px] font-medium text-gray-600 text-center leading-tight">Wallet<br/>Deposit</span>
+          </Link>
+          <Link href="/facebook?page=bm-share-log" className="bg-white rounded-2xl p-3 flex flex-col items-center gap-2.5 border border-gray-100 active:scale-95 transition-transform">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
+              <Upload className="w-5 h-5 text-[#3B82F6]" />
+            </div>
+            <span className="text-[11px] font-medium text-gray-600 text-center leading-tight">BM<br/>Share</span>
+          </Link>
+        </div>
+
+        {/* Spending Overview - Mobile */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 pt-4 pb-3">
+            <h3 className="text-[15px] font-bold text-[#1E293B]">Spending Overview</h3>
+            <div className="flex items-center bg-gray-50 rounded-lg overflow-hidden">
+              <button onClick={() => setSelectedYear(y => y - 1)} className="px-2 py-1.5 text-gray-400 active:bg-gray-100">
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[11px] font-bold text-[#1E293B] min-w-[40px] text-center">{selectedYear}</span>
+              <button onClick={() => setSelectedYear(y => y + 1)} disabled={selectedYear >= new Date().getFullYear()} className="px-2 py-1.5 text-gray-400 active:bg-gray-100 disabled:opacity-30">
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 text-[#52B788] animate-spin" />
+            </div>
+          ) : selectedYear !== new Date().getFullYear() || totalSpent === 0 ? (
+            <div className="flex flex-col items-center py-8 px-4">
+              <div className="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mb-3">
+                {selectedYear !== new Date().getFullYear() ? (
+                  <Calendar className="w-6 h-6 text-gray-300" />
+                ) : (
+                  <Wallet className="w-6 h-6 text-gray-300" />
+                )}
+              </div>
+              <p className="text-sm font-medium text-gray-400">{selectedYear !== new Date().getFullYear() ? `No data for ${selectedYear}` : 'No spending yet'}</p>
+              {selectedYear !== new Date().getFullYear() && (
+                <button onClick={() => setSelectedYear(new Date().getFullYear())} className="mt-3 px-4 py-2 bg-[#52B788] text-white rounded-xl text-[12px] font-semibold active:scale-95 transition-transform">
+                  View {new Date().getFullYear()}
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Total amount banner */}
+              <div className="mx-4 mb-3 px-4 py-3 bg-gradient-to-r from-[#52B788]/10 to-emerald-50 rounded-xl flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Total Spent</p>
+                  <p className="text-xl font-bold text-[#1E293B] mt-0.5">{formatAmount(totalSpent)}</p>
+                </div>
+                <div
+                  className="w-14 h-14 rounded-full flex-shrink-0"
+                  style={{
+                    background: generateConicGradient(),
+                  }}
+                >
+                  <div className="w-full h-full rounded-full flex items-center justify-center">
+                    <div className="w-9 h-9 bg-white rounded-full" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Platform breakdown list */}
+              <div className="px-4 pb-4 space-y-1">
+                {platformBreakdown.map((platform: any) => {
+                  const percentage = totalSpent > 0 ? ((platform.amount / totalSpent) * 100) : 0
+                  const platformKey = platform.name.toUpperCase()
+                  return (
+                    <div key={platform.name} className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-gray-50 transition-colors">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                          platformKey === 'GOOGLE' || platformKey === 'BING' ? 'bg-gray-50 border border-gray-200' : ''
+                        }`}
+                        style={{ backgroundColor: platformKey === 'GOOGLE' || platformKey === 'BING' ? undefined : platform.color }}
+                      >
+                        {platformKey === 'FACEBOOK' && <svg viewBox="0 0 24 24" className="w-4 h-4" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>}
+                        {platformKey === 'GOOGLE' && <GoogleLogo />}
+                        {platformKey === 'TIKTOK' && <svg viewBox="0 0 24 24" className="w-4 h-4" fill="white"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/></svg>}
+                        {platformKey === 'SNAPCHAT' && <SnapchatLogo />}
+                        {platformKey === 'BING' && <BingLogo />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[13px] font-semibold text-[#1E293B]">{platform.name.charAt(0) + platform.name.slice(1).toLowerCase()}</span>
+                          <span className="text-[13px] font-bold text-[#1E293B]">{formatAmount(platform.amount)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${percentage}%`, backgroundColor: platform.color }} />
+                          </div>
+                          <span className="text-[10px] font-semibold text-gray-400 w-8 text-right">{percentage.toFixed(0)}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Active Accounts Status - Mobile */}
+        <Card className="p-4 rounded-xl bg-white">
+          <h3 className="text-sm font-semibold text-[#1E293B] mb-3">Active Accounts Status</h3>
+          <div className="space-y-2">
+            {loading ? (
+              [1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gray-200 animate-pulse" />
+                    <div>
+                      <div className="h-3 w-16 bg-gray-200 rounded animate-pulse mb-1" />
+                      <div className="h-2 w-12 bg-gray-100 rounded animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : platformAccounts.length > 0 ? (
+              platformAccounts.map((platform: any) => {
+                const platformKey = platform.name.toUpperCase()
+                const platformRoute = platformKey === 'FACEBOOK' ? '/facebook' : platformKey === 'GOOGLE' ? '/google' : platformKey === 'TIKTOK' ? '/tiktok' : platformKey === 'SNAPCHAT' ? '/snapchat' : platformKey === 'BING' ? '/bing' : `/${platform.name.toLowerCase()}`
+                return (
+                  <Link
+                    key={platform.name}
+                    href={platformRoute}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                        platformKey === 'FACEBOOK' ? 'bg-[#1877F2]' :
+                        platformKey === 'GOOGLE' ? 'bg-white border border-gray-200' :
+                        platformKey === 'TIKTOK' ? 'bg-black' :
+                        platformKey === 'SNAPCHAT' ? 'bg-[#FFFC00]' :
+                        platformKey === 'BING' ? 'bg-white border border-gray-200' :
+                        'bg-gray-200'
+                      }`}>
+                        {platformKey === 'FACEBOOK' && <svg viewBox="0 0 24 24" className="w-4 h-4" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>}
+                        {platformKey === 'GOOGLE' && <GoogleLogo />}
+                        {platformKey === 'TIKTOK' && <svg viewBox="0 0 24 24" className="w-4 h-4" fill="white"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/></svg>}
+                        {platformKey === 'SNAPCHAT' && <svg viewBox="0 0 500 500" className="w-4 h-4" fill="black"><path d="M417.93,340.71c-60.61-29.34-70.27-74.64-70.7-78-.52-4.07-1.11-7.27,3.38-11.41,4.33-4,23.54-15.89,28.87-19.61,8.81-6.16,12.69-12.31,9.83-19.87-2-5.23-6.87-7.2-12-7.2a22.3,22.3,0,0,0-4.81.54c-9.68,2.1-19.08,6.95-24.52,8.26a8.56,8.56,0,0,1-2,.27c-2.9,0-4-1.29-3.72-4.78.68-10.58,2.12-31.23.45-50.52-2.29-26.54-10.85-39.69-21-51.32C316.8,101.43,294,77.2,250,77.2S183.23,101.43,178.35,107c-10.18,11.63-18.73,24.78-21,51.32-1.67,19.29-.17,39.93.45,50.52.2,3.32-.82,4.78-3.72,4.78a8.64,8.64,0,0,1-2-.27c-5.43-1.31-14.83-6.16-24.51-8.26a22.3,22.3,0,0,0-4.81-.54c-5.15,0-10,2-12,7.2-2.86,7.56,1,13.71,9.84,19.87,5.33,3.72,24.54,15.6,28.87,19.61,4.48,4.14,3.9,7.34,3.38,11.41-.43,3.41-10.1,48.71-70.7,78-3.55,1.72-9.59,5.36,1.06,11.24,16.72,9.24,27.85,8.25,36.5,13.82,7.34,4.73,3,14.93,8.34,18.61,6.56,4.53,25.95-.32,51,7.95,21,6.92,33.76,26.47,71,26.47s50.37-19.64,71-26.47c25-8.27,44.43-3.42,51-7.95,5.33-3.68,1-13.88,8.34-18.61,8.65-5.57,19.77-4.58,36.5-13.82C427.52,346.07,421.48,342.43,417.93,340.71Z"/></svg>}
+                        {platformKey === 'BING' && <BingLogo />}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-[#1E293B]">{platform.name}</h4>
+                        <p className="text-xs text-gray-500">{platform.accounts} Account{platform.accounts !== 1 ? 's' : ''}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#52B788] transition-colors" />
+                  </Link>
+                )
+              })
+            ) : (
+              <div className="text-center py-6 text-gray-400">
+                <div className="w-12 h-12 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-gray-500">No accounts yet</p>
+                <p className="text-xs mt-1 text-gray-400">Apply for your first ad account</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* ==================== DESKTOP VIEW ==================== */}
+      <div className="hidden lg:flex lg:flex-col">
       {/* Overview Section Title */}
       <h2 className="text-sm font-semibold text-[#1E293B] mb-3">Overview</h2>
 
@@ -1004,6 +1251,8 @@ export default function DashboardPage() {
             )}
           </div>
         </Card>
+      </div>
+      {/* End Desktop View */}
       </div>
     </DashboardLayout>
   )
