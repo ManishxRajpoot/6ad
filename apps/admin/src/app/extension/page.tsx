@@ -22,6 +22,8 @@ type ExtensionProfile = {
   isEnabled: boolean
   isOnline: boolean
   remarks: string | null
+  adsPowerSerialNumber: string | null
+  managedAdAccountIds: string[]
   createdAt: string
 }
 
@@ -31,6 +33,7 @@ export default function ExtensionPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [createLabel, setCreateLabel] = useState('')
   const [createRemarks, setCreateRemarks] = useState('')
+  const [createSerial, setCreateSerial] = useState('')
   const [creating, setCreating] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
@@ -58,9 +61,14 @@ export default function ExtensionPage() {
     if (!createLabel.trim()) return
     setCreating(true)
     try {
-      await extensionApi.profiles.create({ label: createLabel.trim(), remarks: createRemarks.trim() || undefined })
+      await extensionApi.profiles.create({
+        label: createLabel.trim(),
+        remarks: createRemarks.trim() || undefined,
+        adsPowerSerialNumber: createSerial.trim() || undefined,
+      })
       setCreateLabel('')
       setCreateRemarks('')
+      setCreateSerial('')
       setShowCreate(false)
       await fetchProfiles()
     } catch (error) {
@@ -208,11 +216,17 @@ export default function ExtensionPage() {
 
                       {/* FB Profile info */}
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+                        {profile.adsPowerSerialNumber && (
+                          <span>AdsPower: <span className="text-blue-600 font-medium">#{profile.adsPowerSerialNumber}</span></span>
+                        )}
                         {profile.fbUserName && (
                           <span>FB: <span className="text-gray-700 font-medium">{profile.fbUserName}</span></span>
                         )}
                         {profile.fbUserId && (
                           <span className="font-mono text-xs">{profile.fbUserId}</span>
+                        )}
+                        {profile.managedAdAccountIds?.length > 0 && (
+                          <span>Accounts: <span className="text-gray-700 font-medium">{profile.managedAdAccountIds.length}</span></span>
                         )}
                         {profile.lastHeartbeatAt && (
                           <span>Last seen: {formatTimeAgo(profile.lastHeartbeatAt)}</span>
@@ -309,6 +323,13 @@ export default function ExtensionPage() {
             onChange={(e) => setCreateLabel(e.target.value)}
             placeholder="e.g., AdsPower - BM Group 1"
             autoFocus
+          />
+          <Input
+            id="serial"
+            label="AdsPower Serial Number"
+            value={createSerial}
+            onChange={(e) => setCreateSerial(e.target.value)}
+            placeholder="e.g., 89"
           />
           <Input
             id="remarks"

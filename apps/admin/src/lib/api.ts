@@ -290,9 +290,9 @@ export const settingsApi = {
 export const extensionApi = {
   profiles: {
     getAll: () => api.get<{ profiles: any[] }>('/extension/admin/profiles'),
-    create: (data: { label: string; remarks?: string }) =>
+    create: (data: { label: string; remarks?: string; adsPowerSerialNumber?: string }) =>
       api.post<{ profile: any }>('/extension/admin/profiles', data),
-    update: (id: string, data: { label?: string; remarks?: string; isEnabled?: boolean }) =>
+    update: (id: string, data: { label?: string; remarks?: string; isEnabled?: boolean; adsPowerSerialNumber?: string }) =>
       api.patch<{ profile: any }>(`/extension/admin/profiles/${id}`, data),
     delete: (id: string) => api.delete(`/extension/admin/profiles/${id}`),
     regenerateKey: (id: string) =>
