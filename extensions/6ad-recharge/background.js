@@ -590,23 +590,23 @@ async function processRecharge(recharge) {
 
           if (accountData.error) return { error: accountData.error.message || JSON.stringify(accountData.error) }
 
-          // FB Graph API uses cents for both GET and POST (e.g. 15000 = $150)
-          const currentCap = parseInt(accountData.spend_cap || '0', 10)
-          const spent = parseInt(accountData.amount_spent || '0', 10)
-          const currentCapDollars = currentCap / 100
-          const spentDollars = spent / 100
-          // depositAmount is in dollars, convert to cents for the API
-          const depositCents = Math.round(depositAmount * 100)
-          const newCap = currentCap + depositCents
-          const newCapDollars = newCap / 100
+          // Same approach as Cheetah API: read current spend_cap, add deposit, write back
+          // No unit conversion — just add depositAmount directly to the raw value
+          const currentSpendCap = parseFloat(accountData.spend_cap || '0')
+          const amountSpent = parseFloat(accountData.amount_spent || '0')
+          const newSpendCap = currentSpendCap + depositAmount
+          // For display only
+          const currentCapDollars = currentSpendCap / 100
+          const spentDollars = amountSpent / 100
+          const newCapDollars = newSpendCap / 100
 
-          // Step 2: Set new spend cap (in cents, same unit as GET)
+          // Step 2: Set new spend cap
           const postResp = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             credentials: 'include',
             body: new URLSearchParams({
-              spend_cap: newCap.toString(),
+              spend_cap: newSpendCap.toString(),
               access_token: accessToken
             }).toString()
           })
