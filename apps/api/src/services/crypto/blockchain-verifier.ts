@@ -12,6 +12,7 @@ export interface TransactionVerificationResult {
   to: string | null
   blockNumber: string | null
   confirmations: number | null
+  blockTimestamp: number | null  // Unix timestamp in seconds (for 24h age check)
   error?: string
 }
 
@@ -90,12 +91,16 @@ export async function verifyTronTransaction(
         to: null,
         blockNumber: null,
         confirmations: null,
+        blockTimestamp: null,
         error: 'Failed to fetch transaction from TRON network'
       }
     }
 
     const txInfo = await txResponse.json()
     console.log(`[TRON Verifier] TX Info received, blockNumber: ${txInfo.blockNumber}`)
+
+    // Extract block timestamp (TronGrid returns milliseconds)
+    const blockTimestamp = txInfo.blockTimeStamp ? Math.floor(txInfo.blockTimeStamp / 1000) : null
 
     if (!txInfo || !txInfo.id) {
       return {
@@ -105,6 +110,7 @@ export async function verifyTronTransaction(
         to: null,
         blockNumber: null,
         confirmations: null,
+        blockTimestamp,
         error: 'Transaction not found on TRON network'
       }
     }
@@ -118,6 +124,7 @@ export async function verifyTronTransaction(
         to: null,
         blockNumber: txInfo.blockNumber?.toString() || null,
         confirmations: null,
+        blockTimestamp,
         error: 'Transaction failed'
       }
     }
@@ -179,6 +186,7 @@ export async function verifyTronTransaction(
         to: null,
         blockNumber: txInfo.blockNumber?.toString() || null,
         confirmations: null,
+        blockTimestamp,
         error: 'No USDT transfer to your wallet found in this transaction'
       }
     }
@@ -209,6 +217,7 @@ export async function verifyTronTransaction(
         to: toAddress,
         blockNumber: txInfo.blockNumber?.toString() || null,
         confirmations,
+        blockTimestamp,
         error: `Insufficient confirmations. Required: ${TRON_MIN_CONFIRMATIONS}, Got: ${confirmations}`
       }
     }
@@ -221,7 +230,8 @@ export async function verifyTronTransaction(
       from: fromAddress,
       to: toAddress,
       blockNumber: txInfo.blockNumber?.toString() || null,
-      confirmations
+      confirmations,
+      blockTimestamp
     }
   } catch (error: any) {
     console.error(`[TRON Verifier] Error:`, error)
@@ -232,6 +242,7 @@ export async function verifyTronTransaction(
       to: null,
       blockNumber: null,
       confirmations: null,
+      blockTimestamp: null,
       error: `Verification error: ${error.message || 'Unknown error'}`
     }
   }
@@ -270,6 +281,7 @@ export async function verifyBscTransaction(
         to: null,
         blockNumber: null,
         confirmations: null,
+        blockTimestamp: null,
         error: 'Failed to fetch transaction from BSC network'
       }
     }
@@ -285,6 +297,7 @@ export async function verifyBscTransaction(
         to: null,
         blockNumber: null,
         confirmations: null,
+        blockTimestamp: null,
         error: 'Transaction not found on BSC network'
       }
     }
@@ -300,6 +313,7 @@ export async function verifyBscTransaction(
         to: null,
         blockNumber: receipt.blockNumber ? parseInt(receipt.blockNumber, 16).toString() : null,
         confirmations: null,
+        blockTimestamp: null,
         error: 'Transaction failed'
       }
     }
@@ -320,6 +334,7 @@ export async function verifyBscTransaction(
         to: null,
         blockNumber: receipt.blockNumber ? parseInt(receipt.blockNumber, 16).toString() : null,
         confirmations: null,
+        blockTimestamp: null,
         error: 'No USDT transfer found in transaction'
       }
     }
@@ -344,6 +359,7 @@ export async function verifyBscTransaction(
         to: toAddress,
         blockNumber: receipt.blockNumber ? parseInt(receipt.blockNumber, 16).toString() : null,
         confirmations: null,
+        blockTimestamp: null,
         error: `Recipient mismatch. Expected: ${expectedWalletAddress}, Got: ${toAddress}`
       }
     }
@@ -369,6 +385,29 @@ export async function verifyBscTransaction(
       confirmations = currentBlock - txBlock
     }
 
+    // Get block timestamp for age check
+    let blockTimestamp: number | null = null
+    try {
+      const blockDetailResp = await fetch(ANKR_BSC_RPC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_getBlockByNumber',
+          params: [receipt.blockNumber, false],
+          id: 2
+        })
+      })
+      if (blockDetailResp.ok) {
+        const blockDetail = await blockDetailResp.json()
+        if (blockDetail.result?.timestamp) {
+          blockTimestamp = parseInt(blockDetail.result.timestamp, 16)
+        }
+      }
+    } catch (e) {
+      console.log('[BSC Verifier] Could not get block timestamp')
+    }
+
     // Check if enough confirmations
     if (confirmations < BSC_MIN_CONFIRMATIONS) {
       return {
@@ -378,6 +417,7 @@ export async function verifyBscTransaction(
         to: toAddress,
         blockNumber: parseInt(receipt.blockNumber, 16).toString(),
         confirmations,
+        blockTimestamp,
         error: `Insufficient confirmations. Required: ${BSC_MIN_CONFIRMATIONS}, Got: ${confirmations}`
       }
     }
@@ -388,7 +428,8 @@ export async function verifyBscTransaction(
       from: fromAddress,
       to: toAddress,
       blockNumber: parseInt(receipt.blockNumber, 16).toString(),
-      confirmations
+      confirmations,
+      blockTimestamp
     }
   } catch (error: any) {
     console.error(`[BSC Verifier] Error:`, error)
@@ -399,6 +440,7 @@ export async function verifyBscTransaction(
       to: null,
       blockNumber: null,
       confirmations: null,
+      blockTimestamp: null,
       error: `Verification error: ${error.message || 'Unknown error'}`
     }
   }
@@ -425,6 +467,7 @@ export async function verifyTransaction(
       to: null,
       blockNumber: null,
       confirmations: null,
+      blockTimestamp: null,
       error: `Unsupported network: ${network}`
     }
   }

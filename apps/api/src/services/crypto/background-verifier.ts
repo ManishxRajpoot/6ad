@@ -12,6 +12,9 @@ const VERIFICATION_CONFIG = {
   RETRY_DELAY_MS: 15000, // Delay between retries
 }
 
+// Max transaction age for auto-approval (24 hours in seconds)
+const MAX_TX_AGE_SECONDS = 24 * 60 * 60
+
 interface PendingDeposit {
   id: string
   txHash: string
@@ -189,7 +192,7 @@ async function processVerification(deposit: PendingDeposit & { retryCount: numbe
  */
 async function handleVerificationResult(
   deposit: PendingDeposit & { retryCount: number },
-  verification: { valid: boolean; error?: string; amount?: number; from?: string; blockNumber?: string; confirmations?: number },
+  verification: { valid: boolean; error?: string; amount?: number; from?: string; blockNumber?: string; confirmations?: number; blockTimestamp?: number | null },
   key: string
 ): Promise<boolean> {
   if (!verification.valid) {
@@ -221,7 +224,19 @@ async function handleVerificationResult(
     return false
   }
 
-  // Verification successful! Auto-approve
+  // Verification successful - check transaction age before auto-approving
+  if (verification.blockTimestamp) {
+    const txAgeSeconds = Math.floor(Date.now() / 1000) - verification.blockTimestamp
+    if (txAgeSeconds > MAX_TX_AGE_SECONDS) {
+      const ageHours = Math.floor(txAgeSeconds / 3600)
+      console.log(`[BackgroundVerifier] ${deposit.id} transaction is ${ageHours}h old, marking for manual review`)
+      await markForManualReview(deposit.id, `Transaction is ${ageHours} hours old (older than 24h limit). Manual admin approval required.`)
+      pendingVerifications.delete(key)
+      return false
+    }
+  }
+
+  // Age OK - Auto-approve
   console.log(`[BackgroundVerifier] ${deposit.id} verified successfully!`)
   await approveDeposit(deposit, verification)
   pendingVerifications.delete(key)

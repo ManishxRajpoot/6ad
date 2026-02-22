@@ -502,6 +502,18 @@ export const agentWithdrawalsApi = {
     api.post<{ message: string }>(`/agent-withdrawals/${id}/reject`, { adminRemarks }),
 }
 
+// Reports API
+export const reportsApi = {
+  getAgentEarnings: (params?: { agentId?: string; period?: string; months?: number }) => {
+    const query = new URLSearchParams()
+    if (params?.agentId) query.append('agentId', params.agentId)
+    if (params?.period) query.append('period', params.period)
+    if (params?.months) query.append('months', params.months.toString())
+    const queryString = query.toString()
+    return api.get<any>(`/reports/agent-earnings${queryString ? `?${queryString}` : ''}`)
+  },
+}
+
 // Ad Account Management API
 export const cheetahApi = {
   // Configuration

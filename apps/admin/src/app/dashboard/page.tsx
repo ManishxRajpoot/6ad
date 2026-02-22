@@ -5,7 +5,6 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { dashboardApi, agentsApi } from '@/lib/api'
 import {
   TrendingUp,
-  TrendingDown,
   ChevronDown,
   Loader2,
 } from 'lucide-react'
@@ -48,71 +47,71 @@ const formatValue = (value: number, format: 'currency' | 'number' | 'percent'): 
   return Math.round(value).toLocaleString()
 }
 
-// Mini Sparkline Chart - Same as user side (smooth bezier curves)
+// Mini Sparkline Chart — Catmull-Rom spline for smooth curves
 const MiniChart = ({ data, color, id }: { data: number[]; color: string; id: string }) => {
   if (!data || data.length === 0) return null
 
   const max = Math.max(...data)
   const min = Math.min(...data)
   const range = max - min || 1
-  const width = 120
-  const height = 50
-  const padding = 5
+  const vw = 200
+  const vh = 60
+  const px = 4
+  const py = 6
 
-  // Generate smooth curve points
-  const points = data.map((value, index) => {
-    const x = padding + (index / (data.length - 1)) * (width - padding * 2)
-    const y = height - padding - ((value - min) / range) * (height - padding * 2)
-    return { x, y }
-  })
+  const points = data.map((value, index) => ({
+    x: px + (index / (data.length - 1)) * (vw - px * 2),
+    y: py + (1 - (value - min) / range) * (vh - py * 2),
+  }))
 
-  // Create smooth curve path using bezier curves
-  const createSmoothPath = () => {
+  // Catmull-Rom to cubic bezier conversion for truly smooth curves
+  const catmullRomPath = () => {
     if (points.length < 2) return ''
-
-    let path = `M ${points[0].x} ${points[0].y}`
+    const tension = 0.3
+    let d = `M ${points[0].x} ${points[0].y}`
 
     for (let i = 0; i < points.length - 1; i++) {
-      const current = points[i]
-      const next = points[i + 1]
-      const controlX = (current.x + next.x) / 2
+      const p0 = points[Math.max(i - 1, 0)]
+      const p1 = points[i]
+      const p2 = points[i + 1]
+      const p3 = points[Math.min(i + 2, points.length - 1)]
 
-      path += ` C ${controlX} ${current.y}, ${controlX} ${next.y}, ${next.x} ${next.y}`
+      const cp1x = p1.x + (p2.x - p0.x) * tension
+      const cp1y = p1.y + (p2.y - p0.y) * tension
+      const cp2x = p2.x - (p3.x - p1.x) * tension
+      const cp2y = p2.y - (p3.y - p1.y) * tension
+
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`
     }
-
-    return path
+    return d
   }
 
-  // Create area fill path
-  const createAreaPath = () => {
-    const linePath = createSmoothPath()
-    const lastPoint = points[points.length - 1]
-    const firstPoint = points[0]
-
-    return `${linePath} L ${lastPoint.x} ${height} L ${firstPoint.x} ${height} Z`
-  }
+  const linePath = catmullRomPath()
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${vh} L ${points[0].x} ${vh} Z`
 
   return (
-    <svg width={width} height={height} className="overflow-visible">
+    <svg
+      width="100%"
+      height={56}
+      viewBox={`0 0 ${vw} ${vh}`}
+      preserveAspectRatio="none"
+      className="overflow-visible"
+    >
       <defs>
         <linearGradient id={`gradient-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-          <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+          <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+          <stop offset="100%" stopColor={color} stopOpacity={0.02} />
         </linearGradient>
       </defs>
-      {/* Area fill */}
+      <path d={areaPath} fill={`url(#gradient-${id})`} />
       <path
-        d={createAreaPath()}
-        fill={`url(#gradient-${id})`}
-      />
-      {/* Line */}
-      <path
-        d={createSmoothPath()}
+        d={linePath}
         fill="none"
         stroke={color}
         strokeWidth={2.5}
         strokeLinecap="round"
         strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   )
@@ -125,8 +124,8 @@ const KPICard = ({ title, value, growth, chartData, color, format, variant = 'li
 
   return (
     <div
-      className={`rounded-2xl shadow-sm border border-gray-100 overflow-hidden ${
-        isDark ? 'bg-[#1F2937] border-gray-700' : 'bg-white'
+      className={`rounded-xl border overflow-hidden ${
+        isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'
       }`}
     >
       <div className="p-5">
@@ -141,8 +140,9 @@ const KPICard = ({ title, value, growth, chartData, color, format, variant = 'li
             {formatValue(value, format)}
           </p>
           <span
-            className="px-2.5 py-1 rounded-full text-xs font-semibold text-white"
-            style={{ backgroundColor: color }}
+            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              isDark ? 'bg-emerald-500/20 text-emerald-300' : 'bg-gray-100 text-gray-900'
+            }`}
           >
             +{Math.abs(growth).toFixed(2)}%
           </span>
@@ -203,11 +203,11 @@ const agentsPerformanceData = [
 ]
 
 const platformDistribution = [
-  { name: 'Facebook', value: 60, color: '#8B5CF6', amount: 2100 },
-  { name: 'Google', value: 15, color: '#94A3B8', amount: 525 },
-  { name: 'Bing', value: 12, color: '#CBD5E1', amount: 420 },
-  { name: 'Tiktok', value: 8, color: '#E2E8F0', amount: 280 },
-  { name: 'Snapchat', value: 5, color: '#F1F5F9', amount: 175 },
+  { name: 'Facebook', value: 60, color: '#111827', amount: 2100 },
+  { name: 'Google', value: 15, color: '#6B7280', amount: 525 },
+  { name: 'Bing', value: 12, color: '#9CA3AF', amount: 420 },
+  { name: 'Tiktok', value: 8, color: '#D1D5DB', amount: 280 },
+  { name: 'Snapchat', value: 5, color: '#E5E7EB', amount: 175 },
 ]
 
 // Sparkline data - Smooth curves with 10 data points (like user side)
@@ -278,7 +278,7 @@ export default function DashboardPage() {
       <DashboardLayout title="Dashboard">
         <div className="flex h-[60vh] items-center justify-center">
           <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-[#52B788]" />
+            <Loader2 className="h-8 w-8 animate-spin text-gray-900" />
             <span className="text-sm text-slate-500">Loading dashboard...</span>
           </div>
         </div>
@@ -296,7 +296,7 @@ export default function DashboardPage() {
             value={stats.totalRevenue}
             growth={stats.revenueChange}
             chartData={revenueSparkline}
-            color="#52B788"
+            color="#111827"
             format="currency"
           />
           <KPICard
@@ -304,7 +304,7 @@ export default function DashboardPage() {
             value={stats.pendingRequests}
             growth={stats.pendingChange}
             chartData={pendingSparkline}
-            color="#8B5CF6"
+            color="#111827"
             format="number"
           />
           <KPICard
@@ -312,7 +312,7 @@ export default function DashboardPage() {
             value={stats.totalUsers}
             growth={stats.userChange}
             chartData={usersSparkline}
-            color="#3B82F6"
+            color="#111827"
             format="number"
           />
           <KPICard
@@ -329,22 +329,22 @@ export default function DashboardPage() {
         {/* Charts Row */}
         <div className="grid grid-cols-12 gap-4">
           {/* Total Revenue Chart */}
-          <div className="col-span-7 bg-white rounded-2xl p-5 shadow-sm">
+          <div className="col-span-7 bg-white rounded-xl border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <h3 className="text-base font-semibold text-gray-800">Total Revenue</h3>
-                <button className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-900">Total Revenue</h3>
+                <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 border border-gray-200 rounded-lg">
                   This Week <ChevronDown className="w-3 h-3" />
                 </button>
               </div>
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-400" />
-                  <span className="text-xs text-gray-500">Income</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-gray-900" />
+                  <span className="text-[10px] text-gray-400">Income</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-blue-400" />
-                  <span className="text-xs text-gray-500">Outcome</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-gray-300" />
+                  <span className="text-[10px] text-gray-400">Outcome</span>
                 </div>
               </div>
             </div>
@@ -372,36 +372,36 @@ export default function DashboardPage() {
                 <Line
                   type="monotone"
                   dataKey="income"
-                  stroke="#EF4444"
+                  stroke="#111827"
                   strokeWidth={2}
-                  dot={{ fill: '#EF4444', strokeWidth: 0, r: 4 }}
-                  activeDot={{ r: 6, fill: '#EF4444' }}
+                  dot={{ fill: '#111827', strokeWidth: 0, r: 4 }}
+                  activeDot={{ r: 6, fill: '#111827' }}
                 />
                 <Line
                   type="monotone"
                   dataKey="outcome"
-                  stroke="#3B82F6"
+                  stroke="#D1D5DB"
                   strokeWidth={2}
-                  dot={{ fill: '#3B82F6', strokeWidth: 0, r: 4 }}
-                  activeDot={{ r: 6, fill: '#3B82F6' }}
+                  dot={{ fill: '#D1D5DB', strokeWidth: 0, r: 4 }}
+                  activeDot={{ r: 6, fill: '#D1D5DB' }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
           {/* In Amount Statistics */}
-          <div className="col-span-5 bg-white rounded-2xl p-5 shadow-sm">
+          <div className="col-span-5 bg-white rounded-xl border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h3 className="text-base font-semibold text-gray-800">In Amount Statistics</h3>
-                <p className="text-xs text-gray-400">Total income details in the current time slap</p>
+                <h3 className="text-sm font-semibold text-gray-900">In Amount Statistics</h3>
+                <p className="text-[11px] text-gray-400">Platform distribution overview</p>
               </div>
-              <button className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded-lg">
+              <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 border border-gray-200 rounded-lg">
                 This Month <ChevronDown className="w-3 h-3" />
               </button>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-5">
               {/* Donut Chart */}
               <div className="relative">
                 <ResponsiveContainer width={140} height={140}>
@@ -423,25 +423,20 @@ export default function DashboardPage() {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-[10px] text-gray-400">Total Expense</p>
-                  <p className="text-lg font-bold text-gray-800">$3,500</p>
+                  <p className="text-[10px] text-gray-400">Total</p>
+                  <p className="text-lg font-bold text-gray-900">$3,500</p>
                 </div>
               </div>
 
-              {/* Legend */}
-              <div className="flex-1 space-y-2">
-                {platformDistribution.map((item) => (
+              {/* Legend — dot style */}
+              <div className="flex-1 space-y-2.5">
+                {platformDistribution.map((item, idx) => (
                   <div key={item.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div
-                        className="w-8 h-5 rounded text-[10px] font-medium flex items-center justify-center text-white"
-                        style={{ backgroundColor: item.color }}
-                      >
-                        {item.value}%
-                      </div>
-                      <span className="text-xs text-gray-600">{item.name}</span>
+                      <div className="w-2 h-2 rounded-full bg-gray-900" style={{ opacity: 1 - idx * 0.18 }} />
+                      <span className="text-[11px] text-gray-600">{item.name}</span>
                     </div>
-                    <span className="text-xs font-semibold text-gray-800">${item.amount.toLocaleString()}</span>
+                    <span className="text-[11px] font-semibold text-gray-900">${item.amount.toLocaleString()}</span>
                   </div>
                 ))}
               </div>
@@ -450,16 +445,16 @@ export default function DashboardPage() {
             {/* Growth indicator */}
             <div className="mt-4 pt-3 border-t border-gray-100">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-[#52B788]/10 flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4 text-[#52B788]" />
+                <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center">
+                  <TrendingUp className="w-3.5 h-3.5 text-gray-500" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-500">$2,500.00 to $3500.00</p>
+                  <p className="text-[10px] text-gray-400">$2,500 → $3,500</p>
                   <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1">
-                    <div className="h-full bg-[#52B788] rounded-full" style={{ width: '70%' }} />
+                    <div className="h-full bg-gray-900 rounded-full" style={{ width: '70%' }} />
                   </div>
                 </div>
-                <span className="text-xs font-medium text-[#52B788]">Growth increase 12.5%</span>
+                <span className="text-[10px] font-medium text-gray-600">+12.5%</span>
               </div>
             </div>
           </div>
@@ -468,18 +463,18 @@ export default function DashboardPage() {
         {/* Bottom Row */}
         <div className="grid grid-cols-12 gap-4">
           {/* Agents Performance */}
-          <div className="col-span-7 bg-white rounded-2xl p-5 shadow-sm">
+          <div className="col-span-7 bg-white rounded-xl border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-gray-800">Agents Performance</h3>
-              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              <h3 className="text-sm font-semibold text-gray-900">Agents Performance</h3>
+              <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
                 {(['Day', 'Week', 'Month'] as const).map((period) => (
                   <button
                     key={period}
                     onClick={() => setPerformancePeriod(period)}
-                    className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    className={`px-3.5 py-1.5 text-[11px] font-medium rounded-md transition-all ${
                       performancePeriod === period
-                        ? 'bg-white text-gray-700 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-400'
                     }`}
                   >
                     {period}
@@ -491,16 +486,16 @@ export default function DashboardPage() {
               <AreaChart data={agentsPerformanceData}>
                 <defs>
                   <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#52B788" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#52B788" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#111827" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#111827" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="colorOrange" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#F59E0B" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#9CA3AF" stopOpacity={0.15}/>
+                    <stop offset="95%" stopColor="#9CA3AF" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#52B788' }} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
@@ -519,33 +514,33 @@ export default function DashboardPage() {
                 <Area
                   type="monotone"
                   dataKey="green"
-                  stroke="#52B788"
+                  stroke="#111827"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorGreen)"
-                  dot={{ fill: '#52B788', strokeWidth: 0, r: 4 }}
+                  dot={{ fill: '#111827', strokeWidth: 0, r: 4 }}
                 />
                 <Area
                   type="monotone"
                   dataKey="orange"
-                  stroke="#F59E0B"
+                  stroke="#9CA3AF"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorOrange)"
-                  dot={{ fill: '#F59E0B', strokeWidth: 0, r: 4 }}
+                  dot={{ fill: '#9CA3AF', strokeWidth: 0, r: 4 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
           {/* Top 5 Agents */}
-          <div className="col-span-5 bg-white rounded-2xl p-5 shadow-sm">
+          <div className="col-span-5 bg-white rounded-xl border border-gray-100 p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-base font-semibold text-gray-800">Top 5 Agents</h3>
-                <p className="text-xs text-gray-400">Here top agents of selected time frame</p>
+                <h3 className="text-sm font-semibold text-gray-900">Top 5 Agents</h3>
+                <p className="text-[11px] text-gray-400">Best performing agents</p>
               </div>
-              <button className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 border border-gray-200 rounded-lg">
+              <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 border border-gray-200 rounded-lg">
                 This Month <ChevronDown className="w-3 h-3" />
               </button>
             </div>
@@ -553,44 +548,44 @@ export default function DashboardPage() {
             <div className="space-y-3">
               {agents.length > 0 ? agents.map((agent) => (
                 <div key={agent.id} className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center overflow-hidden">
-                    <span className="text-pink-500 font-semibold text-sm">
+                  <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden">
+                    <span className="text-[11px] font-semibold text-gray-500">
                       {agent.username?.charAt(0).toUpperCase() || 'A'}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{agent.username || 'Agent'}</p>
-                    <p className="text-xs text-gray-400 truncate">{agent.email || 'agent@example.com'}</p>
+                    <p className="text-[12px] font-medium text-gray-900 truncate">{agent.username || 'Agent'}</p>
+                    <p className="text-[10px] text-gray-400 truncate">{agent.email || 'agent@example.com'}</p>
                   </div>
-                  <div className="flex -space-x-2">
-                    {[...Array(4)].map((_, i) => (
-                      <div key={i} className="w-6 h-6 rounded-full bg-pink-100 border-2 border-white" />
+                  <div className="flex -space-x-1.5">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="w-5 h-5 rounded-full bg-gray-200 border-2 border-white" />
                     ))}
-                    <div className="w-6 h-6 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
-                      <span className="text-[9px] text-gray-500">50+</span>
+                    <div className="w-5 h-5 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
+                      <span className="text-[7px] text-gray-400">+50</span>
                     </div>
                   </div>
-                  <p className="text-sm font-bold text-gray-800">${Math.round(agent.balance || 0).toLocaleString()}.00</p>
+                  <p className="text-[12px] font-bold text-gray-900">${Math.round(agent.balance || 0).toLocaleString()}.00</p>
                 </div>
               )) : (
                 [...Array(5)].map((_, index) => (
                   <div key={index} className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
-                      <span className="text-pink-500 font-semibold text-sm">A</span>
+                    <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
+                      <span className="text-[11px] font-semibold text-gray-500">A</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800">Ali Baloch</p>
-                      <p className="text-xs text-gray-400">alibaloch103010@gmail.com</p>
+                      <p className="text-[12px] font-medium text-gray-900">Ali Baloch</p>
+                      <p className="text-[10px] text-gray-400">alibaloch103010@gmail.com</p>
                     </div>
-                    <div className="flex -space-x-2">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className="w-6 h-6 rounded-full bg-pink-100 border-2 border-white" />
+                    <div className="flex -space-x-1.5">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="w-5 h-5 rounded-full bg-gray-200 border-2 border-white" />
                       ))}
-                      <div className="w-6 h-6 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
-                        <span className="text-[9px] text-gray-500">50+</span>
+                      <div className="w-5 h-5 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
+                        <span className="text-[7px] text-gray-400">+50</span>
                       </div>
                     </div>
-                    <p className="text-sm font-bold text-gray-800">$2,359.00</p>
+                    <p className="text-[12px] font-bold text-gray-900">$2,359.00</p>
                   </div>
                 ))
               )}

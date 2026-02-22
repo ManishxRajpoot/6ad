@@ -26,6 +26,7 @@ import bmAdRequestRoutes from './routes/bm-ad-request.js'
 import versionRoutes from './routes/version.js'
 import eventRoutes from './routes/events.js'
 import extensionRoutes from './routes/extension.js'
+import reportRoutes from './routes/reports.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
 import { startAdsPowerWorker } from './services/adspower-worker.js'
@@ -99,6 +100,7 @@ app.route('/bm-ad-request', bmAdRequestRoutes)
 app.route('/version', versionRoutes)
 app.route('/events', eventRoutes)
 app.route('/extension', extensionRoutes)
+app.route('/reports', reportRoutes)
 
 // Start background crypto verification service
 startBackgroundVerifier().catch(console.error)

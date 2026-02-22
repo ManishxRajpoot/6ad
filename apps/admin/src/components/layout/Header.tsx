@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bell, Search, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { Bell, Search, ChevronDown, ChevronLeft, ChevronRight, X, Calendar, SlidersHorizontal } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useDateFilterStore } from '@/store/dateFilter'
 
@@ -60,53 +60,64 @@ export function Header({ title, subtitle }: HeaderProps) {
     setSelectingDate('start')
   }
 
+  const hasDateFilter = startDate && endDate
+
   return (
-    <header className="sticky top-0 z-30 flex h-[70px] items-center justify-between bg-background px-6">
-      {/* Left - Title */}
-      <div>
-        <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
+    <header className="sticky top-0 z-30 flex h-[60px] items-center justify-between bg-[#FAFAFA] px-6 border-b border-gray-100">
+      {/* Left — Title */}
+      <div className="flex items-center gap-3">
+        <h1 className="text-[16px] font-semibold text-gray-900">{title}</h1>
+        {subtitle && (
+          <span className="h-6 px-2.5 rounded-md bg-gray-200/80 text-[11px] font-medium text-gray-500 flex items-center">
+            {subtitle}
+          </span>
+        )}
       </div>
 
-      {/* Right - Actions */}
-      <div className="flex items-center gap-3">
-        {/* Search */}
+      {/* Right — Actions */}
+      <div className="flex items-center gap-1.5">
+        {/* Search (command palette style) */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search here..."
-            className="h-9 w-[200px] rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm placeholder:text-gray-400 focus:border-[#8B5CF6] focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]"
+            placeholder="Search..."
+            className="h-8 w-[180px] rounded-lg border border-gray-200 bg-white pl-8 pr-9 text-[13px] placeholder:text-gray-400 focus:border-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-200 transition-all focus:w-[240px]"
           />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-0.5">
+            <kbd className="text-[10px] text-gray-400 bg-gray-100 px-1 py-0.5 rounded border border-gray-200">⌘</kbd>
+            <kbd className="text-[10px] text-gray-400 bg-gray-100 px-1 py-0.5 rounded border border-gray-200">K</kbd>
+          </div>
         </div>
 
         {/* Date Picker */}
         <div className="relative">
           <button
             onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-            className={`flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-sm transition-colors ${
-              startDate && endDate
-                ? 'border-[#8B5CF6] text-[#8B5CF6]'
-                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+            className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] transition-colors ${
+              hasDateFilter
+                ? 'bg-gray-900 text-white'
+                : 'text-gray-500 hover:bg-gray-200/60'
             }`}
           >
+            <Calendar className="h-3.5 w-3.5" />
             <span>
-              {startDate && endDate
+              {hasDateFilter
                 ? `${formatDate(startDate)} - ${formatDate(endDate)}`
                 : tempStart && selectingDate === 'end'
-                ? `${formatDate(tempStart)} - Select end`
-                : 'Select Date Range'}
+                ? `${formatDate(tempStart)} - ...`
+                : 'Date Range'}
             </span>
-            {(startDate || endDate) ? (
+            {hasDateFilter ? (
               <X
-                className="h-4 w-4 text-gray-400 hover:text-gray-600"
+                className="h-3 w-3 text-gray-400 hover:text-white ml-0.5"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleClearFilter()
                 }}
               />
             ) : (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-3 w-3 ml-0.5" />
             )}
           </button>
 
@@ -116,7 +127,7 @@ export function Header({ title, subtitle }: HeaderProps) {
                 className="fixed inset-0 z-40"
                 onClick={() => setIsDatePickerOpen(false)}
               />
-              <div className="absolute right-0 top-11 z-50 bg-white rounded-lg shadow-lg border border-gray-100 p-4 w-[280px] animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute right-0 top-9 z-50 bg-white rounded-lg shadow-lg border border-gray-100 p-4 w-[280px]">
                 {/* Calendar Header */}
                 <div className="flex items-center justify-between mb-4">
                   <button
@@ -124,9 +135,9 @@ export function Header({ title, subtitle }: HeaderProps) {
                     onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1))}
                     className="p-1 rounded hover:bg-gray-100 transition-colors"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4 text-gray-500" />
                   </button>
-                  <span className="text-sm font-medium text-gray-900">
+                  <span className="text-[13px] font-medium text-gray-900">
                     {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </span>
                   <button
@@ -134,14 +145,14 @@ export function Header({ title, subtitle }: HeaderProps) {
                     onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1))}
                     className="p-1 rounded hover:bg-gray-100 transition-colors"
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4 text-gray-500" />
                   </button>
                 </div>
 
                 {/* Day Headers */}
                 <div className="grid grid-cols-7 gap-1 mb-2">
                   {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
-                    <div key={day} className="text-center text-xs font-medium text-gray-500 py-1">
+                    <div key={day} className="text-center text-[11px] font-medium text-gray-400 py-1">
                       {day}
                     </div>
                   ))}
@@ -172,13 +183,13 @@ export function Header({ title, subtitle }: HeaderProps) {
                           key={day}
                           type="button"
                           onClick={() => handleDateSelect(day)}
-                          className={`h-8 w-8 rounded-lg text-xs font-medium transition-colors ${
+                          className={`h-8 w-8 rounded-md text-[12px] font-medium transition-colors ${
                             isStart || isEnd
-                              ? 'bg-[#8B5CF6] text-white'
+                              ? 'bg-gray-900 text-white'
                               : isInRange
-                              ? 'bg-[#8B5CF6]/20 text-[#8B5CF6]'
+                              ? 'bg-gray-200 text-gray-900'
                               : isToday
-                              ? 'border border-[#8B5CF6] text-[#8B5CF6]'
+                              ? 'border border-gray-900 text-gray-900'
                               : 'text-gray-700 hover:bg-gray-100'
                           }`}
                         >
@@ -193,14 +204,14 @@ export function Header({ title, subtitle }: HeaderProps) {
 
                 {/* Selection Info */}
                 <div className="mt-3 pt-3 border-t border-gray-100">
-                  <p className="text-xs text-gray-500">
+                  <p className="text-[11px] text-gray-500">
                     {selectingDate === 'start' ? 'Select start date' : 'Select end date'}
                   </p>
                   {(startDate || endDate || tempStart) && (
                     <button
                       type="button"
                       onClick={handleClearFilter}
-                      className="mt-2 text-xs text-[#8B5CF6] hover:underline"
+                      className="mt-2 text-[11px] text-gray-900 font-medium hover:underline"
                     >
                       Clear selection
                     </button>
@@ -211,25 +222,25 @@ export function Header({ title, subtitle }: HeaderProps) {
           )}
         </div>
 
+        {/* Separator */}
+        <div className="w-px h-5 bg-gray-200 mx-1.5" />
+
         {/* Notifications */}
-        <button className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white transition-colors hover:bg-gray-50">
-          <Bell className="h-[18px] w-[18px] text-gray-600" />
-          <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
-            3
-          </span>
+        <button className="relative flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-200/60 transition-colors">
+          <Bell className="h-4 w-4 text-gray-500" />
+          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
         </button>
 
-        {/* User Profile */}
-        <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5">
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white text-sm font-medium overflow-hidden">
-            {user?.username?.charAt(0).toUpperCase() || 'A'}
+        {/* User — compact avatar + dropdown */}
+        <button className="flex items-center gap-2 rounded-lg hover:bg-gray-200/60 px-2 py-1.5 transition-colors">
+          <div className="h-7 w-7 rounded-lg bg-gray-900 flex items-center justify-center">
+            <span className="text-white text-[10px] font-semibold">
+              {user?.username?.charAt(0).toUpperCase() || 'A'}
+            </span>
           </div>
-          <div className="text-left">
-            <p className="text-sm font-medium text-gray-900 leading-tight">{user?.username || 'Admin'}</p>
-            <p className="text-xs text-gray-500 leading-tight">{user?.role || 'ADMIN'}</p>
-          </div>
-          <ChevronDown className="h-4 w-4 text-gray-400 ml-1" />
-        </div>
+          <span className="text-[13px] font-medium text-gray-700">{user?.username || 'Admin'}</span>
+          <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+        </button>
       </div>
     </header>
   )
