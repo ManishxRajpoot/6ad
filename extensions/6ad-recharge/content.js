@@ -197,5 +197,202 @@
     }
   }, 2000)
 
+  // ==================== Auto-Login Detection ====================
+  // Detects Facebook login page and auto-fills credentials
+  // Gets config from bridge.js (ISOLATED world) via postMessage
+
+  var _6adApiConfig = null
+  var _6adLoginAttempted = false
+
+  // Receive API config from bridge.js
+  window.addEventListener('message', function(event) {
+    if (event.source !== window) return
+    if (event.data && event.data.type === '__6AD_CONFIG__') {
+      _6adApiConfig = { apiKey: event.data.apiKey, apiUrl: event.data.apiUrl }
+      console.log('[6AD] Received API config from bridge')
+      // Check if we need to auto-login
+      checkAndAutoLogin()
+    }
+  })
+
+  function isLoginPage() {
+    var url = window.location.href.toLowerCase()
+    var bodyText = (document.body && document.body.innerText || '').toLowerCase()
+    // Check URL patterns
+    if (url.includes('/login') || url.includes('login.php') || url.includes('/checkpoint')) return true
+    // Check page content
+    if (bodyText.includes('log in to facebook') || bodyText.includes('log into facebook')) return true
+    // Check if login form exists
+    var emailInput = document.querySelector('input[name="email"], input[id="email"], input[type="email"]')
+    var passInput = document.querySelector('input[name="pass"], input[id="pass"], input[type="password"]')
+    if (emailInput && passInput) return true
+    return false
+  }
+
+  function isLoggedIn() {
+    return !!window.__accessToken || document.cookie.includes('c_user=')
+  }
+
+  async function checkAndAutoLogin() {
+    if (_6adLoginAttempted || !_6adApiConfig || isLoggedIn()) return
+
+    // Wait for page to settle
+    await new Promise(function(r) { setTimeout(r, 3000) })
+
+    if (!isLoginPage() || isLoggedIn()) return
+
+    _6adLoginAttempted = true
+    console.log('[6AD] Login page detected, attempting auto-login...')
+
+    try {
+      // Fetch credentials from API
+      var resp = await fetch(_6adApiConfig.apiUrl.replace(/\/+$/, '') + '/extension/login-credentials', {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Extension-Key': _6adApiConfig.apiKey
+        }
+      })
+
+      if (!resp.ok) {
+        console.log('[6AD] No credentials configured (HTTP ' + resp.status + ')')
+        return
+      }
+
+      var creds = await resp.json()
+      if (!creds.email || !creds.password) {
+        console.log('[6AD] No email/password in credentials response')
+        return
+      }
+
+      console.log('[6AD] Got credentials for: ' + creds.email)
+
+      // Find email input - comprehensive selectors
+      var emailSelectors = [
+        'input[name="email"]', 'input[id="email"]', 'input[type="email"]',
+        'input[name="login"]', 'input[aria-label*="email" i]',
+        'input[aria-label*="phone" i]', 'input[placeholder*="email" i]',
+        'input[placeholder*="phone" i]', 'input[data-testid="royal_email"]'
+      ]
+      var emailInput = null
+      for (var i = 0; i < emailSelectors.length; i++) {
+        emailInput = document.querySelector(emailSelectors[i])
+        if (emailInput) break
+      }
+      // Fallback: any visible text input
+      if (!emailInput) {
+        var allInputs = document.querySelectorAll('input[type="text"], input[type="email"], input:not([type])')
+        for (var j = 0; j < allInputs.length; j++) {
+          var rect = allInputs[j].getBoundingClientRect()
+          if (rect.width > 50 && rect.height > 10 && allInputs[j].type !== 'hidden' && allInputs[j].name !== 'search') {
+            emailInput = allInputs[j]
+            break
+          }
+        }
+      }
+
+      if (!emailInput) {
+        console.log('[6AD] Could not find email input. URL:', window.location.href, 'Title:', document.title)
+        window.postMessage({ type: '__6AD_LOGIN_RESULT__', success: false, error: 'No email input found. URL: ' + window.location.href.substring(0, 100) }, '*')
+        return
+      }
+
+      // Find password input
+      var passSelectors = [
+        'input[name="pass"]', 'input[id="pass"]', 'input[type="password"]',
+        'input[name="password"]', 'input[aria-label*="password" i]',
+        'input[placeholder*="password" i]', 'input[data-testid="royal_pass"]'
+      ]
+      var passInput = null
+      for (var k = 0; k < passSelectors.length; k++) {
+        passInput = document.querySelector(passSelectors[k])
+        if (passInput) break
+      }
+
+      if (!passInput) {
+        console.log('[6AD] Found email but no password input')
+        window.postMessage({ type: '__6AD_LOGIN_RESULT__', success: false, error: 'No password input found' }, '*')
+        return
+      }
+
+      // Fill credentials using native setter
+      var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+
+      emailInput.focus()
+      nativeSetter.call(emailInput, creds.email)
+      emailInput.dispatchEvent(new Event('input', { bubbles: true }))
+      emailInput.dispatchEvent(new Event('change', { bubbles: true }))
+
+      await new Promise(function(r) { setTimeout(r, 800) })
+
+      passInput.focus()
+      nativeSetter.call(passInput, creds.password)
+      passInput.dispatchEvent(new Event('input', { bubbles: true }))
+      passInput.dispatchEvent(new Event('change', { bubbles: true }))
+
+      await new Promise(function(r) { setTimeout(r, 800) })
+
+      // Find and click login button
+      var btnSelectors = [
+        'button[name="login"]', 'button[type="submit"]',
+        'button[data-testid="royal_login_button"]', 'input[type="submit"]',
+        'button[id="loginbutton"]', '#loginbutton'
+      ]
+      var loginBtn = null
+      for (var b = 0; b < btnSelectors.length; b++) {
+        loginBtn = document.querySelector(btnSelectors[b])
+        if (loginBtn) break
+      }
+      // Fallback: visible button with "Log In" text
+      if (!loginBtn) {
+        var buttons = document.querySelectorAll('button, [role="button"], a[role="button"]')
+        for (var m = 0; m < buttons.length; m++) {
+          var text = (buttons[m].textContent || '').trim().toLowerCase()
+          if (/^log\s*in$|^sign\s*in$|^continue$/i.test(text)) {
+            var btnRect = buttons[m].getBoundingClientRect()
+            if (btnRect.width > 20 && btnRect.height > 10) {
+              loginBtn = buttons[m]
+              break
+            }
+          }
+        }
+      }
+
+      if (loginBtn) {
+        console.log('[6AD] Clicking login button')
+        loginBtn.click()
+      } else {
+        // Fallback: submit form or Enter key
+        var form = passInput.closest('form')
+        if (form) {
+          form.submit()
+        } else {
+          passInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
+        }
+      }
+
+      console.log('[6AD] Auto-login credentials submitted!')
+      window.postMessage({ type: '__6AD_LOGIN_RESULT__', success: true }, '*')
+
+    } catch (e) {
+      console.error('[6AD] Auto-login error:', e.message)
+      window.postMessage({ type: '__6AD_LOGIN_RESULT__', success: false, error: e.message }, '*')
+    }
+  }
+
+  // Also check on page load with delay (in case config arrives before page is ready)
+  function delayedLoginCheck() {
+    if (_6adApiConfig && !_6adLoginAttempted) {
+      checkAndAutoLogin()
+    }
+  }
+
+  if (document.readyState === 'complete') {
+    setTimeout(delayedLoginCheck, 5000)
+  } else {
+    window.addEventListener('load', function() {
+      setTimeout(delayedLoginCheck, 5000)
+    })
+  }
+
   console.log('[6AD] MAIN world interceptors installed on', window.location.hostname)
 })()

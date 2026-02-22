@@ -43,6 +43,41 @@ window.addEventListener('message', function (event) {
   }
 })
 
+// ==================== Auto-Login Support ====================
+// Send API config to content.js (MAIN world) so it can handle login directly
+// This bypasses the service worker cache entirely
+
+function sendApiConfigToPage() {
+  chrome.storage.local.get(['apiKey', 'apiUrl'], function(data) {
+    if (data.apiKey) {
+      window.postMessage({
+        type: '__6AD_CONFIG__',
+        apiKey: data.apiKey,
+        apiUrl: data.apiUrl || 'https://api.6ad.in'
+      }, '*')
+    }
+  })
+}
+
+// Send config on load and periodically (in case content.js loaded first)
+sendApiConfigToPage()
+setTimeout(sendApiConfigToPage, 3000)
+setTimeout(sendApiConfigToPage, 8000)
+
+// Listen for login result from content.js
+window.addEventListener('message', function(event) {
+  if (event.source !== window) return
+  if (event.data && event.data.type === '__6AD_LOGIN_RESULT__') {
+    console.log('[6AD Bridge] Login result:', event.data.success ? 'SUCCESS' : 'FAILED', event.data.error || '')
+    // Notify background script
+    chrome.runtime.sendMessage({
+      type: 'FB_LOGIN_RESULT',
+      success: event.data.success,
+      error: event.data.error || null
+    }).catch(function() {})
+  }
+})
+
 // Also periodically check if there's a token in the page that wasn't caught by interceptors
 setInterval(function() {
   // Look for EAA tokens in the page DOM

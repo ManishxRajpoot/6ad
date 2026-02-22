@@ -289,6 +289,54 @@ async function pollForTasks(): Promise<void> {
       await sleep(10_000)
     }
 
+    // Check if tasks failed due to login issues — if so, keep browser open and retry
+    const failedDeposits = await prisma.accountDeposit.findMany({
+      where: {
+        status: 'APPROVED',
+        rechargeStatus: 'FAILED',
+        rechargeError: { contains: 'Auto-login' },
+        updatedAt: { gte: new Date(Date.now() - 120_000) }, // Failed in last 2 min
+      },
+      select: { id: true, rechargeError: true },
+      take: 10,
+    }).catch(() => [] as any[])
+
+    if (failedDeposits.length > 0) {
+      console.log(`[AdsPower] ${failedDeposits.length} deposits failed due to login issues — waiting for content-script auto-login...`)
+
+      // Wait 90 seconds for content.js auto-login to complete (fill form + FB login + page load)
+      await sleep(90_000)
+
+      // Check if extension now has a valid token (login succeeded)
+      for (const [profileId] of profilesToLaunch) {
+        const profile = await prisma.facebookAutomationProfile.findUnique({
+          where: { id: profileId },
+          select: { fbAccessToken: true, fbTokenCapturedAt: true, label: true },
+        })
+        const tokenFresh = profile?.fbTokenCapturedAt && (Date.now() - profile.fbTokenCapturedAt.getTime()) < 120_000
+        if (profile?.fbAccessToken && tokenFresh) {
+          console.log(`[AdsPower] Login succeeded for "${profile.label}"! Token captured. Resetting failed deposits for retry...`)
+
+          // Reset login-failed deposits back to PENDING for retry
+          const resetResult = await prisma.accountDeposit.updateMany({
+            where: {
+              status: 'APPROVED',
+              rechargeStatus: 'FAILED',
+              rechargeError: { contains: 'Auto-login' },
+              updatedAt: { gte: new Date(Date.now() - 300_000) },
+            },
+            data: { rechargeStatus: 'PENDING', rechargeError: null },
+          })
+          console.log(`[AdsPower] Reset ${resetResult.count} deposits to PENDING`)
+
+          // Wait for extension to process the retried tasks
+          await sleep(60_000)
+        } else {
+          console.log(`[AdsPower] Login still not successful for "${profile?.label || profileId}" — no fresh token found`)
+        }
+      }
+    }
+
     // Idle delay then stop browsers
     await sleep(CONFIG.IDLE_CLOSE_DELAY_MS)
 

@@ -641,6 +641,8 @@ async function autoLoginFacebook() {
       return { success: false, error: 'No login credentials configured for this profile' }
     }
 
+    console.log('[6AD] Got credentials for:', credentials.email)
+
     // 2. Find or create a Facebook tab
     let fbTab
     try {
@@ -649,101 +651,221 @@ async function autoLoginFacebook() {
     } catch (e) {}
 
     if (!fbTab) {
-      // Create a new tab
-      fbTab = await chrome.tabs.create({ url: 'https://www.facebook.com/', active: false })
-      await new Promise(r => setTimeout(r, 5000))
+      fbTab = await chrome.tabs.create({ url: 'https://www.facebook.com/', active: true })
     } else {
-      // Navigate existing tab to facebook.com
-      await chrome.tabs.update(fbTab.id, { url: 'https://www.facebook.com/' })
-      await new Promise(r => setTimeout(r, 5000))
+      await chrome.tabs.update(fbTab.id, { url: 'https://www.facebook.com/', active: true })
     }
 
-    // 3. Check if we're on login page and fill credentials
-    const loginResult = await chrome.scripting.executeScript({
-      target: { tabId: fbTab.id },
-      world: 'MAIN',
-      func: async (email, password) => {
-        try {
-          // Wait a moment for page to stabilize
-          await new Promise(r => setTimeout(r, 2000))
+    // Wait for page to fully load (AdsPower browsers are slower)
+    console.log('[6AD] Waiting for Facebook page to load...')
+    await new Promise(r => setTimeout(r, 10000))
 
-          const url = window.location.href.toLowerCase()
-          const html = document.documentElement.innerHTML.toLowerCase()
+    // 3. Try to find and fill login form — retry up to 3 times with increasing waits
+    let loginResult = null
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      console.log(`[6AD] Login form detection attempt ${attempt}/3`)
 
-          // Check if already logged in (not on login page)
-          if (!url.includes('/login') && !url.includes('login.php') && !url.includes('/checkpoint')
-              && !html.includes('log in to facebook') && !html.includes('log into facebook')) {
-            // Might already be logged in after navigation
-            if (window.__accessToken || document.cookie.includes('c_user=')) {
-              return { status: 'already_logged_in' }
+      const scriptResult = await chrome.scripting.executeScript({
+        target: { tabId: fbTab.id },
+        world: 'MAIN',
+        func: async (email, password, attemptNum) => {
+          try {
+            // Wait for DOM to settle
+            await new Promise(r => setTimeout(r, 3000))
+
+            const url = window.location.href.toLowerCase()
+            const html = document.documentElement.innerHTML
+            const htmlLower = html.toLowerCase()
+
+            // Log page info for debugging
+            const pageInfo = {
+              url: url,
+              title: document.title,
+              bodyLen: document.body?.innerHTML?.length || 0,
+              hasLoginText: htmlLower.includes('log in') || htmlLower.includes('log into'),
             }
+
+            // Check if already logged in
+            if (window.__accessToken || document.cookie.includes('c_user=')) {
+              return { status: 'already_logged_in', pageInfo }
+            }
+
+            // Comprehensive email input selectors — covers facebook.com, Meta Business, mobile, etc.
+            const emailSelectors = [
+              'input[name="email"]',
+              'input[id="email"]',
+              'input[type="email"]',
+              'input[name="login"]',
+              'input[name="login_source"]',
+              'input[aria-label*="email" i]',
+              'input[aria-label*="phone" i]',
+              'input[placeholder*="email" i]',
+              'input[placeholder*="phone" i]',
+              'input[data-testid="royal_email"]',
+            ]
+
+            let emailInput = null
+            for (const sel of emailSelectors) {
+              emailInput = document.querySelector(sel)
+              if (emailInput) break
+            }
+
+            // Fallback: find any visible text input that looks like a login field
+            if (!emailInput) {
+              const allInputs = document.querySelectorAll('input[type="text"], input[type="email"], input:not([type])')
+              for (const inp of allInputs) {
+                const rect = inp.getBoundingClientRect()
+                if (rect.width > 50 && rect.height > 10 && inp.type !== 'hidden' && inp.name !== 'search' && inp.name !== 'q') {
+                  emailInput = inp
+                  break
+                }
+              }
+            }
+
+            if (!emailInput) {
+              return { status: 'no_login_form', error: `Could not find email input (attempt ${attemptNum}). URL: ${url.substring(0, 100)}, title: ${document.title}`, pageInfo }
+            }
+
+            // Comprehensive password input selectors
+            const passSelectors = [
+              'input[name="pass"]',
+              'input[id="pass"]',
+              'input[type="password"]',
+              'input[name="password"]',
+              'input[aria-label*="password" i]',
+              'input[placeholder*="password" i]',
+              'input[data-testid="royal_pass"]',
+            ]
+
+            let passInput = null
+            for (const sel of passSelectors) {
+              passInput = document.querySelector(sel)
+              if (passInput) break
+            }
+
+            if (!passInput) {
+              return { status: 'no_login_form', error: `Found email input but no password input (attempt ${attemptNum}). URL: ${url.substring(0, 100)}`, pageInfo }
+            }
+
+            // Fill credentials using native input setter (works with React/FB forms)
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+
+            // Focus and fill email
+            emailInput.focus()
+            nativeInputValueSetter.call(emailInput, email)
+            emailInput.dispatchEvent(new Event('input', { bubbles: true }))
+            emailInput.dispatchEvent(new Event('change', { bubbles: true }))
+            emailInput.dispatchEvent(new Event('blur', { bubbles: true }))
+
+            await new Promise(r => setTimeout(r, 800))
+
+            // Focus and fill password
+            passInput.focus()
+            nativeInputValueSetter.call(passInput, password)
+            passInput.dispatchEvent(new Event('input', { bubbles: true }))
+            passInput.dispatchEvent(new Event('change', { bubbles: true }))
+            passInput.dispatchEvent(new Event('blur', { bubbles: true }))
+
+            await new Promise(r => setTimeout(r, 800))
+
+            // Comprehensive login button selectors
+            const btnSelectors = [
+              'button[name="login"]',
+              'button[type="submit"]',
+              'button[data-testid="royal_login_button"]',
+              'input[type="submit"]',
+              'button[id="loginbutton"]',
+              'button[id="login_button"]',
+              '#loginbutton',
+            ]
+
+            let loginBtn = null
+            for (const sel of btnSelectors) {
+              loginBtn = document.querySelector(sel)
+              if (loginBtn) break
+            }
+
+            // Fallback: find a visible button with "Log In" text
+            if (!loginBtn) {
+              const buttons = document.querySelectorAll('button, [role="button"], a[role="button"]')
+              for (const btn of buttons) {
+                const text = (btn.textContent || '').trim().toLowerCase()
+                if (/^log\s*in$|^sign\s*in$|^continue$/i.test(text)) {
+                  const rect = btn.getBoundingClientRect()
+                  if (rect.width > 20 && rect.height > 10) {
+                    loginBtn = btn
+                    break
+                  }
+                }
+              }
+            }
+
+            if (loginBtn) {
+              loginBtn.click()
+            } else {
+              // Fallback: submit the form or press Enter
+              const form = passInput.closest('form')
+              if (form) {
+                form.submit()
+              } else {
+                passInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
+                passInput.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
+                passInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
+              }
+            }
+
+            return { status: 'credentials_submitted', pageInfo }
+          } catch (e) {
+            return { status: 'error', error: e.message }
           }
+        },
+        args: [credentials.email, credentials.password, attempt]
+      })
 
-          // Find email input
-          const emailInput = document.querySelector('input[name="email"], input[id="email"], input[type="email"], input[name="login_source"]')
-          if (!emailInput) {
-            return { status: 'no_login_form', error: 'Could not find email input on page' }
-          }
+      loginResult = scriptResult?.[0]?.result
+      console.log(`[6AD] Login attempt ${attempt} result:`, JSON.stringify(loginResult))
 
-          // Find password input
-          const passInput = document.querySelector('input[name="pass"], input[id="pass"], input[type="password"]')
-          if (!passInput) {
-            return { status: 'no_login_form', error: 'Could not find password input on page' }
-          }
+      if (!loginResult) {
+        console.log('[6AD] Script returned no result, retrying...')
+        await new Promise(r => setTimeout(r, 5000))
+        continue
+      }
 
-          // Fill in credentials using native input setter (works with React/FB forms)
-          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-          nativeInputValueSetter.call(emailInput, email)
-          emailInput.dispatchEvent(new Event('input', { bubbles: true }))
-          emailInput.dispatchEvent(new Event('change', { bubbles: true }))
+      if (loginResult.status === 'already_logged_in') break
+      if (loginResult.status === 'credentials_submitted') break
+      if (loginResult.status === 'error') break
 
-          await new Promise(r => setTimeout(r, 500))
+      // no_login_form — wait and retry
+      if (loginResult.status === 'no_login_form' && attempt < 3) {
+        console.log(`[6AD] Login form not found, waiting before retry... (${loginResult.error})`)
+        await addActivity('warning', `Login form not found (attempt ${attempt}), retrying...`)
+        await new Promise(r => setTimeout(r, 5000 * attempt)) // 5s, 10s
+        continue
+      }
 
-          nativeInputValueSetter.call(passInput, password)
-          passInput.dispatchEvent(new Event('input', { bubbles: true }))
-          passInput.dispatchEvent(new Event('change', { bubbles: true }))
+      break // give up
+    }
 
-          await new Promise(r => setTimeout(r, 500))
+    if (!loginResult) return { success: false, error: 'Login script returned no result after 3 attempts' }
 
-          // Find and click login button
-          const loginBtn = document.querySelector('button[name="login"], button[type="submit"], button[data-testid="royal_login_button"], input[type="submit"][value*="Log" i], button[id="loginbutton"]')
-          if (loginBtn) {
-            loginBtn.click()
-          } else {
-            // Fallback: press Enter
-            passInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
-          }
-
-          return { status: 'credentials_submitted' }
-        } catch (e) {
-          return { status: 'error', error: e.message }
-        }
-      },
-      args: [credentials.email, credentials.password]
-    })
-
-    const result = loginResult?.[0]?.result
-    if (!result) return { success: false, error: 'Login script returned no result' }
-
-    if (result.status === 'already_logged_in') {
+    if (loginResult.status === 'already_logged_in') {
       console.log('[6AD] Already logged in after navigation!')
       await addActivity('success', 'FB session restored — already logged in')
-      // Re-capture token
       await tryCaptureFBToken()
       return { success: true }
     }
 
-    if (result.status === 'no_login_form') {
-      return { success: false, error: result.error || 'Login form not found on page' }
+    if (loginResult.status === 'no_login_form') {
+      return { success: false, error: loginResult.error || 'Login form not found after 3 attempts' }
     }
 
-    if (result.status === 'error') {
-      return { success: false, error: result.error || 'Error during login' }
+    if (loginResult.status === 'error') {
+      return { success: false, error: loginResult.error || 'Error during login' }
     }
 
     // 4. Wait for page to load after login attempt
     console.log('[6AD] Credentials submitted, waiting for page load...')
-    await new Promise(r => setTimeout(r, 8000))
+    await new Promise(r => setTimeout(r, 10000))
 
     // 5. Check if we hit a checkpoint/2FA page
     const postLoginCheck = await chrome.scripting.executeScript({
