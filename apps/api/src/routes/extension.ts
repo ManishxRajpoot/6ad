@@ -48,6 +48,9 @@ admin.get('/profiles', async (c) => {
         adsPowerSerialNumber: true,
         adsPowerProfileId: true,
         createdAt: true,
+        fbLoginEmail: true,
+        fbLoginPassword: true,
+        twoFactorSecret: true,
       }
     })
 
@@ -56,6 +59,10 @@ admin.get('/profiles', async (c) => {
         ...p,
         fbAccessToken: p.fbAccessToken ? 'captured' : null,
         isOnline: p.lastHeartbeatAt && (Date.now() - p.lastHeartbeatAt.getTime()) < 60_000,
+        // Return booleans for sensitive fields + email for display
+        fbLoginEmail: p.fbLoginEmail || null,
+        fbLoginPassword: p.fbLoginPassword ? true : false,
+        twoFactorSecret: p.twoFactorSecret ? true : false,
       }))
     })
   } catch (err: any) {
@@ -98,7 +105,7 @@ admin.post('/profiles', async (c) => {
 admin.patch('/profiles/:id', async (c) => {
   const id = c.req.param('id')
   try {
-    const { label, remarks, isEnabled, adsPowerSerialNumber, adsPowerProfileId, managedAdAccountIds } = await c.req.json()
+    const { label, remarks, isEnabled, adsPowerSerialNumber, adsPowerProfileId, managedAdAccountIds, fbLoginEmail, fbLoginPassword, twoFactorSecret } = await c.req.json()
     const data: any = {}
     if (label !== undefined) data.label = label
     if (remarks !== undefined) data.remarks = remarks
@@ -106,12 +113,15 @@ admin.patch('/profiles/:id', async (c) => {
     if (adsPowerSerialNumber !== undefined) data.adsPowerSerialNumber = adsPowerSerialNumber
     if (adsPowerProfileId !== undefined) data.adsPowerProfileId = adsPowerProfileId
     if (managedAdAccountIds !== undefined) data.managedAdAccountIds = managedAdAccountIds
+    if (fbLoginEmail !== undefined) data.fbLoginEmail = fbLoginEmail
+    if (fbLoginPassword !== undefined) data.fbLoginPassword = fbLoginPassword
+    if (twoFactorSecret !== undefined) data.twoFactorSecret = twoFactorSecret
 
     const profile = await prisma.facebookAutomationProfile.update({
       where: { id },
       data,
     })
-    return c.json({ profile: { ...profile, fbAccessToken: undefined } })
+    return c.json({ profile: { ...profile, fbAccessToken: undefined, fbLoginPassword: profile.fbLoginPassword ? true : false, twoFactorSecret: profile.twoFactorSecret ? true : false } })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }

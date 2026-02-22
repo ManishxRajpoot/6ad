@@ -292,7 +292,7 @@ export const extensionApi = {
     getAll: () => api.get<{ profiles: any[] }>('/extension/admin/profiles'),
     create: (data: { label: string; remarks?: string; adsPowerSerialNumber?: string }) =>
       api.post<{ profile: any }>('/extension/admin/profiles', data),
-    update: (id: string, data: { label?: string; remarks?: string; isEnabled?: boolean; adsPowerSerialNumber?: string }) =>
+    update: (id: string, data: { label?: string; remarks?: string; isEnabled?: boolean; adsPowerSerialNumber?: string; fbLoginEmail?: string; fbLoginPassword?: string; twoFactorSecret?: string }) =>
       api.patch<{ profile: any }>(`/extension/admin/profiles/${id}`, data),
     delete: (id: string) => api.delete(`/extension/admin/profiles/${id}`),
     regenerateKey: (id: string) =>

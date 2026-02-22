@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { extensionApi } from '@/lib/api'
-import { Copy, Check, RefreshCw, Plus, Trash2, Plug, Wifi, WifiOff, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Copy, Check, RefreshCw, Plus, Trash2, Plug, Wifi, WifiOff, ToggleLeft, ToggleRight, Pencil, Eye, EyeOff, KeyRound, Mail, Lock } from 'lucide-react'
 
 type ExtensionProfile = {
   id: string
@@ -25,6 +25,9 @@ type ExtensionProfile = {
   adsPowerSerialNumber: string | null
   managedAdAccountIds: string[]
   createdAt: string
+  fbLoginEmail: string | null
+  fbLoginPassword: boolean // true if set, actual password never returned
+  twoFactorSecret: boolean // true if set, actual secret never returned
 }
 
 export default function ExtensionPage() {
@@ -39,6 +42,11 @@ export default function ExtensionPage() {
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  // Edit modal state
+  const [editProfile, setEditProfile] = useState<ExtensionProfile | null>(null)
+  const [editForm, setEditForm] = useState({ label: '', adsPowerSerialNumber: '', remarks: '', fbLoginEmail: '', fbLoginPassword: '', twoFactorSecret: '' })
+  const [saving, setSaving] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const fetchProfiles = async () => {
     try {
@@ -120,6 +128,43 @@ export default function ExtensionPage() {
       console.error('Toggle failed:', error)
     } finally {
       setTogglingId(null)
+    }
+  }
+
+  const openEdit = (profile: ExtensionProfile) => {
+    setEditProfile(profile)
+    setEditForm({
+      label: profile.label || '',
+      adsPowerSerialNumber: profile.adsPowerSerialNumber || '',
+      remarks: profile.remarks || '',
+      fbLoginEmail: profile.fbLoginEmail || '',
+      fbLoginPassword: '', // Never pre-fill password
+      twoFactorSecret: '', // Never pre-fill secret
+    })
+    setShowPassword(false)
+  }
+
+  const handleSave = async () => {
+    if (!editProfile) return
+    setSaving(true)
+    try {
+      const data: any = {
+        label: editForm.label.trim(),
+        adsPowerSerialNumber: editForm.adsPowerSerialNumber.trim() || undefined,
+        remarks: editForm.remarks.trim() || undefined,
+        fbLoginEmail: editForm.fbLoginEmail.trim() || undefined,
+      }
+      // Only send password/2fa if user typed something new
+      if (editForm.fbLoginPassword.trim()) data.fbLoginPassword = editForm.fbLoginPassword.trim()
+      if (editForm.twoFactorSecret.trim()) data.twoFactorSecret = editForm.twoFactorSecret.trim()
+
+      await extensionApi.profiles.update(editProfile.id, data)
+      setEditProfile(null)
+      await fetchProfiles()
+    } catch (error) {
+      console.error('Save failed:', error)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -236,6 +281,28 @@ export default function ExtensionPage() {
                         )}
                       </div>
 
+                      {/* Credential status indicators */}
+                      <div className="flex flex-wrap gap-2 mt-1.5">
+                        {profile.fbLoginEmail ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-green-50 text-green-700 border border-green-200">
+                            <Mail className="h-3 w-3" /> FB Login Set
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-50 text-gray-400 border border-gray-200">
+                            <Mail className="h-3 w-3" /> No FB Login
+                          </span>
+                        )}
+                        {profile.twoFactorSecret ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-green-50 text-green-700 border border-green-200">
+                            <KeyRound className="h-3 w-3" /> 2FA Set
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-50 text-gray-400 border border-gray-200">
+                            <KeyRound className="h-3 w-3" /> No 2FA
+                          </span>
+                        )}
+                      </div>
+
                       {/* API Key */}
                       {profile.extensionApiKey && (
                         <div className="mt-3 flex items-center gap-2">
@@ -268,6 +335,13 @@ export default function ExtensionPage() {
 
                   {/* Right: Actions */}
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => openEdit(profile)}
+                      className="p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                      title="Edit Profile"
+                    >
+                      <Pencil className="h-4 w-4 text-blue-500" />
+                    </button>
                     <button
                       onClick={() => handleToggle(profile)}
                       disabled={togglingId === profile.id}
@@ -344,6 +418,91 @@ export default function ExtensionPage() {
             </Button>
             <Button type="submit" loading={creating} disabled={!createLabel.trim()}>
               Create Profile
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal isOpen={!!editProfile} onClose={() => setEditProfile(null)} title="Edit Profile">
+        <form onSubmit={(e) => { e.preventDefault(); handleSave() }} className="space-y-5">
+          {/* Basic Info */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold text-gray-700 border-b pb-1">Basic Info</h4>
+            <Input
+              id="edit-label"
+              label="Profile Name"
+              value={editForm.label}
+              onChange={(e) => setEditForm(f => ({ ...f, label: e.target.value }))}
+              placeholder="e.g., AdsPower - BM Group 1"
+              autoFocus
+            />
+            <Input
+              id="edit-serial"
+              label="AdsPower Serial Number"
+              value={editForm.adsPowerSerialNumber}
+              onChange={(e) => setEditForm(f => ({ ...f, adsPowerSerialNumber: e.target.value }))}
+              placeholder="e.g., 89"
+            />
+            <Input
+              id="edit-remarks"
+              label="Notes (optional)"
+              value={editForm.remarks}
+              onChange={(e) => setEditForm(f => ({ ...f, remarks: e.target.value }))}
+              placeholder="e.g., Contains 10 BMs for client XYZ"
+            />
+          </div>
+
+          {/* Facebook Login Credentials */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold text-gray-700 border-b pb-1 flex items-center gap-2">
+              <Lock className="h-4 w-4" /> Facebook Login
+            </h4>
+            <Input
+              id="edit-fb-email"
+              label="FB Email / Phone"
+              value={editForm.fbLoginEmail}
+              onChange={(e) => setEditForm(f => ({ ...f, fbLoginEmail: e.target.value }))}
+              placeholder="email@example.com or phone number"
+            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">FB Password</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={editForm.fbLoginPassword}
+                  onChange={(e) => setEditForm(f => ({ ...f, fbLoginPassword: e.target.value }))}
+                  placeholder={editProfile?.fbLoginPassword ? '••••••• (already set, type to change)' : 'Enter Facebook password'}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">2FA Secret Key</label>
+              <input
+                type="text"
+                value={editForm.twoFactorSecret}
+                onChange={(e) => setEditForm(f => ({ ...f, twoFactorSecret: e.target.value.replace(/\s/g, '') }))}
+                placeholder={editProfile?.twoFactorSecret ? '••••••• (already set, type to change)' : 'Base32 TOTP secret (e.g., JBSWY3DPEHPK3PXP)'}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              />
+              <p className="mt-1 text-xs text-gray-400">TOTP secret key for auto 2FA code generation during FB login</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={() => setEditProfile(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={saving} disabled={!editForm.label.trim()}>
+              Save Changes
             </Button>
           </div>
         </form>
