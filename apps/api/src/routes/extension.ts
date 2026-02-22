@@ -13,6 +13,7 @@ import { PrismaClient } from '@prisma/client'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import { randomBytes } from 'crypto'
 import { getWorkerStatus } from '../services/adspower-worker.js'
+import { fetchFacebookOtp } from '../services/imap-reader.js'
 
 const prisma = new PrismaClient()
 const extension = new Hono()
@@ -469,6 +470,82 @@ extension.post('/recharge/:id/failed', verifyExtensionKey, async (c) => {
     })
     return c.json({ ok: true })
   } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ==================== AUTO-LOGIN SUPPORT ====================
+
+// GET /extension/login-credentials - Get FB login credentials for auto-re-login
+extension.get('/login-credentials', verifyExtensionKey, async (c) => {
+  try {
+    const profile = c.get('extensionProfile')
+    const data = await prisma.facebookAutomationProfile.findUnique({
+      where: { id: profile.id },
+      select: {
+        fbLoginEmail: true,
+        fbLoginPassword: true,
+        imapHost: true,
+        imapPort: true,
+        imapUser: true,
+        imapPassword: true,
+        imapSecure: true,
+      },
+    })
+
+    if (!data?.fbLoginEmail || !data?.fbLoginPassword) {
+      return c.json({ error: 'No login credentials configured for this profile' }, 404)
+    }
+
+    return c.json({
+      email: data.fbLoginEmail,
+      password: data.fbLoginPassword,
+      hasImap: !!(data.imapHost && data.imapUser && data.imapPassword),
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// POST /extension/fetch-otp - Fetch Facebook OTP code via IMAP
+extension.post('/fetch-otp', verifyExtensionKey, async (c) => {
+  try {
+    const profile = c.get('extensionProfile')
+    const data = await prisma.facebookAutomationProfile.findUnique({
+      where: { id: profile.id },
+      select: {
+        label: true,
+        imapHost: true,
+        imapPort: true,
+        imapUser: true,
+        imapPassword: true,
+        imapSecure: true,
+      },
+    })
+
+    if (!data?.imapHost || !data?.imapUser || !data?.imapPassword) {
+      return c.json({ error: 'No IMAP credentials configured for this profile' }, 404)
+    }
+
+    console.log(`[Auto-Login] Fetching OTP for profile "${data.label}" via ${data.imapHost}`)
+
+    const otp = await fetchFacebookOtp({
+      host: data.imapHost,
+      port: data.imapPort || 993,
+      user: data.imapUser,
+      password: data.imapPassword,
+      secure: data.imapSecure ?? true,
+    }, 60_000) // 60s max wait for OTP
+
+    if (!otp) {
+      console.warn(`[Auto-Login] OTP not found for profile "${data.label}"`)
+      return c.json({ error: 'OTP not received within timeout', otp: null })
+    }
+
+    console.log(`[Auto-Login] OTP found for profile "${data.label}": ${otp}`)
+    return c.json({ otp })
+  } catch (err: any) {
+    console.error('[Auto-Login] Fetch OTP error:', err.message)
     return c.json({ error: err.message }, 500)
   }
 })

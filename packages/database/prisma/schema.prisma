@@ -1332,6 +1332,10 @@ model FacebookAutomationProfile {
   timezone            String?                   @default("America/New_York")
   locale              String?                   @default("en-US")
 
+  // Facebook login credentials (for auto-re-login when session expires)
+  fbLoginEmail        String?                   // Facebook login email/phone
+  fbLoginPassword     String?                   // Facebook login password
+
   // Email / IMAP credentials (for auto-reading Facebook OTP codes)
   emailAddress        String?                   // Email address associated with FB account
   imapHost            String?                   // IMAP server host (e.g. imap.gmail.com)

@@ -555,6 +555,360 @@ async function validateFbSession() {
   }
 }
 
+/**
+ * Claim and fail all pending recharges with a given error message.
+ */
+async function failAllPendingRecharges(errorMsg) {
+  try {
+    const result = await apiRequest('/extension/pending-recharges', 'GET')
+    const recharges = result.recharges || []
+    for (const recharge of recharges) {
+      try {
+        await apiRequest(`/extension/recharge/${recharge.depositId}/claim`, 'POST')
+        await apiRequest(`/extension/recharge/${recharge.depositId}/failed`, 'POST', {
+          error: errorMsg
+        })
+      } catch (e) {
+        console.error('[6AD] Failed to report error for deposit:', e.message)
+      }
+    }
+  } catch (e) {
+    console.error('[6AD] Failed to fetch pending recharges:', e.message)
+  }
+}
+
+/**
+ * Auto-login to Facebook when session expires.
+ * 1. Gets credentials from API
+ * 2. Navigates to facebook.com
+ * 3. Fills email/password and clicks login
+ * 4. Handles 2FA/OTP via IMAP if needed
+ * 5. Waits for successful login and captures new token
+ */
+async function autoLoginFacebook() {
+  try {
+    console.log('[6AD] Attempting auto-login to Facebook...')
+    await addActivity('info', 'FB session expired — attempting auto-login...')
+
+    // 1. Get login credentials from API
+    let credentials
+    try {
+      credentials = await apiRequest('/extension/login-credentials', 'GET')
+    } catch (e) {
+      return { success: false, error: 'No login credentials configured — set FB email/password in admin profile settings' }
+    }
+    if (!credentials.email || !credentials.password) {
+      return { success: false, error: 'No login credentials configured for this profile' }
+    }
+
+    // 2. Find or create a Facebook tab
+    let fbTab
+    try {
+      const tabs = await chrome.tabs.query({ url: ['https://*.facebook.com/*'] })
+      fbTab = tabs[0]
+    } catch (e) {}
+
+    if (!fbTab) {
+      // Create a new tab
+      fbTab = await chrome.tabs.create({ url: 'https://www.facebook.com/', active: false })
+      await new Promise(r => setTimeout(r, 5000))
+    } else {
+      // Navigate existing tab to facebook.com
+      await chrome.tabs.update(fbTab.id, { url: 'https://www.facebook.com/' })
+      await new Promise(r => setTimeout(r, 5000))
+    }
+
+    // 3. Check if we're on login page and fill credentials
+    const loginResult = await chrome.scripting.executeScript({
+      target: { tabId: fbTab.id },
+      world: 'MAIN',
+      func: async (email, password) => {
+        try {
+          // Wait a moment for page to stabilize
+          await new Promise(r => setTimeout(r, 2000))
+
+          const url = window.location.href.toLowerCase()
+          const html = document.documentElement.innerHTML.toLowerCase()
+
+          // Check if already logged in (not on login page)
+          if (!url.includes('/login') && !url.includes('login.php') && !url.includes('/checkpoint')
+              && !html.includes('log in to facebook') && !html.includes('log into facebook')) {
+            // Might already be logged in after navigation
+            if (window.__accessToken || document.cookie.includes('c_user=')) {
+              return { status: 'already_logged_in' }
+            }
+          }
+
+          // Find email input
+          const emailInput = document.querySelector('input[name="email"], input[id="email"], input[type="email"], input[name="login_source"]')
+          if (!emailInput) {
+            return { status: 'no_login_form', error: 'Could not find email input on page' }
+          }
+
+          // Find password input
+          const passInput = document.querySelector('input[name="pass"], input[id="pass"], input[type="password"]')
+          if (!passInput) {
+            return { status: 'no_login_form', error: 'Could not find password input on page' }
+          }
+
+          // Fill in credentials using native input setter (works with React/FB forms)
+          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+          nativeInputValueSetter.call(emailInput, email)
+          emailInput.dispatchEvent(new Event('input', { bubbles: true }))
+          emailInput.dispatchEvent(new Event('change', { bubbles: true }))
+
+          await new Promise(r => setTimeout(r, 500))
+
+          nativeInputValueSetter.call(passInput, password)
+          passInput.dispatchEvent(new Event('input', { bubbles: true }))
+          passInput.dispatchEvent(new Event('change', { bubbles: true }))
+
+          await new Promise(r => setTimeout(r, 500))
+
+          // Find and click login button
+          const loginBtn = document.querySelector('button[name="login"], button[type="submit"], button[data-testid="royal_login_button"], input[type="submit"][value*="Log" i], button[id="loginbutton"]')
+          if (loginBtn) {
+            loginBtn.click()
+          } else {
+            // Fallback: press Enter
+            passInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
+          }
+
+          return { status: 'credentials_submitted' }
+        } catch (e) {
+          return { status: 'error', error: e.message }
+        }
+      },
+      args: [credentials.email, credentials.password]
+    })
+
+    const result = loginResult?.[0]?.result
+    if (!result) return { success: false, error: 'Login script returned no result' }
+
+    if (result.status === 'already_logged_in') {
+      console.log('[6AD] Already logged in after navigation!')
+      await addActivity('success', 'FB session restored — already logged in')
+      // Re-capture token
+      await tryCaptureFBToken()
+      return { success: true }
+    }
+
+    if (result.status === 'no_login_form') {
+      return { success: false, error: result.error || 'Login form not found on page' }
+    }
+
+    if (result.status === 'error') {
+      return { success: false, error: result.error || 'Error during login' }
+    }
+
+    // 4. Wait for page to load after login attempt
+    console.log('[6AD] Credentials submitted, waiting for page load...')
+    await new Promise(r => setTimeout(r, 8000))
+
+    // 5. Check if we hit a checkpoint/2FA page
+    const postLoginCheck = await chrome.scripting.executeScript({
+      target: { tabId: fbTab.id },
+      world: 'MAIN',
+      func: () => {
+        const url = window.location.href.toLowerCase()
+        const bodyText = document.body?.innerText?.toLowerCase() || ''
+        const html = document.documentElement.innerHTML.toLowerCase()
+
+        // Check for checkpoint / 2FA
+        if (url.includes('/checkpoint') || url.includes('/login/checkpoint')) {
+          const needsCode = /enter the code|enter.*code|confirmation code|security code|verify.*code|we sent|code.*sent/i.test(bodyText)
+          const isEmailOtp = /sent.*code.*email|email.*verification|sent.*to your email|sent.*code.*to.*@/i.test(bodyText)
+          if (needsCode) {
+            return { status: 'checkpoint_otp', isEmail: isEmailOtp }
+          }
+          return { status: 'checkpoint_other', bodyText: bodyText.substring(0, 300) }
+        }
+
+        // Check for wrong password
+        if (/incorrect password|wrong password|password.*incorrect|password.*wrong|didn.?t match/i.test(bodyText)) {
+          return { status: 'wrong_password' }
+        }
+
+        // Check if we're logged in now
+        if (document.cookie.includes('c_user=') || window.__accessToken) {
+          return { status: 'logged_in' }
+        }
+
+        // Check if still on login page
+        if (url.includes('/login') || url.includes('login.php')) {
+          return { status: 'still_login_page', bodyText: bodyText.substring(0, 300) }
+        }
+
+        // Assume logged in if we're on facebook.com main page
+        return { status: 'likely_logged_in', url: url }
+      }
+    })
+
+    const postResult = postLoginCheck?.[0]?.result
+    if (!postResult) return { success: false, error: 'Post-login check returned no result' }
+
+    console.log('[6AD] Post-login status:', postResult.status)
+
+    // Handle different post-login states
+    if (postResult.status === 'wrong_password') {
+      await addActivity('error', 'Auto-login failed: wrong password — update credentials in admin settings')
+      return { success: false, error: 'Wrong Facebook password — update in admin profile settings' }
+    }
+
+    if (postResult.status === 'checkpoint_otp') {
+      console.log('[6AD] 2FA/OTP checkpoint detected, attempting to read OTP via IMAP...')
+      await addActivity('info', '2FA checkpoint detected — fetching OTP from email...')
+
+      if (!credentials.hasImap) {
+        await addActivity('error', '2FA required but no IMAP configured — cannot auto-read OTP')
+        return { success: false, error: '2FA required but no IMAP credentials configured. Add IMAP settings in admin profile.' }
+      }
+
+      // Wait a few seconds for FB to send the email
+      await new Promise(r => setTimeout(r, 5000))
+
+      // Fetch OTP via API (server reads IMAP)
+      let otpResult
+      try {
+        otpResult = await apiRequest('/extension/fetch-otp', 'POST')
+      } catch (e) {
+        return { success: false, error: `Failed to fetch OTP: ${e.message}` }
+      }
+
+      if (!otpResult.otp) {
+        await addActivity('error', 'OTP not received in email within timeout')
+        return { success: false, error: 'OTP email not received within timeout. Check IMAP settings.' }
+      }
+
+      console.log('[6AD] OTP received:', otpResult.otp)
+      await addActivity('info', `OTP code received: ${otpResult.otp}`)
+
+      // Enter OTP code
+      const otpEnterResult = await chrome.scripting.executeScript({
+        target: { tabId: fbTab.id },
+        world: 'MAIN',
+        func: async (otp) => {
+          try {
+            // Find the OTP input
+            const codeInput = document.querySelector('input[name="approvals_code"], input[type="tel"], input[placeholder*="code" i], input[aria-label*="code" i], input[name="code"]')
+            if (!codeInput) {
+              // Try any visible text input
+              const inputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="tel"], input:not([type])')
+              for (const inp of inputs) {
+                const rect = inp.getBoundingClientRect()
+                if (rect.width > 0 && rect.height > 0 && inp.type !== 'hidden' && inp.name !== 'search') {
+                  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+                  nativeInputValueSetter.call(inp, otp)
+                  inp.dispatchEvent(new Event('input', { bubbles: true }))
+                  inp.dispatchEvent(new Event('change', { bubbles: true }))
+
+                  await new Promise(r => setTimeout(r, 500))
+
+                  // Click continue/submit button
+                  const buttons = document.querySelectorAll('button, [role="button"], input[type="submit"]')
+                  for (const btn of buttons) {
+                    const text = (btn.textContent?.trim().toLowerCase() || '') + ' ' + (btn.value?.toLowerCase() || '')
+                    if (/continue|submit|confirm|next|verify|send/i.test(text)) {
+                      const rect = btn.getBoundingClientRect()
+                      if (rect.width > 0 && rect.height > 0) {
+                        btn.click()
+                        return { status: 'otp_submitted' }
+                      }
+                    }
+                  }
+                  // Fallback: Enter key
+                  inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
+                  return { status: 'otp_submitted' }
+                }
+              }
+              return { status: 'no_input', error: 'Could not find OTP input field' }
+            }
+
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+            nativeInputValueSetter.call(codeInput, otp)
+            codeInput.dispatchEvent(new Event('input', { bubbles: true }))
+            codeInput.dispatchEvent(new Event('change', { bubbles: true }))
+
+            await new Promise(r => setTimeout(r, 500))
+
+            // Click continue/submit button
+            const buttons = document.querySelectorAll('button, [role="button"], input[type="submit"]')
+            for (const btn of buttons) {
+              const text = (btn.textContent?.trim().toLowerCase() || '') + ' ' + (btn.value?.toLowerCase() || '')
+              if (/continue|submit|confirm|next|verify|send/i.test(text)) {
+                const rect = btn.getBoundingClientRect()
+                if (rect.width > 0 && rect.height > 0) {
+                  btn.click()
+                  return { status: 'otp_submitted' }
+                }
+              }
+            }
+            // Fallback: Enter
+            codeInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
+            return { status: 'otp_submitted' }
+          } catch (e) {
+            return { status: 'error', error: e.message }
+          }
+        },
+        args: [otpResult.otp]
+      })
+
+      const otpResult2 = otpEnterResult?.[0]?.result
+      if (otpResult2?.status === 'no_input') {
+        return { success: false, error: 'OTP received but could not find input field on checkpoint page' }
+      }
+
+      // Wait for checkpoint to resolve
+      console.log('[6AD] OTP submitted, waiting for login to complete...')
+      await new Promise(r => setTimeout(r, 8000))
+    }
+
+    if (postResult.status === 'checkpoint_other') {
+      return { success: false, error: 'Facebook checkpoint detected that cannot be auto-handled. Manual intervention required.' }
+    }
+
+    // 6. Final check — are we logged in now?
+    const finalCheck = await chrome.scripting.executeScript({
+      target: { tabId: fbTab.id },
+      world: 'MAIN',
+      func: () => {
+        return {
+          hasCUser: document.cookie.includes('c_user='),
+          hasToken: !!window.__accessToken,
+          url: window.location.href
+        }
+      }
+    })
+
+    const final = finalCheck?.[0]?.result
+    if (final?.hasCUser || final?.hasToken) {
+      console.log('[6AD] Auto-login successful!')
+      await addActivity('success', 'Auto-login to Facebook successful!')
+
+      // Re-capture token
+      await tryCaptureFBToken()
+      await new Promise(r => setTimeout(r, 3000))
+
+      // Navigate to business.facebook.com for better token access
+      try {
+        await chrome.tabs.update(fbTab.id, { url: 'https://business.facebook.com/' })
+        await new Promise(r => setTimeout(r, 5000))
+        await attachDebuggerToFBTabs()
+        await tryCaptureFBToken()
+      } catch (e) {
+        console.log('[6AD] Post-login navigation warning:', e.message)
+      }
+
+      return { success: true }
+    }
+
+    return { success: false, error: 'Login completed but could not verify session. URL: ' + (final?.url || 'unknown') }
+  } catch (e) {
+    console.error('[6AD] Auto-login error:', e.message)
+    return { success: false, error: 'Auto-login error: ' + e.message }
+  }
+}
+
 async function checkAndProcessRecharges() {
   if (isProcessing) return
   isProcessing = true
@@ -564,26 +918,30 @@ async function checkAndProcessRecharges() {
     if (!config.apiKey || !config.isEnabled) return
 
     // Validate FB session BEFORE attempting any recharges
-    const session = await validateFbSession()
+    let session = await validateFbSession()
     if (!session.valid) {
-      const errorMsg = `FB session expired: ${session.error}`
-      console.error(`[6AD] ${errorMsg}`)
-      await addActivity('error', errorMsg)
+      console.warn(`[6AD] FB session invalid: ${session.error} — attempting auto-login...`)
+      await addActivity('warning', `FB session invalid: ${session.error}`)
 
-      // Claim and fail all pending recharges with clear reason
-      const result = await apiRequest('/extension/pending-recharges', 'GET')
-      const recharges = result.recharges || []
-      for (const recharge of recharges) {
-        try {
-          await apiRequest(`/extension/recharge/${recharge.depositId}/claim`, 'POST')
-          await apiRequest(`/extension/recharge/${recharge.depositId}/failed`, 'POST', {
-            error: errorMsg
-          })
-        } catch (e) {
-          console.error('[6AD] Failed to report session error for deposit:', e.message)
+      // Try auto-login
+      const loginResult = await autoLoginFacebook()
+      if (loginResult.success) {
+        // Re-validate after login
+        session = await validateFbSession()
+        if (!session.valid) {
+          const errorMsg = `Auto-login succeeded but session still invalid: ${session.error}`
+          console.error(`[6AD] ${errorMsg}`)
+          await addActivity('error', errorMsg)
+          await failAllPendingRecharges(errorMsg)
+          return
         }
+      } else {
+        const errorMsg = `Auto-login failed: ${loginResult.error}`
+        console.error(`[6AD] ${errorMsg}`)
+        await addActivity('error', errorMsg)
+        await failAllPendingRecharges(errorMsg)
+        return
       }
-      return
     }
 
     console.log(`[6AD] FB session valid (user: ${session.name || session.userId})`)
