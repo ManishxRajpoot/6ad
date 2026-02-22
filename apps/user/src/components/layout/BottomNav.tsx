@@ -1,9 +1,12 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Wallet, Bell, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { notificationsApi } from '@/lib/api'
+import { useSSEEvent } from '@/hooks/useSSEEvent'
 
 const HomeIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className || 'w-5 h-5'} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -27,6 +30,26 @@ const navItems = [
 
 export function BottomNav() {
   const pathname = usePathname()
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    notificationsApi.getUnreadCount()
+      .then(res => setUnreadCount(res.unreadCount))
+      .catch(() => {})
+    const interval = setInterval(() => {
+      notificationsApi.getUnreadCount()
+        .then(res => setUnreadCount(res.unreadCount))
+        .catch(() => {})
+    }, 120000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Real-time update via SSE
+  useSSEEvent('notification', () => {
+    notificationsApi.getUnreadCount()
+      .then(res => setUnreadCount(res.unreadCount))
+      .catch(() => {})
+  })
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard'
@@ -73,6 +96,7 @@ export function BottomNav() {
             {/* Right items */}
             {rightItems.map((item) => {
               const active = isActive(item.href)
+              const isAlerts = item.href === '/notifications'
               return (
                 <Link
                   key={item.href}
@@ -82,7 +106,14 @@ export function BottomNav() {
                     active ? 'text-[#52B788]' : 'text-gray-400'
                   )}
                 >
-                  <item.icon className="w-[22px] h-[22px]" />
+                  <div className="relative">
+                    <item.icon className="w-[22px] h-[22px]" />
+                    {isAlerts && unreadCount > 0 && (
+                      <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[10px] font-medium leading-none">{item.label}</span>
                 </Link>
               )
