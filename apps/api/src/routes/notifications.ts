@@ -99,6 +99,41 @@ notifications.patch('/read-all', verifyToken, async (c) => {
   }
 })
 
+// POST /notifications/self - Create a notification for the current user (for system events like mobile launch)
+notifications.post('/self', verifyToken, async (c) => {
+  try {
+    const userId = c.get('userId')
+    const { key, title, message, link } = await c.req.json()
+
+    if (!key || !title || !message) {
+      return c.json({ error: 'key, title and message are required' }, 400)
+    }
+
+    // Check if notification with this key already exists for user (prevent duplicates)
+    const existing = await prisma.notification.findFirst({
+      where: { userId, metadata: { contains: key } }
+    })
+
+    if (existing) {
+      return c.json({ success: true, alreadyExists: true })
+    }
+
+    await createNotification({
+      userId,
+      type: 'ANNOUNCEMENT',
+      title,
+      message,
+      link,
+      metadata: { key }
+    })
+
+    return c.json({ success: true })
+  } catch (error) {
+    console.error('Self notification error:', error)
+    return c.json({ error: 'Failed to create notification' }, 500)
+  }
+})
+
 // DELETE /notifications/:id - Delete a notification
 notifications.delete('/:id', verifyToken, async (c) => {
   try {

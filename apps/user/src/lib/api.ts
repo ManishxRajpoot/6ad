@@ -359,6 +359,8 @@ export const notificationsApi = {
   markAsRead: (id: string) => api.patch<{ success: boolean }>(`/notifications/${id}/read`, {}),
   markAllAsRead: () => api.patch<{ success: boolean }>('/notifications/read-all', {}),
   delete: (id: string) => api.delete<{ success: boolean }>(`/notifications/${id}`),
+  createSelf: (data: { key: string; title: string; message: string; link?: string }) =>
+    api.post<{ success: boolean; alreadyExists?: boolean }>('/notifications/self', data),
 }
 
 // Announcements API

@@ -11,6 +11,7 @@ import { AnnouncementBanner } from '@/components/ui/AnnouncementBanner'
 import { LiveChat } from '@/components/ui/LiveChat'
 import { ProfileSetupPrompt } from '@/components/ui/ProfileSetupPrompt'
 import { BottomNav } from './BottomNav'
+import { MobileLaunchPopup } from '@/components/ui/MobileLaunchPopup'
 
 type DashboardLayoutProps = {
   children: React.ReactNode
@@ -97,6 +98,9 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
 
       {/* Profile Picture Setup Prompt - Shows after 2FA setup is complete */}
       {!needs2FASetup && <ProfileSetupPrompt />}
+
+      {/* Mobile Launch Announcement - One time */}
+      <MobileLaunchPopup />
     </div>
   )
 }
