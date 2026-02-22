@@ -14,6 +14,7 @@ import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import { randomBytes } from 'crypto'
 import { getWorkerStatus } from '../services/adspower-worker.js'
 import { fetchFacebookOtp } from '../services/imap-reader.js'
+import * as OTPAuth from 'otpauth'
 
 const prisma = new PrismaClient()
 const extension = new Hono()
@@ -485,11 +486,10 @@ extension.get('/login-credentials', verifyExtensionKey, async (c) => {
       select: {
         fbLoginEmail: true,
         fbLoginPassword: true,
+        twoFactorSecret: true,
         imapHost: true,
-        imapPort: true,
         imapUser: true,
         imapPassword: true,
-        imapSecure: true,
       },
     })
 
@@ -500,6 +500,7 @@ extension.get('/login-credentials', verifyExtensionKey, async (c) => {
     return c.json({
       email: data.fbLoginEmail,
       password: data.fbLoginPassword,
+      has2fa: !!data.twoFactorSecret,
       hasImap: !!(data.imapHost && data.imapUser && data.imapPassword),
     })
   } catch (err: any) {
@@ -546,6 +547,39 @@ extension.post('/fetch-otp', verifyExtensionKey, async (c) => {
     return c.json({ otp })
   } catch (err: any) {
     console.error('[Auto-Login] Fetch OTP error:', err.message)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// GET /extension/generate-2fa - Generate TOTP 2FA code from stored secret
+extension.get('/generate-2fa', verifyExtensionKey, async (c) => {
+  try {
+    const profile = c.get('extensionProfile')
+    const data = await prisma.facebookAutomationProfile.findUnique({
+      where: { id: profile.id },
+      select: { label: true, twoFactorSecret: true },
+    })
+
+    if (!data?.twoFactorSecret) {
+      return c.json({ error: 'No 2FA secret configured for this profile' }, 404)
+    }
+
+    const totp = new OTPAuth.TOTP({
+      issuer: 'Facebook',
+      label: data.label || 'FB',
+      algorithm: 'SHA1',
+      digits: 6,
+      period: 30,
+      secret: OTPAuth.Secret.fromBase32(data.twoFactorSecret),
+    })
+
+    const code = totp.generate()
+    const remaining = 30 - (Math.floor(Date.now() / 1000) % 30)
+
+    console.log(`[Auto-Login] Generated 2FA code for profile "${data.label}": ${code} (${remaining}s remaining)`)
+    return c.json({ code, remaining })
+  } catch (err: any) {
+    console.error('[Auto-Login] Generate 2FA error:', err.message)
     return c.json({ error: err.message }, 500)
   }
 })

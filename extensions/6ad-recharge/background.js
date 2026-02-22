@@ -578,6 +578,46 @@ async function failAllPendingRecharges(errorMsg) {
 }
 
 /**
+ * Get a 2FA code — tries TOTP secret first (instant), falls back to IMAP email.
+ * Reusable by login flow, BM share flow, or any flow that needs 2FA.
+ * @returns {string|null} The 2FA/OTP code, or null if unavailable
+ */
+async function get2FACode() {
+  // Strategy 1: TOTP from 2FA secret (instant)
+  try {
+    const result = await apiRequest('/extension/generate-2fa', 'GET')
+    if (result.code) {
+      console.log(`[6AD] 2FA code from TOTP: ${result.code} (${result.remaining}s left)`)
+      // If code expires in < 5 seconds, wait for next code
+      if (result.remaining < 5) {
+        console.log('[6AD] Code expiring soon, waiting for next cycle...')
+        await new Promise(r => setTimeout(r, (result.remaining + 1) * 1000))
+        const retry = await apiRequest('/extension/generate-2fa', 'GET')
+        if (retry.code) return retry.code
+      }
+      return result.code
+    }
+  } catch (e) {
+    console.log('[6AD] TOTP not available:', e.message)
+  }
+
+  // Strategy 2: IMAP email OTP (fallback, slower)
+  try {
+    console.log('[6AD] Trying IMAP email OTP fallback...')
+    await new Promise(r => setTimeout(r, 5000)) // Wait for email delivery
+    const result = await apiRequest('/extension/fetch-otp', 'POST')
+    if (result.otp) {
+      console.log(`[6AD] OTP from email: ${result.otp}`)
+      return result.otp
+    }
+  } catch (e) {
+    console.log('[6AD] IMAP OTP not available:', e.message)
+  }
+
+  return null
+}
+
+/**
  * Auto-login to Facebook when session expires.
  * 1. Gets credentials from API
  * 2. Navigates to facebook.com
@@ -756,32 +796,18 @@ async function autoLoginFacebook() {
     }
 
     if (postResult.status === 'checkpoint_otp') {
-      console.log('[6AD] 2FA/OTP checkpoint detected, attempting to read OTP via IMAP...')
-      await addActivity('info', '2FA checkpoint detected — fetching OTP from email...')
+      console.log('[6AD] 2FA/OTP checkpoint detected')
+      await addActivity('info', '2FA checkpoint detected — getting code...')
 
-      if (!credentials.hasImap) {
-        await addActivity('error', '2FA required but no IMAP configured — cannot auto-read OTP')
-        return { success: false, error: '2FA required but no IMAP credentials configured. Add IMAP settings in admin profile.' }
+      const otpCode = await get2FACode()
+      if (!otpCode) {
+        const errorMsg = '2FA required but could not get code. Add twoFactorSecret (TOTP key) in admin profile settings.'
+        await addActivity('error', errorMsg)
+        return { success: false, error: errorMsg }
       }
 
-      // Wait a few seconds for FB to send the email
-      await new Promise(r => setTimeout(r, 5000))
-
-      // Fetch OTP via API (server reads IMAP)
-      let otpResult
-      try {
-        otpResult = await apiRequest('/extension/fetch-otp', 'POST')
-      } catch (e) {
-        return { success: false, error: `Failed to fetch OTP: ${e.message}` }
-      }
-
-      if (!otpResult.otp) {
-        await addActivity('error', 'OTP not received in email within timeout')
-        return { success: false, error: 'OTP email not received within timeout. Check IMAP settings.' }
-      }
-
-      console.log('[6AD] OTP received:', otpResult.otp)
-      await addActivity('info', `OTP code received: ${otpResult.otp}`)
+      await addActivity('info', `2FA code: ${otpCode}`)
+      console.log('[6AD] Using 2FA code:', otpCode)
 
       // Enter OTP code
       const otpEnterResult = await chrome.scripting.executeScript({
@@ -850,7 +876,7 @@ async function autoLoginFacebook() {
             return { status: 'error', error: e.message }
           }
         },
-        args: [otpResult.otp]
+        args: [otpCode]
       })
 
       const otpResult2 = otpEnterResult?.[0]?.result

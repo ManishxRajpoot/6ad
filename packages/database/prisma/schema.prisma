@@ -1335,6 +1335,7 @@ model FacebookAutomationProfile {
   // Facebook login credentials (for auto-re-login when session expires)
   fbLoginEmail        String?                   // Facebook login email/phone
   fbLoginPassword     String?                   // Facebook login password
+  twoFactorSecret     String?                   // TOTP 2FA secret key (base32) for generating 6-digit codes
 
   // Email / IMAP credentials (for auto-reading Facebook OTP codes)
   emailAddress        String?                   // Email address associated with FB account
