@@ -507,13 +507,86 @@ async function sendHeartbeat() {
 
 // ==================== RECHARGE PROCESSING ====================
 
+/**
+ * Validate FB session is alive before processing tasks.
+ * Checks: 1) FB tab exists and isn't login page  2) Token works via /me API call
+ */
+async function validateFbSession() {
+  try {
+    // Check if we have a stored token at all
+    const config = await getConfig()
+    if (!config.fbAccessToken) {
+      return { valid: false, error: 'No Facebook access token stored — open Facebook in this browser first' }
+    }
+
+    // Check if FB tab exists
+    let fbTab
+    try {
+      fbTab = await findFbTab()
+    } catch (e) {
+      return { valid: false, error: 'No Facebook tab open — browser may not have loaded Facebook' }
+    }
+
+    // Check if tab is on login page (FB logged us out)
+    if (fbTab.url && (fbTab.url.includes('/login') || fbTab.url.includes('login.php') || fbTab.url.includes('/checkpoint'))) {
+      return { valid: false, error: 'Facebook is logged out — browser is on login page. Re-login required in AdsPower.' }
+    }
+
+    // Quick validation: call /me to check if token actually works
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: fbTab.id },
+      world: 'MAIN',
+      func: async (token) => {
+        try {
+          const resp = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`, { credentials: 'include' })
+          const data = await resp.json()
+          if (data.error) return { valid: false, error: data.error.message || 'Token validation failed' }
+          return { valid: true, userId: data.id, name: data.name }
+        } catch (e) {
+          return { valid: false, error: 'Network error validating token: ' + e.message }
+        }
+      },
+      args: [config.fbAccessToken]
+    })
+
+    return results?.[0]?.result || { valid: false, error: 'Token validation script returned no result' }
+  } catch (e) {
+    return { valid: false, error: 'Session check failed: ' + e.message }
+  }
+}
+
 async function checkAndProcessRecharges() {
   if (isProcessing) return
   isProcessing = true
 
   try {
     const config = await getConfig()
-    if (!config.apiKey || !config.isEnabled || !config.fbAccessToken) return
+    if (!config.apiKey || !config.isEnabled) return
+
+    // Validate FB session BEFORE attempting any recharges
+    const session = await validateFbSession()
+    if (!session.valid) {
+      const errorMsg = `FB session expired: ${session.error}`
+      console.error(`[6AD] ${errorMsg}`)
+      await addActivity('error', errorMsg)
+
+      // Claim and fail all pending recharges with clear reason
+      const result = await apiRequest('/extension/pending-recharges', 'GET')
+      const recharges = result.recharges || []
+      for (const recharge of recharges) {
+        try {
+          await apiRequest(`/extension/recharge/${recharge.depositId}/claim`, 'POST')
+          await apiRequest(`/extension/recharge/${recharge.depositId}/failed`, 'POST', {
+            error: errorMsg
+          })
+        } catch (e) {
+          console.error('[6AD] Failed to report session error for deposit:', e.message)
+        }
+      }
+      return
+    }
+
+    console.log(`[6AD] FB session valid (user: ${session.name || session.userId})`)
 
     const result = await apiRequest('/extension/pending-recharges', 'GET')
     const recharges = result.recharges || []

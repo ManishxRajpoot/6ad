@@ -248,6 +248,11 @@ extension.post('/heartbeat', verifyExtensionKey, async (c) => {
       }).catch(() => 0),
     ])
 
+    // Warn if profile has no FB token but tasks are pending
+    if (!fbAccessToken && (pendingRecharges > 0 || pendingBmShares > 0)) {
+      console.warn(`[Extension] ⚠️ Profile "${profile.label}" has NO FB token but ${pendingRecharges} recharges + ${pendingBmShares} BM shares pending — FB may be logged out!`)
+    }
+
     return c.json({
       ok: true,
       profileId: profile.id,
