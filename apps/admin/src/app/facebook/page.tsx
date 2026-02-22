@@ -1387,7 +1387,10 @@ export default function FacebookPage() {
                         <td className="py-2.5 px-2 xl:px-3 text-gray-500 whitespace-nowrap">{formatDate(dep.createdAt)}</td>
                         <td className="py-2.5 px-2 xl:px-3">
                           {dep.status === 'APPROVED' && dep.rechargeStatus === 'FAILED' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700">
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 cursor-help"
+                              title={dep.rechargeError || 'Recharge failed'}
+                            >
                               <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                               Failed
                             </span>
@@ -1397,13 +1400,16 @@ export default function FacebookPage() {
                         </td>
                         <td className="py-2.5 px-2 xl:px-3 whitespace-nowrap">
                           {dep.status === 'APPROVED' && dep.rechargeMethod === 'EXTENSION' && (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                              dep.rechargeStatus === 'PENDING' ? 'bg-yellow-50 text-yellow-700' :
-                              dep.rechargeStatus === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 animate-pulse' :
-                              dep.rechargeStatus === 'COMPLETED' ? 'bg-green-50 text-green-700' :
-                              dep.rechargeStatus === 'FAILED' ? 'bg-red-50 text-red-700' :
-                              'bg-gray-50 text-gray-500'
-                            }`}>
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                dep.rechargeStatus === 'PENDING' ? 'bg-yellow-50 text-yellow-700' :
+                                dep.rechargeStatus === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 animate-pulse' :
+                                dep.rechargeStatus === 'COMPLETED' ? 'bg-green-50 text-green-700' :
+                                dep.rechargeStatus === 'FAILED' ? 'bg-red-50 text-red-700 cursor-help' :
+                                'bg-gray-50 text-gray-500'
+                              }`}
+                              title={dep.rechargeStatus === 'FAILED' && dep.rechargeError ? dep.rechargeError : undefined}
+                            >
                               {dep.rechargeStatus === 'PENDING' && 'Queued'}
                               {dep.rechargeStatus === 'IN_PROGRESS' && 'Working...'}
                               {dep.rechargeStatus === 'COMPLETED' && 'Done'}

@@ -1605,6 +1605,10 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
 accounts.post('/deposits/:id/retry-recharge', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
+    const existing = await prisma.accountDeposit.findUnique({ where: { id }, select: { rechargeError: true, applyId: true } })
+    if (existing?.rechargeError) {
+      console.log(`[Recharge Retry] Deposit ${id} (${existing.applyId || 'N/A'}) — previous error: ${existing.rechargeError}`)
+    }
     await prisma.accountDeposit.update({
       where: { id },
       data: {
@@ -1623,6 +1627,10 @@ accounts.post('/deposits/:id/retry-recharge', requireAdmin, async (c) => {
 accounts.post('/deposits/:id/force-approve', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
+    const existing = await prisma.accountDeposit.findUnique({ where: { id }, select: { rechargeError: true, applyId: true } })
+    if (existing?.rechargeError) {
+      console.log(`[Force Approve] Deposit ${id} (${existing.applyId || 'N/A'}) — previous error: ${existing.rechargeError}`)
+    }
     await prisma.accountDeposit.update({
       where: { id },
       data: {

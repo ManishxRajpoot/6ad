@@ -453,11 +453,13 @@ extension.post('/recharge/:id/failed', verifyExtensionKey, async (c) => {
   const id = c.req.param('id')
   try {
     const body = await c.req.json().catch(() => ({}))
+    const errorMsg = body.error || 'Extension recharge failed'
+    console.error(`[Recharge Failed] Deposit ${id}: ${errorMsg}`)
     await prisma.accountDeposit.update({
       where: { id },
       data: {
         rechargeStatus: 'FAILED',
-        rechargeError: body.error || 'Extension recharge failed',
+        rechargeError: errorMsg,
       }
     })
     return c.json({ ok: true })
