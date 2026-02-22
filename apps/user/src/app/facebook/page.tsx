@@ -1578,7 +1578,10 @@ export default function FacebookPage() {
 
       {/* ===== MOBILE VIEW ===== */}
       <div className="lg:hidden space-y-4 pb-4">
-        {/* Facebook Header */}
+        {/* Facebook Header - Sticky */}
+        <div
+          className="sticky top-[44px] z-20 -mx-4 px-4 pt-1 pb-3 bg-[#F8F9FA]"
+        >
         <div
           className="rounded-2xl overflow-hidden border border-gray-100"
           style={{ animation: 'mFadeUp 0.3s cubic-bezier(0.25,0.1,0.25,1) forwards' }}
@@ -1621,6 +1624,7 @@ export default function FacebookPage() {
             </div>
           </div>
         </div>
+        </div>{/* end sticky wrapper */}
 
         {/* Mobile Content */}
         {mobileView === 'accounts' ? (

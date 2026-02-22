@@ -3,6 +3,7 @@ import { PrismaClient, Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { verifyToken, requireUser, requireAdmin } from '../middleware/auth.js'
 import { processAdAccountApprovalReward } from '../services/referral-rewards.js'
+import { createNotification } from './notifications.js'
 
 const prisma = new PrismaClient()
 const applications = new Hono()
@@ -595,6 +596,15 @@ applications.post('/:id/approve', requireAdmin, async (c) => {
       await processAdAccountApprovalReward(application.userId, tx)
     })
 
+    // Send in-app notification
+    await createNotification({
+      userId: application.userId,
+      type: 'ACCOUNT_APPROVED',
+      title: 'Ad Account Approved',
+      message: `Your ad account application (${application.applyId}) has been approved.`,
+      link: '/facebook'
+    })
+
     return c.json({ message: 'Application approved and accounts created' })
   } catch (error) {
     console.error('Approve application error:', error)
@@ -663,6 +673,15 @@ applications.post('/:id/reject', requireAdmin, async (c) => {
       })
     })
 
+    // Send in-app notification
+    await createNotification({
+      userId: application.userId,
+      type: 'ACCOUNT_REJECTED',
+      title: 'Ad Account Rejected',
+      message: `Your ad account application (${application.applyId}) has been rejected.${adminRemarks ? ' Reason: ' + adminRemarks : ''}`,
+      link: '/facebook'
+    })
+
     return c.json({ message: 'Application rejected' + (refund ? ' and refunded' : '') })
   } catch (error) {
     console.error('Reject application error:', error)
@@ -725,6 +744,14 @@ applications.post('/bulk-approve', requireAdmin, async (c) => {
 
           // Process referral reward for ad account approval ($15 for first approval)
           await processAdAccountApprovalReward(application.userId, tx)
+        })
+
+        await createNotification({
+          userId: application.userId,
+          type: 'ACCOUNT_APPROVED',
+          title: 'Ad Account Approved',
+          message: `Your ad account application (${application.applyId}) has been approved.`,
+          link: '/facebook'
         })
 
         results.push({ id: appId, success: true })

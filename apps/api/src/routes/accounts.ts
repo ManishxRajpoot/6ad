@@ -26,6 +26,7 @@ const prisma = new PrismaClient()
 
 type Platform = 'FACEBOOK' | 'GOOGLE' | 'TIKTOK' | 'SNAPCHAT' | 'BING'
 import { verifyToken, requireAgent, requireAdmin, requireUser } from '../middleware/auth.js'
+import { createNotification } from './notifications.js'
 
 // Helper to get admin emails for notifications
 async function getAdminEmails(): Promise<string[]> {
@@ -1373,6 +1374,13 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
           sendEmail({ to: account.user.email, ...approvalEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(account.user.agent) }).catch(console.error)
 
           console.log(`[Auto-Approve] Deposit ${accountDeposit.id} auto-approved (${rechargeMethod})`)
+          await createNotification({
+            userId: account.userId,
+            type: 'DEPOSIT_APPROVED',
+            title: 'Ad Account Deposit Approved',
+            message: `Your deposit of $${Number(amount).toLocaleString()} for account ${account.accountName || account.accountId} has been auto-approved.`,
+            link: '/facebook'
+          })
           return c.json({ message: 'Deposit auto-approved', deposit: accountDeposit, autoApproved: true, rechargeMethod }, 201)
         } catch (err: any) {
           console.error('[Auto-Approve] Failed to auto-approve:', err.message)
@@ -1571,6 +1579,14 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
     })
     sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate, senderName: deposit.adAccount.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(deposit.adAccount.user.agent) }).catch(console.error)
 
+    await createNotification({
+      userId: deposit.adAccount.userId,
+      type: 'DEPOSIT_APPROVED',
+      title: 'Ad Account Deposit Approved',
+      message: `Your deposit of $${Number(deposit.amount).toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} has been approved.`,
+      link: '/facebook'
+    })
+
     return c.json({
       message: 'Account deposit approved',
       cheetahRecharge: cheetahRechargeResult?.code === 0 ? 'success' : (isCheetahAccount ? 'skipped' : 'not-cheetah'),
@@ -1705,6 +1721,14 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       agentBrandName: agentBrandNameReject
     })
     sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate, senderName: deposit.adAccount.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(deposit.adAccount.user.agent) }).catch(console.error)
+
+    await createNotification({
+      userId: deposit.adAccount.userId,
+      type: 'DEPOSIT_REJECTED',
+      title: 'Ad Account Deposit Rejected',
+      message: `Your deposit of $${depositAmount.toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} has been rejected and refunded.${adminRemarks ? ' Reason: ' + adminRemarks : ''}`,
+      link: '/facebook'
+    })
 
     return c.json({ message: 'Account deposit rejected and refunded' })
   } catch (error) {
@@ -1972,6 +1996,14 @@ accounts.post('/refunds/:id/approve', requireAdmin, async (c) => {
       sendEmail({ to: refund.adAccount.user.agent.email, ...agentNotification }).catch(console.error)
     }
 
+    await createNotification({
+      userId: refund.adAccount.userId,
+      type: 'REFUND_PROCESSED',
+      title: 'Refund Approved',
+      message: `Your refund of $${Number(refund.amount).toLocaleString()} for account ${refund.adAccount.accountName || refund.adAccount.accountId} has been approved.`,
+      link: '/facebook'
+    })
+
     return c.json({ message: 'Account refund approved' })
   } catch (error) {
     console.error('Approve account refund error:', error)
@@ -2106,6 +2138,14 @@ accounts.post('/refunds/:id/reject', requireAdmin, async (c) => {
       })
       sendEmail({ to: refund.adAccount.user.agent.email, ...agentNotification }).catch(console.error)
     }
+
+    await createNotification({
+      userId: refund.adAccount.userId,
+      type: 'REFUND_PROCESSED',
+      title: 'Refund Rejected',
+      message: `Your refund of $${Number(refund.amount).toLocaleString()} for account ${refund.adAccount.accountName || refund.adAccount.accountId} has been rejected.${adminRemarks ? ' Reason: ' + adminRemarks : ''}`,
+      link: '/facebook'
+    })
 
     return c.json({ message: 'Account refund rejected' })
   } catch (error) {
@@ -2242,6 +2282,14 @@ accounts.post('/transfers/:id/approve', requireAdmin, async (c) => {
       })
     })
 
+    await createNotification({
+      userId: transfer.userId,
+      type: 'SYSTEM',
+      title: 'Transfer Approved',
+      message: `Your balance transfer of $${Number(transfer.amount).toLocaleString()} has been approved.`,
+      link: '/facebook'
+    })
+
     return c.json({ message: 'Balance transfer approved' })
   } catch (error) {
     console.error('Approve balance transfer error:', error)
@@ -2309,6 +2357,14 @@ accounts.post('/transfers/:id/reject', requireAdmin, async (c) => {
         adminRemarks,
         rejectedAt: new Date()
       }
+    })
+
+    await createNotification({
+      userId: transfer.userId,
+      type: 'SYSTEM',
+      title: 'Transfer Rejected',
+      message: `Your balance transfer of $${Number(transfer.amount).toLocaleString()} has been rejected.${adminRemarks ? ' Reason: ' + adminRemarks : ''}`,
+      link: '/facebook'
     })
 
     return c.json({ message: 'Balance transfer rejected' })

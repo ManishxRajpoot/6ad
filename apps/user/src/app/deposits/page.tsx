@@ -96,7 +96,7 @@ export default function DepositsPage() {
   const [payLinkRequests, setPayLinkRequests] = useState<any[]>([])
   const [loadingPayLinks, setLoadingPayLinks] = useState(false)
   const [submittingPayLink, setSubmittingPayLink] = useState(false)
-  const [payLinkEnabled, setPayLinkEnabled] = useState(true)
+  const [payLinkEnabled, setPayLinkEnabled] = useState(false)
 
   // Wallet Flow from API
   const [walletFlows, setWalletFlows] = useState<any[]>([])
@@ -240,7 +240,15 @@ export default function DepositsPage() {
     }
   }, [showDepositModal])
 
-  // Fetch pay link requests and settings when tab changes
+  // Fetch pay link enabled setting on mount
+  useEffect(() => {
+    if (!isHydrated || !isAuthenticated) return
+    transactionsApi.settings.getPayLinkEnabled()
+      .then(data => setPayLinkEnabled(data.payLinkEnabled))
+      .catch(() => setPayLinkEnabled(false))
+  }, [isHydrated, isAuthenticated])
+
+  // Fetch pay link requests when tab changes
   useEffect(() => {
     if (!isHydrated || !isAuthenticated) return
 
@@ -248,12 +256,8 @@ export default function DepositsPage() {
       const fetchPayLinkData = async () => {
         setLoadingPayLinks(true)
         try {
-          const [requestsData, settingsData] = await Promise.all([
-            transactionsApi.payLinkRequests.getAll().catch(() => ({ payLinkRequests: [] })),
-            transactionsApi.settings.getPayLinkEnabled().catch(() => ({ payLinkEnabled: false }))
-          ])
+          const requestsData = await transactionsApi.payLinkRequests.getAll().catch(() => ({ payLinkRequests: [] }))
           setPayLinkRequests(requestsData.payLinkRequests || [])
-          setPayLinkEnabled(settingsData.payLinkEnabled)
         } catch (error) {
           // Silently handle errors
         } finally {
@@ -733,6 +737,8 @@ export default function DepositsPage() {
 
       {/* ===== MOBILE VIEW ===== */}
       <div className="lg:hidden space-y-4 pb-24" style={{ animation: 'mFadeUp 0.4s cubic-bezier(0.25,0.1,0.25,1) both' }}>
+        {/* Sticky Header: Balance + Stats */}
+        <div className="sticky top-[44px] z-20 -mx-4 px-4 pt-1 pb-3 bg-[#F8F9FA] space-y-3">
         {/* Balance + Actions Card */}
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="p-4 flex items-center gap-4">
@@ -749,16 +755,18 @@ export default function DepositsPage() {
           <div className="flex border-t border-gray-100">
             <button
               onClick={() => setShowDepositModal(true)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold text-[#52B788] active:bg-green-50 transition-colors border-r border-gray-100"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold text-[#52B788] active:bg-green-50 transition-colors ${payLinkEnabled ? 'border-r border-gray-100' : ''}`}
             >
               <Plus className="w-3.5 h-3.5" /> Add Money
             </button>
-            <button
-              onClick={() => { setActiveTab('pay-link'); setShowPayLinkModal(true) }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold text-gray-500 active:bg-gray-50 transition-colors"
-            >
-              <LinkIcon className="w-3.5 h-3.5" /> Pay Link
-            </button>
+            {payLinkEnabled && (
+              <button
+                onClick={() => { setActiveTab('pay-link'); setShowPayLinkModal(true) }}
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold text-gray-500 active:bg-gray-50 transition-colors"
+              >
+                <LinkIcon className="w-3.5 h-3.5" /> Pay Link
+              </button>
+            )}
           </div>
         </div>
 
@@ -787,12 +795,13 @@ export default function DepositsPage() {
             </div>
           </div>
         </div>
+        </div>{/* end sticky wrapper */}
 
         {/* Section Header with Tabs */}
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold text-[#1E293B]">Transactions</p>
           <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-            {(['add-money', 'pay-link', 'wallet-flow'] as Tab[]).map(t => (
+            {(['add-money', ...(payLinkEnabled ? ['pay-link'] : []), 'wallet-flow'] as Tab[]).map(t => (
               <button key={t} onClick={() => setActiveTab(t)}
                 className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${activeTab === t ? 'bg-white text-[#1E293B] shadow-sm' : 'text-gray-400'}`}>
                 {t === 'add-money' ? 'Deposits' : t === 'pay-link' ? 'Links' : 'Flow'}

@@ -16,6 +16,7 @@ import {
 
 const prisma = new PrismaClient()
 import { verifyToken, requireAgent, requireAdmin, requireUser } from '../middleware/auth.js'
+import { createNotification } from './notifications.js'
 
 // Helper to get admin emails for notifications
 async function getAdminEmails(): Promise<string[]> {
@@ -420,6 +421,15 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
       }
     }
 
+    // Send in-app notification
+    await createNotification({
+      userId: deposit.userId,
+      type: 'DEPOSIT_APPROVED',
+      title: 'Deposit Approved',
+      message: `Your deposit of $${Number(deposit.amount).toLocaleString()} has been approved. New balance: $${newBalance.toLocaleString()}`,
+      link: '/deposits'
+    })
+
     return c.json({ message: 'Deposit approved successfully' })
   } catch (error: any) {
     console.error('Approve deposit error:', error)
@@ -472,6 +482,15 @@ transactions.post('/deposits/:id/reject', requireAdmin, async (c) => {
       agentBrandName: agentBrandNameReject
     })
     sendEmail({ to: deposit.user.email, ...userEmailTemplate, senderName: deposit.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(deposit.user.agent) }).catch(console.error)
+
+    // Send in-app notification
+    await createNotification({
+      userId: deposit.userId,
+      type: 'DEPOSIT_REJECTED',
+      title: 'Deposit Rejected',
+      message: `Your deposit of $${Number(deposit.amount).toLocaleString()} has been rejected.${adminRemarks ? ' Reason: ' + adminRemarks : ''}`,
+      link: '/deposits'
+    })
 
     return c.json({ message: 'Deposit rejected' })
   } catch (error) {
@@ -581,6 +600,17 @@ transactions.post('/deposits/bulk-approve', requireAdmin, async (c) => {
       }
     })
 
+    // Send notifications for each deposit
+    for (const deposit of deposits) {
+      await createNotification({
+        userId: deposit.userId,
+        type: 'DEPOSIT_APPROVED',
+        title: 'Deposit Approved',
+        message: `Your deposit of $${Number(deposit.amount).toLocaleString()} has been approved.`,
+        link: '/deposits'
+      })
+    }
+
     return c.json({ message: `${deposits.length} deposits approved successfully`, count: deposits.length })
   } catch (error) {
     console.error('Bulk approve deposits error:', error)
@@ -597,6 +627,12 @@ transactions.post('/deposits/bulk-reject', requireAdmin, async (c) => {
       return c.json({ error: 'No deposits selected' }, 400)
     }
 
+    // Get deposits before updating so we have userIds
+    const deposits = await prisma.deposit.findMany({
+      where: { id: { in: ids }, status: 'PENDING' },
+      select: { id: true, userId: true, amount: true }
+    })
+
     const result = await prisma.deposit.updateMany({
       where: { id: { in: ids }, status: 'PENDING' },
       data: {
@@ -605,6 +641,17 @@ transactions.post('/deposits/bulk-reject', requireAdmin, async (c) => {
         rejectedAt: new Date()
       }
     })
+
+    // Send notifications
+    for (const deposit of deposits) {
+      await createNotification({
+        userId: deposit.userId,
+        type: 'DEPOSIT_REJECTED',
+        title: 'Deposit Rejected',
+        message: `Your deposit of $${Number(deposit.amount).toLocaleString()} has been rejected.${reason ? ' Reason: ' + reason : ''}`,
+        link: '/deposits'
+      })
+    }
 
     return c.json({ message: `${result.count} deposits rejected`, count: result.count })
   } catch (error) {
@@ -1174,6 +1221,14 @@ transactions.post('/withdrawals/:id/approve', requireAdmin, async (c) => {
       })
     })
 
+    await createNotification({
+      userId: withdrawal.userId,
+      type: 'SYSTEM',
+      title: 'Withdrawal Approved',
+      message: `Your withdrawal of $${Number(withdrawal.amount).toLocaleString()} has been approved.`,
+      link: '/withdrawals'
+    })
+
     return c.json({ message: 'Withdrawal approved successfully' })
   } catch (error) {
     console.error('Approve withdrawal error:', error)
@@ -1187,13 +1242,21 @@ transactions.post('/withdrawals/:id/reject', requireAdmin, async (c) => {
     const { id } = c.req.param()
     const { adminRemarks } = await c.req.json()
 
-    await prisma.withdrawal.update({
+    const withdrawal = await prisma.withdrawal.update({
       where: { id },
       data: {
         status: 'REJECTED',
         adminRemarks,
         rejectedAt: new Date()
       }
+    })
+
+    await createNotification({
+      userId: withdrawal.userId,
+      type: 'SYSTEM',
+      title: 'Withdrawal Rejected',
+      message: `Your withdrawal of $${Number(withdrawal.amount).toLocaleString()} has been rejected.${adminRemarks ? ' Reason: ' + adminRemarks : ''}`,
+      link: '/withdrawals'
     })
 
     return c.json({ message: 'Withdrawal rejected' })

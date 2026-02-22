@@ -12,6 +12,8 @@ import {
   getAdminNotificationTemplate
 } from '../utils/email.js'
 
+import { createNotification } from './notifications.js'
+
 const prisma = new PrismaClient()
 const bmShare = new Hono()
 
@@ -467,6 +469,14 @@ bmShare.post('/:id/approve', requireAdmin, async (c) => {
     })
     sendEmail({ to: request.user.email, ...userEmailTemplate, senderName: request.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(request.user.agent) }).catch(console.error)
 
+    await createNotification({
+      userId: request.userId,
+      type: 'ACCOUNT_APPROVED',
+      title: 'BM Share Approved',
+      message: `Your BM share request for account ${request.adAccountId} has been approved.`,
+      link: '/facebook?page=bm-share-log'
+    })
+
     return c.json({ message: 'BM share request approved.' + apiMessage })
   } catch (error) {
     console.error('Approve BM share request error:', error)
@@ -517,6 +527,14 @@ bmShare.post('/:id/reject', requireAdmin, async (c) => {
       agentBrandName: agentBrandNameReject
     })
     sendEmail({ to: request.user.email, ...userEmailTemplate, senderName: request.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(request.user.agent) }).catch(console.error)
+
+    await createNotification({
+      userId: request.userId,
+      type: 'ACCOUNT_REJECTED',
+      title: 'BM Share Rejected',
+      message: `Your BM share request for account ${request.adAccountId} has been rejected.${adminRemarks ? ' Reason: ' + adminRemarks : ''}`,
+      link: '/facebook?page=bm-share-log'
+    })
 
     return c.json({ message: 'BM share request rejected' })
   } catch (error) {
