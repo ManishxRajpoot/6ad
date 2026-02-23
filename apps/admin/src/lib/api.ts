@@ -152,7 +152,7 @@ export const usersApi = {
 // Transactions API
 export const transactionsApi = {
   deposits: {
-    getAll: () => api.get<{ deposits: any[] }>('/transactions/deposits'),
+    getAll: () => api.get<{ deposits: any[] }>('/transactions/deposits?limit=10000'),
     approve: (id: string) => api.post<{ deposit: any }>(`/transactions/deposits/${id}/approve`, {}),
     reject: (id: string, reason: string) => api.post<{ deposit: any }>(`/transactions/deposits/${id}/reject`, { adminRemarks: reason }),
     update: (id: string, data: { amount?: number; createdAt?: string }) => api.patch<{ deposit: any }>(`/transactions/deposits/${id}`, data),
@@ -160,12 +160,12 @@ export const transactionsApi = {
     bulkReject: (ids: string[], reason?: string) => api.post<{ message: string; count: number }>('/transactions/deposits/bulk-reject', { ids, reason }),
   },
   withdrawals: {
-    getAll: () => api.get<{ withdrawals: any[] }>('/transactions/withdrawals'),
+    getAll: () => api.get<{ withdrawals: any[] }>('/transactions/withdrawals?limit=10000'),
     approve: (id: string) => api.post<{ withdrawal: any }>(`/transactions/withdrawals/${id}/approve`, {}),
     reject: (id: string, reason: string) => api.post<{ withdrawal: any }>(`/transactions/withdrawals/${id}/reject`, { adminRemarks: reason }),
   },
   refunds: {
-    getAll: () => api.get<{ refunds: any[] }>('/transactions/refunds'),
+    getAll: () => api.get<{ refunds: any[] }>('/transactions/refunds?limit=10000'),
     approve: (id: string) => api.post<{ refund: any }>(`/transactions/refunds/${id}/approve`, {}),
     reject: (id: string, reason: string) => api.post<{ refund: any }>(`/transactions/refunds/${id}/reject`, { adminRemarks: reason }),
   },

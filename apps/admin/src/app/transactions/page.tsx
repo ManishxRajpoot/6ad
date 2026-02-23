@@ -1237,30 +1237,30 @@ export default function TransactionsPage() {
             </table>
           ) : (
             /* Deposits/Refunds Table */
-            <table className="w-full text-sm xl:text-[13px]">
+            <table className="w-full text-xs">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
-                  <th className="py-2.5 px-2 xl:px-3 text-left bg-gray-50">
+                  <th className="py-2 px-1.5 text-left bg-gray-50 w-8">
                     <input
                       type="checkbox"
                       checked={selectedRows.length === paginatedData.length && paginatedData.length > 0}
                       onChange={handleSelectAll}
-                      className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
                     />
                   </th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">#</th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">User</th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Apply ID</th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50 hidden 2xl:table-cell">Transaction ID</th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">
-                    {activeTab === 'deposits' ? 'Deposit Amount' : 'Refund Amount'}
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50 w-8">#</th>
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50">User</th>
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50">Apply ID</th>
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50 hidden 2xl:table-cell">Txn ID</th>
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50">
+                    {activeTab === 'deposits' ? 'Amount' : 'Amount'}
                   </th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Payway</th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50 hidden 2xl:table-cell">Remarks</th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50 hidden 2xl:table-cell">Image</th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Date</th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Status</th>
-                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Action</th>
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50">Payway</th>
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50">Remarks</th>
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50 hidden 2xl:table-cell">Image</th>
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50">Date</th>
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50">Status</th>
+                  <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] bg-gray-50">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -1271,38 +1271,38 @@ export default function TransactionsPage() {
                       className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate"
                       style={{ animationDelay: `${index * 20}ms` }}
                     >
-                      <td className="py-2.5 px-2 xl:px-3">
+                      <td className="py-2 px-1.5">
                         <input
                           type="checkbox"
                           checked={selectedRows.includes(transaction.id)}
                           onChange={() => handleSelectRow(transaction.id)}
-                          className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
                         />
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3 text-gray-500">
+                      <td className="py-2 px-1.5 text-gray-500">
                         {startIndex + index + 1}
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-medium text-white shadow-sm">
+                      <td className="py-2 px-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-violet-500 to-indigo-600 text-[10px] font-medium text-white shadow-sm">
                             {transaction.user?.username?.charAt(0).toUpperCase() || 'U'}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-gray-900 truncate max-w-[100px] lg:max-w-[130px]">{transaction.user?.username || 'User'}</p>
-                            <p className="text-gray-500 text-sm truncate">{transaction.user?.email}</p>
+                            <p className="font-semibold text-gray-900 truncate max-w-[90px]">{transaction.user?.username || 'User'}</p>
+                            <p className="text-gray-500 text-[10px] truncate max-w-[90px]">{transaction.user?.email}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3">
-                        <span className="text-xs text-gray-700 font-mono bg-gray-50 px-2 py-0.5 rounded whitespace-nowrap">
+                      <td className="py-2 px-1.5">
+                        <span className="text-[10px] text-gray-700 font-mono bg-gray-50 px-1.5 py-0.5 rounded whitespace-nowrap">
                           {transaction.applyId || `WD${transaction.id.slice(-8).toUpperCase()}`}
                         </span>
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3 hidden 2xl:table-cell">
+                      <td className="py-2 px-1.5 hidden 2xl:table-cell">
                         {transaction.transactionId ? (
                           <div className="relative inline-block">
                             <span
-                              className="text-xs text-gray-600 font-mono bg-gray-50 px-2 py-0.5 rounded truncate max-w-[120px] block cursor-pointer hover:bg-gray-100 transition-colors"
+                              className="text-[10px] text-gray-600 font-mono bg-gray-50 px-1.5 py-0.5 rounded truncate max-w-[100px] block cursor-pointer hover:bg-gray-100 transition-colors"
                               onMouseEnter={(e) => {
                                 const rect = e.currentTarget.getBoundingClientRect()
                                 setTooltipId(transaction.id)
@@ -1313,8 +1313,8 @@ export default function TransactionsPage() {
                                 setTooltipPosition(null)
                               }}
                             >
-                              {transaction.transactionId.length > 16
-                                ? `${transaction.transactionId.slice(0, 8)}...${transaction.transactionId.slice(-4)}`
+                              {transaction.transactionId.length > 14
+                                ? `${transaction.transactionId.slice(0, 6)}...${transaction.transactionId.slice(-4)}`
                                 : transaction.transactionId}
                             </span>
                             {tooltipId === transaction.id && tooltipPosition && (
@@ -1334,8 +1334,8 @@ export default function TransactionsPage() {
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3">
-                        <div className="flex items-center gap-2">
+                      <td className="py-2 px-1.5">
+                        <div className="flex items-center gap-1">
                           <span className={cn(
                             'font-semibold',
                             activeTab === 'deposits'
@@ -1351,37 +1351,37 @@ export default function TransactionsPage() {
                           {transaction.status === 'PENDING' && activeTab === 'deposits' && (
                             <button
                               onClick={() => openEditModal(transaction)}
-                              className="p-1 rounded hover:bg-gray-100 transition-colors"
+                              className="p-0.5 rounded hover:bg-gray-100 transition-colors"
                               title="Edit Amount"
                             >
-                              <Pencil className="h-3.5 w-3.5 text-gray-400 hover:text-violet-600" />
+                              <Pencil className="h-3 w-3 text-gray-400 hover:text-violet-600" />
                             </button>
                           )}
                         </div>
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3">
+                      <td className="py-2 px-1.5">
                         {transaction.paymentMethod ? (
-                          <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap">
+                          <span className="text-[10px] font-medium text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded whitespace-nowrap">
                             {transaction.paymentMethod}
                           </span>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3 hidden 2xl:table-cell">
+                      <td className="py-2 px-1.5">
                         {transaction.remarks ? (
-                          <span className="text-xs text-gray-600 truncate max-w-[150px] block" title={transaction.remarks}>
-                            {transaction.remarks}
+                          <span className="text-[10px] text-gray-600 truncate max-w-[120px] block" title={transaction.remarks}>
+                            {transaction.remarks.length > 20 ? `${transaction.remarks.slice(0, 20)}...` : transaction.remarks}
                           </span>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3 hidden 2xl:table-cell">
+                      <td className="py-2 px-1.5 hidden 2xl:table-cell">
                         {(transaction.paymentProof || transaction.proofUrl) ? (
                           <button
                             onClick={() => openImageModal(transaction.paymentProof || transaction.proofUrl!)}
-                            className="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors overflow-hidden"
+                            className="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors overflow-hidden"
                           >
                             <img
                               src={transaction.paymentProof || transaction.proofUrl!}
@@ -1392,49 +1392,38 @@ export default function TransactionsPage() {
                                 (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
                               }}
                             />
-                            <ImageIcon className="h-4 w-4 text-gray-500 hidden" />
+                            <ImageIcon className="h-3.5 w-3.5 text-gray-500 hidden" />
                           </button>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-500 whitespace-nowrap">
-                            {formatDateTime(transaction.createdAt)}
-                          </span>
-                          {transaction.status === 'PENDING' && activeTab === 'deposits' && (
-                            <button
-                              onClick={() => openEditModal(transaction)}
-                              className="p-1 rounded hover:bg-gray-100 transition-colors"
-                              title="Edit Date"
-                            >
-                              <Pencil className="h-3.5 w-3.5 text-gray-400 hover:text-violet-600" />
-                            </button>
-                          )}
-                        </div>
+                      <td className="py-2 px-1.5">
+                        <span className="text-gray-500 whitespace-nowrap text-[10px]">
+                          {formatDateTime(transaction.createdAt)}
+                        </span>
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3">
+                      <td className="py-2 px-1.5">
                         {getStatusBadge(transaction.status)}
                       </td>
-                      <td className="py-2.5 px-2 xl:px-3">
+                      <td className="py-2 px-1.5">
                         {transaction.status === 'PENDING' ? (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
                             <button
                               onClick={() => handleApprove(transaction.id, activeTab)}
                               disabled={actionLoading}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 text-green-600 transition-colors hover:bg-green-200 disabled:opacity-50"
+                              className="flex h-7 w-7 items-center justify-center rounded-md bg-green-100 text-green-600 transition-colors hover:bg-green-200 disabled:opacity-50"
                               title="Approve"
                             >
-                              <Check className="h-4 w-4" />
+                              <Check className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => openRejectModal(transaction.id, activeTab)}
                               disabled={actionLoading}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100 text-red-600 transition-colors hover:bg-red-200 disabled:opacity-50"
+                              className="flex h-7 w-7 items-center justify-center rounded-md bg-red-100 text-red-600 transition-colors hover:bg-red-200 disabled:opacity-50"
                               title="Reject"
                             >
-                              <X className="h-4 w-4" />
+                              <X className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         ) : (
