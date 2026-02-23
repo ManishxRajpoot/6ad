@@ -87,10 +87,74 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
   return response.json()
 }
 
+// ==================== TOKEN ERROR DETECTION ====================
+
+function isTokenError(errorMessage) {
+  if (!errorMessage) return false
+  const msg = errorMessage.toLowerCase()
+  return (
+    msg.includes('error validating access token') ||
+    msg.includes('malformed access token') ||
+    msg.includes('invalid oauth 2.0 access token') ||
+    msg.includes('the access token could not be decrypted') ||
+    msg.includes('session has expired') ||
+    msg.includes('session is invalid') ||
+    /code[:\s]*190/.test(msg) ||
+    /oauthexception.*190/.test(msg)
+  )
+}
+
+function isFbTokenError(responseData) {
+  if (!responseData?.error?.message) return false
+  if (responseData.error.code === 190) return true
+  return isTokenError(responseData.error.message)
+}
+
+// ==================== DIRECT GRAPH API (SERVICE WORKER) ====================
+
+/**
+ * Make a Graph API request directly from the service worker.
+ * Graph API only needs access_token param — no cookies required.
+ * Works even when no tabs are open.
+ */
+async function fbGraphFetch(path, accessToken, options = {}) {
+  const method = options.method || 'GET'
+  const baseUrl = `https://graph.facebook.com${path}`
+
+  let url, fetchOptions
+
+  if (method === 'GET') {
+    const params = new URLSearchParams(options.params || {})
+    params.set('access_token', accessToken)
+    url = `${baseUrl}?${params.toString()}`
+    fetchOptions = { method: 'GET' }
+  } else {
+    url = baseUrl
+    const body = new URLSearchParams(options.params || {})
+    body.set('access_token', accessToken)
+    fetchOptions = {
+      method,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    }
+  }
+
+  const resp = await fetch(url, fetchOptions)
+  const text = await resp.text()
+
+  let data
+  try {
+    data = JSON.parse(text)
+  } catch {
+    throw new Error('Invalid JSON from Facebook: ' + text.substring(0, 200))
+  }
+
+  return data
+}
+
 // ==================== TOKEN CAPTURE ====================
 // Primary method: Extract __accessToken from Facebook page's JS runtime via chrome.scripting
 // Backup: Debugger intercepts network requests for EAA tokens
-// This is the same approach that SMIT/sMeta extensions use — no public Graph API calls from service worker
 
 async function tryCaptureFBToken() {
   try {
@@ -125,19 +189,15 @@ async function tryCaptureFBToken() {
                 result.source = '__accessToken'
               }
 
-              // 2. Fallback: search HTML for EAA tokens
-              if (!result.token) {
-                const tokens = []
-                const regex = /["']?(EAA[a-zA-Z0-9]{40,})["']?/g
-                let m
-                while ((m = regex.exec(html)) !== null) {
-                  tokens.push(m[1])
-                }
-                if (tokens.length > 0) {
-                  tokens.sort((a, b) => b.length - a.length)
-                  result.token = tokens[0]
-                  result.source = 'html'
-                }
+              // 2. Fallback: Try Facebook's require system
+              if (!result.token && typeof require === 'function') {
+                try {
+                  const mod = require('CurrentAccessToken')
+                  if (mod && mod.getToken) {
+                    result.token = mod.getToken()
+                    result.source = 'require'
+                  }
+                } catch(e) {}
               }
 
               // 3. Get user info
@@ -155,7 +215,7 @@ async function tryCaptureFBToken() {
         })
 
         const result = results?.[0]?.result
-        if (result && result.token && result.token.startsWith('EAA') && result.token.length >= 20) {
+        if (result && result.token && result.token.startsWith('EAA') && result.token.length >= 40) {
           console.log(`[6AD] Token captured via ${result.source} (length: ${result.token.length})`)
           await handleTokenCapture(result.token)
 
@@ -230,26 +290,25 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
     const postData = params.request?.postData || ''
     const headers = params.request?.headers || {}
 
-    // Check Authorization header too
+    // Check Authorization header
     const authHeader = headers['Authorization'] || headers['authorization'] || ''
     if (authHeader.includes('EAA')) {
       const authMatch = authHeader.match(/EAA[a-zA-Z0-9]{20,}/)
       if (authMatch) {
-        validateAndSaveToken(authMatch[0])
+        validateAndSaveToken(authMatch[0], 'auth_header')
         return
       }
     }
 
-    // Extract token from URL or POST body
-    // Token can contain a-z, A-Z, 0-9 and may be URL-encoded
+    // Extract token from URL or POST body (access_token= parameter only)
     const tokenRegex = /access_token=(EAA[a-zA-Z0-9%_.-]+)/
 
     const urlMatch = url.match(tokenRegex)
     if (urlMatch) {
       try {
         const token = decodeURIComponent(urlMatch[1])
-        validateAndSaveToken(token)
-      } catch { validateAndSaveToken(urlMatch[1]) }
+        validateAndSaveToken(token, 'access_token_param')
+      } catch { validateAndSaveToken(urlMatch[1], 'access_token_param') }
       return
     }
 
@@ -257,65 +316,41 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
     if (bodyMatch) {
       try {
         const token = decodeURIComponent(bodyMatch[1])
-        validateAndSaveToken(token)
-      } catch { validateAndSaveToken(bodyMatch[1]) }
+        validateAndSaveToken(token, 'access_token_param')
+      } catch { validateAndSaveToken(bodyMatch[1], 'access_token_param') }
       return
     }
 
-    // Broader match in any part of the data (lowered threshold from 50 to 20 chars)
-    const combined = url + ' ' + postData
-    const anyMatch = combined.match(/EAA[a-zA-Z0-9%_.-]{20,}/)
-    if (anyMatch) {
-      try {
-        const token = decodeURIComponent(anyMatch[0])
-        validateAndSaveToken(token)
-      } catch { validateAndSaveToken(anyMatch[0]) }
-    }
-  }
-
-  // Also try to get tokens from response bodies
-  if (method === 'Network.responseReceived') {
-    const url = params.response?.url || ''
-    // Only check graph.facebook.com or facebook.com API responses
-    if (url.includes('facebook.com') || url.includes('fbcdn.net')) {
-      try {
-        const requestId = params.requestId
-        if (requestId && source.tabId) {
-          const responseBody = await chrome.debugger.sendCommand(
-            { tabId: source.tabId },
-            'Network.getResponseBody',
-            { requestId }
-          )
-          if (responseBody && responseBody.body) {
-            const bodyStr = responseBody.body.substring(0, 5000) // Only check first 5KB
-            const tokenMatch = bodyStr.match(/EAA[a-zA-Z0-9]{20,}/)
-            if (tokenMatch) {
-              validateAndSaveToken(tokenMatch[0])
-            }
-          }
-        }
-      } catch {
-        // Response body might not be available yet or already gone
-      }
-    }
+    // Removed: broad fallback regex and response body scanning
+    // These were capturing binary/encoded data from CSS/JS bundles that matched EAA pattern
   }
 })
 
 // Token collection — Facebook pages emit many different EAA tokens.
-// We collect them over a short window and pick the LONGEST one (the main user token).
-let collectedTokens = []
+// We collect them over a short window and pick the best one from trusted sources.
+let collectedTokens = [] // { token, source } objects
 let tokenCollectionTimer = null
 let savedTokenSet = new Set() // Avoid re-processing tokens we already saved
 
-async function validateAndSaveToken(token) {
+async function validateAndSaveToken(token, source) {
   if (!token || token.indexOf('EAA') !== 0 || token.length < 20) return
   // Skip very short tokens (likely app tokens, not user tokens)
   if (token.length < 40) return
+  // Reject garbage: real FB tokens are strictly alphanumeric (a-z, A-Z, 0-9)
+  if (!/^EAA[a-zA-Z0-9]+$/.test(token)) {
+    console.log('[6AD] Rejecting token with non-alphanumeric chars (length:', token.length, ')')
+    return
+  }
+  // Reject suspiciously long tokens — real FB tokens are ~150-250 chars
+  if (token.length > 500) {
+    console.log('[6AD] Rejecting suspiciously long token (length:', token.length, ')')
+    return
+  }
   // Skip tokens we've already processed
   if (savedTokenSet.has(token)) return
 
-  console.log('[6AD] EAA token seen (length:', token.length, ')')
-  collectedTokens.push(token)
+  console.log('[6AD] EAA token seen (length:', token.length, ', source:', source || 'unknown', ')')
+  collectedTokens.push({ token, source: source || 'unknown' })
 
   // Debounce — wait 3 seconds after last token, then pick the best one
   if (tokenCollectionTimer) clearTimeout(tokenCollectionTimer)
@@ -325,37 +360,64 @@ async function validateAndSaveToken(token) {
 async function pickBestToken() {
   if (collectedTokens.length === 0) return
 
-  // Pick the longest token — Facebook's main user access token is the longest
-  const sorted = [...collectedTokens].sort((a, b) => b.length - a.length)
-  const bestToken = sorted[0]
+  // Source priority: access_token param > auth header > __accessToken > html
+  const sourcePriority = { 'access_token_param': 1, 'auth_header': 2, '__accessToken': 3, 'html': 4, 'unknown': 5 }
+
+  // Sort by source priority first, then by length (longer = better within same priority)
+  const sorted = [...collectedTokens].sort((a, b) => {
+    const pa = sourcePriority[a.source] || 5
+    const pb = sourcePriority[b.source] || 5
+    if (pa !== pb) return pa - pb
+    return b.token.length - a.token.length
+  })
 
   // Mark all collected tokens as processed
   for (const t of collectedTokens) {
-    savedTokenSet.add(t)
+    savedTokenSet.add(t.token)
   }
   collectedTokens = []
 
-  // Only save if it's different from current OR longer
-  const config = await getConfig()
-  if (bestToken === config.fbAccessToken) return
-  if (config.fbAccessToken && bestToken.length < config.fbAccessToken.length) {
-    console.log('[6AD] Skipping shorter token (current:', config.fbAccessToken.length, 'new:', bestToken.length, ')')
+  // Try each candidate — validate with /me API before accepting
+  let bestToken = null
+  for (const candidate of sorted) {
+    const config = await getConfig()
+    if (candidate.token === config.fbAccessToken) return // Already have this one
+
+    // Quick validation: call /me to check if token actually works
+    try {
+      const resp = await fetch(`https://graph.facebook.com/me?access_token=${encodeURIComponent(candidate.token)}`)
+      const data = await resp.json()
+      if (data.id) {
+        bestToken = candidate.token
+        console.log('[6AD] Token validated via /me API (user:', data.id, ', source:', candidate.source, ', length:', candidate.token.length, ')')
+        break
+      } else {
+        console.log('[6AD] Token failed /me validation (source:', candidate.source, ', length:', candidate.token.length, ', error:', data.error?.message?.substring(0, 80) || 'unknown', ')')
+      }
+    } catch (e) {
+      console.log('[6AD] Token /me validation error:', e.message, '(source:', candidate.source, ')')
+    }
+  }
+
+  if (!bestToken) {
+    console.log('[6AD] No valid token found from', sorted.length, 'candidates')
     return
   }
 
   console.log('[6AD] Best token selected (length:', bestToken.length, 'from', sorted.length, 'candidates)')
-  await handleTokenCapture(bestToken)
+  await handleTokenCapture(bestToken, true) // skipValidation=true — already validated via /me above
 
   // Get user info from cookies instead of Graph API
   try {
+    const currentConfig = await getConfig()
     const cookies = await chrome.cookies.getAll({ domain: '.facebook.com' })
     const cUser = cookies.find(c => c.name === 'c_user')
     if (cUser) {
       const updates = {}
-      if (cUser.value !== config.fbUserId) {
+      if (cUser.value !== currentConfig.fbUserId) {
         updates.fbUserId = cUser.value
       }
-      if (!config.fbUserName || config.fbUserName === 'Not connected') {
+      if (!currentConfig.fbUserName || currentConfig.fbUserName === 'Not connected') {
         updates.fbUserName = 'FB User ' + cUser.value
       }
       if (Object.keys(updates).length > 0) {
@@ -382,6 +444,88 @@ chrome.debugger.onDetach.addListener((source, reason) => {
   }
 })
 
+// ==================== TOKEN RECAPTURE ====================
+
+/**
+ * Recapture a fresh Facebook access token when the stored one is bad/expired.
+ * Does NOT open new tabs — only checks existing FB tabs.
+ * If no token found, returns null so server can handle login via CDP.
+ */
+async function recaptureToken() {
+  console.log('[6AD] recaptureToken: checking existing FB tabs for token...')
+
+  try {
+    // Step 1: Check existing FB tabs for __accessToken (don't open new tabs)
+    const tabs = await chrome.tabs.query({
+      url: ['https://www.facebook.com/*', 'https://business.facebook.com/*', 'https://adsmanager.facebook.com/*']
+    })
+
+    if (tabs.length === 0) {
+      console.log('[6AD] recaptureToken: no FB tabs open — returning null, server will handle')
+      return null
+    }
+
+    // Prefer www.facebook.com tabs (where __accessToken exists)
+    const sorted = [...tabs].sort((a, b) => {
+      const aWww = a.url?.includes('www.facebook.com') ? 0 : 1
+      const bWww = b.url?.includes('www.facebook.com') ? 0 : 1
+      return aWww - bWww
+    })
+
+    for (const tab of sorted) {
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          world: 'MAIN',
+          func: () => {
+            const loggedIn = !!window.__accessToken || document.cookie.includes('c_user=')
+            let token = null
+            if (window.__accessToken) token = window.__accessToken
+            if (!token && typeof require === 'function') {
+              try {
+                const mod = require('CurrentAccessToken')
+                if (mod && mod.getToken) token = mod.getToken()
+              } catch(e) {}
+            }
+            return { token, loggedIn }
+          }
+        })
+        const result = results?.[0]?.result
+
+        // If FB is logged out → bail immediately
+        if (!result?.loggedIn) {
+          console.log('[6AD] recaptureToken: FB is LOGGED OUT — returning null, server will login via CDP')
+          await addActivity('warning', 'FB logged out — server will handle login')
+          return null
+        }
+
+        // If we got a token, validate it
+        const token = result?.token
+        if (token && token.startsWith('EAA') && token.length >= 40 && /^EAA[a-zA-Z0-9]+$/.test(token)) {
+          const meData = await fbGraphFetch('/v21.0/me', token, { params: { fields: 'id,name' } })
+          if (meData.id) {
+            console.log('[6AD] recaptureToken: token validated! User:', meData.name)
+            await handleTokenCapture(token, true)
+            return token
+          } else {
+            console.log('[6AD] recaptureToken: token failed /me:', meData.error?.message)
+          }
+        }
+      } catch (e) {
+        console.log('[6AD] recaptureToken: tab', tab.id, 'failed:', e.message)
+      }
+    }
+
+    // Logged in but no __accessToken from any tab — token may come via debugger later
+    console.log('[6AD] recaptureToken: FB logged in but no __accessToken found — waiting for debugger capture')
+    return null
+
+  } catch (err) {
+    console.error('[6AD] recaptureToken error:', err.message)
+    return null
+  }
+}
+
 // ==================== AD ACCOUNT DISCOVERY ====================
 
 async function discoverAdAccounts() {
@@ -389,57 +533,32 @@ async function discoverAdAccounts() {
     const config = await getConfig()
     if (!config.fbAccessToken) return config.adAccountIds || []
 
-    // Use page context to discover ad accounts (same approach as token capture)
+    // Direct fetch from service worker — no tab needed
     try {
-      const fbTab = await findFbTab()
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: fbTab.id },
-        world: 'MAIN',
-        func: async (storedToken) => {
-          try {
-            const token = window.__accessToken || storedToken
-            if (!token) return { error: 'No token available' }
-
-            const resp = await fetch(`https://graph.facebook.com/v21.0/me/adaccounts?fields=account_id,name&limit=200&access_token=${encodeURIComponent(token)}`, {
-              credentials: 'include'
-            })
-            const data = await resp.json()
-            if (data.error) return { error: data.error.message }
-
-            const accounts = (data.data || []).map(a => a.account_id)
-
-            // Also get user info
-            let userName = null
-            let userId = null
-            try {
-              const meResp = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`, {
-                credentials: 'include'
-              })
-              const meData = await meResp.json()
-              if (meData.name) userName = meData.name
-              if (meData.id) userId = meData.id
-            } catch {}
-
-            return { accounts, userName, userId }
-          } catch (e) {
-            return { error: e.message }
-          }
-        },
-        args: [config.fbAccessToken]
+      const data = await fbGraphFetch('/v21.0/me/adaccounts', config.fbAccessToken, {
+        params: { fields: 'account_id,name', limit: '200' }
       })
 
-      const result = results?.[0]?.result
-      if (result && !result.error && result.accounts) {
-        const updates = { adAccountIds: result.accounts }
-        if (result.userName) updates.fbUserName = result.userName
-        if (result.userId) updates.fbUserId = result.userId
-        await updateConfig(updates)
-        console.log(`[6AD] Discovered ${result.accounts.length} ad accounts, user: ${result.userName || 'unknown'}`)
-        return result.accounts
-      } else {
-        console.log('[6AD] Ad account discovery failed:', result?.error || 'unknown')
+      if (data.error) {
+        console.log('[6AD] Ad account discovery failed:', data.error.message)
         return config.adAccountIds || []
       }
+
+      const accounts = (data.data || []).map(a => a.account_id)
+      const updates = { adAccountIds: accounts }
+
+      // Also get user info
+      try {
+        const meData = await fbGraphFetch('/v21.0/me', config.fbAccessToken, {
+          params: { fields: 'id,name' }
+        })
+        if (meData.name) updates.fbUserName = meData.name
+        if (meData.id) updates.fbUserId = meData.id
+      } catch {}
+
+      await updateConfig(updates)
+      console.log(`[6AD] Discovered ${accounts.length} ad accounts, user: ${updates.fbUserName || 'unknown'}`)
+      return accounts
     } catch (err) {
       console.log('[6AD] Ad account discovery failed:', err.message)
       return config.adAccountIds || []
@@ -511,552 +630,49 @@ async function sendHeartbeat() {
  * Validate FB session is alive before processing tasks.
  * Checks: 1) FB tab exists and isn't login page  2) Token works via /me API call
  */
+/**
+ * Validate FB session by checking stored token via direct /me API call.
+ * No tab required — works even when all tabs are closed.
+ */
 async function validateFbSession() {
   try {
-    // Check if we have a stored token at all
     const config = await getConfig()
     if (!config.fbAccessToken) {
-      return { valid: false, error: 'No Facebook access token stored — open Facebook in this browser first' }
+      return { valid: false, error: 'No Facebook access token stored', tokenMissing: true }
     }
 
-    // Check if FB tab exists
-    let fbTab
+    // Direct fetch to Graph API from service worker — no tab needed
     try {
-      fbTab = await findFbTab()
-    } catch (e) {
-      return { valid: false, error: 'No Facebook tab open — browser may not have loaded Facebook' }
-    }
+      const data = await fbGraphFetch('/v21.0/me', config.fbAccessToken, {
+        params: { fields: 'id,name' }
+      })
 
-    // Check if tab is on login page (FB logged us out)
-    if (fbTab.url && (fbTab.url.includes('/login') || fbTab.url.includes('login.php') || fbTab.url.includes('/checkpoint'))) {
-      return { valid: false, error: 'Facebook is logged out — browser is on login page. Re-login required in AdsPower.' }
-    }
-
-    // Quick validation: call /me to check if token actually works
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: fbTab.id },
-      world: 'MAIN',
-      func: async (token) => {
-        try {
-          const resp = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`, { credentials: 'include' })
-          const data = await resp.json()
-          if (data.error) return { valid: false, error: data.error.message || 'Token validation failed' }
-          return { valid: true, userId: data.id, name: data.name }
-        } catch (e) {
-          return { valid: false, error: 'Network error validating token: ' + e.message }
+      if (data.error) {
+        return {
+          valid: false,
+          error: data.error.message || 'Token validation failed',
+          isTokenError: isFbTokenError(data)
         }
-      },
-      args: [config.fbAccessToken]
-    })
+      }
 
-    return results?.[0]?.result || { valid: false, error: 'Token validation script returned no result' }
+      return { valid: true, userId: data.id, name: data.name }
+    } catch (e) {
+      return { valid: false, error: 'Network error validating token: ' + e.message }
+    }
   } catch (e) {
     return { valid: false, error: 'Session check failed: ' + e.message }
   }
 }
 
-/**
- * Claim and fail all pending recharges with a given error message.
- */
-async function failAllPendingRecharges(errorMsg) {
-  try {
-    const result = await apiRequest('/extension/pending-recharges', 'GET')
-    const recharges = result.recharges || []
-    for (const recharge of recharges) {
-      try {
-        await apiRequest(`/extension/recharge/${recharge.depositId}/claim`, 'POST')
-        await apiRequest(`/extension/recharge/${recharge.depositId}/failed`, 'POST', {
-          error: errorMsg
-        })
-      } catch (e) {
-        console.error('[6AD] Failed to report error for deposit:', e.message)
-      }
-    }
-  } catch (e) {
-    console.error('[6AD] Failed to fetch pending recharges:', e.message)
-  }
-}
-
-/**
- * Get a 2FA code — tries TOTP secret first (instant), falls back to IMAP email.
- * Reusable by login flow, BM share flow, or any flow that needs 2FA.
- * @returns {string|null} The 2FA/OTP code, or null if unavailable
- */
-async function get2FACode() {
-  // Strategy 1: TOTP from 2FA secret (instant)
-  try {
-    const result = await apiRequest('/extension/generate-2fa', 'GET')
-    if (result.code) {
-      console.log(`[6AD] 2FA code from TOTP: ${result.code} (${result.remaining}s left)`)
-      // If code expires in < 5 seconds, wait for next code
-      if (result.remaining < 5) {
-        console.log('[6AD] Code expiring soon, waiting for next cycle...')
-        await new Promise(r => setTimeout(r, (result.remaining + 1) * 1000))
-        const retry = await apiRequest('/extension/generate-2fa', 'GET')
-        if (retry.code) return retry.code
-      }
-      return result.code
-    }
-  } catch (e) {
-    console.log('[6AD] TOTP not available:', e.message)
-  }
-
-  // Strategy 2: IMAP email OTP (fallback, slower)
-  try {
-    console.log('[6AD] Trying IMAP email OTP fallback...')
-    await new Promise(r => setTimeout(r, 5000)) // Wait for email delivery
-    const result = await apiRequest('/extension/fetch-otp', 'POST')
-    if (result.otp) {
-      console.log(`[6AD] OTP from email: ${result.otp}`)
-      return result.otp
-    }
-  } catch (e) {
-    console.log('[6AD] IMAP OTP not available:', e.message)
-  }
-
-  return null
-}
-
-/**
- * Auto-login to Facebook when session expires.
- * 1. Gets credentials from API
- * 2. Navigates to facebook.com
- * 3. Fills email/password and clicks login
- * 4. Handles 2FA/OTP via IMAP if needed
- * 5. Waits for successful login and captures new token
- */
-async function autoLoginFacebook() {
-  try {
-    console.log('[6AD] Attempting auto-login to Facebook...')
-    await addActivity('info', 'FB session expired — attempting auto-login...')
-
-    // 1. Get login credentials from API
-    let credentials
-    try {
-      credentials = await apiRequest('/extension/login-credentials', 'GET')
-    } catch (e) {
-      return { success: false, error: 'No login credentials configured — set FB email/password in admin profile settings' }
-    }
-    if (!credentials.email || !credentials.password) {
-      return { success: false, error: 'No login credentials configured for this profile' }
-    }
-
-    console.log('[6AD] Got credentials for:', credentials.email)
-
-    // 2. Find or create a Facebook tab
-    let fbTab
-    try {
-      const tabs = await chrome.tabs.query({ url: ['https://*.facebook.com/*'] })
-      fbTab = tabs[0]
-    } catch (e) {}
-
-    if (!fbTab) {
-      fbTab = await chrome.tabs.create({ url: 'https://www.facebook.com/', active: true })
-    } else {
-      await chrome.tabs.update(fbTab.id, { url: 'https://www.facebook.com/', active: true })
-    }
-
-    // Wait for page to fully load (AdsPower browsers are slower)
-    console.log('[6AD] Waiting for Facebook page to load...')
-    await new Promise(r => setTimeout(r, 10000))
-
-    // 3. Try to find and fill login form — retry up to 3 times with increasing waits
-    let loginResult = null
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      console.log(`[6AD] Login form detection attempt ${attempt}/3`)
-
-      const scriptResult = await chrome.scripting.executeScript({
-        target: { tabId: fbTab.id },
-        world: 'MAIN',
-        func: async (email, password, attemptNum) => {
-          try {
-            // Wait for DOM to settle
-            await new Promise(r => setTimeout(r, 3000))
-
-            const url = window.location.href.toLowerCase()
-            const html = document.documentElement.innerHTML
-            const htmlLower = html.toLowerCase()
-
-            // Log page info for debugging
-            const pageInfo = {
-              url: url,
-              title: document.title,
-              bodyLen: document.body?.innerHTML?.length || 0,
-              hasLoginText: htmlLower.includes('log in') || htmlLower.includes('log into'),
-            }
-
-            // Check if already logged in
-            if (window.__accessToken || document.cookie.includes('c_user=')) {
-              return { status: 'already_logged_in', pageInfo }
-            }
-
-            // Comprehensive email input selectors — covers facebook.com, Meta Business, mobile, etc.
-            const emailSelectors = [
-              'input[name="email"]',
-              'input[id="email"]',
-              'input[type="email"]',
-              'input[name="login"]',
-              'input[name="login_source"]',
-              'input[aria-label*="email" i]',
-              'input[aria-label*="phone" i]',
-              'input[placeholder*="email" i]',
-              'input[placeholder*="phone" i]',
-              'input[data-testid="royal_email"]',
-            ]
-
-            let emailInput = null
-            for (const sel of emailSelectors) {
-              emailInput = document.querySelector(sel)
-              if (emailInput) break
-            }
-
-            // Fallback: find any visible text input that looks like a login field
-            if (!emailInput) {
-              const allInputs = document.querySelectorAll('input[type="text"], input[type="email"], input:not([type])')
-              for (const inp of allInputs) {
-                const rect = inp.getBoundingClientRect()
-                if (rect.width > 50 && rect.height > 10 && inp.type !== 'hidden' && inp.name !== 'search' && inp.name !== 'q') {
-                  emailInput = inp
-                  break
-                }
-              }
-            }
-
-            if (!emailInput) {
-              return { status: 'no_login_form', error: `Could not find email input (attempt ${attemptNum}). URL: ${url.substring(0, 100)}, title: ${document.title}`, pageInfo }
-            }
-
-            // Comprehensive password input selectors
-            const passSelectors = [
-              'input[name="pass"]',
-              'input[id="pass"]',
-              'input[type="password"]',
-              'input[name="password"]',
-              'input[aria-label*="password" i]',
-              'input[placeholder*="password" i]',
-              'input[data-testid="royal_pass"]',
-            ]
-
-            let passInput = null
-            for (const sel of passSelectors) {
-              passInput = document.querySelector(sel)
-              if (passInput) break
-            }
-
-            if (!passInput) {
-              return { status: 'no_login_form', error: `Found email input but no password input (attempt ${attemptNum}). URL: ${url.substring(0, 100)}`, pageInfo }
-            }
-
-            // Fill credentials using native input setter (works with React/FB forms)
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-
-            // Focus and fill email
-            emailInput.focus()
-            nativeInputValueSetter.call(emailInput, email)
-            emailInput.dispatchEvent(new Event('input', { bubbles: true }))
-            emailInput.dispatchEvent(new Event('change', { bubbles: true }))
-            emailInput.dispatchEvent(new Event('blur', { bubbles: true }))
-
-            await new Promise(r => setTimeout(r, 800))
-
-            // Focus and fill password
-            passInput.focus()
-            nativeInputValueSetter.call(passInput, password)
-            passInput.dispatchEvent(new Event('input', { bubbles: true }))
-            passInput.dispatchEvent(new Event('change', { bubbles: true }))
-            passInput.dispatchEvent(new Event('blur', { bubbles: true }))
-
-            await new Promise(r => setTimeout(r, 800))
-
-            // Comprehensive login button selectors
-            const btnSelectors = [
-              'button[name="login"]',
-              'button[type="submit"]',
-              'button[data-testid="royal_login_button"]',
-              'input[type="submit"]',
-              'button[id="loginbutton"]',
-              'button[id="login_button"]',
-              '#loginbutton',
-            ]
-
-            let loginBtn = null
-            for (const sel of btnSelectors) {
-              loginBtn = document.querySelector(sel)
-              if (loginBtn) break
-            }
-
-            // Fallback: find a visible button with "Log In" text
-            if (!loginBtn) {
-              const buttons = document.querySelectorAll('button, [role="button"], a[role="button"]')
-              for (const btn of buttons) {
-                const text = (btn.textContent || '').trim().toLowerCase()
-                if (/^log\s*in$|^sign\s*in$|^continue$/i.test(text)) {
-                  const rect = btn.getBoundingClientRect()
-                  if (rect.width > 20 && rect.height > 10) {
-                    loginBtn = btn
-                    break
-                  }
-                }
-              }
-            }
-
-            if (loginBtn) {
-              loginBtn.click()
-            } else {
-              // Fallback: submit the form or press Enter
-              const form = passInput.closest('form')
-              if (form) {
-                form.submit()
-              } else {
-                passInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
-                passInput.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
-                passInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
-              }
-            }
-
-            return { status: 'credentials_submitted', pageInfo }
-          } catch (e) {
-            return { status: 'error', error: e.message }
-          }
-        },
-        args: [credentials.email, credentials.password, attempt]
-      })
-
-      loginResult = scriptResult?.[0]?.result
-      console.log(`[6AD] Login attempt ${attempt} result:`, JSON.stringify(loginResult))
-
-      if (!loginResult) {
-        console.log('[6AD] Script returned no result, retrying...')
-        await new Promise(r => setTimeout(r, 5000))
-        continue
-      }
-
-      if (loginResult.status === 'already_logged_in') break
-      if (loginResult.status === 'credentials_submitted') break
-      if (loginResult.status === 'error') break
-
-      // no_login_form — wait and retry
-      if (loginResult.status === 'no_login_form' && attempt < 3) {
-        console.log(`[6AD] Login form not found, waiting before retry... (${loginResult.error})`)
-        await addActivity('warning', `Login form not found (attempt ${attempt}), retrying...`)
-        await new Promise(r => setTimeout(r, 5000 * attempt)) // 5s, 10s
-        continue
-      }
-
-      break // give up
-    }
-
-    if (!loginResult) return { success: false, error: 'Login script returned no result after 3 attempts' }
-
-    if (loginResult.status === 'already_logged_in') {
-      console.log('[6AD] Already logged in after navigation!')
-      await addActivity('success', 'FB session restored — already logged in')
-      await tryCaptureFBToken()
-      return { success: true }
-    }
-
-    if (loginResult.status === 'no_login_form') {
-      return { success: false, error: loginResult.error || 'Login form not found after 3 attempts' }
-    }
-
-    if (loginResult.status === 'error') {
-      return { success: false, error: loginResult.error || 'Error during login' }
-    }
-
-    // 4. Wait for page to load after login attempt
-    console.log('[6AD] Credentials submitted, waiting for page load...')
-    await new Promise(r => setTimeout(r, 10000))
-
-    // 5. Check if we hit a checkpoint/2FA page
-    const postLoginCheck = await chrome.scripting.executeScript({
-      target: { tabId: fbTab.id },
-      world: 'MAIN',
-      func: () => {
-        const url = window.location.href.toLowerCase()
-        const bodyText = document.body?.innerText?.toLowerCase() || ''
-        const html = document.documentElement.innerHTML.toLowerCase()
-
-        // Check for checkpoint / 2FA
-        if (url.includes('/checkpoint') || url.includes('/login/checkpoint')) {
-          const needsCode = /enter the code|enter.*code|confirmation code|security code|verify.*code|we sent|code.*sent/i.test(bodyText)
-          const isEmailOtp = /sent.*code.*email|email.*verification|sent.*to your email|sent.*code.*to.*@/i.test(bodyText)
-          if (needsCode) {
-            return { status: 'checkpoint_otp', isEmail: isEmailOtp }
-          }
-          return { status: 'checkpoint_other', bodyText: bodyText.substring(0, 300) }
-        }
-
-        // Check for wrong password
-        if (/incorrect password|wrong password|password.*incorrect|password.*wrong|didn.?t match/i.test(bodyText)) {
-          return { status: 'wrong_password' }
-        }
-
-        // Check if we're logged in now
-        if (document.cookie.includes('c_user=') || window.__accessToken) {
-          return { status: 'logged_in' }
-        }
-
-        // Check if still on login page
-        if (url.includes('/login') || url.includes('login.php')) {
-          return { status: 'still_login_page', bodyText: bodyText.substring(0, 300) }
-        }
-
-        // Assume logged in if we're on facebook.com main page
-        return { status: 'likely_logged_in', url: url }
-      }
-    })
-
-    const postResult = postLoginCheck?.[0]?.result
-    if (!postResult) return { success: false, error: 'Post-login check returned no result' }
-
-    console.log('[6AD] Post-login status:', postResult.status)
-
-    // Handle different post-login states
-    if (postResult.status === 'wrong_password') {
-      await addActivity('error', 'Auto-login failed: wrong password — update credentials in admin settings')
-      return { success: false, error: 'Wrong Facebook password — update in admin profile settings' }
-    }
-
-    if (postResult.status === 'checkpoint_otp') {
-      console.log('[6AD] 2FA/OTP checkpoint detected')
-      await addActivity('info', '2FA checkpoint detected — getting code...')
-
-      const otpCode = await get2FACode()
-      if (!otpCode) {
-        const errorMsg = '2FA required but could not get code. Add twoFactorSecret (TOTP key) in admin profile settings.'
-        await addActivity('error', errorMsg)
-        return { success: false, error: errorMsg }
-      }
-
-      await addActivity('info', `2FA code: ${otpCode}`)
-      console.log('[6AD] Using 2FA code:', otpCode)
-
-      // Enter OTP code
-      const otpEnterResult = await chrome.scripting.executeScript({
-        target: { tabId: fbTab.id },
-        world: 'MAIN',
-        func: async (otp) => {
-          try {
-            // Find the OTP input
-            const codeInput = document.querySelector('input[name="approvals_code"], input[type="tel"], input[placeholder*="code" i], input[aria-label*="code" i], input[name="code"]')
-            if (!codeInput) {
-              // Try any visible text input
-              const inputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="tel"], input:not([type])')
-              for (const inp of inputs) {
-                const rect = inp.getBoundingClientRect()
-                if (rect.width > 0 && rect.height > 0 && inp.type !== 'hidden' && inp.name !== 'search') {
-                  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-                  nativeInputValueSetter.call(inp, otp)
-                  inp.dispatchEvent(new Event('input', { bubbles: true }))
-                  inp.dispatchEvent(new Event('change', { bubbles: true }))
-
-                  await new Promise(r => setTimeout(r, 500))
-
-                  // Click continue/submit button
-                  const buttons = document.querySelectorAll('button, [role="button"], input[type="submit"]')
-                  for (const btn of buttons) {
-                    const text = (btn.textContent?.trim().toLowerCase() || '') + ' ' + (btn.value?.toLowerCase() || '')
-                    if (/continue|submit|confirm|next|verify|send/i.test(text)) {
-                      const rect = btn.getBoundingClientRect()
-                      if (rect.width > 0 && rect.height > 0) {
-                        btn.click()
-                        return { status: 'otp_submitted' }
-                      }
-                    }
-                  }
-                  // Fallback: Enter key
-                  inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
-                  return { status: 'otp_submitted' }
-                }
-              }
-              return { status: 'no_input', error: 'Could not find OTP input field' }
-            }
-
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-            nativeInputValueSetter.call(codeInput, otp)
-            codeInput.dispatchEvent(new Event('input', { bubbles: true }))
-            codeInput.dispatchEvent(new Event('change', { bubbles: true }))
-
-            await new Promise(r => setTimeout(r, 500))
-
-            // Click continue/submit button
-            const buttons = document.querySelectorAll('button, [role="button"], input[type="submit"]')
-            for (const btn of buttons) {
-              const text = (btn.textContent?.trim().toLowerCase() || '') + ' ' + (btn.value?.toLowerCase() || '')
-              if (/continue|submit|confirm|next|verify|send/i.test(text)) {
-                const rect = btn.getBoundingClientRect()
-                if (rect.width > 0 && rect.height > 0) {
-                  btn.click()
-                  return { status: 'otp_submitted' }
-                }
-              }
-            }
-            // Fallback: Enter
-            codeInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }))
-            return { status: 'otp_submitted' }
-          } catch (e) {
-            return { status: 'error', error: e.message }
-          }
-        },
-        args: [otpCode]
-      })
-
-      const otpResult2 = otpEnterResult?.[0]?.result
-      if (otpResult2?.status === 'no_input') {
-        return { success: false, error: 'OTP received but could not find input field on checkpoint page' }
-      }
-
-      // Wait for checkpoint to resolve
-      console.log('[6AD] OTP submitted, waiting for login to complete...')
-      await new Promise(r => setTimeout(r, 8000))
-    }
-
-    if (postResult.status === 'checkpoint_other') {
-      return { success: false, error: 'Facebook checkpoint detected that cannot be auto-handled. Manual intervention required.' }
-    }
-
-    // 6. Final check — are we logged in now?
-    const finalCheck = await chrome.scripting.executeScript({
-      target: { tabId: fbTab.id },
-      world: 'MAIN',
-      func: () => {
-        return {
-          hasCUser: document.cookie.includes('c_user='),
-          hasToken: !!window.__accessToken,
-          url: window.location.href
-        }
-      }
-    })
-
-    const final = finalCheck?.[0]?.result
-    if (final?.hasCUser || final?.hasToken) {
-      console.log('[6AD] Auto-login successful!')
-      await addActivity('success', 'Auto-login to Facebook successful!')
-
-      // Re-capture token
-      await tryCaptureFBToken()
-      await new Promise(r => setTimeout(r, 3000))
-
-      // Navigate to business.facebook.com for better token access
-      try {
-        await chrome.tabs.update(fbTab.id, { url: 'https://business.facebook.com/' })
-        await new Promise(r => setTimeout(r, 5000))
-        await attachDebuggerToFBTabs()
-        await tryCaptureFBToken()
-      } catch (e) {
-        console.log('[6AD] Post-login navigation warning:', e.message)
-      }
-
-      return { success: true }
-    }
-
-    return { success: false, error: 'Login completed but could not verify session. URL: ' + (final?.url || 'unknown') }
-  } catch (e) {
-    console.error('[6AD] Auto-login error:', e.message)
-    return { success: false, error: 'Auto-login error: ' + e.message }
-  }
-}
-
+// failAllPendingRecharges REMOVED — it claimed deposits just to fail them,
+// preventing server-side fallback from handling them. Deposits now stay PENDING
+// so either the extension (next cycle) or server can process them.
+
+// Auto-login (get2FACode + autoLoginFacebook) REMOVED — login is handled by
+// adspower-worker on the server side. Extension only captures tokens and does recharges.
+
+// [autoLoginFacebook body deleted — ~470 lines of login form filling, 2FA, etc.]
+// The adspower-worker handles login. Extension only captures tokens.
 async function checkAndProcessRecharges() {
   if (isProcessing) return
   isProcessing = true
@@ -1065,29 +681,26 @@ async function checkAndProcessRecharges() {
     const config = await getConfig()
     if (!config.apiKey || !config.isEnabled) return
 
-    // Validate FB session BEFORE attempting any recharges
+    // Validate FB session (tab-independent — uses direct fetch)
     let session = await validateFbSession()
+
     if (!session.valid) {
-      console.warn(`[6AD] FB session invalid: ${session.error} — attempting auto-login...`)
+      console.warn(`[6AD] FB session invalid: ${session.error}`)
       await addActivity('warning', `FB session invalid: ${session.error}`)
 
-      // Try auto-login
-      const loginResult = await autoLoginFacebook()
-      if (loginResult.success) {
-        // Re-validate after login
-        session = await validateFbSession()
-        if (!session.valid) {
-          const errorMsg = `Auto-login succeeded but session still invalid: ${session.error}`
-          console.error(`[6AD] ${errorMsg}`)
-          await addActivity('error', errorMsg)
-          await failAllPendingRecharges(errorMsg)
-          return
+      // If token error or missing → try recapture (opens FB tab, reads __accessToken)
+      if (session.isTokenError || session.tokenMissing) {
+        console.log('[6AD] Attempting token recapture...')
+        const newToken = await recaptureToken()
+        if (newToken) {
+          session = await validateFbSession()
         }
-      } else {
-        const errorMsg = `Auto-login failed: ${loginResult.error}`
-        console.error(`[6AD] ${errorMsg}`)
-        await addActivity('error', errorMsg)
-        await failAllPendingRecharges(errorMsg)
+      }
+
+      // If still invalid after recapture → skip and let server handle
+      if (!session.valid) {
+        console.log('[6AD] Token recapture failed — skipping, deposits stay PENDING for server')
+        await addActivity('warning', 'No valid token after recapture — skipping, server will retry')
         return
       }
     }
@@ -1109,7 +722,6 @@ async function checkAndProcessRecharges() {
 }
 
 async function processRecharge(recharge) {
-  // API returns: depositId, adAccountId, adAccountName, amount, approvedAt
   const depositId = recharge.depositId
   const accountId = recharge.adAccountId
   const depositAmount = parseFloat(recharge.amount)
@@ -1119,164 +731,134 @@ async function processRecharge(recharge) {
     return
   }
 
-  const MAX_ATTEMPTS = 2  // Only 1 retry to avoid FB suspicion
-  const RETRY_DELAY_MS = 15000 // 15 seconds before retry — let page fully load
+  const MAX_ATTEMPTS = 3
+  const RETRY_DELAY_MS = 10000
   let lastError = null
+  let claimed = false
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      if (attempt === 1) {
-        await addActivity('info', `Claiming recharge for act_${accountId} ($${depositAmount})`)
-        await apiRequest(`/extension/recharge/${depositId}/claim`, 'POST')
-        // Wait 5s for page to be fully ready before making API calls
-        await new Promise(r => setTimeout(r, 5000))
-      } else {
-        await addActivity('info', `Retrying recharge for act_${accountId} (page may not have been ready)`)
-        console.log(`[6AD] Retry for act_${accountId}, waiting ${RETRY_DELAY_MS/1000}s for page to load...`)
+      if (attempt > 1) {
+        await addActivity('info', `Retrying recharge for act_${accountId} (attempt ${attempt}/${MAX_ATTEMPTS})`)
         await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
       }
 
-      // Get access token — try page context first, fall back to stored debugger token
-      let accessToken = null
-      let tokenSource = 'none'
-      try {
-        const fbTab = await findFbTab()
-        const ctx = await getFbPageContext(fbTab)
-        accessToken = ctx.accessToken
-        tokenSource = ctx.tokenSource
-      } catch (ctxErr) {
-        console.log('[6AD] Page context failed, trying stored token:', ctxErr.message)
-      }
+      // FIRST: Verify we have a valid token BEFORE claiming
+      let config = await getConfig()
+      let accessToken = config.fbAccessToken
 
-      // Fallback: use stored debugger token if page context failed
       if (!accessToken) {
-        const config = await getConfig()
-        if (config.fbAccessToken) {
-          accessToken = config.fbAccessToken
-          tokenSource = 'stored_debugger'
+        console.log('[6AD] No token stored, attempting recapture...')
+        accessToken = await recaptureToken()
+        if (!accessToken) {
+          if (!claimed) {
+            // Don't claim — deposit stays PENDING for server to handle
+            console.log(`[6AD] No token for recharge act_${accountId} — skipping, deposit stays PENDING`)
+            await addActivity('warning', `No token for act_${accountId} — skipping, server will retry`)
+            return
+          }
+          throw new Error('No access token available — recapture failed')
         }
       }
 
-      if (!accessToken) {
-        throw new Error('No access token available — open Facebook and browse around to capture a token')
+      // NOW safe to claim (we have a token)
+      if (!claimed) {
+        await addActivity('info', `Claiming recharge for act_${accountId} ($${depositAmount})`)
+        await apiRequest(`/extension/recharge/${depositId}/claim`, 'POST')
+        claimed = true
       }
-      console.log('[6AD] Got FB token for recharge via', tokenSource, ':', accessToken?.substring(0, 15) + '...')
 
-      // Execute recharge — Graph API only needs access_token, no dtsg needed
-      const fbTab = await findFbTab()
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: fbTab.id },
-        world: 'MAIN',
-        func: async (accountId, accessToken, depositAmount) => {
-          try {
-            // Step 1: Get current spend cap
-            const getUrl = `https://graph.facebook.com/v21.0/act_${accountId}?fields=spend_cap,amount_spent,name&access_token=${encodeURIComponent(accessToken)}`
-            const getResp = await fetch(getUrl, { credentials: 'include' })
-            const getText = await getResp.text()
-            let accountData
-            try {
-              accountData = JSON.parse(getText)
-            } catch {
-              return { error: 'Invalid response from FB GET: ' + getText.substring(0, 200), retryable: true }
-            }
+      console.log('[6AD] Using token for recharge (len:', accessToken.length, '):', accessToken.substring(0, 15) + '...')
 
-            if (accountData.error) return { error: accountData.error.message || JSON.stringify(accountData.error), retryable: false }
-
-            // FB GET returns spend_cap in CENTS (e.g. 10000 = $100)
-            // FB POST expects spend_cap in DOLLARS (e.g. 250 = $250)
-            const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
-            const spentCents = parseInt(accountData.amount_spent || '0', 10)
-            const currentCapDollars = currentCapCents / 100
-            const spentDollars = spentCents / 100
-            // depositAmount is already in dollars
-            const newCapDollars = currentCapDollars + depositAmount
-
-            // Log raw values for debugging
-            const debugInfo = `raw_spend_cap=${accountData.spend_cap}, currentCap=$${currentCapDollars}, deposit=$${depositAmount}, newCap=$${newCapDollars}`
-
-            // Step 2: Set new spend cap (POST expects DOLLARS)
-            const postResp = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              credentials: 'include',
-              body: new URLSearchParams({
-                spend_cap: newCapDollars.toString(),
-                access_token: accessToken
-              }).toString()
-            })
-            const postText = await postResp.text()
-            let postData
-            try {
-              postData = JSON.parse(postText)
-            } catch {
-              return { error: 'Invalid response: ' + postText.substring(0, 200) + ' | ' + debugInfo, retryable: true }
-            }
-            if (postData.error) return { error: (postData.error.message || JSON.stringify(postData.error)) + ' | ' + debugInfo, retryable: false }
-
-            return {
-              success: true,
-              debugInfo,
-              currentCapDollars,
-              spentDollars,
-              newCapDollars
-            }
-          } catch (e) {
-            // "Failed to fetch" and network errors are retryable
-            return { error: e.message, retryable: true }
-          }
-        },
-        args: [accountId, accessToken, depositAmount]
+      // Step 1: GET current spend cap — direct fetch from service worker (no tab needed)
+      const accountData = await fbGraphFetch(`/v21.0/act_${accountId}`, accessToken, {
+        params: { fields: 'spend_cap,amount_spent,name' }
       })
 
-      const result = results?.[0]?.result
-      if (!result) throw new Error('Script injection returned no result')
-      if (result.error) {
-        // Check if error is retryable (network/transient) vs permanent (FB API error)
-        const isRetryable = result.retryable || result.error.includes('Failed to fetch') || result.error.includes('NetworkError') || result.error.includes('Load failed')
-        if (isRetryable && attempt < MAX_ATTEMPTS) {
-          console.log(`[6AD] Retryable error for act_${accountId}: ${result.error}`)
-          lastError = result.error
-          continue // retry once
+      if (accountData.error) {
+        // Token error → recapture and retry
+        if (isFbTokenError(accountData) && attempt < MAX_ATTEMPTS) {
+          console.log(`[6AD] Token error on GET for act_${accountId}: ${accountData.error.message} — recapturing...`)
+          await addActivity('warning', `Token error: ${accountData.error.message} — recapturing...`)
+          // Clear bad token
+          await updateConfig({ fbAccessToken: '' })
+          const newToken = await recaptureToken()
+          if (newToken) {
+            lastError = accountData.error.message
+            continue // retry with new token
+          }
         }
-        throw new Error(result.error)
+        throw new Error(accountData.error.message || JSON.stringify(accountData.error))
       }
 
-      await addActivity('info', `act_${accountId}: ${result.debugInfo || ''} | cap $${result.currentCapDollars} → $${result.newCapDollars}`)
+      // FB GET returns spend_cap in CENTS, POST expects DOLLARS
+      const currentCapCents = parseInt(accountData.spend_cap || '0', 10)
+      const spentCents = parseInt(accountData.amount_spent || '0', 10)
+      const currentCapDollars = currentCapCents / 100
+      const spentDollars = spentCents / 100
+      const newCapDollars = currentCapDollars + depositAmount
+      const debugInfo = `raw_spend_cap=${accountData.spend_cap}, currentCap=$${currentCapDollars}, deposit=$${depositAmount}, newCap=$${newCapDollars}`
+
+      // Step 2: POST new spend cap — direct fetch from service worker
+      const postData = await fbGraphFetch(`/v21.0/act_${accountId}`, accessToken, {
+        method: 'POST',
+        params: { spend_cap: newCapDollars.toString() }
+      })
+
+      if (postData.error) {
+        if (isFbTokenError(postData) && attempt < MAX_ATTEMPTS) {
+          console.log(`[6AD] Token error on POST for act_${accountId}: ${postData.error.message} — recapturing...`)
+          await updateConfig({ fbAccessToken: '' })
+          const newToken = await recaptureToken()
+          if (newToken) { lastError = postData.error.message; continue }
+        }
+        throw new Error((postData.error.message || JSON.stringify(postData.error)) + ' | ' + debugInfo)
+      }
+
+      // Success!
+      await addActivity('info', `act_${accountId}: ${debugInfo} | cap $${currentCapDollars} → $${newCapDollars}`)
 
       await apiRequest(`/extension/recharge/${depositId}/complete`, 'POST', {
-        previousSpendCap: result.currentCapDollars,
-        newSpendCap: result.newCapDollars
+        previousSpendCap: currentCapDollars,
+        newSpendCap: newCapDollars
       })
 
-      await addActivity('success', `Recharged act_${accountId} +$${depositAmount.toFixed(2)} (new cap: $${result.newCapDollars.toFixed(2)})`)
+      await addActivity('success', `Recharged act_${accountId} +$${depositAmount.toFixed(2)} (new cap: $${newCapDollars.toFixed(2)})`)
       console.log(`[6AD] Successfully recharged act_${accountId}`)
-      return // success — exit the retry loop
+      return // success
 
     } catch (err) {
       lastError = err.message
-      // Check if this is a retryable error
-      const isRetryable = err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('Load failed') || err.message.includes('No Facebook tab') || err.message.includes('Script injection returned no result')
-      if (isRetryable && attempt < MAX_ATTEMPTS) {
-        console.log(`[6AD] Retryable error (attempt ${attempt}/${MAX_ATTEMPTS}) for act_${accountId}: ${err.message}`)
-        continue // retry
+      const isNetworkErr = err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('Load failed')
+      const isTokenErr = isTokenError(err.message)
+
+      if (attempt < MAX_ATTEMPTS) {
+        if (isTokenErr) {
+          console.log(`[6AD] Token error (attempt ${attempt}/${MAX_ATTEMPTS}) for act_${accountId}: ${err.message}`)
+          await updateConfig({ fbAccessToken: '' })
+          await recaptureToken()
+          continue
+        }
+        if (isNetworkErr) {
+          console.log(`[6AD] Network error (attempt ${attempt}/${MAX_ATTEMPTS}) for act_${accountId}: ${err.message}`)
+          continue
+        }
       }
 
-      // Final failure — report it
+      // Final failure
       console.error(`[6AD] Recharge failed for act_${accountId} after ${attempt} attempt(s):`, err.message)
       await addActivity('error', `Recharge failed for act_${accountId}: ${err.message}`)
 
       try {
-        await apiRequest(`/extension/recharge/${depositId}/failed`, 'POST', {
-          error: err.message
-        })
+        await apiRequest(`/extension/recharge/${depositId}/failed`, 'POST', { error: err.message })
       } catch (reportErr) {
         console.error('[6AD] Failed to report failure:', reportErr.message)
       }
-      return // give up
+      return
     }
   }
 
-  // Should not reach here, but just in case all attempts exhausted
+  // All attempts exhausted
   console.error(`[6AD] Recharge failed for act_${accountId} after ${MAX_ATTEMPTS} attempts:`, lastError)
   await addActivity('error', `Recharge failed for act_${accountId} after ${MAX_ATTEMPTS} attempts: ${lastError}`)
   try {
@@ -1298,9 +880,18 @@ async function checkAndProcessBmShares() {
 
   try {
     const config = await getConfig()
-    if (!config.apiKey || !config.isEnabled || !config.fbAccessToken) {
-      console.log('[6AD] BM share check skipped:', !config.apiKey ? 'no key' : !config.isEnabled ? 'disabled' : 'no token')
+    if (!config.apiKey || !config.isEnabled) {
+      console.log('[6AD] BM share check skipped:', !config.apiKey ? 'no key' : 'disabled')
       return
+    }
+
+    if (!config.fbAccessToken) {
+      console.log('[6AD] No token for BM shares, attempting recapture...')
+      const newToken = await recaptureToken()
+      if (!newToken) {
+        console.log('[6AD] BM share check skipped: no token and recapture failed')
+        return
+      }
     }
 
     await addActivity('info', 'Checking for pending BM shares...')
@@ -1325,116 +916,11 @@ async function checkAndProcessBmShares() {
   }
 }
 
-/**
- * Extract Facebook page context tokens (__accessToken, fb_dtsg, __user, lsd)
- * This is how extensions like SMIT work — they read tokens from the page's JS runtime
- * instead of using the public Graph API.
- */
-async function getFbPageContext(tab) {
-  const results = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    world: 'MAIN',
-    func: () => {
-      try {
-        const ctx = {}
-        const html = document.documentElement.innerHTML
-
-        // 1. __accessToken — Facebook stores the current user's access token here
-        if (window.__accessToken) {
-          ctx.accessToken = window.__accessToken
-          ctx.tokenSource = '__accessToken'
-        }
-
-        // 1b. Fallback: search HTML for EAA tokens (works in AdsPower/anti-detect browsers)
-        if (!ctx.accessToken) {
-          const tokens = []
-          const regex = /["']?(EAA[a-zA-Z0-9]{40,})["']?/g
-          let m
-          while ((m = regex.exec(html)) !== null) {
-            tokens.push(m[1])
-          }
-          if (tokens.length > 0) {
-            tokens.sort((a, b) => b.length - a.length)
-            ctx.accessToken = tokens[0]
-            ctx.tokenSource = 'html_scan'
-          }
-        }
-
-        // 1c. Fallback: Try Facebook's require system
-        if (!ctx.accessToken && typeof require === 'function') {
-          try {
-            const mod = require('CurrentAccessToken')
-            if (mod && mod.getToken) {
-              ctx.accessToken = mod.getToken()
-              ctx.tokenSource = 'require'
-            }
-          } catch(e) {}
-        }
-
-        // 2. fb_dtsg — CSRF token
-        let m = html.match(/"DTSGInitialData".*?"token":"([^"]+)"/)
-        if (m) { ctx.dtsg = m[1] }
-        else {
-          const input = document.querySelector('input[name="fb_dtsg"]')
-          if (input) { ctx.dtsg = input.value }
-          else {
-            m = html.match(/"token":"(AQ[A-Za-z0-9_-]+)"/)
-            if (m) ctx.dtsg = m[1]
-          }
-        }
-
-        // 3. __user — current user ID
-        m = html.match(/"USER_ID":"(\d+)"/)
-        if (m) { ctx.userId = m[1] }
-        else {
-          const m2 = html.match(/"CurrentUserInitialData".*?"USER_ID":"(\d+)"/)
-          if (m2) ctx.userId = m2[1]
-        }
-        // Fallback: cookie
-        if (!ctx.userId) {
-          const cUser = document.cookie.match(/c_user=(\d+)/)
-          if (cUser) ctx.userId = cUser[1]
-        }
-
-        // 4. lsd token
-        m = html.match(/"LSD".*?"token":"([^"]+)"/)
-        if (m) ctx.lsd = m[1]
-
-        return ctx
-      } catch (e) {
-        return { error: e.message }
-      }
-    }
-  })
-
-  const ctx = results?.[0]?.result
-  if (!ctx || ctx.error) {
-    throw new Error(ctx?.error || 'Failed to extract Facebook page context')
-  }
-
-  // If still no accessToken from page, use the one we captured via debugger
-  if (!ctx.accessToken) {
-    const config = await getConfig()
-    if (config.fbAccessToken) {
-      ctx.accessToken = config.fbAccessToken
-      ctx.tokenSource = 'stored_debugger'
-      console.log('[6AD] Using stored debugger token as fallback (page had no __accessToken)')
-    }
-  }
-
-  if (!ctx.accessToken) {
-    throw new Error('No access token found — open Facebook and browse around to capture a token')
-  }
-  if (!ctx.dtsg) {
-    throw new Error('Could not find fb_dtsg on page — try refreshing the Facebook page')
-  }
-
-  console.log(`[6AD] Page context: token via ${ctx.tokenSource}, dtsg=${ctx.dtsg?.substring(0, 8)}..., user=${ctx.userId}`)
-  return ctx
-}
+// getFbPageContext() removed — processRecharge and processBmShare now use
+// fbGraphFetch() directly from the service worker (no tab needed)
 
 /**
- * Find a Facebook tab, preferring business.facebook.com
+ * Find a Facebook tab, preferring www.facebook.com (where __accessToken exists)
  */
 async function findFbTab() {
   const tabs = await chrome.tabs.query({
@@ -1447,9 +933,10 @@ async function findFbTab() {
   const validTabs = tabs.filter(t => t.url && !t.url.includes('/loginpage') && !t.url.includes('/login') && !t.url.includes('login.php'))
   const searchTabs = validTabs.length > 0 ? validTabs : tabs
 
-  // Prefer adsmanager > business.facebook.com > www.facebook.com
-  const adsTab = searchTabs.find(t => t.url && t.url.includes('adsmanager.facebook.com'))
-  if (adsTab) return adsTab
+  // Prefer www.facebook.com > business.facebook.com > adsmanager.facebook.com
+  // IMPORTANT: window.__accessToken only exists on www and business, NOT adsmanager
+  const wwwTab = searchTabs.find(t => t.url && t.url.includes('www.facebook.com'))
+  if (wwwTab) return wwwTab
   const bizTab = searchTabs.find(t => t.url && t.url.includes('business.facebook.com'))
   if (bizTab) return bizTab
   return searchTabs[0]
@@ -1459,7 +946,7 @@ async function processBmShare(share) {
   const requestId = share.requestId
   const accountId = share.adAccountId
   const userBmId = share.userBmId
-  const ownerBmId = share.ownerBmId  // The BM that owns this ad account
+  const ownerBmId = share.ownerBmId
   const username = share.username
 
   if (!requestId || !accountId || !userBmId) {
@@ -1467,135 +954,140 @@ async function processBmShare(share) {
     return
   }
 
-  try {
-    await addActivity('info', `Claiming BM share: act_${accountId} → BM ${userBmId} (${username})${ownerBmId ? ` [owner BM: ${ownerBmId}]` : ''}`)
-    await apiRequest(`/extension/bm-share/${requestId}/claim`, 'POST')
+  const MAX_ATTEMPTS = 3
+  let lastError = null
+  let claimed = false
 
-    const fbTab = await findFbTab()
-    const ctx = await getFbPageContext(fbTab)
-    console.log('[6AD] Got FB page context for BM share — token:', ctx.accessToken?.substring(0, 15) + '...')
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      if (attempt > 1) {
+        await addActivity('info', `Retrying BM share for act_${accountId} (attempt ${attempt}/${MAX_ATTEMPTS})`)
+        await new Promise(r => setTimeout(r, 10000))
+      }
 
-    // Execute BM share from the page context using Facebook's Graph API
-    // The logged-in user is the OWNER of the ad account.
-    // We try multiple approaches to share the ad account to the user's BM:
-    //
-    // Method 1: POST /act_{id}/agencies — owner assigns partner BM to their ad account
-    // Method 2: POST /{ownerBmId}/client_ad_accounts — owner's BM adds ad account as client for partner
-    // Method 3: POST /{userBmId}/client_ad_accounts — direct assignment (needs MANAGE_AD_ACCOUNTS)
-    const shareResults = await chrome.scripting.executeScript({
-      target: { tabId: fbTab.id },
-      world: 'MAIN',
-      func: async (userBmId, adAccountId, ownerBmId, accessToken) => {
-        const graphBase = 'https://graph.facebook.com/v21.0'
-        const errors = []
+      // FIRST: Verify we have a valid token BEFORE claiming
+      let config = await getConfig()
+      let accessToken = config.fbAccessToken
 
-        // Helper to try a Graph API call
-        async function tryMethod(name, url, params) {
-          try {
-            const resp = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              credentials: 'include',
-              body: new URLSearchParams({
-                ...params,
-                access_token: accessToken,
-              }).toString()
-            })
-            const text = await resp.text()
-            try {
-              const data = JSON.parse(text)
-              if (data.error) {
-                errors.push(`${name}: ${data.error.message} (code ${data.error.code})`)
-                return null
-              }
-              return { success: true, data, method: name }
-            } catch {
-              errors.push(`${name}: non-JSON response: ${text.substring(0, 100)}`)
-              return null
-            }
-          } catch (e) {
-            errors.push(`${name}: ${e.message}`)
+      if (!accessToken) {
+        accessToken = await recaptureToken()
+        if (!accessToken) {
+          if (!claimed) {
+            console.log(`[6AD] No token for BM share act_${accountId} — skipping, stays PENDING`)
+            await addActivity('warning', `No token for BM share act_${accountId} — skipping, server will retry`)
+            return
+          }
+          throw new Error('No access token available — recapture failed')
+        }
+      }
+
+      // NOW safe to claim (we have a token)
+      if (!claimed) {
+        await addActivity('info', `Claiming BM share: act_${accountId} → BM ${userBmId} (${username})${ownerBmId ? ` [owner BM: ${ownerBmId}]` : ''}`)
+        await apiRequest(`/extension/bm-share/${requestId}/claim`, 'POST')
+        claimed = true
+      }
+
+      console.log('[6AD] Using token for BM share (len:', accessToken.length, '):', accessToken.substring(0, 15) + '...')
+
+      const defaultTasks = ['ADVERTISE', 'ANALYZE']
+      const errors = []
+      let gotTokenError = false
+
+      // Helper to try a BM share method via direct fetch
+      async function tryBmMethod(name, path, params) {
+        try {
+          const data = await fbGraphFetch(path, accessToken, { method: 'POST', params })
+          if (data.error) {
+            errors.push(`${name}: ${data.error.message} (code ${data.error.code})`)
+            if (isFbTokenError(data)) gotTokenError = true
             return null
           }
+          return { success: true, data, method: name }
+        } catch (e) {
+          errors.push(`${name}: ${e.message}`)
+          return null
         }
+      }
 
-        // Default permission: ADVERTISE = "Manage campaigns (ads)" + ANALYZE = "View performance"
-        const defaultTasks = ['ADVERTISE', 'ANALYZE']
-
-        // Method 1: POST /act_{id}/agencies — Add partner BM as agency on the ad account
-        // This is what happens when owner says "share this ad account with partner BM"
-        let result = await tryMethod(
-          'agencies',
-          `${graphBase}/act_${adAccountId}/agencies`,
-          {
-            business: userBmId,
-            permitted_tasks: JSON.stringify(defaultTasks),
-          }
-        )
-        if (result) return result
-
-        // Method 2: If we know the owner's BM, try adding as client_ad_accounts from owner's BM
-        if (ownerBmId) {
-          result = await tryMethod(
-            'owner_client_ad_accounts',
-            `${graphBase}/${ownerBmId}/client_ad_accounts`,
-            {
-              adaccount_id: `act_${adAccountId}`,
-              permitted_tasks: JSON.stringify(defaultTasks),
-            }
-          )
-          if (result) return result
-        }
-
-        // Method 3: POST /{userBmId}/client_ad_accounts — try direct assignment
-        result = await tryMethod(
-          'user_client_ad_accounts',
-          `${graphBase}/${userBmId}/client_ad_accounts`,
-          {
-            adaccount_id: `act_${adAccountId}`,
-            permitted_tasks: JSON.stringify(defaultTasks),
-          }
-        )
-        if (result) return result
-
-        // Method 4: POST /act_{id}/assigned_users — share to individual business user
-        // (fallback, may not work for BM sharing)
-        result = await tryMethod(
-          'assigned_users',
-          `${graphBase}/act_${adAccountId}/assigned_users`,
-          {
-            business: userBmId,
-            tasks: JSON.stringify(defaultTasks),
-          }
-        )
-        if (result) return result
-
-        return { error: errors.join(' | ') }
-      },
-      args: [userBmId, accountId, ownerBmId || '', ctx.accessToken]
-    })
-
-    const result = shareResults?.[0]?.result
-    if (!result) throw new Error('Script injection returned no result')
-    if (result.error) throw new Error(result.error)
-
-    // Success!
-    await apiRequest(`/extension/bm-share/${requestId}/complete`, 'POST')
-    await addActivity('success', `BM shared: act_${accountId} → BM ${userBmId} (${username}) [${result.method}]`)
-    console.log(`[6AD] Successfully shared act_${accountId} to BM ${userBmId} via ${result.method}`)
-
-  } catch (err) {
-    console.error(`[6AD] BM share failed for act_${accountId}:`, err.message)
-    await addActivity('error', `BM share failed for act_${accountId}: ${err.message}`)
-
-    try {
-      await apiRequest(`/extension/bm-share/${requestId}/failed`, 'POST', {
-        error: err.message
+      // Method 1: POST /act_{id}/agencies
+      let result = await tryBmMethod('agencies', `/v21.0/act_${accountId}/agencies`, {
+        business: userBmId,
+        permitted_tasks: JSON.stringify(defaultTasks)
       })
-    } catch (reportErr) {
-      console.error('[6AD] Failed to report BM share failure:', reportErr.message)
+
+      // Method 2: owner_client_ad_accounts
+      if (!result && ownerBmId) {
+        result = await tryBmMethod('owner_client_ad_accounts', `/v21.0/${ownerBmId}/client_ad_accounts`, {
+          adaccount_id: `act_${accountId}`,
+          permitted_tasks: JSON.stringify(defaultTasks)
+        })
+      }
+
+      // Method 3: user_client_ad_accounts
+      if (!result) {
+        result = await tryBmMethod('user_client_ad_accounts', `/v21.0/${userBmId}/client_ad_accounts`, {
+          adaccount_id: `act_${accountId}`,
+          permitted_tasks: JSON.stringify(defaultTasks)
+        })
+      }
+
+      // Method 4: assigned_users
+      if (!result) {
+        result = await tryBmMethod('assigned_users', `/v21.0/act_${accountId}/assigned_users`, {
+          business: userBmId,
+          tasks: JSON.stringify(defaultTasks)
+        })
+      }
+
+      // If all methods failed due to token error → recapture and retry
+      if (!result && gotTokenError && attempt < MAX_ATTEMPTS) {
+        console.log('[6AD] Token error during BM share — recapturing...')
+        await updateConfig({ fbAccessToken: '' })
+        await recaptureToken()
+        lastError = errors.join(' | ')
+        continue
+      }
+
+      if (!result) throw new Error(errors.join(' | '))
+
+      // Success!
+      await apiRequest(`/extension/bm-share/${requestId}/complete`, 'POST')
+      await addActivity('success', `BM shared: act_${accountId} → BM ${userBmId} (${username}) [${result.method}]`)
+      console.log(`[6AD] Successfully shared act_${accountId} to BM ${userBmId} via ${result.method}`)
+      return
+
+    } catch (err) {
+      lastError = err.message
+
+      if (isTokenError(err.message) && attempt < MAX_ATTEMPTS) {
+        console.log(`[6AD] BM share token error (attempt ${attempt}) — recapturing...`)
+        await updateConfig({ fbAccessToken: '' })
+        await recaptureToken()
+        continue
+      }
+
+      if (attempt >= MAX_ATTEMPTS) {
+        console.error(`[6AD] BM share failed for act_${accountId} after ${attempt} attempts:`, err.message)
+        await addActivity('error', `BM share failed for act_${accountId}: ${err.message}`)
+        try {
+          await apiRequest(`/extension/bm-share/${requestId}/failed`, 'POST', { error: err.message })
+        } catch (reportErr) {
+          console.error('[6AD] Failed to report BM share failure:', reportErr.message)
+        }
+        return
+      }
     }
   }
+
+  // Safety net
+  console.error(`[6AD] BM share failed for act_${accountId} after ${MAX_ATTEMPTS} attempts:`, lastError)
+  await addActivity('error', `BM share failed for act_${accountId} after ${MAX_ATTEMPTS} attempts: ${lastError}`)
+  try {
+    await apiRequest(`/extension/bm-share/${requestId}/failed`, 'POST', {
+      error: `Failed after ${MAX_ATTEMPTS} attempts: ${lastError}`
+    })
+  } catch {}
 }
 
 // ==================== ALARM SETUP ====================
@@ -1637,16 +1129,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 })
 
-async function handleTokenCapture(token) {
-  const config = await getConfig()
-  if (token !== config.fbAccessToken) {
-    await updateConfig({ fbAccessToken: token })
-    await addActivity('success', `Token saved (len=${token.length}, ${token.substring(0, 15)}...)`)
-    console.log('[6AD] New FB token stored, length:', token.length)
-
-    // Trigger a heartbeat to send token to server immediately
-    setTimeout(sendHeartbeat, 2000)
+async function handleTokenCapture(token, skipValidation = false) {
+  // Validate token format before storing
+  if (!token || !token.startsWith('EAA') || token.length < 40) return
+  if (!/^EAA[a-zA-Z0-9]+$/.test(token)) {
+    console.log('[6AD] handleTokenCapture: rejecting non-alphanumeric token (length:', token.length, ')')
+    return
   }
+  if (token.length > 500) {
+    console.log('[6AD] handleTokenCapture: rejecting suspiciously long token (length:', token.length, ')')
+    return
+  }
+
+  const config = await getConfig()
+  if (token === config.fbAccessToken) return // Already have this token
+
+  // ALWAYS validate token via /me before saving (unless caller already validated)
+  if (!skipValidation) {
+    try {
+      const meData = await fbGraphFetch('/v21.0/me', token, { params: { fields: 'id,name' } })
+      if (!meData.id) {
+        console.log('[6AD] handleTokenCapture: token REJECTED by /me validation (error:', meData.error?.message?.substring(0, 80) || 'no id', ', len:', token.length, ')')
+        return
+      }
+      console.log('[6AD] handleTokenCapture: token VALIDATED via /me (user:', meData.name, ', id:', meData.id, ')')
+    } catch (e) {
+      console.log('[6AD] handleTokenCapture: /me validation failed:', e.message, '— rejecting token')
+      return
+    }
+  }
+
+  await updateConfig({ fbAccessToken: token })
+  await addActivity('success', `Token saved (len=${token.length}, ${token.substring(0, 15)}...)`)
+  console.log('[6AD] New FB token stored, length:', token.length)
+
+  // Trigger a heartbeat to send token to server immediately
+  setTimeout(sendHeartbeat, 2000)
 }
 
 async function handleGetStatus() {
@@ -1733,6 +1251,23 @@ setTimeout(async () => {
   const config = await getConfig()
   // Always attach debugger on startup
   await attachDebuggerToFBTabs()
+
+  // Validate stored token on startup — clear garbage tokens from previous sessions
+  if (config.fbAccessToken) {
+    try {
+      const session = await validateFbSession()
+      if (!session.valid && session.isTokenError) {
+        console.log('[6AD] Startup: stored token invalid, clearing...', session.error)
+        await updateConfig({ fbAccessToken: '' })
+        await addActivity('warning', 'Cleared invalid startup token — will recapture on first use')
+      } else if (session.valid) {
+        console.log('[6AD] Startup: stored token valid (user:', session.name || session.userId, ')')
+      }
+    } catch (e) {
+      console.log('[6AD] Startup: token validation error:', e.message)
+    }
+  }
+
   if (config.apiKey && config.isEnabled) {
     await sendHeartbeat()
   }

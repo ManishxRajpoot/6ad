@@ -1,0 +1,294 @@
+/**
+ * Task Watchdog Service
+ *
+ * Runs every 2 minutes to:
+ * A) Timeout stuck recharges (IN_PROGRESS > 15 min, PENDING with max retries)
+ * B) Timeout stuck BM shares (PENDING with max retries)
+ * C) Auto-refund permanently failed recharges (FAILED + attempts >= 5)
+ */
+
+import { PrismaClient } from '@prisma/client'
+import {
+  sendEmail,
+  buildSmtpConfig,
+  getAccountRechargeRejectedTemplate,
+} from '../utils/email.js'
+import { createNotification } from '../routes/notifications.js'
+
+const prisma = new PrismaClient()
+
+// ─── Configuration ─────────────────────────────────────────────────
+const CONFIG = {
+  POLL_INTERVAL_MS: 2 * 60 * 1000,         // Check every 2 minutes
+  IN_PROGRESS_TIMEOUT_MS: 15 * 60 * 1000,  // IN_PROGRESS > 15 min → FAILED
+  PENDING_TIMEOUT_MS: 30 * 60 * 1000,      // PENDING > 30 min (only if max retries hit)
+  MAX_RECHARGE_ATTEMPTS: 5,
+  MAX_SHARE_ATTEMPTS: 5,
+}
+
+let pollInterval: NodeJS.Timeout | null = null
+
+// ─── Step A: Timeout stuck recharges ───────────────────────────────
+async function timeoutStuckRecharges(): Promise<number> {
+  let count = 0
+
+  // A1: IN_PROGRESS for too long → FAILED (TIMEOUT)
+  const stuckInProgress = await prisma.accountDeposit.findMany({
+    where: {
+      status: 'APPROVED',
+      rechargeStatus: 'IN_PROGRESS',
+      updatedAt: { lt: new Date(Date.now() - CONFIG.IN_PROGRESS_TIMEOUT_MS) },
+    },
+    select: { id: true, applyId: true },
+  })
+
+  if (stuckInProgress.length > 0) {
+    await prisma.accountDeposit.updateMany({
+      where: { id: { in: stuckInProgress.map(d => d.id) } },
+      data: {
+        rechargeStatus: 'FAILED',
+        rechargeError: 'TIMEOUT: Task stuck IN_PROGRESS for >15 minutes',
+      },
+    })
+    for (const d of stuckInProgress) {
+      console.log(`[Watchdog] Timed out IN_PROGRESS recharge: ${d.id} (${d.applyId || 'N/A'})`)
+    }
+    count += stuckInProgress.length
+  }
+
+  // A2: PENDING/NONE with max retries exhausted → FAILED (MAX_RETRIES_EXCEEDED)
+  const maxRetriesPending = await prisma.accountDeposit.findMany({
+    where: {
+      status: 'APPROVED',
+      rechargeStatus: { in: ['PENDING', 'NONE'] },
+      rechargeAttempts: { gte: CONFIG.MAX_RECHARGE_ATTEMPTS },
+    },
+    select: { id: true, applyId: true, rechargeAttempts: true },
+  })
+
+  if (maxRetriesPending.length > 0) {
+    await prisma.accountDeposit.updateMany({
+      where: { id: { in: maxRetriesPending.map(d => d.id) } },
+      data: {
+        rechargeStatus: 'FAILED',
+        rechargeError: 'MAX_RETRIES_EXCEEDED: Maximum recharge attempts exhausted',
+      },
+    })
+    for (const d of maxRetriesPending) {
+      console.log(`[Watchdog] Max retries exceeded for recharge: ${d.id} (${d.applyId || 'N/A'}) — ${d.rechargeAttempts} attempts`)
+    }
+    count += maxRetriesPending.length
+  }
+
+  return count
+}
+
+// ─── Step B: Timeout stuck BM shares ───────────────────────────────
+async function timeoutStuckBmShares(): Promise<number> {
+  // PENDING with max retries exhausted → auto-reject
+  const stuckBmShares = await prisma.bmShareRequest.findMany({
+    where: {
+      status: 'PENDING',
+      shareAttempts: { gte: CONFIG.MAX_SHARE_ATTEMPTS },
+    },
+    select: { id: true, applyId: true, shareAttempts: true },
+  })
+
+  if (stuckBmShares.length > 0) {
+    await prisma.bmShareRequest.updateMany({
+      where: { id: { in: stuckBmShares.map(r => r.id) } },
+      data: {
+        status: 'REJECTED',
+        shareError: 'MAX_RETRIES_EXCEEDED: Auto-rejected after maximum failed attempts',
+        rejectedAt: new Date(),
+        adminRemarks: 'Auto-rejected by watchdog: max share attempts exhausted',
+      },
+    })
+    for (const r of stuckBmShares) {
+      console.log(`[Watchdog] Auto-rejected BM share: ${r.id} (${r.applyId || 'N/A'}) — ${r.shareAttempts} attempts`)
+    }
+  }
+
+  return stuckBmShares.length
+}
+
+// ─── Step C: Auto-refund permanently failed recharges ──────────────
+async function autoRefundFailedRecharges(): Promise<number> {
+  // Find deposits that are APPROVED (money deducted) but recharge permanently FAILED
+  const permanentlyFailed = await prisma.accountDeposit.findMany({
+    where: {
+      status: 'APPROVED',
+      rechargeStatus: 'FAILED',
+      rechargeAttempts: { gte: CONFIG.MAX_RECHARGE_ATTEMPTS },
+    },
+    include: {
+      adAccount: {
+        include: {
+          user: {
+            include: {
+              agent: {
+                select: {
+                  brandLogo: true,
+                  emailLogo: true,
+                  username: true,
+                  emailSenderNameApproved: true,
+                  smtpEnabled: true,
+                  smtpHost: true,
+                  smtpPort: true,
+                  smtpUsername: true,
+                  smtpPassword: true,
+                  smtpEncryption: true,
+                  smtpFromEmail: true,
+                  customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  let refundedCount = 0
+
+  for (const deposit of permanentlyFailed) {
+    try {
+      const depositAmount = Number(deposit.amount) || 0
+      const commissionAmount = Number(deposit.commissionAmount) || 0
+      const totalRefund = depositAmount + commissionAmount
+
+      if (totalRefund <= 0) {
+        console.log(`[Watchdog] Skipping auto-refund for ${deposit.id} — zero amount`)
+        continue
+      }
+
+      await prisma.$transaction(async (tx) => {
+        // 1. Mark deposit as REJECTED (same pattern as manual reject in accounts.ts)
+        await tx.accountDeposit.update({
+          where: { id: deposit.id },
+          data: {
+            status: 'REJECTED',
+            adminRemarks: `Auto-refunded: Recharge permanently failed after ${deposit.rechargeAttempts} attempts. Error: ${deposit.rechargeError || 'unknown'}`,
+          },
+        })
+
+        // 2. Reverse the ad account balance increment (undo the approval)
+        await tx.adAccount.update({
+          where: { id: deposit.adAccountId },
+          data: {
+            totalDeposit: { decrement: depositAmount },
+            balance: { decrement: depositAmount },
+          },
+        })
+
+        // 3. Refund to user wallet
+        const balanceBefore = Number(deposit.adAccount.user.walletBalance)
+        const balanceAfter = balanceBefore + totalRefund
+
+        await tx.user.update({
+          where: { id: deposit.adAccount.userId },
+          data: { walletBalance: balanceAfter },
+        })
+
+        // 4. Create WalletFlow REFUND record
+        await tx.walletFlow.create({
+          data: {
+            type: 'REFUND',
+            amount: totalRefund,
+            balanceBefore,
+            balanceAfter,
+            referenceId: deposit.id,
+            referenceType: 'recharge_auto_refund',
+            userId: deposit.adAccount.userId,
+            description: `Auto-refund: Recharge failed for ${deposit.adAccount.platform} account ${deposit.adAccount.accountId}. $${depositAmount.toFixed(2)} + Fee $${commissionAmount.toFixed(2)} = $${totalRefund.toFixed(2)}`,
+          },
+        })
+      })
+
+      // 5. Send notification (fire and forget)
+      createNotification({
+        userId: deposit.adAccount.userId,
+        type: 'DEPOSIT_REJECTED',
+        title: 'Deposit Auto-Refunded',
+        message: `Your deposit of $${depositAmount.toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} could not be recharged and has been automatically refunded to your wallet.`,
+        link: '/facebook',
+      }).catch(() => {})
+
+      // 6. Send rejection email with refund info (reuse existing template)
+      const approvedDomain = deposit.adAccount.user.agent?.customDomains?.[0]
+      const agent = deposit.adAccount.user.agent
+      const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agent?.emailLogo || agent?.brandLogo || null
+      const agentBrandName = agent?.username || null
+      const emailTemplate = getAccountRechargeRejectedTemplate({
+        username: deposit.adAccount.user.username,
+        applyId: deposit.applyId,
+        amount: depositAmount,
+        commission: commissionAmount,
+        totalCost: totalRefund,
+        platform: deposit.adAccount.platform,
+        accountId: deposit.adAccount.accountId,
+        accountName: deposit.adAccount.accountName || undefined,
+        adminRemarks: `Recharge failed after ${deposit.rechargeAttempts} attempts. Your deposit has been automatically refunded.`,
+        agentLogo,
+        agentBrandName,
+      })
+      sendEmail({
+        to: deposit.adAccount.user.email,
+        ...emailTemplate,
+        senderName: agent?.emailSenderNameApproved || undefined,
+        smtpConfig: buildSmtpConfig(agent),
+      }).catch(console.error)
+
+      console.log(`[Watchdog] Auto-refunded deposit ${deposit.id} (${deposit.applyId || 'N/A'}) — $${totalRefund.toFixed(2)} → user ${deposit.adAccount.userId}`)
+      refundedCount++
+    } catch (error) {
+      console.error(`[Watchdog] Failed to auto-refund deposit ${deposit.id}:`, error)
+    }
+  }
+
+  return refundedCount
+}
+
+// ─── Main watchdog cycle ───────────────────────────────────────────
+async function runWatchdogCycle(): Promise<void> {
+  try {
+    const timedOutRecharges = await timeoutStuckRecharges()
+    const timedOutBmShares = await timeoutStuckBmShares()
+    const refundedDeposits = await autoRefundFailedRecharges()
+
+    // Only log if something happened
+    if (timedOutRecharges > 0 || timedOutBmShares > 0 || refundedDeposits > 0) {
+      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutBmShares} BM shares, auto-refunded ${refundedDeposits} deposits`)
+    }
+  } catch (error) {
+    console.error('[Watchdog] Cycle error:', error)
+  }
+}
+
+// ─── Public API ────────────────────────────────────────────────────
+export function startTaskWatchdog(): void {
+  console.log('[Watchdog] Starting task watchdog...')
+  console.log(`[Watchdog] Poll interval: ${CONFIG.POLL_INTERVAL_MS / 1000}s`)
+  console.log(`[Watchdog] IN_PROGRESS timeout: ${CONFIG.IN_PROGRESS_TIMEOUT_MS / 60000} min`)
+  console.log(`[Watchdog] Max recharge attempts: ${CONFIG.MAX_RECHARGE_ATTEMPTS}`)
+  console.log(`[Watchdog] Max share attempts: ${CONFIG.MAX_SHARE_ATTEMPTS}`)
+
+  // Run first cycle after a short delay (let server fully start)
+  setTimeout(() => {
+    runWatchdogCycle().catch(err => console.error('[Watchdog] Initial cycle error:', err))
+  }, 10000)
+
+  pollInterval = setInterval(() => {
+    runWatchdogCycle().catch(err => console.error('[Watchdog] Cycle error:', err))
+  }, CONFIG.POLL_INTERVAL_MS)
+
+  console.log('[Watchdog] Started — checking every 2 minutes')
+}
+
+export function stopTaskWatchdog(): void {
+  if (pollInterval) {
+    clearInterval(pollInterval)
+    pollInterval = null
+  }
+  console.log('[Watchdog] Stopped')
+}

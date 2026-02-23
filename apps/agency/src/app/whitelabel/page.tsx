@@ -39,6 +39,8 @@ type CustomDomain = {
   verificationToken: string | null
   brandLogo: string | null
   favicon: string | null
+  logoStatus: string | null
+  faviconStatus: string | null
   adminRemarks: string | null
   approvedAt: string | null
   rejectedAt: string | null
@@ -71,6 +73,12 @@ export default function WhitelabelPage() {
   const faviconFileInputRef = useRef<HTMLInputElement>(null)
   const updateFaviconFileInputRef = useRef<HTMLInputElement>(null)
   const [updatingFavicon, setUpdatingFavicon] = useState(false)
+
+  // Branding state (from User model - used when no domain exists or for standalone logo/favicon)
+  const [brandingLogo, setBrandingLogo] = useState<string | null>(null)
+  const [brandingFavicon, setBrandingFavicon] = useState<string | null>(null)
+  const [brandingLogoStatus, setBrandingLogoStatus] = useState<string | null>(null)
+  const [brandingFaviconStatus, setBrandingFaviconStatus] = useState<string | null>(null)
 
   // Email settings state
   const [useCustomEmail, setUseCustomEmail] = useState(false)
@@ -120,6 +128,12 @@ export default function WhitelabelPage() {
       if (res.branding) {
         setEmailSenderNameApproved(res.branding.emailSenderNameApproved)
         setEmailSenderNameStatus(res.branding.emailSenderNameStatus)
+
+        // Set branding logo/favicon from User model
+        setBrandingLogo(res.branding.brandLogo)
+        setBrandingFavicon(res.branding.favicon)
+        setBrandingLogoStatus(res.branding.logoStatus)
+        setBrandingFaviconStatus(res.branding.faviconStatus)
 
         if (res.branding.emailSenderName) {
           setEmailSenderName(res.branding.emailSenderName)
@@ -252,13 +266,33 @@ export default function WhitelabelPage() {
       }
       const reader = new FileReader()
       reader.onloadend = () => {
-        if (isUpdate && selectedDomain) {
+        if (isUpdate && activeDomain) {
+          // Update logo on domain record
+          setSelectedDomain(activeDomain)
           handleUpdateLogo(reader.result as string)
+        } else if (isUpdate && !activeDomain) {
+          // Upload logo to User model (no domain)
+          handleUploadBrandingLogo(reader.result as string)
         } else {
           setNewLogo(reader.result as string)
         }
       }
       reader.readAsDataURL(file)
+    }
+  }
+
+  // Upload logo via branding API (User model, no domain needed)
+  const handleUploadBrandingLogo = async (logo: string) => {
+    setUpdatingLogo(true)
+    try {
+      await brandingApi.update({ brandLogo: logo })
+      setBrandingLogo(logo)
+      setBrandingLogoStatus('PENDING')
+      toast.success('Logo uploaded. Awaiting admin approval.')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload logo')
+    } finally {
+      setUpdatingLogo(false)
     }
   }
 
@@ -317,13 +351,33 @@ export default function WhitelabelPage() {
       }
       const reader = new FileReader()
       reader.onloadend = () => {
-        if (isUpdate && selectedDomain) {
+        if (isUpdate && activeDomain) {
+          // Update favicon on domain record
+          setSelectedDomain(activeDomain)
           handleUpdateFavicon(reader.result as string)
+        } else if (isUpdate && !activeDomain) {
+          // Upload favicon to User model (no domain)
+          handleUploadBrandingFavicon(reader.result as string)
         } else {
           setNewFavicon(reader.result as string)
         }
       }
       reader.readAsDataURL(file)
+    }
+  }
+
+  // Upload favicon via branding API (User model, no domain needed)
+  const handleUploadBrandingFavicon = async (faviconData: string) => {
+    setUpdatingFavicon(true)
+    try {
+      await brandingApi.update({ favicon: faviconData })
+      setBrandingFavicon(faviconData)
+      setBrandingFaviconStatus('PENDING')
+      toast.success('Favicon uploaded. Awaiting admin approval.')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload favicon')
+    } finally {
+      setUpdatingFavicon(false)
     }
   }
 
@@ -469,6 +523,28 @@ export default function WhitelabelPage() {
                   )}
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-gray-600">Logo</span>
+                  {(() => {
+                    const status = activeDomain ? activeDomain?.logoStatus : brandingLogoStatus
+                    const hasLogo = activeDomain ? activeDomain?.brandLogo : brandingLogo
+                    if (status === 'APPROVED') return <span className="flex items-center gap-1 text-[10px] font-medium text-green-600"><Check className="w-3 h-3" /> Approved</span>
+                    if (status === 'PENDING') return <span className="flex items-center gap-1 text-[10px] font-medium text-yellow-600"><Clock className="w-3 h-3" /> Pending</span>
+                    if (hasLogo) return <span className="flex items-center gap-1 text-[10px] font-medium text-green-600"><Check className="w-3 h-3" /> Set</span>
+                    return <span className="text-[10px] text-gray-400 font-medium">Not set</span>
+                  })()}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-gray-600">Favicon</span>
+                  {(() => {
+                    const status = activeDomain ? activeDomain?.faviconStatus : brandingFaviconStatus
+                    const hasFavicon = activeDomain ? activeDomain?.favicon : brandingFavicon
+                    if (status === 'APPROVED') return <span className="flex items-center gap-1 text-[10px] font-medium text-green-600"><Check className="w-3 h-3" /> Approved</span>
+                    if (status === 'PENDING') return <span className="flex items-center gap-1 text-[10px] font-medium text-yellow-600"><Clock className="w-3 h-3" /> Pending</span>
+                    if (hasFavicon) return <span className="flex items-center gap-1 text-[10px] font-medium text-green-600"><Check className="w-3 h-3" /> Set</span>
+                    return <span className="text-[10px] text-gray-400 font-medium">Not set</span>
+                  })()}
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-[12px] text-gray-600">Email</span>
                   {getEmailStatus() ? (
                     <span className={`flex items-center gap-1 text-[10px] font-medium ${getEmailStatus()?.color}`}>
@@ -502,407 +578,365 @@ export default function WhitelabelPage() {
                 {/* Section Header */}
                 <div>
                   <h2 className="text-[15px] font-semibold text-gray-900">Domain & Branding</h2>
-                  <p className="text-[12px] text-gray-500">Configure custom domain and logo</p>
+                  <p className="text-[12px] text-gray-500">Configure custom domain, logo, and favicon</p>
                 </div>
 
                 {loading ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
                   </div>
-                ) : activeDomain ? (
-                  <>
-                    {/* Domain Section */}
-                    <div className="pb-4 border-b border-gray-100">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
-                            <Globe className="w-3.5 h-3.5 text-[#0D9488]" />
-                          </div>
-                          <h3 className="text-sm font-medium text-gray-900">Domain Configuration</h3>
-                        </div>
-                        {activeDomain.status === 'APPROVED' && (
-                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" /> Active
-                          </span>
-                        )}
-                        {activeDomain.status === 'PENDING' && (
-                          <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> Pending
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2.5 p-3 bg-gray-50 rounded-lg">
-                          <Globe className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium text-sm text-gray-900">{activeDomain.domain}</span>
-                        </div>
-
-                        {/* DNS Status */}
-                        <div className="p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">DNS Status</span>
-                            {activeDomain.dnsVerified ? (
-                              <span className="text-green-600 flex items-center gap-1 text-xs font-medium">
-                                <Check className="w-3.5 h-3.5" /> Verified
-                              </span>
-                            ) : (
-                              <span className="text-yellow-600 flex items-center gap-1 text-xs font-medium">
-                                <AlertCircle className="w-3.5 h-3.5" /> Not Verified
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Actions */}
-                        {activeDomain.status === 'PENDING' && !activeDomain.dnsVerified && (
-                          <button
-                            onClick={() => {
-                              setSelectedDomain(activeDomain)
-                              setDnsInstructions({
-                                type: 'A',
-                                name: activeDomain.domain,
-                                value: vpsIp,
-                                txtRecord: {
-                                  name: `_6ad-verify.${activeDomain.domain}`,
-                                  value: activeDomain.verificationToken,
-                                },
-                              })
-                              setShowDnsModal(true)
-                            }}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-sm font-medium transition-all"
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                            Configure DNS
-                          </button>
-                        )}
-
-                        {activeDomain.status === 'REJECTED' && activeDomain.adminRemarks && (
-                          <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-xs text-red-600">
-                              <strong>Rejection Reason:</strong> {activeDomain.adminRemarks}
-                            </p>
-                          </div>
-                        )}
-
-                        {(activeDomain.status === 'PENDING' || activeDomain.status === 'REJECTED') && (
-                          <button
-                            onClick={() => handleDeleteDomain(activeDomain.id)}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-lg text-sm font-medium transition-all"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Delete Domain
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Logo Section */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
-                          <Upload className="w-3.5 h-3.5 text-[#0D9488]" />
-                        </div>
-                        <h3 className="text-sm font-medium text-gray-900">Brand Logo</h3>
-                      </div>
-
-                      <div className="space-y-3">
-                        {activeDomain.brandLogo ? (
-                          <div className="relative p-4 bg-gray-50 rounded-lg border border-gray-200">
-                            <img
-                              src={activeDomain.brandLogo}
-                              alt="Brand Logo"
-                              className="max-h-16 max-w-full object-contain mx-auto"
-                            />
-                            {activeDomain.status !== 'APPROVED' && (
-                              <p className="text-xs text-center text-yellow-600 mt-2">
-                                Awaiting admin approval
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center">
-                            <Upload className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />
-                            <p className="text-sm text-gray-500">No logo uploaded</p>
-                          </div>
-                        )}
-
-                        {/* Upload/Update Logo Button */}
-                        <div>
-                          <input
-                            ref={updateFileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              setSelectedDomain(activeDomain)
-                              handleLogoUpload(e, true)
-                            }}
-                            className="hidden"
-                          />
-                          <button
-                            onClick={() => {
-                              setSelectedDomain(activeDomain)
-                              updateFileInputRef.current?.click()
-                            }}
-                            disabled={updatingLogo}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {updatingLogo ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                Updating...
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="w-4 h-4" />
-                                {activeDomain.brandLogo ? 'Update Logo' : 'Upload Logo'}
-                              </>
-                            )}
-                          </button>
-                        </div>
-
-                        {/* Logo Requirements */}
-                        <div className="p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
-                          <p className="text-xs font-medium text-[#0D9488] mb-1.5">Logo Requirements</p>
-                          <ul className="text-xs text-gray-600 space-y-0.5">
-                            <li>• <strong>Recommended:</strong> 280×56px (5:1 ratio)</li>
-                            <li>• <strong>Format:</strong> PNG with transparent background</li>
-                            <li>• <strong>Max size:</strong> 2MB</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Favicon Section */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
-                          <Palette className="w-3.5 h-3.5 text-[#0D9488]" />
-                        </div>
-                        <h3 className="text-sm font-medium text-gray-900">Favicon</h3>
-                      </div>
-
-                      <div className="space-y-3">
-                        {activeDomain.favicon ? (
-                          <div className="relative p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3">
-                            <img
-                              src={activeDomain.favicon}
-                              alt="Favicon"
-                              className="w-8 h-8 object-contain"
-                            />
-                            <span className="text-sm text-gray-600">Current favicon</span>
-                            {activeDomain.status !== 'APPROVED' && (
-                              <span className="text-xs text-yellow-600 ml-auto">Awaiting approval</span>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center">
-                            <Palette className="w-5 h-5 text-gray-300 mx-auto mb-1" />
-                            <p className="text-sm text-gray-500">No favicon uploaded</p>
-                          </div>
-                        )}
-
-                        {/* Upload/Update Favicon Button */}
-                        <div>
-                          <input
-                            ref={updateFaviconFileInputRef}
-                            type="file"
-                            accept="image/png,image/svg+xml,image/x-icon,image/ico,.ico"
-                            onChange={(e) => {
-                              setSelectedDomain(activeDomain)
-                              handleFaviconUpload(e, true)
-                            }}
-                            className="hidden"
-                          />
-                          <button
-                            onClick={() => {
-                              setSelectedDomain(activeDomain)
-                              updateFaviconFileInputRef.current?.click()
-                            }}
-                            disabled={updatingFavicon}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {updatingFavicon ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                Updating...
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="w-4 h-4" />
-                                {activeDomain.favicon ? 'Update Favicon' : 'Upload Favicon'}
-                              </>
-                            )}
-                          </button>
-                        </div>
-
-                        {/* Favicon Requirements */}
-                        <div className="p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
-                          <p className="text-xs font-medium text-[#0D9488] mb-1.5">Favicon Requirements</p>
-                          <ul className="text-xs text-gray-600 space-y-0.5">
-                            <li>• <strong>Size:</strong> 32×32 or 64×64 pixels</li>
-                            <li>• <strong>Format:</strong> PNG, SVG, or ICO</li>
-                            <li>• <strong>Max size:</strong> 500KB</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : showAddDomainForm ? (
-                  /* Add Domain Form */
-                  <div className="space-y-4">
-                    <div className="pb-4 border-b border-gray-100">
-                      <h3 className="text-sm font-medium text-gray-900 mb-3">Domain</h3>
-                      <div>
-                        <label className="block text-sm text-gray-600 mb-1">Enter your subdomain</label>
-                        <input
-                          type="text"
-                          value={newDomain}
-                          onChange={(e) => setNewDomain(e.target.value)}
-                          placeholder="ads.youragency.com"
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white transition-all"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Enter without http:// or https://</p>
-                      </div>
-                    </div>
-
-                    <div className="pb-4 border-b border-gray-100">
-                      <h3 className="text-sm font-medium text-gray-900 mb-3">Brand Logo</h3>
-                      {newLogo ? (
-                        <div className="relative p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                          <img
-                            src={newLogo}
-                            alt="Brand Logo"
-                            className="max-h-16 max-w-full object-contain mx-auto"
-                          />
-                          <button
-                            onClick={() => {
-                              setNewLogo('')
-                              if (fileInputRef.current) fileInputRef.current.value = ''
-                            }}
-                            className="absolute top-2 right-2 p-1 bg-red-100 rounded-full text-red-600 hover:bg-red-200 transition-colors"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div
-                          onClick={() => fileInputRef.current?.click()}
-                          className="p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center cursor-pointer hover:border-[#0D9488] hover:bg-[#0D9488]/5 transition-colors"
-                        >
-                          <Upload className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />
-                          <p className="text-sm text-gray-500">Click to upload logo</p>
-                          <p className="text-xs text-gray-400">Max 2MB</p>
-                        </div>
-                      )}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleLogoUpload(e)}
-                        className="hidden"
-                      />
-
-                      {/* Logo Requirements */}
-                      <div className="mt-3 p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
-                        <p className="text-xs font-medium text-[#0D9488] mb-1.5">Recommended Specifications</p>
-                        <ul className="text-xs text-gray-600 space-y-0.5">
-                          <li>• <strong>Size:</strong> 280×56 pixels (or similar aspect ratio)</li>
-                          <li>• <strong>Format:</strong> PNG with transparent background</li>
-                          <li>• <strong>Best for:</strong> Horizontal/wide logos work best</li>
-                        </ul>
-                      </div>
-                    </div>
-
-                    {/* Favicon Upload (Add Domain Form) */}
-                    <div className="pb-4 border-b border-gray-100">
-                      <h3 className="text-sm font-medium text-gray-900 mb-3">Favicon</h3>
-                      {newFavicon ? (
-                        <div className="relative p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 flex items-center gap-3">
-                          <img
-                            src={newFavicon}
-                            alt="Favicon"
-                            className="w-8 h-8 object-contain"
-                          />
-                          <span className="text-sm text-gray-600">Favicon selected</span>
-                          <button
-                            onClick={() => {
-                              setNewFavicon('')
-                              if (faviconFileInputRef.current) faviconFileInputRef.current.value = ''
-                            }}
-                            className="absolute top-2 right-2 p-1 bg-red-100 rounded-full text-red-600 hover:bg-red-200 transition-colors"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div
-                          onClick={() => faviconFileInputRef.current?.click()}
-                          className="p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center cursor-pointer hover:border-[#0D9488] hover:bg-[#0D9488]/5 transition-colors"
-                        >
-                          <Palette className="w-5 h-5 text-gray-300 mx-auto mb-1" />
-                          <p className="text-sm text-gray-500">Click to upload favicon</p>
-                          <p className="text-xs text-gray-400">Max 500KB</p>
-                        </div>
-                      )}
-                      <input
-                        ref={faviconFileInputRef}
-                        type="file"
-                        accept="image/png,image/svg+xml,image/x-icon,image/ico,.ico"
-                        onChange={(e) => handleFaviconUpload(e)}
-                        className="hidden"
-                      />
-
-                      <div className="mt-3 p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
-                        <p className="text-xs font-medium text-[#0D9488] mb-1.5">Favicon Specifications</p>
-                        <ul className="text-xs text-gray-600 space-y-0.5">
-                          <li>• <strong>Size:</strong> 32×32 or 64×64 pixels</li>
-                          <li>• <strong>Format:</strong> PNG, SVG, or ICO</li>
-                          <li>• <strong>Max size:</strong> 500KB</li>
-                        </ul>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          setShowAddDomainForm(false)
-                          setNewDomain('')
-                          setNewLogo('')
-                          setNewFavicon('')
-                        }}
-                        className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-all"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSubmitDomain}
-                        disabled={submitting}
-                        className="flex-1 flex items-center justify-center gap-2 bg-[#0D9488] hover:bg-[#0F766E] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                        {submitting ? 'Submitting...' : 'Submit Domain'}
-                      </button>
-                    </div>
-                  </div>
                 ) : (
-                  /* Empty State */
-                  <div className="text-center py-8">
-                    <div className="w-14 h-14 rounded-full bg-[#0D9488]/10 flex items-center justify-center mx-auto mb-3">
-                      <Globe className="w-7 h-7 text-[#0D9488]" />
+                  <>
+                    {/* ===== DOMAIN SECTION ===== */}
+                    <div className="pb-4 border-b border-gray-100">
+                      {activeDomain ? (
+                        <>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
+                                <Globe className="w-3.5 h-3.5 text-[#0D9488]" />
+                              </div>
+                              <h3 className="text-sm font-medium text-gray-900">Domain Configuration</h3>
+                            </div>
+                            {activeDomain.status === 'APPROVED' && (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" /> Active
+                              </span>
+                            )}
+                            {activeDomain.status === 'PENDING' && (
+                              <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> Pending
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2.5 p-3 bg-gray-50 rounded-lg">
+                              <Globe className="w-4 h-4 text-gray-400" />
+                              <span className="font-medium text-sm text-gray-900">{activeDomain.domain}</span>
+                            </div>
+
+                            {/* DNS Status */}
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-gray-600">DNS Status</span>
+                                {activeDomain.dnsVerified ? (
+                                  <span className="text-green-600 flex items-center gap-1 text-xs font-medium">
+                                    <Check className="w-3.5 h-3.5" /> Verified
+                                  </span>
+                                ) : (
+                                  <span className="text-yellow-600 flex items-center gap-1 text-xs font-medium">
+                                    <AlertCircle className="w-3.5 h-3.5" /> Not Verified
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            {activeDomain.status === 'PENDING' && !activeDomain.dnsVerified && (
+                              <button
+                                onClick={() => {
+                                  setSelectedDomain(activeDomain)
+                                  setDnsInstructions({
+                                    type: 'A',
+                                    name: activeDomain.domain,
+                                    value: vpsIp,
+                                    txtRecord: {
+                                      name: `_6ad-verify.${activeDomain.domain}`,
+                                      value: activeDomain.verificationToken,
+                                    },
+                                  })
+                                  setShowDnsModal(true)
+                                }}
+                                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-sm font-medium transition-all"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                                Configure DNS
+                              </button>
+                            )}
+
+                            {activeDomain.status === 'REJECTED' && activeDomain.adminRemarks && (
+                              <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg">
+                                <p className="text-xs text-red-600">
+                                  <strong>Rejection Reason:</strong> {activeDomain.adminRemarks}
+                                </p>
+                              </div>
+                            )}
+
+                            {(activeDomain.status === 'PENDING' || activeDomain.status === 'REJECTED') && (
+                              <button
+                                onClick={() => handleDeleteDomain(activeDomain.id)}
+                                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-lg text-sm font-medium transition-all"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete Domain
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      ) : showAddDomainForm ? (
+                        /* Add Domain Form - Domain only */
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
+                              <Globe className="w-3.5 h-3.5 text-[#0D9488]" />
+                            </div>
+                            <h3 className="text-sm font-medium text-gray-900">Add Custom Domain</h3>
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">Enter your subdomain</label>
+                            <input
+                              type="text"
+                              value={newDomain}
+                              onChange={(e) => setNewDomain(e.target.value)}
+                              placeholder="ads.youragency.com"
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20 focus:border-[#0D9488] focus:bg-white transition-all"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Enter without http:// or https://</p>
+                          </div>
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => {
+                                setShowAddDomainForm(false)
+                                setNewDomain('')
+                                setNewLogo('')
+                                setNewFavicon('')
+                              }}
+                              className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-all"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleSubmitDomain}
+                              disabled={submitting}
+                              className="flex-1 flex items-center justify-center gap-2 bg-[#0D9488] hover:bg-[#0F766E] text-white px-3 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                              {submitting ? 'Submitting...' : 'Submit Domain'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Domain Empty State */
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
+                              <Globe className="w-3.5 h-3.5 text-[#0D9488]" />
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-medium text-gray-900">Custom Domain</h3>
+                              <p className="text-xs text-gray-500">No domain configured</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setShowAddDomainForm(true)}
+                            className="inline-flex items-center gap-1.5 bg-[#0D9488] hover:bg-[#0F766E] text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add Domain
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <h3 className="text-base font-medium text-gray-900 mb-1.5">No domain configured</h3>
-                    <p className="text-sm text-gray-500 mb-4 max-w-sm mx-auto">
-                      Set up your custom domain and branding for your users.
-                    </p>
-                    <button
-                      onClick={() => setShowAddDomainForm(true)}
-                      className="inline-flex items-center gap-2 bg-[#0D9488] hover:bg-[#0F766E] text-white px-5 py-2 rounded-lg text-sm font-medium transition-all"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Configure Domain
-                    </button>
-                  </div>
+
+                    {/* ===== LOGO SECTION - Always visible ===== */}
+                    {(() => {
+                      // Determine logo source: domain-level or user-level branding
+                      const currentLogo = activeDomain ? activeDomain.brandLogo : brandingLogo
+                      const logoStatus = activeDomain
+                        ? activeDomain.logoStatus
+                        : brandingLogoStatus
+                      const isPending = logoStatus === 'PENDING'
+                      const isApproved = logoStatus === 'APPROVED'
+                      const isRejected = logoStatus === 'REJECTED'
+
+                      return (
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
+                                <Upload className="w-3.5 h-3.5 text-[#0D9488]" />
+                              </div>
+                              <h3 className="text-sm font-medium text-gray-900">Brand Logo</h3>
+                            </div>
+                            {isPending && (
+                              <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-[10px] font-medium flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> Pending
+                              </span>
+                            )}
+                            {isApproved && (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-medium flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" /> Approved
+                              </span>
+                            )}
+                            {isRejected && (
+                              <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] font-medium flex items-center gap-1">
+                                <X className="w-3 h-3" /> Rejected
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="space-y-3">
+                            {currentLogo ? (
+                              <div className="relative p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <img
+                                  src={currentLogo}
+                                  alt="Brand Logo"
+                                  className="max-h-16 max-w-full object-contain mx-auto"
+                                />
+                                {isPending && (
+                                  <p className="text-xs text-center text-yellow-600 mt-2">
+                                    Awaiting admin approval
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center">
+                                <Upload className="w-6 h-6 text-gray-300 mx-auto mb-1.5" />
+                                <p className="text-sm text-gray-500">No logo uploaded</p>
+                              </div>
+                            )}
+
+                            {/* Upload/Update Logo Button */}
+                            <div>
+                              <input
+                                ref={updateFileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleLogoUpload(e, true)}
+                                className="hidden"
+                              />
+                              <button
+                                onClick={() => updateFileInputRef.current?.click()}
+                                disabled={updatingLogo}
+                                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {updatingLogo ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="w-4 h-4" />
+                                    {currentLogo ? 'Update Logo' : 'Upload Logo'}
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            {/* Logo Requirements */}
+                            <div className="p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
+                              <p className="text-xs font-medium text-[#0D9488] mb-1.5">Logo Requirements</p>
+                              <ul className="text-xs text-gray-600 space-y-0.5">
+                                <li>• <strong>Recommended:</strong> 280×56px (5:1 ratio)</li>
+                                <li>• <strong>Format:</strong> PNG with transparent background</li>
+                                <li>• <strong>Max size:</strong> 2MB</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                    {/* ===== FAVICON SECTION - Always visible ===== */}
+                    {(() => {
+                      const currentFavicon = activeDomain ? activeDomain.favicon : brandingFavicon
+                      const favStatus = activeDomain
+                        ? activeDomain.faviconStatus
+                        : brandingFaviconStatus
+                      const isPending = favStatus === 'PENDING'
+                      const isApproved = favStatus === 'APPROVED'
+                      const isRejected = favStatus === 'REJECTED'
+
+                      return (
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-lg bg-[#0D9488]/10 flex items-center justify-center">
+                                <Palette className="w-3.5 h-3.5 text-[#0D9488]" />
+                              </div>
+                              <h3 className="text-sm font-medium text-gray-900">Favicon</h3>
+                            </div>
+                            {isPending && (
+                              <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-[10px] font-medium flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> Pending
+                              </span>
+                            )}
+                            {isApproved && (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-medium flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" /> Approved
+                              </span>
+                            )}
+                            {isRejected && (
+                              <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-[10px] font-medium flex items-center gap-1">
+                                <X className="w-3 h-3" /> Rejected
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="space-y-3">
+                            {currentFavicon ? (
+                              <div className="relative p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3">
+                                <img
+                                  src={currentFavicon}
+                                  alt="Favicon"
+                                  className="w-8 h-8 object-contain"
+                                />
+                                <span className="text-sm text-gray-600">Current favicon</span>
+                                {isPending && (
+                                  <span className="text-xs text-yellow-600 ml-auto">Awaiting approval</span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 text-center">
+                                <Palette className="w-5 h-5 text-gray-300 mx-auto mb-1" />
+                                <p className="text-sm text-gray-500">No favicon uploaded</p>
+                              </div>
+                            )}
+
+                            {/* Upload/Update Favicon Button */}
+                            <div>
+                              <input
+                                ref={updateFaviconFileInputRef}
+                                type="file"
+                                accept="image/png,image/svg+xml,image/x-icon,image/ico,.ico"
+                                onChange={(e) => handleFaviconUpload(e, true)}
+                                className="hidden"
+                              />
+                              <button
+                                onClick={() => updateFaviconFileInputRef.current?.click()}
+                                disabled={updatingFavicon}
+                                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {updatingFavicon ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="w-4 h-4" />
+                                    {currentFavicon ? 'Update Favicon' : 'Upload Favicon'}
+                                  </>
+                                )}
+                              </button>
+                            </div>
+
+                            {/* Favicon Requirements */}
+                            <div className="p-3 bg-[#0D9488]/5 border border-[#0D9488]/10 rounded-lg">
+                              <p className="text-xs font-medium text-[#0D9488] mb-1.5">Favicon Requirements</p>
+                              <ul className="text-xs text-gray-600 space-y-0.5">
+                                <li>• <strong>Size:</strong> 32×32 or 64×64 pixels</li>
+                                <li>• <strong>Format:</strong> PNG, SVG, or ICO</li>
+                                <li>• <strong>Max size:</strong> 500KB</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </>
                 )}
               </div>
             )}

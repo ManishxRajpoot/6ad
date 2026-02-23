@@ -126,7 +126,7 @@ const menuSections: MenuSection[] = [
     collapsible: true,
     items: [
       { name: 'Extension API', href: '/extension', icon: Plug },
-      { name: 'Domains', href: '/domain-requests', icon: Globe },
+      { name: 'Whitelabel', href: '/domain-requests', icon: Globe },
       { name: 'Settings', href: '/settings', icon: Settings },
     ]
   },

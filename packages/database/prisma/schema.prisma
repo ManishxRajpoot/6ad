@@ -160,6 +160,8 @@ model User {
   emailLogo         String?   // Auto-generated optimized logo for emails
   brandName         String?
   favicon           String?   // Custom favicon for whitelabel (base64)
+  logoStatus        String?   // PENDING, APPROVED, REJECTED - logo approval independent of domain
+  faviconStatus     String?   // PENDING, APPROVED, REJECTED - favicon approval independent of domain
   emailSenderName           String?   // Custom email sender name for whitelabel (pending approval)
   emailSenderNameApproved   String?   // Approved email sender name (used in actual emails)
   emailSenderNameStatus     String?   @default("PENDING") // PENDING, APPROVED, REJECTED
@@ -619,6 +621,8 @@ model CustomDomain {
   brandLogo         String?       // Base64 logo submitted by agent
   emailLogo         String?       // Auto-generated optimized logo for emails
   favicon           String?       // Custom favicon for whitelabel (base64)
+  logoStatus        DomainStatus? // PENDING when logo submitted, separate approval from domain
+  faviconStatus     DomainStatus? // PENDING when favicon submitted, separate approval from domain
 
   // Agent who owns this domain
   agentId           String        @db.ObjectId
@@ -1361,6 +1365,17 @@ model FacebookAutomationProfile {
   fbTokenCapturedAt   DateTime?                 // When token was last captured
   fbTokenValidatedAt  DateTime?                 // When token was last validated
 
+  // Login attempt tracking (for rate limiting)
+  loginAttemptsToday    Int               @default(0)     // Reset daily, max 3 per 24h
+  lastLoginAttemptAt    DateTime?                          // When last CDP login was attempted
+  loginCooldownUntil    DateTime?                          // If set, don't attempt login until this time
+  consecutiveLoginFails Int               @default(0)     // Consecutive failures (for backoff)
+
+  // Password update tracking
+  passwordLastUpdatedAt  DateTime?
+  passwordUpdatedBy      String?   @db.ObjectId  // Admin user ID who last changed it
+  passwordUpdateReason   String?
+
   // Metadata
   remarks             String?
   isEnabled           Boolean                   @default(true)
@@ -1425,4 +1440,25 @@ model AutomationJob {
   @@index([type, status])
   @@index([assignedProfileId])
 }
+
+// ==========================================
+// Audit Log (Security & Compliance)
+// ==========================================
+
+model AuditLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  action      String   // PASSWORD_REVEAL, PASSWORD_UPDATE, PROFILE_UPDATE, LOGIN_ATTEMPT
+  actorId     String   @db.ObjectId
+  actorRole   String   // ADMIN, AGENT, SYSTEM
+  targetType  String   // FacebookAutomationProfile
+  targetId    String   @db.ObjectId
+  details     String?  // JSON: { field, ip, reason, ... }
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action, createdAt])
+  @@index([targetId])
+}
+
 

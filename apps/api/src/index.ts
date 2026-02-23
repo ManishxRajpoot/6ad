@@ -30,6 +30,7 @@ import reportRoutes from './routes/reports.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
 import { startAdsPowerWorker } from './services/adspower-worker.js'
+import { startTaskWatchdog } from './services/task-watchdog.js'
 
 const app = new Hono()
 
@@ -110,6 +111,9 @@ startHeartbeat()
 
 // Start AdsPower on-demand browser worker
 startAdsPowerWorker()
+
+// Start stuck task watchdog (auto-timeout + auto-refund)
+startTaskWatchdog()
 
 // Start server
 const port = Number(process.env.PORT) || 5001

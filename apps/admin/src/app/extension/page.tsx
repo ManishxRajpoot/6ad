@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { extensionApi } from '@/lib/api'
-import { Copy, Check, RefreshCw, Plus, Trash2, Plug, Wifi, WifiOff, ToggleLeft, ToggleRight, Pencil, Eye, EyeOff, KeyRound, Mail, Lock } from 'lucide-react'
+import { Select } from '@/components/ui/Select'
+import { Copy, Check, RefreshCw, Plus, Trash2, Plug, Wifi, WifiOff, ToggleLeft, ToggleRight, Pencil, Eye, EyeOff, KeyRound, Mail, Lock, ArrowRightLeft } from 'lucide-react'
 
 type ExtensionProfile = {
   id: string
@@ -47,6 +48,10 @@ export default function ExtensionPage() {
   const [editForm, setEditForm] = useState({ label: '', adsPowerSerialNumber: '', remarks: '', fbLoginEmail: '', fbLoginPassword: '', twoFactorSecret: '' })
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  // Reassign modal state
+  const [reassignProfile, setReassignProfile] = useState<ExtensionProfile | null>(null)
+  const [targetProfileId, setTargetProfileId] = useState('')
+  const [reassigning, setReassigning] = useState(false)
 
   const fetchProfiles = async () => {
     try {
@@ -165,6 +170,26 @@ export default function ExtensionPage() {
       console.error('Save failed:', error)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const openReassign = (profile: ExtensionProfile) => {
+    setReassignProfile(profile)
+    setTargetProfileId('')
+  }
+
+  const handleReassign = async () => {
+    if (!reassignProfile || !targetProfileId) return
+    setReassigning(true)
+    try {
+      const result = await extensionApi.profiles.reassign(reassignProfile.id, targetProfileId)
+      alert(`${result.reassignedCount} ad account(s) reassigned from "${result.sourceProfile}" to "${result.targetProfile}"`)
+      setReassignProfile(null)
+      await fetchProfiles()
+    } catch (error: any) {
+      alert(error.message || 'Failed to reassign accounts')
+    } finally {
+      setReassigning(false)
     }
   }
 
@@ -335,6 +360,15 @@ export default function ExtensionPage() {
 
                   {/* Right: Actions */}
                   <div className="flex items-center gap-1 shrink-0">
+                    {profile.isEnabled && (profile.managedAdAccountIds?.length > 0 || profile.status === 'ERROR') && (
+                      <button
+                        onClick={() => openReassign(profile)}
+                        className="p-2 rounded-lg hover:bg-orange-50 transition-colors"
+                        title="Reassign Accounts & Disable"
+                      >
+                        <ArrowRightLeft className="h-4 w-4 text-orange-500" />
+                      </button>
+                    )}
                     <button
                       onClick={() => openEdit(profile)}
                       className="p-2 rounded-lg hover:bg-blue-50 transition-colors"
@@ -506,6 +540,51 @@ export default function ExtensionPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Reassign Modal */}
+      <Modal isOpen={!!reassignProfile} onClose={() => setReassignProfile(null)} title="Reassign Accounts & Disable Profile">
+        <div className="space-y-4">
+          <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+            <p className="text-sm text-orange-800">
+              This will move all ad accounts from <strong>{reassignProfile?.label}</strong> to the selected profile,
+              clear its FB credentials, and disable it.
+            </p>
+          </div>
+
+          <div className="text-sm text-gray-600">
+            <span className="font-medium text-gray-900">{reassignProfile?.managedAdAccountIds?.length || 0}</span> managed ad account(s) will be reassigned.
+          </div>
+
+          <Select
+            label="Target Profile"
+            placeholder="Select target profile..."
+            searchable
+            searchPlaceholder="Search profiles..."
+            value={targetProfileId}
+            onChange={setTargetProfileId}
+            options={profiles
+              .filter(p => p.id !== reassignProfile?.id && p.isEnabled)
+              .map(p => ({
+                value: p.id,
+                label: `${p.label}${p.fbUserName ? ` (${p.fbUserName})` : ''}${p.adsPowerSerialNumber ? ` #${p.adsPowerSerialNumber}` : ''}`,
+              }))}
+          />
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={() => setReassignProfile(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              loading={reassigning}
+              disabled={!targetProfileId}
+              onClick={handleReassign}
+            >
+              Reassign & Disable
+            </Button>
+          </div>
+        </div>
       </Modal>
     </DashboardLayout>
   )

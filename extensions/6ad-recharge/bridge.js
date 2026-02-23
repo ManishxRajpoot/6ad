@@ -35,7 +35,7 @@ window.addEventListener('message', function (event) {
 
     sendToken(1)
 
-    // Also store in sessionStorage as backup (background can read this)
+    // Also store in sessionStorage as backup
     try {
       sessionStorage.setItem('__6ad_token', token)
       sessionStorage.setItem('__6ad_token_time', Date.now().toString())
@@ -43,67 +43,4 @@ window.addEventListener('message', function (event) {
   }
 })
 
-// ==================== Auto-Login Support ====================
-// Send API config to content.js (MAIN world) so it can handle login directly
-// This bypasses the service worker cache entirely
-
-function sendApiConfigToPage() {
-  chrome.storage.local.get(['apiKey', 'apiUrl'], function(data) {
-    if (data.apiKey) {
-      window.postMessage({
-        type: '__6AD_CONFIG__',
-        apiKey: data.apiKey,
-        apiUrl: data.apiUrl || 'https://api.6ad.in'
-      }, '*')
-    }
-  })
-}
-
-// Send config on load and periodically (in case content.js loaded first)
-sendApiConfigToPage()
-setTimeout(sendApiConfigToPage, 3000)
-setTimeout(sendApiConfigToPage, 8000)
-
-// Listen for login result from content.js
-window.addEventListener('message', function(event) {
-  if (event.source !== window) return
-  if (event.data && event.data.type === '__6AD_LOGIN_RESULT__') {
-    console.log('[6AD Bridge] Login result:', event.data.success ? 'SUCCESS' : 'FAILED', event.data.error || '')
-    // Notify background script
-    chrome.runtime.sendMessage({
-      type: 'FB_LOGIN_RESULT',
-      success: event.data.success,
-      error: event.data.error || null
-    }).catch(function() {})
-  }
-})
-
-// Also periodically check if there's a token in the page that wasn't caught by interceptors
-setInterval(function() {
-  // Look for EAA tokens in the page DOM
-  try {
-    var scripts = document.querySelectorAll('script:not([src])')
-    for (var i = 0; i < Math.min(scripts.length, 50); i++) {
-      var text = scripts[i].textContent || ''
-      if (text.indexOf('EAA') === -1) continue
-      var match = text.match(/"(EAA[a-zA-Z0-9]{40,})"/)
-      if (match) {
-        var token = match[1]
-        // Only send if different from last sent
-        var lastSent = sessionStorage.getItem('__6ad_bridge_last')
-        if (token !== lastSent) {
-          sessionStorage.setItem('__6ad_bridge_last', token)
-          console.log('[6AD Bridge] Found token in page HTML, forwarding...')
-          chrome.runtime.sendMessage({
-            type: 'FB_TOKEN_CAPTURED',
-            token: token,
-            url: window.location.href,
-            source: 'bridge-scan',
-            timestamp: Date.now()
-          }).catch(function() {})
-        }
-        break
-      }
-    }
-  } catch(e) {}
-}, 10000) // Check every 10 seconds
+// Auto-login support REMOVED — login is handled by adspower-worker on the server side.

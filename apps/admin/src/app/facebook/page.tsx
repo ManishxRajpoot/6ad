@@ -425,6 +425,25 @@ export default function FacebookPage() {
     }
   }
 
+  const handleBmShareRetry = async (id: string) => {
+    try {
+      await bmShareApi.retry(id)
+      fetchBmShareRequests()
+    } catch (error: any) {
+      alert(error.message || 'Failed to retry')
+    }
+  }
+
+  const handleBmShareForceResolve = async (id: string) => {
+    if (!confirm('Force resolve will mark this BM share as completed WITHOUT actually sharing. Are you sure?')) return
+    try {
+      await bmShareApi.forceResolve(id)
+      fetchBmShareRequests()
+    } catch (error: any) {
+      alert(error.message || 'Failed to force resolve')
+    }
+  }
+
   // Handle Account Deposit approve/reject
   const handleDepositApprove = async (id: string) => {
     setApprovingDepositId(id)
@@ -1301,6 +1320,23 @@ export default function FacebookPage() {
                               title="Reject"
                             >
                               <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : req.status === 'REJECTED' ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => handleBmShareRetry(req.id)}
+                              className="p-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                              title="Retry BM Share"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleBmShareForceResolve(req.id)}
+                              className="p-1.5 rounded bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors"
+                              title="Force Resolve (mark as done)"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         ) : (

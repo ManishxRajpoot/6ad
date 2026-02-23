@@ -264,7 +264,7 @@ export const domainsApi = {
 
 // Branding API (Agent email sender name + branding)
 export const brandingApi = {
-  get: () => api.get<{ branding: { id: string; brandLogo: string | null; brandName: string | null; favicon: string | null; emailSenderName: string | null; emailSenderNameApproved: string | null; emailSenderNameStatus: string | null } }>('/agents/branding'),
+  get: () => api.get<{ branding: { id: string; brandLogo: string | null; brandName: string | null; favicon: string | null; logoStatus: string | null; faviconStatus: string | null; emailSenderName: string | null; emailSenderNameApproved: string | null; emailSenderNameStatus: string | null } }>('/agents/branding'),
   update: (data: { brandLogo?: string; brandName?: string; emailSenderName?: string; favicon?: string }) =>
     api.patch<{ message: string; agent: any }>('/agents/branding', data),
 }

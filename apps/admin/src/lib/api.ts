@@ -297,6 +297,10 @@ export const extensionApi = {
     delete: (id: string) => api.delete(`/extension/admin/profiles/${id}`),
     regenerateKey: (id: string) =>
       api.post<{ apiKey: string }>(`/extension/admin/profiles/${id}/regenerate-key`, {}),
+    reassign: (sourceId: string, targetProfileId: string) =>
+      api.post<{ reassignedCount: number; sourceProfile: string; targetProfile: string }>(
+        `/extension/admin/profiles/${sourceId}/reassign`, { targetProfileId }
+      ),
   },
 }
 
@@ -370,6 +374,10 @@ export const bmShareApi = {
     api.post<{ message: string; bmShareRequest: any }>(`/bm-share/${id}/approve`, { adminRemarks }),
   reject: (id: string, adminRemarks?: string) =>
     api.post<{ message: string; bmShareRequest: any }>(`/bm-share/${id}/reject`, { adminRemarks }),
+  retry: (id: string) =>
+    api.post<{ message: string }>(`/bm-share/${id}/retry`, {}),
+  forceResolve: (id: string) =>
+    api.post<{ message: string }>(`/bm-share/${id}/force-resolve`, {}),
 }
 
 // Account Deposits API (Admin)
@@ -443,6 +451,19 @@ export const domainsApi = {
     api.patch<{ message: string; domain: any }>(`/domains/admin/${id}`, { status: 'APPROVED', adminRemarks }),
   reject: (id: string, adminRemarks?: string) =>
     api.patch<{ message: string; domain: any }>(`/domains/admin/${id}`, { status: 'REJECTED', adminRemarks }),
+  // Whitelabel
+  getPendingWhitelabel: () => api.get<{ agents: any[] }>('/domains/admin/pending-whitelabel'),
+  getWhitelabelHistory: () => api.get<{ agents: any[] }>('/domains/admin/whitelabel-history'),
+  approveLogo: (id: string) => api.patch<{ message: string; domain: any }>(`/domains/admin/${id}/approve-logo`, {}),
+  rejectLogo: (id: string) => api.patch<{ message: string; domain: any }>(`/domains/admin/${id}/reject-logo`, {}),
+  approveFavicon: (id: string) => api.patch<{ message: string; domain: any }>(`/domains/admin/${id}/approve-favicon`, {}),
+  rejectFavicon: (id: string) => api.patch<{ message: string; domain: any }>(`/domains/admin/${id}/reject-favicon`, {}),
+  approveAll: (id: string) => api.post<{ message: string; summary: string[] }>(`/domains/admin/${id}/approve-all`, {}),
+  // User-level branding (for agents without a domain)
+  approveUserLogo: (userId: string) => api.patch<{ message: string; user: any }>(`/domains/admin/user/${userId}/approve-logo`, {}),
+  rejectUserLogo: (userId: string) => api.patch<{ message: string; user: any }>(`/domains/admin/user/${userId}/reject-logo`, {}),
+  approveUserFavicon: (userId: string) => api.patch<{ message: string; user: any }>(`/domains/admin/user/${userId}/approve-favicon`, {}),
+  rejectUserFavicon: (userId: string) => api.patch<{ message: string; user: any }>(`/domains/admin/user/${userId}/reject-favicon`, {}),
 }
 
 // Announcements API (Admin)
@@ -608,5 +629,3 @@ export const cryptoApi = {
       api.patch<{ message: string; config: any }>(`/transactions/crypto/config/${network}`, data),
   },
 }
-
-

@@ -141,6 +141,8 @@ agents.get('/branding', async (c) => {
         brandLogo: true,
         brandName: true,
         favicon: true,
+        logoStatus: true,
+        faviconStatus: true,
         emailSenderName: true,
         emailSenderNameApproved: true,
         emailSenderNameStatus: true,
@@ -173,23 +175,30 @@ agents.patch('/branding', async (c) => {
     const body = await c.req.json()
     const { brandLogo, brandName, emailSenderName, favicon } = body
 
-    // If emailSenderName is being updated, set status to PENDING for admin approval
-    const updateData: any = {
-      brandLogo: brandLogo || null,
-      brandName: brandName || null,
+    const updateData: any = {}
+
+    // Update brand logo if provided
+    if (brandLogo !== undefined) {
+      updateData.brandLogo = brandLogo || null
+      updateData.logoStatus = brandLogo ? 'PENDING' : null
+      // Auto-generate optimized email logo
+      if (brandLogo) {
+        const emailLogo = await generateEmailLogo(brandLogo)
+        updateData.emailLogo = emailLogo
+      } else {
+        updateData.emailLogo = null
+      }
+    }
+
+    // Update brand name if provided
+    if (brandName !== undefined) {
+      updateData.brandName = brandName || null
     }
 
     // Update favicon if provided
     if (favicon !== undefined) {
       updateData.favicon = favicon || null
-    }
-
-    // Auto-generate optimized email logo
-    if (brandLogo) {
-      const emailLogo = await generateEmailLogo(brandLogo)
-      updateData.emailLogo = emailLogo
-    } else {
-      updateData.emailLogo = null
+      updateData.faviconStatus = favicon ? 'PENDING' : null
     }
 
     // Handle email sender name with approval workflow
@@ -213,6 +222,8 @@ agents.patch('/branding', async (c) => {
         brandLogo: true,
         brandName: true,
         favicon: true,
+        logoStatus: true,
+        faviconStatus: true,
         emailSenderName: true,
         emailSenderNameApproved: true,
         emailSenderNameStatus: true,
@@ -220,7 +231,7 @@ agents.patch('/branding', async (c) => {
       }
     })
 
-    return c.json({ message: 'Branding updated successfully. Email sender name requires admin approval.', agent })
+    return c.json({ message: 'Branding updated successfully. Logo/favicon require admin approval.', agent })
   } catch (error) {
     console.error('Update branding error:', error)
     return c.json({ error: 'Failed to update branding' }, 500)

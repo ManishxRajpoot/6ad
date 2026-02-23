@@ -67,6 +67,8 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<string>('newest')
   const [showSortDropdown, setShowSortDropdown] = useState(false)
+  const [agentFilter, setAgentFilter] = useState<string>('all')
+  const [showAgentDropdown, setShowAgentDropdown] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
@@ -129,6 +131,7 @@ export default function UsersPage() {
       if (!target.closest('.dropdown-container')) {
         setActiveDropdown(null)
         setShowSortDropdown(false)
+        setShowAgentDropdown(false)
       }
     }
     document.addEventListener('click', handleClickOutside)
@@ -287,6 +290,7 @@ export default function UsersPage() {
   const [isViewProfileOpen, setIsViewProfileOpen] = useState(false)
   const [viewUser, setViewUser] = useState<User | null>(null)
   const [copied2FAKey, setCopied2FAKey] = useState(false)
+  const [copiedCredId, setCopiedCredId] = useState<string | null>(null)
   const [resetting2FA, setResetting2FA] = useState(false)
 
   // Ad Accounts Modal state
@@ -507,12 +511,17 @@ export default function UsersPage() {
         (statusFilter === 'active' && user.status === 'ACTIVE') ||
         (statusFilter === 'blocked' && user.status === 'BLOCKED')
 
+      const matchesAgent =
+        agentFilter === 'all' ||
+        (agentFilter === 'no-agent' && !user.agentId) ||
+        user.agentId === agentFilter
+
       const userDate = new Date(user.createdAt)
       const matchesDate =
         (!startDate || userDate >= startDate) &&
         (!endDate || userDate <= new Date(endDate.getTime() + 24 * 60 * 60 * 1000 - 1))
 
-      return matchesSearch && matchesStatus && matchesDate
+      return matchesSearch && matchesStatus && matchesAgent && matchesDate
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -535,7 +544,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, statusFilter, startDate, endDate])
+  }, [searchQuery, statusFilter, agentFilter, startDate, endDate])
 
   // Stats
   const totalUsersCount = users.length
@@ -600,6 +609,49 @@ export default function UsersPage() {
                   style={{ transitionDelay: showSortDropdown ? `${index * 30}ms` : '0ms' }}
                 >
                   {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Agent Filter */}
+          <div className="relative dropdown-container">
+            <button
+              onClick={() => setShowAgentDropdown(!showAgentDropdown)}
+              className={`flex items-center gap-2 px-4 py-2.5 border rounded-lg text-sm transition-colors min-w-[140px] justify-between bg-white ${
+                agentFilter !== 'all' ? 'border-violet-300 text-violet-600' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+              }`}
+            >
+              <span className="truncate max-w-[120px]">
+                {agentFilter === 'all' ? 'All Agents' : agentFilter === 'no-agent' ? 'No Agent' : agents.find(a => a.id === agentFilter)?.username || 'Agent'}
+              </span>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0 ${showAgentDropdown ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 transition-all duration-200 ease-out origin-top max-h-[300px] overflow-y-auto ${
+              showAgentDropdown
+                ? 'opacity-100 scale-y-100 translate-y-0 visible'
+                : 'opacity-0 scale-y-95 -translate-y-1 invisible'
+            }`}>
+              <button
+                onClick={() => { setAgentFilter('all'); setShowAgentDropdown(false) }}
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${agentFilter === 'all' ? 'text-violet-600 bg-violet-500/5 font-medium' : 'text-gray-600'}`}
+              >
+                All Agents
+              </button>
+              <button
+                onClick={() => { setAgentFilter('no-agent'); setShowAgentDropdown(false) }}
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${agentFilter === 'no-agent' ? 'text-violet-600 bg-violet-500/5 font-medium' : 'text-gray-600'}`}
+              >
+                No Agent (Direct)
+              </button>
+              {agents.length > 0 && <div className="border-t border-gray-100 my-1" />}
+              {agents.map(agent => (
+                <button
+                  key={agent.id}
+                  onClick={() => { setAgentFilter(agent.id); setShowAgentDropdown(false) }}
+                  className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${agentFilter === agent.id ? 'text-violet-600 bg-violet-500/5 font-medium' : 'text-gray-600'}`}
+                >
+                  {agent.username}
                 </button>
               ))}
             </div>
@@ -769,6 +821,13 @@ export default function UsersPage() {
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-1">
                           <span className="text-gray-600 truncate max-w-[80px] lg:max-w-[110px] xl:max-w-[140px]">{user.username}</span>
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(user.username); setCopiedCredId(user.id + '-user'); setTimeout(() => setCopiedCredId(null), 2000) }}
+                            className="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors"
+                            title="Copy username"
+                          >
+                            {copiedCredId === user.id + '-user' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3 text-gray-400" />}
+                          </button>
                         </div>
                         <div className="flex items-center gap-1">
                           <button
@@ -794,6 +853,15 @@ export default function UsersPage() {
                               )}
                             </span>
                           </button>
+                          {showPasswordId === user.id && user.plaintextPassword && (
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(user.plaintextPassword!); setCopiedCredId(user.id + '-pass'); setTimeout(() => setCopiedCredId(null), 2000) }}
+                              className="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors"
+                              title="Copy password"
+                            >
+                              {copiedCredId === user.id + '-pass' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3 text-gray-400" />}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </td>

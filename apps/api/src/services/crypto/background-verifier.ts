@@ -68,14 +68,16 @@ async function processVerification(deposit: PendingDeposit & { retryCount: numbe
     if (detectedNetwork !== deposit.cryptoNetwork) {
       console.log(`[BackgroundVerifier] Network mismatch detected: stored=${deposit.cryptoNetwork}, detected=${detectedNetwork}`)
       // Update the deposit's crypto network
+      const correctedPaymentMethod = detectedNetwork === 'TRON_TRC20' ? 'USDT TRC20' : 'USDT BEP20'
       await prisma.deposit.update({
         where: { id: deposit.id },
         data: {
           cryptoNetwork: detectedNetwork,
-          paymentMethod: detectedNetwork === 'TRON_TRC20' ? 'USDT TRC 20' : 'USDT BEP20'
+          paymentMethod: correctedPaymentMethod
         }
       })
       deposit.cryptoNetwork = detectedNetwork
+      deposit.paymentMethod = correctedPaymentMethod // Fix: sync in-memory value for wallet lookup
     }
 
     // Get wallet config for the detected network
@@ -118,7 +120,7 @@ async function processVerification(deposit: PendingDeposit & { retryCount: numbe
             where: { id: deposit.id },
             data: {
               cryptoNetwork: otherNetwork as CryptoNetwork,
-              paymentMethod: otherNetwork === 'TRON_TRC20' ? 'USDT TRC 20' : 'USDT BEP20'
+              paymentMethod: otherNetwork === 'TRON_TRC20' ? 'USDT TRC20' : 'USDT BEP20'
             }
           })
           deposit.cryptoNetwork = otherNetwork as CryptoNetwork
@@ -161,7 +163,7 @@ async function processVerification(deposit: PendingDeposit & { retryCount: numbe
             where: { id: deposit.id },
             data: {
               cryptoNetwork: otherNetwork as CryptoNetwork,
-              paymentMethod: otherNetwork === 'TRON_TRC20' ? 'USDT TRC 20' : 'USDT BEP20'
+              paymentMethod: otherNetwork === 'TRON_TRC20' ? 'USDT TRC20' : 'USDT BEP20'
             }
           })
           deposit.cryptoNetwork = otherNetwork as CryptoNetwork

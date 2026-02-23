@@ -120,10 +120,13 @@ transactions.post('/deposits', requireUser, async (c) => {
                            paymentMethod?.toLowerCase().includes('bep')
 
     if (isCryptoPayment && transactionId) {
-      // Determine network based on payment method name
-      const isTRC20 = paymentMethod.toLowerCase().includes('trc') ||
+      // Determine network: txHash format is most reliable, fallback to payment method name
+      const txLower = transactionId.toLowerCase().trim()
+      const isBscFromHash = txLower.startsWith('0x')
+      const isTRC20FromName = paymentMethod.toLowerCase().includes('trc') ||
                       (paymentMethod.toLowerCase().includes('usdt') && !paymentMethod.toLowerCase().includes('bep'))
-      const network = isTRC20 ? 'TRON_TRC20' : 'BSC_BEP20'
+      // Trust txHash format over payment method name (user may select wrong method)
+      const network = isBscFromHash ? 'BSC_BEP20' : (isTRC20FromName ? 'TRON_TRC20' : 'BSC_BEP20')
 
       // Check if transaction hash already exists
       const existingDeposit = await prisma.deposit.findFirst({
@@ -738,10 +741,13 @@ transactions.post('/agent-deposits', requireAgent, async (c) => {
                            paymentMethod?.toLowerCase().includes('bep')
 
     if (isCryptoPayment && transactionId) {
-      // Determine network based on payment method name
-      const isTRC20 = paymentMethod.toLowerCase().includes('trc') ||
+      // Determine network: txHash format is most reliable, fallback to payment method name
+      const txLower = transactionId.toLowerCase().trim()
+      const isBscFromHash = txLower.startsWith('0x')
+      const isTRC20FromName = paymentMethod.toLowerCase().includes('trc') ||
                       (paymentMethod.toLowerCase().includes('usdt') && !paymentMethod.toLowerCase().includes('bep'))
-      const network = isTRC20 ? 'TRON_TRC20' : 'BSC_BEP20'
+      // Trust txHash format over payment method name (user may select wrong method)
+      const network = isBscFromHash ? 'BSC_BEP20' : (isTRC20FromName ? 'TRON_TRC20' : 'BSC_BEP20')
 
       // Check if transaction hash already exists
       const existingDeposit = await prisma.deposit.findFirst({
@@ -1920,7 +1926,7 @@ transactions.post('/crypto/deposits', requireUser, async (c) => {
 
     // Generate apply ID
     const applyId = generateApplyId()
-    const paymentMethod = network === 'TRON_TRC20' ? 'USDT TRC 20' : 'USDT BEP20'
+    const paymentMethod = network === 'TRON_TRC20' ? 'USDT TRC20' : 'USDT BEP20'
 
     // NEW FLOW: Create deposit as PENDING immediately
     const deposit = await prisma.deposit.create({

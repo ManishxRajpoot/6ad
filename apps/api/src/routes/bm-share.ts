@@ -543,4 +543,129 @@ bmShare.post('/:id/reject', requireAdmin, async (c) => {
   }
 })
 
+// POST /bm-share/:id/retry - Retry failed/rejected BM share (Admin)
+bmShare.post('/:id/retry', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+
+    const existing = await prisma.bmShareRequest.findUnique({
+      where: { id },
+      select: { status: true, shareError: true, applyId: true, shareAttempts: true },
+    })
+
+    if (!existing) {
+      return c.json({ error: 'BM share request not found' }, 404)
+    }
+
+    if (existing.status !== 'PENDING' && existing.status !== 'REJECTED') {
+      return c.json({ error: 'Can only retry PENDING or REJECTED requests' }, 400)
+    }
+
+    if (existing.shareError) {
+      console.log(`[BM Share Retry] Request ${id} (${existing.applyId || 'N/A'}) — previous error: ${existing.shareError}, attempts: ${existing.shareAttempts}`)
+    }
+
+    await prisma.bmShareRequest.update({
+      where: { id },
+      data: {
+        status: 'PENDING',
+        shareError: null,
+        shareAttempts: 0,
+        rejectedAt: null,
+        adminRemarks: 'Retried by admin — reset for re-processing',
+      },
+    })
+
+    return c.json({ message: 'BM share queued for retry' })
+  } catch (error) {
+    console.error('Retry BM share error:', error)
+    return c.json({ error: 'Failed to retry BM share' }, 500)
+  }
+})
+
+// POST /bm-share/:id/force-resolve - Force mark as completed (Admin)
+bmShare.post('/:id/force-resolve', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+
+    const existing = await prisma.bmShareRequest.findUnique({
+      where: { id },
+      include: {
+        user: {
+          include: {
+            agent: {
+              select: {
+                brandLogo: true,
+                emailLogo: true,
+                username: true,
+                emailSenderNameApproved: true,
+                smtpEnabled: true,
+                smtpHost: true,
+                smtpPort: true,
+                smtpUsername: true,
+                smtpPassword: true,
+                smtpEncryption: true,
+                smtpFromEmail: true,
+                customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 },
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (!existing) {
+      return c.json({ error: 'BM share request not found' }, 404)
+    }
+
+    if (existing.status === 'APPROVED') {
+      return c.json({ error: 'Already approved' }, 400)
+    }
+
+    await prisma.bmShareRequest.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        shareMethod: 'MANUAL',
+        approvedAt: new Date(),
+        shareError: null,
+        adminRemarks: 'Force-resolved by admin (BM share done manually)',
+      },
+    })
+
+    // Send approval notification + email
+    const approvedDomain = existing.user.agent?.customDomains?.[0]
+    const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || existing.user.agent?.emailLogo || existing.user.agent?.brandLogo || null
+    const agentBrandName = existing.user.agent?.username || null
+    const emailTemplate = getBMShareApprovedTemplate({
+      username: existing.user.username,
+      applyId: existing.applyId,
+      platform: existing.platform,
+      adAccountId: existing.adAccountId,
+      bmId: existing.bmId,
+      agentLogo,
+      agentBrandName,
+    })
+    sendEmail({
+      to: existing.user.email,
+      ...emailTemplate,
+      senderName: existing.user.agent?.emailSenderNameApproved || undefined,
+      smtpConfig: buildSmtpConfig(existing.user.agent),
+    }).catch(console.error)
+
+    await createNotification({
+      userId: existing.userId,
+      type: 'ACCOUNT_APPROVED',
+      title: 'BM Share Completed',
+      message: `Your BM share request for account ${existing.adAccountId} has been completed.`,
+      link: '/facebook?page=bm-share-log',
+    })
+
+    return c.json({ message: 'BM share force-resolved' })
+  } catch (error) {
+    console.error('Force resolve BM share error:', error)
+    return c.json({ error: 'Failed to force resolve' }, 500)
+  }
+})
+
 export default bmShare
