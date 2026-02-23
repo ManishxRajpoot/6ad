@@ -50,6 +50,7 @@ type Transaction = {
   paymentProof?: string
   proofUrl?: string
   reason?: string
+  remarks?: string
   createdAt: string
   transactionId?: string
   user?: {
@@ -1254,6 +1255,8 @@ export default function TransactionsPage() {
                   <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">
                     {activeTab === 'deposits' ? 'Deposit Amount' : 'Refund Amount'}
                   </th>
+                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Payway</th>
+                  <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50 hidden 2xl:table-cell">Remarks</th>
                   <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50 hidden 2xl:table-cell">Image</th>
                   <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Date</th>
                   <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Status</th>
@@ -1356,6 +1359,24 @@ export default function TransactionsPage() {
                           )}
                         </div>
                       </td>
+                      <td className="py-2.5 px-2 xl:px-3">
+                        {transaction.paymentMethod ? (
+                          <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded whitespace-nowrap">
+                            {transaction.paymentMethod}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-2 xl:px-3 hidden 2xl:table-cell">
+                        {transaction.remarks ? (
+                          <span className="text-xs text-gray-600 truncate max-w-[150px] block" title={transaction.remarks}>
+                            {transaction.remarks}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
                       <td className="py-2.5 px-2 xl:px-3 hidden 2xl:table-cell">
                         {(transaction.paymentProof || transaction.proofUrl) ? (
                           <button
@@ -1424,7 +1445,7 @@ export default function TransactionsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-gray-500">
+                    <td colSpan={12} className="py-12 text-center text-gray-500">
                       <div className="flex flex-col items-center gap-2">
                         <CreditCard className="h-12 w-12 text-gray-300" />
                         <p>No {activeTab} found</p>
