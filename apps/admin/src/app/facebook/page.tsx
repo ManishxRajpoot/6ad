@@ -336,7 +336,6 @@ export default function FacebookPage() {
 
   // Mark card wallet as added (reset to 0)
   const handleMarkWalletAdded = async () => {
-    if (!confirm('Confirm that you have added the money to the Facebook wallet? This will reset the pending amount to $0.')) return
     setWalletMarkingAdded(true)
     try {
       await accountDepositsApi.markCardWalletAdded()
