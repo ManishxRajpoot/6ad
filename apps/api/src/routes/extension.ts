@@ -428,6 +428,10 @@ extension.post('/heartbeat', verifyExtensionKey, async (c) => {
         where: {
           status: 'PENDING',
           platform: 'FACEBOOK',
+          shareAttempts: { lt: 5 },
+          ...(profile.managedAdAccountIds?.length > 0
+            ? { adAccountId: { in: profile.managedAdAccountIds } }
+            : {}),
         }
       }).catch(() => 0),
     ])
