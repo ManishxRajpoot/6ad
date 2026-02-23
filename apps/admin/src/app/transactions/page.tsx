@@ -115,6 +115,7 @@ export default function TransactionsPage() {
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('')
   const [actionFilter, setActionFilter] = useState('all')
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false)
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(25)
@@ -865,20 +866,39 @@ export default function TransactionsPage() {
           {/* Status Filter */}
           {activeTab !== 'paylinks' && (
             <div className="relative">
-              <select
-                value={actionFilter}
-                onChange={(e) => {
-                  setActionFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-                className="h-10 appearance-none rounded-lg border border-gray-200 bg-white pl-4 pr-10 text-sm text-gray-700 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              <button
+                onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+                className="flex items-center gap-2 h-10 rounded-lg border border-gray-200 bg-white pl-4 pr-10 text-sm text-gray-700 hover:bg-gray-50 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 transition-colors"
               >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                {actionFilter === 'all' ? 'All Status' : actionFilter.charAt(0).toUpperCase() + actionFilter.slice(1)}
+              </button>
+              <ChevronDown className={cn("absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none transition-transform", statusDropdownOpen && "rotate-180")} />
+              {statusDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setStatusDropdownOpen(false)} />
+                  <div className="absolute top-full left-0 mt-1 w-44 bg-white rounded-lg border border-gray-200 shadow-lg z-30 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                    {[
+                      { value: 'all', label: 'All Status' },
+                      { value: 'pending', label: 'Pending' },
+                      { value: 'approved', label: 'Approved' },
+                      { value: 'rejected', label: 'Rejected' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => { setActionFilter(opt.value); setCurrentPage(1); setStatusDropdownOpen(false) }}
+                        className={cn(
+                          "w-full text-left px-4 py-2 text-sm transition-colors",
+                          actionFilter === opt.value
+                            ? "bg-violet-50 text-violet-700 font-medium"
+                            : "text-gray-700 hover:bg-gray-50"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
