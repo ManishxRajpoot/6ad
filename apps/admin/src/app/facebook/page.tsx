@@ -1745,7 +1745,7 @@ export default function FacebookPage() {
                   value={acc.accountId}
                   onChange={(e) => {
                     const newAccounts = [...createForm.accounts]
-                    newAccounts[index].accountId = e.target.value
+                    newAccounts[index].accountId = e.target.value.replace(/\s/g, '')
                     setCreateForm({ ...createForm, accounts: newAccounts })
                   }}
                   placeholder="Enter ID"
@@ -1927,7 +1927,7 @@ export default function FacebookPage() {
                     value={acc.accountId}
                     onChange={(e) => {
                       const newForm = [...approveForm]
-                      newForm[index].accountId = e.target.value
+                      newForm[index].accountId = e.target.value.replace(/\s/g, '')
                       setApproveForm(newForm)
                     }}
                     placeholder="Add ID"
@@ -2023,7 +2023,7 @@ export default function FacebookPage() {
                           value={acc.accountId}
                           onChange={(e) => {
                             const newData = { ...bulkApproveData }
-                            newData[appId][index].accountId = e.target.value
+                            newData[appId][index].accountId = e.target.value.replace(/\s/g, '')
                             setBulkApproveData(newData)
                           }}
                           placeholder="Enter Account ID"

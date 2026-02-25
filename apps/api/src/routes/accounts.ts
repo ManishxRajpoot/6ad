@@ -909,7 +909,7 @@ accounts.post('/', requireUser, async (c) => {
     const account = await prisma.adAccount.create({
       data: {
         platform: data.platform,
-        accountId: data.accountId,
+        accountId: data.accountId.trim(),
         accountName: data.accountName,
         bmId: data.bmId,
         timezone: data.timezone,
@@ -1750,6 +1750,7 @@ accounts.patch('/:id', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
     const body = await c.req.json()
+    if (body.accountId) body.accountId = body.accountId.trim()
 
     const account = await prisma.adAccount.update({
       where: { id },

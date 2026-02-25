@@ -261,7 +261,7 @@ export function PlatformPage({ platform, title }: PlatformPageProps) {
             id="accountId"
             label="Account ID"
             value={formData.accountId}
-            onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, accountId: e.target.value.replace(/\s/g, '') })}
             placeholder="e.g., act_123456789"
             required
           />

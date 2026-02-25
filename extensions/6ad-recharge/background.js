@@ -247,6 +247,10 @@ async function tryCaptureFBToken() {
 // ==================== TOKEN CAPTURE VIA DEBUGGER ====================
 // Attach Chrome debugger to FB tabs to intercept network requests
 
+function isAdsCheckUrl(url) {
+  return url && (url.includes('localhost:3004') || url.includes('ads-check.6ad.in'))
+}
+
 function isFacebookUrl(url) {
   return url && (
     url.includes('facebook.com') ||
@@ -1234,6 +1238,29 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const config = await getConfig()
     if (!config.fbAccessToken) {
       setTimeout(() => tryCaptureFBToken(), 5000)
+    }
+  }
+
+  // Inject token into ads-check pages
+  if (changeInfo.status === 'complete' && tab.url && isAdsCheckUrl(tab.url)) {
+    const config = await getConfig()
+    const token = config.fbAccessToken
+    if (token && token.startsWith('EAA') && token.length >= 40) {
+      setTimeout(async () => {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: (t) => {
+              window.postMessage({ type: '__6AD_ADS_CHECK_TOKEN__', token: t }, window.location.origin)
+            },
+            args: [token]
+          })
+          console.log('[6AD] Token injected into ads-check page')
+        } catch (err) {
+          console.log('[6AD] Ads-check inject failed:', err.message)
+        }
+      }, 1500)
     }
   }
 })

@@ -842,6 +842,7 @@ async function cdpCleanupTabs(debugPort: number, keepAdsmanager = false): Promis
  * Same logic as the extension but runs from Node.js, bypassing cached extension code.
  */
 async function serverSideRecharge(depositId: string, adAccountId: string, amount: number, accessToken: string): Promise<{ success: boolean; error?: string; details?: string }> {
+  adAccountId = adAccountId.trim()
   const FB_GRAPH = 'https://graph.facebook.com/v21.0'
 
   try {

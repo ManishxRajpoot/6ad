@@ -862,7 +862,7 @@ applications.post('/create-direct', requireAdmin, async (c) => {
         const account = await prisma.adAccount.create({
           data: {
             platform: platform.toUpperCase(),
-            accountId: acc.accountId,
+            accountId: acc.accountId.trim(),
             accountName: acc.name,
             licenseName: acc.licenseName || undefined,
             status: 'APPROVED',
