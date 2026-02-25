@@ -556,30 +556,35 @@ export default function FacebookPage() {
   }, [])
 
   // Check for new approvals and trigger confetti celebration
+  // Checks both applications (approve flow) and accounts (create-direct flow)
   useEffect(() => {
-    if (userApplications.length > 0) {
-      // Get stored seen approvals from localStorage
-      const storedApprovals = localStorage.getItem('fb_seen_approvals')
-      const previouslySeenSet = new Set<string>(storedApprovals ? JSON.parse(storedApprovals) : [])
+    const storedApprovals = localStorage.getItem('fb_seen_approvals')
+    const previouslySeenSet = new Set<string>(storedApprovals ? JSON.parse(storedApprovals) : [])
 
-      // Find newly approved applications
-      const approvedApps = userApplications.filter(app =>
-        app.status === 'APPROVED' || app.status === 'approved'
-      )
+    // Find newly approved applications
+    const approvedApps = userApplications.filter(app =>
+      app.status === 'APPROVED' || app.status === 'approved'
+    )
+    const newAppApprovals = approvedApps.filter(app => !previouslySeenSet.has(app.id))
 
-      const newApprovals = approvedApps.filter(app => !previouslySeenSet.has(app.id))
+    // Find newly created accounts (from admin create-direct)
+    const approvedAccounts = userAccounts.filter((acc: any) =>
+      acc.status === 'APPROVED' || acc.status === 'approved'
+    )
+    const newAccountApprovals = approvedAccounts.filter((acc: any) => !previouslySeenSet.has(acc.id))
 
-      // If there are new approvals, trigger confetti!
-      if (newApprovals.length > 0) {
-        triggerConfetti()
+    const allNew = [...newAppApprovals, ...newAccountApprovals]
 
-        // Update the seen approvals set
-        const newSeenSet = new Set([...previouslySeenSet, ...newApprovals.map(app => app.id)])
-        setSeenApprovals(newSeenSet)
-        localStorage.setItem('fb_seen_approvals', JSON.stringify([...newSeenSet]))
-      }
+    // If there are new approvals, trigger confetti!
+    if (allNew.length > 0) {
+      triggerConfetti()
+
+      // Update the seen approvals set
+      const newSeenSet = new Set([...previouslySeenSet, ...allNew.map((item: any) => item.id)])
+      setSeenApprovals(newSeenSet)
+      localStorage.setItem('fb_seen_approvals', JSON.stringify([...newSeenSet]))
     }
-  }, [userApplications, triggerConfetti])
+  }, [userApplications, userAccounts, triggerConfetti])
 
   // Close export dropdown when clicking outside
   useEffect(() => {

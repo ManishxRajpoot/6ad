@@ -874,6 +874,17 @@ applications.post('/create-direct', requireAdmin, async (c) => {
       }
     }
 
+    // Send notification so user gets real-time update + confetti
+    if (createdAccounts.length > 0) {
+      await createNotification({
+        userId,
+        type: 'ACCOUNT_APPROVED',
+        title: 'Ad Account Created',
+        message: `${createdAccounts.length} new ${platform} ad account(s) have been added to your account.`,
+        link: `/${platform.toLowerCase()}`
+      })
+    }
+
     return c.json({
       message: `${createdAccounts.length} account(s) created successfully`,
       accounts: createdAccounts
