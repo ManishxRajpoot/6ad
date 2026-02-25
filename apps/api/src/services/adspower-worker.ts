@@ -1276,9 +1276,19 @@ async function pollForTasks(): Promise<void> {
           const fbAccountId = deposit.adAccount?.accountId
           if (!fbAccountId) continue
 
+          // Re-check status before overwriting — extension may have completed it during the wait
+          const freshDeposit = await prisma.accountDeposit.findUnique({
+            where: { id: deposit.id },
+            select: { rechargeStatus: true },
+          })
+          if (freshDeposit?.rechargeStatus === 'COMPLETED' || freshDeposit?.rechargeStatus === 'IN_PROGRESS') {
+            console.log(`[AdsPower] Deposit ${deposit.id} already ${freshDeposit.rechargeStatus} — skipping server-side recharge`)
+            continue
+          }
+
           console.log(`[AdsPower] Server-side recharge: deposit ${deposit.id}, act_${fbAccountId}, $${deposit.amount}`)
 
-          // Mark as in-progress
+          // Mark as in-progress (safe now — we verified it's not already COMPLETED)
           await prisma.accountDeposit.update({
             where: { id: deposit.id },
             data: { rechargeStatus: 'IN_PROGRESS', rechargeMethod: 'SERVER', rechargeAttempts: { increment: 1 } },
