@@ -334,6 +334,7 @@ export default function FacebookPage() {
   const [platformStatus, setPlatformStatus] = useState<PlatformStatus>('active')
   const [profileShareLink, setProfileShareLink] = useState<string>('https://www.facebook.com/profile/6adplatform')
   const [seenApprovals, setSeenApprovals] = useState<Set<string>>(new Set())
+  const prevAccountCountRef = useRef<number | null>(null)
 
   // Generate dynamic chart path based on count - creates wave peaks for each pending item
   const generateChartPath = (count: number, trend: 'up' | 'down') => {
@@ -471,6 +472,16 @@ export default function FacebookPage() {
         setPreviousStats(dashboardStats)
       }
       setDashboardStats(statsRes)
+
+      // Detect new accounts: compare total account count from stats
+      // When admin creates/approves accounts, count increases → trigger full refresh + confetti
+      const totalAccounts = (statsRes.accountsByPlatform || []).reduce(
+        (sum: number, p: any) => sum + (p._count || 0), 0
+      )
+      if (prevAccountCountRef.current !== null && totalAccounts > prevAccountCountRef.current) {
+        refreshAllData()
+      }
+      prevAccountCountRef.current = totalAccounts
     } catch (error) {
       // Silently handle errors
     }
