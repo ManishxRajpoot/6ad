@@ -989,12 +989,11 @@ export default function FacebookPage() {
     }
   }, [refundRows])
 
-  // Check if refund form is valid
+  // Check if refund form is valid (any amount >= 1, no $50 increment required)
   const isRefundFormValid = refundRows.every(row =>
     row.accountId &&
     row.amount &&
-    parseFloat(row.amount) >= ADMIN_SETTINGS.minimumDeposit &&
-    parseFloat(row.amount) % 50 === 0
+    parseFloat(row.amount) >= 1
   )
 
   // Handle refund submit
@@ -3206,19 +3205,16 @@ export default function FacebookPage() {
                               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
                               <input
                                 type="number"
-                                min={ADMIN_SETTINGS.minimumDeposit}
-                                step="50"
+                                min="1"
+                                step="1"
                                 value={row.amount}
                                 onChange={(e) => updateRefundRow(row.id, 'amount', e.target.value)}
                                 placeholder="Enter Amount"
                                 className="w-full pl-7 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] transition-all"
                               />
                             </div>
-                            {row.amount && parseFloat(row.amount) < ADMIN_SETTINGS.minimumDeposit && (
-                              <p className="text-xs text-red-500 mt-1">Min ${ADMIN_SETTINGS.minimumDeposit}</p>
-                            )}
-                            {row.amount && parseFloat(row.amount) % 50 !== 0 && (
-                              <p className="text-xs text-red-500 mt-1">Must be $50 increments</p>
+                            {row.amount && parseFloat(row.amount) < 1 && (
+                              <p className="text-xs text-red-500 mt-1">Min $1</p>
                             )}
                           </div>
 
