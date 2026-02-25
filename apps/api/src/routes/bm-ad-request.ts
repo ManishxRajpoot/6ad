@@ -96,7 +96,7 @@ bmAdRequest.get('/stats', requireAgent, async (c) => {
 bmAdRequest.get('/applications', requireAgent, async (c) => {
   try {
     const agentId = c.get('userId')
-    const { page = '1', limit = '20', status, platform, search } = c.req.query()
+    const { page = '1', limit = '5000', status, platform, search } = c.req.query()
 
     // Get all users under this agent
     const agentUsers = await prisma.user.findMany({
@@ -183,7 +183,7 @@ bmAdRequest.get('/applications/:id', requireAgent, async (c) => {
 bmAdRequest.get('/bm-shares', requireAgent, async (c) => {
   try {
     const agentId = c.get('userId')
-    const { page = '1', limit = '20', status, platform, search } = c.req.query()
+    const { page = '1', limit = '5000', status, platform, search } = c.req.query()
 
     // Get all users under this agent
     const agentUsers = await prisma.user.findMany({

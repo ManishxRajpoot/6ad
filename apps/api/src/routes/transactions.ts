@@ -38,7 +38,7 @@ transactions.get('/deposits', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, page = '1', limit = '20' } = c.req.query()
+    const { status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
 
@@ -906,7 +906,7 @@ transactions.get('/agent-wallet-flow', requireAgent, async (c) => {
 transactions.get('/agent-pay-link-requests', requireAgent, async (c) => {
   try {
     const agentId = c.get('userId')
-    const { status, page = '1', limit = '20' } = c.req.query()
+    const { status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {
       userId: agentId // Only agent's own pay link requests
@@ -1001,7 +1001,7 @@ transactions.get('/account-deposits', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, platform, page = '1', limit = '20' } = c.req.query()
+    const { status, platform, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
 
@@ -1090,7 +1090,7 @@ transactions.get('/withdrawals', requireAgent, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, page = '1', limit = '20' } = c.req.query()
+    const { status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
 
@@ -1279,7 +1279,7 @@ transactions.get('/refunds', requireAgent, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, platform, page = '1', limit = '20' } = c.req.query()
+    const { status, platform, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
 
@@ -1617,7 +1617,7 @@ transactions.get('/pay-link-requests', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, page = '1', limit = '20' } = c.req.query()
+    const { status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
 

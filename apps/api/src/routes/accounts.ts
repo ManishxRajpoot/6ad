@@ -129,7 +129,7 @@ accounts.get('/', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { platform, status, targetUserId, page = '1', limit = '20' } = c.req.query()
+    const { platform, status, targetUserId, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
 
@@ -238,7 +238,7 @@ accounts.get('/stats', requireAdmin, async (c) => {
 accounts.get('/deposits', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
-    const { platform, status, page = '1', limit = '20' } = c.req.query()
+    const { platform, status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {
       adAccount: { userId }
@@ -290,7 +290,7 @@ accounts.get('/deposits', requireUser, async (c) => {
 // GET /accounts/deposits/admin - Get all account deposits for admin
 accounts.get('/deposits/admin', requireAdmin, async (c) => {
   try {
-    const { platform, status, page = '1', limit = '20' } = c.req.query()
+    const { platform, status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
     if (platform) {
@@ -379,7 +379,7 @@ accounts.post('/deposits/check-cheetah', requireAdmin, async (c) => {
 accounts.get('/refunds', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
-    const { platform, status, page = '1', limit = '20' } = c.req.query()
+    const { platform, status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {
       adAccount: { userId }
@@ -432,7 +432,7 @@ accounts.get('/refunds', requireUser, async (c) => {
 // GET /accounts/refunds/admin - Get all account refunds for admin
 accounts.get('/refunds/admin', requireAdmin, async (c) => {
   try {
-    const { platform, status, page = '1', limit = '20' } = c.req.query()
+    const { platform, status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
     if (platform) {
@@ -490,7 +490,7 @@ accounts.get('/refunds/admin', requireAdmin, async (c) => {
 accounts.get('/transfers', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
-    const { platform, status, page = '1', limit = '20' } = c.req.query()
+    const { platform, status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = { userId }
     if (platform) {
@@ -550,7 +550,7 @@ accounts.get('/transfers', requireUser, async (c) => {
 // GET /accounts/transfers/admin - Get all balance transfers for admin
 accounts.get('/transfers/admin', requireAdmin, async (c) => {
   try {
-    const { platform, status, page = '1', limit = '20' } = c.req.query()
+    const { platform, status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
     if (platform) {
@@ -798,7 +798,7 @@ accounts.get('/:platform', requireUser, async (c) => {
     const { platform } = c.req.param()
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, page = '1', limit = '20' } = c.req.query()
+    const { status, page = '1', limit = '5000' } = c.req.query()
 
     const platformUpper = platform.toUpperCase() as Platform
     if (!['FACEBOOK', 'GOOGLE', 'TIKTOK', 'SNAPCHAT', 'BING'].includes(platformUpper)) {

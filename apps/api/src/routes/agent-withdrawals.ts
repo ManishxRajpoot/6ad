@@ -180,7 +180,7 @@ agentWithdrawals.get('/stats', requireAgent, async (c) => {
 agentWithdrawals.get('/', requireAgent, async (c) => {
   try {
     const agentId = c.get('userId')
-    const { page = '1', limit = '20', status } = c.req.query()
+    const { page = '1', limit = '5000', status } = c.req.query()
 
     const where: any = { agentId }
     if (status) where.status = status.toUpperCase()
@@ -324,7 +324,7 @@ agentWithdrawals.post('/', requireAgent, async (c) => {
 // GET /agent-withdrawals/admin - Get all agent withdrawals (Admin)
 agentWithdrawals.get('/admin', requireAdmin, async (c) => {
   try {
-    const { page = '1', limit = '20', status, search } = c.req.query()
+    const { page = '1', limit = '5000', status, search } = c.req.query()
 
     const where: any = {}
     if (status) where.status = status.toUpperCase()

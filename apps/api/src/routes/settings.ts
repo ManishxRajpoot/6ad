@@ -14,7 +14,7 @@ settings.use('*', verifyToken)
 // GET /settings/paylinks - List pay links
 settings.get('/paylinks', requireAdmin, async (c) => {
   try {
-    const { status, page = '1', limit = '20' } = c.req.query()
+    const { status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
     if (status) where.status = status.toUpperCase()
@@ -114,7 +114,7 @@ settings.patch('/paylinks/:id/status', requireAdmin, async (c) => {
 // GET /settings/domains - List custom domain applications
 settings.get('/domains', requireAdmin, async (c) => {
   try {
-    const { status, page = '1', limit = '20' } = c.req.query()
+    const { status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
     if (status) where.status = status.toUpperCase()

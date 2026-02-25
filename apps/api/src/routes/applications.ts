@@ -299,7 +299,7 @@ applications.get('/', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { platform, status, page = '1', limit = '20' } = c.req.query()
+    const { platform, status, page = '1', limit = '5000' } = c.req.query()
 
     const where: any = {}
 
@@ -353,7 +353,7 @@ applications.get('/', requireUser, async (c) => {
 // GET /applications/admin - Get all applications (Admin)
 applications.get('/admin', requireAdmin, async (c) => {
   try {
-    const { platform, status, page = '1', limit = '20', search } = c.req.query()
+    const { platform, status, page = '1', limit = '5000', search } = c.req.query()
 
     const where: any = {}
 
