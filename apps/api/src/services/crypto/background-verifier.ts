@@ -448,6 +448,15 @@ function detectNetworkFromTxHash(txHash: string, currentNetwork: CryptoNetwork):
  * Main verification loop
  */
 async function runVerificationLoop(): Promise<void> {
+  // Safety: remove entries stuck for more than 30 minutes (MAX_RETRIES × RETRY_DELAY should be ~10 min)
+  const MAX_QUEUE_AGE_MS = 30 * 60 * 1000
+  for (const [key, deposit] of pendingVerifications.entries()) {
+    if (deposit.retryCount > VERIFICATION_CONFIG.MAX_RETRIES + 10) {
+      console.log(`[BackgroundVerifier] Evicting stuck entry ${deposit.id} (retries: ${deposit.retryCount})`)
+      pendingVerifications.delete(key)
+    }
+  }
+
   console.log(`[BackgroundVerifier] Processing ${pendingVerifications.size} pending verifications`)
 
   for (const [key, deposit] of pendingVerifications.entries()) {

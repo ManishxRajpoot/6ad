@@ -537,18 +537,28 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
  */
 async function cdpEvaluate(wsUrl: string, expression: string): Promise<any> {
   return new Promise((resolve, reject) => {
-    try {
-      // Use dynamic import for WebSocket
-      const ws = new WebSocket(wsUrl)
-      const id = 1
-      let resolved = false
+    let ws: WebSocket | null = null
+    let resolved = false
+    let timeout: ReturnType<typeof setTimeout> | null = null
 
-      const timeout = setTimeout(() => {
-        if (!resolved) { resolved = true; ws.close(); resolve(null) }
+    function cleanup() {
+      if (timeout) { clearTimeout(timeout); timeout = null }
+      if (ws) {
+        try { ws.removeAllListeners(); ws.close() } catch {}
+        ws = null
+      }
+    }
+
+    try {
+      ws = new WebSocket(wsUrl)
+      const id = 1
+
+      timeout = setTimeout(() => {
+        if (!resolved) { resolved = true; cleanup(); resolve(null) }
       }, 15000)
 
       ws.on('open', () => {
-        ws.send(JSON.stringify({
+        ws?.send(JSON.stringify({
           id,
           method: 'Runtime.evaluate',
           params: { expression, returnByValue: true, awaitPromise: true }
@@ -560,17 +570,22 @@ async function cdpEvaluate(wsUrl: string, expression: string): Promise<any> {
           const msg = JSON.parse(data.toString())
           if (msg.id === id) {
             resolved = true
-            clearTimeout(timeout)
-            ws.close()
-            resolve(msg.result?.result?.value || null)
+            const value = msg.result?.result?.value || null
+            cleanup()
+            resolve(value)
           }
         } catch {}
       })
 
       ws.on('error', (err: any) => {
-        if (!resolved) { resolved = true; clearTimeout(timeout); resolve(null) }
+        if (!resolved) { resolved = true; cleanup(); resolve(null) }
+      })
+
+      ws.on('close', () => {
+        if (!resolved) { resolved = true; cleanup(); resolve(null) }
       })
     } catch (err: any) {
+      cleanup()
       resolve(null)
     }
   })
@@ -893,6 +908,8 @@ async function serverSideRecharge(depositId: string, adAccountId: string, amount
 async function stopBrowser(serialNumber: string): Promise<boolean> {
   console.log(`[AdsPower] Stopping browser serial=${serialNumber}`)
   const res = await adsPowerRequest(`/api/v1/browser/stop?serial_number=${serialNumber}`)
+  // Always clean up memory regardless of stop result
+  browserDebugInfo.delete(serialNumber)
   if (res.code === 0) { console.log(`[AdsPower] Browser stopped: serial=${serialNumber}`); return true }
   console.error(`[AdsPower] Failed to stop serial=${serialNumber}: ${res.msg}`)
   return false

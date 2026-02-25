@@ -136,7 +136,17 @@ export function startHeartbeat(): void {
   if (heartbeatInterval) return
 
   heartbeatInterval = setInterval(() => {
+    const now = Date.now()
+    const MAX_CONNECTION_AGE_MS = 10 * 60 * 1000 // 10 minutes max — clients auto-reconnect
+
     for (const [connectionId, client] of clients.entries()) {
+      // Remove stale connections that have been open too long (client should reconnect)
+      if (now - client.connectedAt.getTime() > MAX_CONNECTION_AGE_MS) {
+        console.log(`[SSE] Removing stale connection for ${client.userId} (age: ${Math.round((now - client.connectedAt.getTime()) / 60000)}m)`)
+        clients.delete(connectionId)
+        continue
+      }
+
       try {
         // Send SSE comment (invisible to EventSource API but keeps connection alive)
         client.stream.writeSSE({
@@ -151,5 +161,5 @@ export function startHeartbeat(): void {
     }
   }, 30000) // Every 30 seconds
 
-  console.log('[SSE] Heartbeat started (30s interval)')
+  console.log('[SSE] Heartbeat started (30s interval, 10m max connection age)')
 }
