@@ -24,7 +24,7 @@
       type: '__6AD_TOKEN__',
       token: token,
       source: source
-    }, '*')
+    }, window.location.origin)
 
     console.log('[6AD] Token captured via ' + source + ' (len=' + token.length + ', ' + token.substring(0, 15) + '...)')
   }

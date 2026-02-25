@@ -157,8 +157,8 @@ export default function AgentsPage() {
     try {
       const { agents } = await agentsApi.getAll()
       setAgents(agents || [])
-    } catch {
-      // Silently fail
+    } catch (error: any) {
+      toast.error('Failed to load agents', error.message || 'Could not fetch agent list')
     } finally {
       setLoading(false)
     }

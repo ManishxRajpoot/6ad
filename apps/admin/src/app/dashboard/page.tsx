@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
-import { dashboardApi, agentsApi } from '@/lib/api'
+import { dashboardApi } from '@/lib/api'
 import {
   TrendingUp,
   ChevronDown,
@@ -172,94 +172,87 @@ type DashboardStats = {
   overallGrowth: number
 }
 
-type Agent = {
-  id: string
-  username: string
-  email: string
-  balance: number
-  totalUsers?: number
+// Platform color map
+const PLATFORM_COLORS: Record<string, string> = {
+  FACEBOOK: '#111827',
+  GOOGLE: '#6B7280',
+  BING: '#9CA3AF',
+  TIKTOK: '#D1D5DB',
+  SNAPCHAT: '#E5E7EB',
 }
 
-// ============================================
-// CHART DATA
-// ============================================
-const revenueChartData = [
-  { name: 'Mon', income: 100000, outcome: 80000 },
-  { name: 'Tues', income: 150000, outcome: 120000 },
-  { name: 'Wed', income: 400000, outcome: 200000 },
-  { name: 'Thurs', income: 520000, outcome: 250000 },
-  { name: 'Fri', income: 350000, outcome: 180000 },
-  { name: 'Sat', income: 450000, outcome: 220000 },
-]
-
-const agentsPerformanceData = [
-  { name: 'May 5', green: 180, orange: 120 },
-  { name: 'May 6', green: 200, orange: 150 },
-  { name: 'May 7', green: 250, orange: 180 },
-  { name: 'May 8', green: 340, orange: 280 },
-  { name: 'May 9', green: 300, orange: 220 },
-  { name: 'May 10', green: 280, orange: 200 },
-  { name: 'May 11', green: 260, orange: 190 },
-]
-
-const platformDistribution = [
-  { name: 'Facebook', value: 60, color: '#111827', amount: 2100 },
-  { name: 'Google', value: 15, color: '#6B7280', amount: 525 },
-  { name: 'Bing', value: 12, color: '#9CA3AF', amount: 420 },
-  { name: 'Tiktok', value: 8, color: '#D1D5DB', amount: 280 },
-  { name: 'Snapchat', value: 5, color: '#E5E7EB', amount: 175 },
-]
-
-// Sparkline data - Smooth curves with 10 data points (like user side)
-const revenueSparkline = [30, 45, 35, 50, 40, 60, 55, 70, 65, 80]
-const pendingSparkline = [25, 40, 30, 55, 45, 65, 50, 75, 60, 85]
-const usersSparkline = [35, 50, 40, 60, 45, 70, 55, 75, 65, 90]
-const growthSparkline = [20, 35, 25, 45, 40, 55, 50, 65, 60, 75]
+// Default sparkline (flat) when no real data
+const defaultSparkline = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 // ============================================
 // MAIN COMPONENT
 // ============================================
+type PlatformStat = {
+  platform: string
+  _count: number
+  _sum: { totalDeposit: number | null; totalSpend: number | null }
+}
+
+type TopAgent = {
+  id: string
+  username: string
+  email: string
+  profileImage: string | null
+  walletBalance: number
+  _count: { users: number }
+}
+
+type MonthlyRevenue = {
+  month: string
+  total: number
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
-    totalRevenue: 43000,
-    revenueChange: 1.78,
-    pendingRequests: 66435,
-    pendingChange: 2.34,
+    totalRevenue: 0,
+    revenueChange: 0,
+    pendingRequests: 0,
+    pendingChange: 0,
     totalAgents: 0,
-    agentChange: 0.85,
-    totalUsers: 255456,
-    userChange: 3.12,
-    overallGrowth: 13.59,
+    agentChange: 0,
+    totalUsers: 0,
+    userChange: 0,
+    overallGrowth: 0,
   })
-  const [agents, setAgents] = useState<Agent[]>([])
+  const [agents, setAgents] = useState<TopAgent[]>([])
+  const [platformStats, setPlatformStats] = useState<PlatformStat[]>([])
+  const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyRevenue[]>([])
   const [loading, setLoading] = useState(true)
   const [performancePeriod, setPerformancePeriod] = useState<'Day' | 'Week' | 'Month'>('Day')
 
   const fetchData = useCallback(async () => {
     try {
-      const [dashboardData, agentsData] = await Promise.all([
-        dashboardApi.getStats().catch(() => ({ stats: {} })),
-        agentsApi.getAll().catch(() => ({ agents: [] })),
-      ])
+      const dashboardData = await dashboardApi.getStats().catch(() => ({ stats: {} as any, platformStats: [], topAgents: [], monthlyRevenue: [] }))
 
       if (dashboardData.stats) {
+        const s = dashboardData.stats
         setStats({
-          totalRevenue: dashboardData.stats.totalRevenue || 43000,
-          revenueChange: dashboardData.stats.revenueChange || 1.78,
-          pendingRequests: dashboardData.stats.pendingRequests || 66435,
-          pendingChange: dashboardData.stats.pendingChange || 2.34,
-          totalAgents: dashboardData.stats.totalAgents || agentsData.agents?.length || 0,
-          agentChange: dashboardData.stats.agentChange || 0.85,
-          totalUsers: dashboardData.stats.totalUsers || 255456,
-          userChange: dashboardData.stats.userChange || 3.12,
-          overallGrowth: dashboardData.stats.overallGrowth || 13.59,
+          totalRevenue: s.totalRevenue || 0,
+          revenueChange: 0,
+          pendingRequests: (s.pendingDeposits || 0) + (s.pendingWithdrawals || 0) + (s.pendingRefunds || 0) + (s.pendingAccounts || 0),
+          pendingChange: 0,
+          totalAgents: s.totalAgents || 0,
+          agentChange: 0,
+          totalUsers: s.totalUsers || 0,
+          userChange: 0,
+          overallGrowth: 0,
         })
       }
 
-      const sortedAgents = (agentsData.agents || [])
-        .sort((a: Agent, b: Agent) => (b.balance || 0) - (a.balance || 0))
-        .slice(0, 5)
-      setAgents(sortedAgents)
+      if (dashboardData.topAgents) {
+        setAgents(dashboardData.topAgents)
+      }
+      if (dashboardData.platformStats) {
+        setPlatformStats(dashboardData.platformStats)
+      }
+      if (dashboardData.monthlyRevenue) {
+        setMonthlyRevenue(dashboardData.monthlyRevenue)
+      }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
     } finally {
@@ -295,7 +288,7 @@ export default function DashboardPage() {
             title="Total Revenue"
             value={stats.totalRevenue}
             growth={stats.revenueChange}
-            chartData={revenueSparkline}
+            chartData={monthlyRevenue.length > 0 ? monthlyRevenue.map(m => m.total) : defaultSparkline}
             color="#111827"
             format="currency"
           />
@@ -303,7 +296,7 @@ export default function DashboardPage() {
             title="Pending Requests"
             value={stats.pendingRequests}
             growth={stats.pendingChange}
-            chartData={pendingSparkline}
+            chartData={defaultSparkline}
             color="#111827"
             format="number"
           />
@@ -311,17 +304,17 @@ export default function DashboardPage() {
             title="No of Users"
             value={stats.totalUsers}
             growth={stats.userChange}
-            chartData={usersSparkline}
+            chartData={defaultSparkline}
             color="#111827"
             format="number"
           />
           <KPICard
-            title="Overall Growth"
-            value={stats.overallGrowth}
-            growth={stats.revenueChange}
-            chartData={growthSparkline}
+            title="Total Agents"
+            value={stats.totalAgents}
+            growth={stats.agentChange}
+            chartData={defaultSparkline}
             color="#52B788"
-            format="percent"
+            format="number"
             variant="dark"
           />
         </div>
@@ -348,45 +341,43 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={revenueChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 11, fill: '#94A3B8' }}
-                  width={50}
-                  tickFormatter={(v) => v === 0 ? '0' : `${(v/1000)}k`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                    fontSize: '11px',
-                  }}
-                  formatter={(value: number) => [`$${value.toLocaleString()}`, '']}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="income"
-                  stroke="#111827"
-                  strokeWidth={2}
-                  dot={{ fill: '#111827', strokeWidth: 0, r: 4 }}
-                  activeDot={{ r: 6, fill: '#111827' }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="outcome"
-                  stroke="#D1D5DB"
-                  strokeWidth={2}
-                  dot={{ fill: '#D1D5DB', strokeWidth: 0, r: 4 }}
-                  activeDot={{ r: 6, fill: '#D1D5DB' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {monthlyRevenue.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={monthlyRevenue.map(m => ({ name: m.month, revenue: m.total }))}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#94A3B8' }}
+                    width={50}
+                    tickFormatter={(v) => v === 0 ? '0' : `$${(v/1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      fontSize: '11px',
+                    }}
+                    formatter={(value: number) => [`$${value.toLocaleString()}`, 'Revenue']}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#111827"
+                    strokeWidth={2}
+                    dot={{ fill: '#111827', strokeWidth: 0, r: 4 }}
+                    activeDot={{ r: 6, fill: '#111827' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[220px] text-sm text-gray-400">
+                No revenue data yet
+              </div>
+            )}
           </div>
 
           {/* In Amount Statistics */}
@@ -401,62 +392,75 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            <div className="flex items-center gap-5">
-              {/* Donut Chart */}
-              <div className="relative">
-                <ResponsiveContainer width={140} height={140}>
-                  <PieChart>
-                    <Pie
-                      data={platformDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={65}
-                      paddingAngle={2}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      {platformDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <p className="text-[10px] text-gray-400">Total</p>
-                  <p className="text-lg font-bold text-gray-900">$3,500</p>
-                </div>
-              </div>
+            {(() => {
+              const pieData = platformStats.map(ps => ({
+                name: ps.platform.charAt(0) + ps.platform.slice(1).toLowerCase(),
+                value: ps._count || 0,
+                color: PLATFORM_COLORS[ps.platform] || '#E5E7EB',
+                amount: Number(ps._sum?.totalDeposit) || 0,
+              })).filter(d => d.value > 0)
+              const totalAmount = pieData.reduce((sum, d) => sum + d.amount, 0)
 
-              {/* Legend — dot style */}
-              <div className="flex-1 space-y-2.5">
-                {platformDistribution.map((item, idx) => (
-                  <div key={item.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-gray-900" style={{ opacity: 1 - idx * 0.18 }} />
-                      <span className="text-[11px] text-gray-600">{item.name}</span>
+              if (pieData.length === 0) {
+                return (
+                  <div className="flex items-center justify-center h-[180px] text-sm text-gray-400">
+                    No platform data yet
+                  </div>
+                )
+              }
+
+              return (
+                <>
+                  <div className="flex items-center gap-5">
+                    <div className="relative">
+                      <ResponsiveContainer width={140} height={140}>
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={45}
+                            outerRadius={65}
+                            paddingAngle={2}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <p className="text-[10px] text-gray-400">Total</p>
+                        <p className="text-lg font-bold text-gray-900">${Math.round(totalAmount).toLocaleString()}</p>
+                      </div>
                     </div>
-                    <span className="text-[11px] font-semibold text-gray-900">${item.amount.toLocaleString()}</span>
+                    <div className="flex-1 space-y-2.5">
+                      {pieData.map((item, idx) => (
+                        <div key={item.name} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                            <span className="text-[11px] text-gray-600">{item.name}</span>
+                          </div>
+                          <span className="text-[11px] font-semibold text-gray-900">${Math.round(item.amount).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Growth indicator */}
-            <div className="mt-4 pt-3 border-t border-gray-100">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center">
-                  <TrendingUp className="w-3.5 h-3.5 text-gray-500" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-[10px] text-gray-400">$2,500 → $3,500</p>
-                  <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1">
-                    <div className="h-full bg-gray-900 rounded-full" style={{ width: '70%' }} />
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center">
+                        <TrendingUp className="w-3.5 h-3.5 text-gray-500" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[10px] text-gray-400">{pieData.reduce((s, d) => s + d.value, 0)} total accounts</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <span className="text-[10px] font-medium text-gray-600">+12.5%</span>
-              </div>
-            </div>
+                </>
+              )
+            })()}
           </div>
         </div>
 
@@ -482,55 +486,50 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={agentsPerformanceData}>
-                <defs>
-                  <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#111827" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#111827" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorOrange" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#9CA3AF" stopOpacity={0.15}/>
-                    <stop offset="95%" stopColor="#9CA3AF" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 11, fill: '#94A3B8' }}
-                  width={40}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                    fontSize: '11px',
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="green"
-                  stroke="#111827"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorGreen)"
-                  dot={{ fill: '#111827', strokeWidth: 0, r: 4 }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="orange"
-                  stroke="#9CA3AF"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorOrange)"
-                  dot={{ fill: '#9CA3AF', strokeWidth: 0, r: 4 }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {monthlyRevenue.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={monthlyRevenue.map(m => ({ name: m.month, revenue: m.total }))}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#111827" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#111827" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#94A3B8' }}
+                    width={40}
+                    tickFormatter={(v) => v === 0 ? '0' : `$${(v/1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      fontSize: '11px',
+                    }}
+                    formatter={(value: number) => [`$${value.toLocaleString()}`, 'Revenue']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#111827"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorRevenue)"
+                    dot={{ fill: '#111827', strokeWidth: 0, r: 4 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[220px] text-sm text-gray-400">
+                No performance data yet
+              </div>
+            )}
           </div>
 
           {/* Top 5 Agents */}
@@ -555,39 +554,17 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[12px] font-medium text-gray-900 truncate">{agent.username || 'Agent'}</p>
-                    <p className="text-[10px] text-gray-400 truncate">{agent.email || 'agent@example.com'}</p>
+                    <p className="text-[10px] text-gray-400 truncate">{agent.email}</p>
                   </div>
-                  <div className="flex -space-x-1.5">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="w-5 h-5 rounded-full bg-gray-200 border-2 border-white" />
-                    ))}
-                    <div className="w-5 h-5 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
-                      <span className="text-[7px] text-gray-400">+50</span>
-                    </div>
+                  <div className="text-right">
+                    <p className="text-[11px] font-semibold text-gray-900">{agent._count?.users || 0} users</p>
+                    <p className="text-[10px] text-gray-400">${Math.round(agent.walletBalance || 0).toLocaleString()}</p>
                   </div>
-                  <p className="text-[12px] font-bold text-gray-900">${Math.round(agent.balance || 0).toLocaleString()}.00</p>
                 </div>
               )) : (
-                [...Array(5)].map((_, index) => (
-                  <div key={index} className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
-                      <span className="text-[11px] font-semibold text-gray-500">A</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[12px] font-medium text-gray-900">Ali Baloch</p>
-                      <p className="text-[10px] text-gray-400">alibaloch103010@gmail.com</p>
-                    </div>
-                    <div className="flex -space-x-1.5">
-                      {[...Array(3)].map((_, i) => (
-                        <div key={i} className="w-5 h-5 rounded-full bg-gray-200 border-2 border-white" />
-                      ))}
-                      <div className="w-5 h-5 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
-                        <span className="text-[7px] text-gray-400">+50</span>
-                      </div>
-                    </div>
-                    <p className="text-[12px] font-bold text-gray-900">$2,359.00</p>
-                  </div>
-                ))
+                <div className="flex items-center justify-center h-[200px] text-sm text-gray-400">
+                  No agents yet
+                </div>
               )}
             </div>
           </div>

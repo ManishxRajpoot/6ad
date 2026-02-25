@@ -263,6 +263,11 @@ model AdAccount {
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([accountId])
+  @@index([status])
+  @@index([extensionProfileId])
 }
 
 // Ad Account Application - User submits this to request new ad accounts
@@ -343,6 +348,8 @@ model Deposit {
   updatedAt         DateTime          @updatedAt
 
   @@index([txHash])
+  @@index([userId])
+  @@index([status])
 }
 
 model Withdrawal {
@@ -370,6 +377,9 @@ model Withdrawal {
 
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
 
 model Refund {
@@ -395,6 +405,9 @@ model Refund {
 
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
 
 model AccountDeposit {
@@ -428,6 +441,9 @@ model AccountDeposit {
 
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+
+  @@index([adAccountId])
+  @@index([status, rechargeStatus])
 }
 
 model AccountRefund {
@@ -512,6 +528,8 @@ model BmShareRequest {
 
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+
+  @@index([adAccountId])
 }
 
 model WalletFlow {
@@ -533,6 +551,8 @@ model WalletFlow {
   description       String?
 
   createdAt         DateTime        @default(now())
+
+  @@index([userId])
 }
 
 model PayLink {
@@ -1382,6 +1402,8 @@ model FacebookAutomationProfile {
 
   createdAt           DateTime                  @default(now())
   updatedAt           DateTime                  @updatedAt
+
+  @@index([extensionApiKey])
 }
 
 // ==========================================

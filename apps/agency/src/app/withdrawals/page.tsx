@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { agentWithdrawalsApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import { TrendingUp, TrendingDown, DollarSign, Users, Wallet, Loader2, CheckCircle, X } from 'lucide-react'
+import { DollarSign, Users, Wallet, Loader2, CheckCircle, X } from 'lucide-react'
 
 interface WithdrawalStats {
   availableToWithdraw: number
@@ -157,10 +157,6 @@ export default function WithdrawalsPage() {
           <Card className="p-3 min-h-[80px]">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-[10px] xl:text-[11px] text-gray-500">Available to withdraw</span>
-              <span className="text-[9px] xl:text-[10px] text-emerald-500 flex items-center gap-0.5">
-                <TrendingUp className="w-2.5 h-2.5" />
-                <span>10.0%</span>
-              </span>
             </div>
             <div className="text-lg xl:text-xl font-bold text-[#0D9488] mb-0.5">
               {loading ? '...' : formatCurrency(stats?.availableToWithdraw || 0)}
@@ -178,16 +174,12 @@ export default function WithdrawalsPage() {
           <Card className="p-3 min-h-[80px]">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-[10px] xl:text-[11px] text-gray-500">Today Revenue</span>
-              <span className="text-[9px] xl:text-[10px] text-red-500 flex items-center gap-0.5">
-                <TrendingDown className="w-2.5 h-2.5" />
-                <span>3.0%</span>
-              </span>
             </div>
             <div className="text-lg xl:text-xl font-bold text-[#0D9488] mb-0.5">
               {loading ? '...' : formatCurrency(stats?.todayRevenue || 0)}
             </div>
             <div className="text-[9px] xl:text-[10px] text-gray-400">
-              143 Account & <span className="text-orange-500">44 Pending</span>
+              {loading ? '...' : `${stats?.totalAdAccounts || 0} Accounts`}
             </div>
           </Card>
 
@@ -195,10 +187,6 @@ export default function WithdrawalsPage() {
           <Card className="p-3 min-h-[80px]">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-[10px] xl:text-[11px] text-gray-500">Total Ads Account</span>
-              <span className="text-[9px] xl:text-[10px] text-emerald-500 flex items-center gap-0.5">
-                <TrendingUp className="w-2.5 h-2.5" />
-                <span>3.2%</span>
-              </span>
             </div>
             <div className="text-lg xl:text-xl font-bold text-[#0D9488] mb-0.5">
               {loading ? '...' : (stats?.totalAdAccounts || 0).toLocaleString('en-US')}
@@ -212,10 +200,6 @@ export default function WithdrawalsPage() {
           <Card className="p-3 min-h-[80px]">
             <div className="flex items-center gap-1.5 mb-1">
               <span className="text-[10px] xl:text-[11px] text-gray-500">All Earned Amount</span>
-              <span className="text-[9px] xl:text-[10px] text-emerald-500 flex items-center gap-0.5">
-                <TrendingUp className="w-2.5 h-2.5" />
-                <span>8.3%</span>
-              </span>
             </div>
             <div className="text-lg xl:text-xl font-bold text-[#0D9488] mb-0.5">
               {loading ? '...' : formatCurrency(stats?.totalEarned || 0)}

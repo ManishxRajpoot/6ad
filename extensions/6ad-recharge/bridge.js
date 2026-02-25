@@ -34,12 +34,6 @@ window.addEventListener('message', function (event) {
     }
 
     sendToken(1)
-
-    // Also store in sessionStorage as backup
-    try {
-      sessionStorage.setItem('__6ad_token', token)
-      sessionStorage.setItem('__6ad_token_time', Date.now().toString())
-    } catch(e) {}
   }
 })
 

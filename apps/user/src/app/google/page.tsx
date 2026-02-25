@@ -553,11 +553,11 @@ export default function GooglePage() {
     URL.revokeObjectURL(url)
   }
 
-  // Auto-refresh stats every 1 second for real-time updates
+  // Fallback stats refresh every 60s (SSE handles real-time updates)
   useEffect(() => {
     const interval = setInterval(() => {
       refreshStats()
-    }, 1000)
+    }, 60_000)
     return () => clearInterval(interval)
   }, [])
 

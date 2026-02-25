@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { extensionApi } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
 import { Select } from '@/components/ui/Select'
 import { Copy, Check, RefreshCw, Plus, Trash2, Plug, Wifi, WifiOff, ToggleLeft, ToggleRight, Pencil, Eye, EyeOff, KeyRound, Mail, Lock, ArrowRightLeft } from 'lucide-react'
 
@@ -32,6 +33,7 @@ type ExtensionProfile = {
 }
 
 export default function ExtensionPage() {
+  const toast = useToast()
   const [profiles, setProfiles] = useState<ExtensionProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -84,8 +86,8 @@ export default function ExtensionPage() {
       setCreateSerial('')
       setShowCreate(false)
       await fetchProfiles()
-    } catch (error) {
-      console.error('Create failed:', error)
+    } catch (error: any) {
+      toast.error('Create failed', error.message || 'Could not create extension profile')
     } finally {
       setCreating(false)
     }
@@ -104,8 +106,8 @@ export default function ExtensionPage() {
     try {
       await extensionApi.profiles.regenerateKey(id)
       await fetchProfiles()
-    } catch (error) {
-      console.error('Regenerate failed:', error)
+    } catch (error: any) {
+      toast.error('Regenerate failed', error.message || 'Could not regenerate API key')
     } finally {
       setRegeneratingId(null)
     }
@@ -117,8 +119,8 @@ export default function ExtensionPage() {
     try {
       await extensionApi.profiles.delete(id)
       setProfiles(prev => prev.filter(p => p.id !== id))
-    } catch (error) {
-      console.error('Delete failed:', error)
+    } catch (error: any) {
+      toast.error('Delete failed', error.message || 'Could not delete extension profile')
     } finally {
       setDeletingId(null)
     }
@@ -129,8 +131,8 @@ export default function ExtensionPage() {
     try {
       await extensionApi.profiles.update(profile.id, { isEnabled: !profile.isEnabled })
       await fetchProfiles()
-    } catch (error) {
-      console.error('Toggle failed:', error)
+    } catch (error: any) {
+      toast.error('Toggle failed', error.message || 'Could not toggle extension profile')
     } finally {
       setTogglingId(null)
     }
@@ -166,8 +168,8 @@ export default function ExtensionPage() {
       await extensionApi.profiles.update(editProfile.id, data)
       setEditProfile(null)
       await fetchProfiles()
-    } catch (error) {
-      console.error('Save failed:', error)
+    } catch (error: any) {
+      toast.error('Save failed', error.message || 'Could not save extension profile')
     } finally {
       setSaving(false)
     }
