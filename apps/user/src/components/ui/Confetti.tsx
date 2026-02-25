@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 interface ConfettiPiece {
   id: number
@@ -108,13 +108,13 @@ export function Confetti({ active, duration = 3000, particleCount = 100, onCompl
 export function useConfetti() {
   const [showConfetti, setShowConfetti] = useState(false)
 
-  const triggerConfetti = () => {
+  const triggerConfetti = useCallback(() => {
     setShowConfetti(true)
-  }
+  }, [])
 
-  const stopConfetti = () => {
+  const stopConfetti = useCallback(() => {
     setShowConfetti(false)
-  }
+  }, [])
 
   return { showConfetti, triggerConfetti, stopConfetti }
 }

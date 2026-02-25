@@ -11,6 +11,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { Input } from '@/components/ui/Input'
 import { applicationsApi, authApi, accountsApi, transactionsApi, accountDepositsApi, bmShareApi, balanceTransfersApi, accountRefundsApi, dashboardApi, settingsApi, PlatformStatus } from '@/lib/api'
 import { Confetti, useConfetti } from '@/components/ui/Confetti'
+import { useSSEEvent } from '@/hooks/useSSEEvent'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon, EmptyStateIcon } from '@/components/icons/MenuIcons'
 import { useAuthStore } from '@/store/auth'
 import {
@@ -247,7 +248,7 @@ type DepositRow = {
 export default function FacebookPage() {
   const ITEMS_PER_PAGE = 10
   const { updateUser } = useAuthStore()
-  const { showConfetti, triggerConfetti } = useConfetti()
+  const { showConfetti, triggerConfetti, stopConfetti } = useConfetti()
 
   const searchParams = useSearchParams()
   const pageFromUrl = searchParams.get('page') as SubPage | null
@@ -539,6 +540,11 @@ export default function FacebookPage() {
     fetchUserData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Listen for SSE notifications (e.g. account approved) and refresh all data
+  useSSEEvent('notification', () => {
+    refreshAllData()
+  })
 
   // Auto-refresh stats every 1 second for real-time updates
   useEffect(() => {
@@ -1362,7 +1368,7 @@ export default function FacebookPage() {
   return (
     <DashboardLayout title="Facebook User Management Account" subtitle="">
       {/* Confetti celebration for new approvals */}
-      <Confetti active={showConfetti} />
+      <Confetti active={showConfetti} onComplete={stopConfetti} />
       {/* Show Coming Soon if platform disabled and no existing accounts */}
       {!platformEnabled && !hasExistingAccounts ? (
         <div className="flex items-center justify-center h-full">
