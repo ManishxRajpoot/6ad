@@ -1276,23 +1276,22 @@ async function pollForTasks(): Promise<void> {
           const fbAccountId = deposit.adAccount?.accountId
           if (!fbAccountId) continue
 
-          // Re-check status before overwriting — extension may have completed it during the wait
-          const freshDeposit = await prisma.accountDeposit.findUnique({
-            where: { id: deposit.id },
-            select: { rechargeStatus: true },
+          // ATOMIC CLAIM: only proceed if status is still PENDING/FAILED/NONE
+          // If extension already claimed (IN_PROGRESS) or completed (COMPLETED), count=0 → skip
+          // This is the same pattern as /extension/recharge/:id/claim endpoint
+          const claimed = await prisma.accountDeposit.updateMany({
+            where: {
+              id: deposit.id,
+              rechargeStatus: { in: ['PENDING', 'FAILED', 'NONE'] },
+            },
+            data: { rechargeStatus: 'IN_PROGRESS', rechargeMethod: 'SERVER', rechargeAttempts: { increment: 1 } },
           })
-          if (freshDeposit?.rechargeStatus === 'COMPLETED' || freshDeposit?.rechargeStatus === 'IN_PROGRESS') {
-            console.log(`[AdsPower] Deposit ${deposit.id} already ${freshDeposit.rechargeStatus} — skipping server-side recharge`)
+          if (claimed.count === 0) {
+            console.log(`[AdsPower] Deposit ${deposit.id} already claimed/completed — skipping server-side recharge`)
             continue
           }
 
           console.log(`[AdsPower] Server-side recharge: deposit ${deposit.id}, act_${fbAccountId}, $${deposit.amount}`)
-
-          // Mark as in-progress (safe now — we verified it's not already COMPLETED)
-          await prisma.accountDeposit.update({
-            where: { id: deposit.id },
-            data: { rechargeStatus: 'IN_PROGRESS', rechargeMethod: 'SERVER', rechargeAttempts: { increment: 1 } },
-          }).catch(() => {})
 
           const result = await serverSideRecharge(deposit.id, fbAccountId, deposit.amount, updatedProfile.fbAccessToken!)
           if (result.success) {
