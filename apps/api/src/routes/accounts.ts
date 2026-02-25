@@ -177,6 +177,9 @@ accounts.get('/', requireUser, async (c) => {
                 select: { id: true, username: true }
               }
             }
+          },
+          refunds: {
+            select: { amount: true, status: true }
           }
         },
         skip,
@@ -1761,6 +1764,18 @@ accounts.patch('/:id', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Update account error:', error)
     return c.json({ error: 'Failed to update account' }, 500)
+  }
+})
+
+// DELETE /accounts/:id - Delete account permanently
+accounts.delete('/:id', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+    await prisma.adAccount.delete({ where: { id } })
+    return c.json({ message: 'Account deleted' })
+  } catch (error) {
+    console.error('Delete account error:', error)
+    return c.json({ error: 'Failed to delete account' }, 500)
   }
 })
 

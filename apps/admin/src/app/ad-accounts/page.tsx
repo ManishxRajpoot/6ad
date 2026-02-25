@@ -10,8 +10,13 @@ import { useToast } from '@/contexts/ToastContext'
 import { useDateFilterStore } from '@/store/dateFilter'
 import {
   Search, ChevronDown, ChevronLeft, ChevronRight, Loader2,
-  Copy, Monitor
+  Copy, Monitor, Ban, Check, Trash2
 } from 'lucide-react'
+
+type AccountRefund = {
+  amount: number
+  status: string
+}
 
 type AdAccount = {
   id: string
@@ -38,6 +43,7 @@ type AdAccount = {
       username: string
     } | null
   }
+  refunds?: AccountRefund[]
 }
 
 // Platform icons
@@ -88,8 +94,9 @@ export default function AllAdAccountsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(25)
 
-  // Copy
+  // Copy & Action loading
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
 
   // Tab refs for sliding indicator
   const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({})
@@ -144,6 +151,54 @@ export default function AllAdAccountsPage() {
     navigator.clipboard.writeText(text)
     setCopiedId(id)
     setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  const handleSuspend = async (acc: AdAccount) => {
+    if (!confirm(`Suspend "${acc.accountName || acc.accountId}"? It will be hidden from the user's panel.`)) return
+    setActionLoadingId(acc.id)
+    try {
+      await accountsApi.updateStatus(acc.id, 'SUSPENDED')
+      toast.success('Account Suspended', `${acc.accountName || acc.accountId} has been suspended`)
+      fetchData()
+    } catch (error: any) {
+      toast.error('Failed to suspend', error.message || 'An error occurred')
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleActivate = async (acc: AdAccount) => {
+    setActionLoadingId(acc.id)
+    try {
+      await accountsApi.updateStatus(acc.id, 'APPROVED')
+      toast.success('Account Activated', `${acc.accountName || acc.accountId} is now active`)
+      fetchData()
+    } catch (error: any) {
+      toast.error('Failed to activate', error.message || 'An error occurred')
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleDelete = async (acc: AdAccount) => {
+    if (!confirm(`Permanently delete "${acc.accountName || acc.accountId}"? This cannot be undone.`)) return
+    setActionLoadingId(acc.id)
+    try {
+      await accountsApi.delete(acc.id)
+      toast.success('Account Deleted', `${acc.accountName || acc.accountId} has been permanently deleted`)
+      fetchData()
+    } catch (error: any) {
+      toast.error('Failed to delete', error.message || 'An error occurred')
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const getRefundTotal = (acc: AdAccount) => {
+    if (!acc.refunds || acc.refunds.length === 0) return 0
+    return acc.refunds
+      .filter(r => r.status === 'APPROVED' || r.status === 'COMPLETED')
+      .reduce((sum, r) => sum + r.amount, 0)
   }
 
   const formatDate = (date: string) => {
@@ -458,12 +513,13 @@ export default function AllAdAccountsPage() {
                   <th className="text-right py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Balance</th>
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Status</th>
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Created</th>
+                  <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={10} className="py-6 text-center">
+                    <td colSpan={11} className="py-6 text-center">
                       <div className="flex flex-col items-center">
                         <Loader2 className="w-5 h-5 text-violet-600 animate-spin mb-1" />
                         <span className="text-gray-500">Loading accounts...</span>
@@ -472,7 +528,7 @@ export default function AllAdAccountsPage() {
                   </tr>
                 ) : paginatedAccounts.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-6 text-center text-gray-500">
+                    <td colSpan={11} className="py-6 text-center text-gray-500">
                       {searchQuery || platformFilter !== 'all' ? 'No matching accounts found' : 'No ad accounts found'}
                     </td>
                   </tr>
@@ -560,12 +616,56 @@ export default function AllAdAccountsPage() {
 
                       {/* Status */}
                       <td className="py-2.5 px-3 text-center">
-                        {getStatusBadge(acc.status)}
+                        <div className="flex flex-col items-center gap-0.5">
+                          {getStatusBadge(acc.status)}
+                          {acc.status === 'REFUNDED' && getRefundTotal(acc) > 0 && (
+                            <span className="text-[10px] text-blue-600 font-medium">${getRefundTotal(acc).toLocaleString()} refunded</span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Created */}
                       <td className="py-2.5 px-3 text-gray-500 whitespace-nowrap text-center">
                         {formatDate(acc.createdAt)}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center justify-center gap-1">
+                          {actionLoadingId === acc.id ? (
+                            <Loader2 className="w-4 h-4 text-violet-600 animate-spin" />
+                          ) : (
+                            <>
+                              {acc.status === 'SUSPENDED' ? (
+                                <button
+                                  onClick={() => handleActivate(acc)}
+                                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded text-[11px] font-medium text-green-600 bg-green-50 hover:bg-green-100 transition-colors"
+                                  title="Activate"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  Activate
+                                </button>
+                              ) : acc.status !== 'REFUNDED' ? (
+                                <button
+                                  onClick={() => handleSuspend(acc)}
+                                  className="inline-flex items-center gap-0.5 px-2 py-1 rounded text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+                                  title="Suspend"
+                                >
+                                  <Ban className="w-3 h-3" />
+                                  Suspend
+                                </button>
+                              ) : null}
+                              <button
+                                onClick={() => handleDelete(acc)}
+                                className="inline-flex items-center gap-0.5 px-2 py-1 rounded text-[11px] font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+                                title="Delete permanently"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
