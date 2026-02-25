@@ -19,6 +19,7 @@ import {
   Ticket,
   Plug,
   ChevronRight,
+  Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -102,6 +103,7 @@ const menuSections: MenuSection[] = [
     label: 'Ad Platforms',
     collapsible: true,
     items: [
+      { name: 'All Accounts', href: '/ad-accounts', icon: Layers },
       { name: 'Facebook', href: '/facebook', icon: FacebookIcon },
       { name: 'Google', href: '/google', icon: GoogleIcon },
       { name: 'TikTok', href: '/tiktok', icon: TiktokIcon },

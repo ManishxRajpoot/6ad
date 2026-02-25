@@ -197,6 +197,7 @@ export const transactionsApi = {
 // Accounts API
 export const accountsApi = {
   getAll: (platform?: string) => api.get<{ accounts: any[] }>(`/accounts${platform ? `?platform=${platform}` : ''}`),
+  getAllAdmin: () => api.get<{ accounts: any[] }>('/accounts?limit=5000'),
   getByUser: (userId: string, platform?: string) => {
     const params = new URLSearchParams({ targetUserId: userId, limit: '100' })
     if (platform && platform !== 'ALL') params.set('platform', platform)
