@@ -473,6 +473,17 @@ export default function FacebookPage() {
       }
       setDashboardStats(statsRes)
 
+      // Update wallet balance in real-time (from dashboard stats)
+      if (statsRes.walletBalance !== undefined && user) {
+        const newBalance = parseFloat(statsRes.walletBalance) || 0
+        const currentBalance = parseFloat(user.walletBalance) || 0
+        if (newBalance !== currentBalance) {
+          const updatedUser = { ...user, walletBalance: statsRes.walletBalance }
+          setUser(updatedUser)
+          updateUser(updatedUser)
+        }
+      }
+
       // Detect new accounts: compare total account count from stats
       // When admin creates/approves accounts, count increases → trigger full refresh + confetti
       const totalAccounts = (statsRes.accountsByPlatform || []).reduce(
