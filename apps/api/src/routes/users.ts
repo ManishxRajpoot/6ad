@@ -102,7 +102,6 @@ users.get('/', requireAgent, async (c) => {
           id: true,
           email: true,
           username: true,
-          plaintextPassword: true,
           phone: true,
           phone2: true,
           realName: true,
@@ -132,7 +131,6 @@ users.get('/', requireAgent, async (c) => {
           personalRemarks: true,
           agentId: true,
           twoFactorEnabled: true,
-          twoFactorSecret: true,
           createdAt: true,
           agent: {
             select: { id: true, username: true }
@@ -195,7 +193,6 @@ users.get('/:id', requireAgent, async (c) => {
         id: true,
         email: true,
         username: true,
-        plaintextPassword: true,
         phone: true,
         phone2: true,
         realName: true,
@@ -223,6 +220,7 @@ users.get('/:id', requireAgent, async (c) => {
         bingUnlimitedDomainFee: true,
         personalRemarks: true,
         agentId: true,
+        twoFactorEnabled: true,
         agent: {
           select: { id: true, username: true, email: true }
         },
@@ -463,7 +461,6 @@ users.post('/', requireAgent, async (c) => {
             id: true,
             email: true,
             username: true,
-            plaintextPassword: true,
             phone: true,
             phone2: true,
             realName: true,
@@ -534,7 +531,6 @@ users.post('/', requireAgent, async (c) => {
     console.log('Created user with commissions:', JSON.stringify({
       fbCommission: userWithNumbers.fbCommission,
       googleCommission: userWithNumbers.googleCommission,
-      plaintextPassword: userWithNumbers.plaintextPassword
     }, null, 2))
 
     // Send welcome email with password reset link
@@ -813,7 +809,6 @@ users.patch('/:id', requireAgent, async (c) => {
         id: true,
         email: true,
         username: true,
-        plaintextPassword: true,
         phone: true,
         phone2: true,
         realName: true,
@@ -870,7 +865,6 @@ users.patch('/:id', requireAgent, async (c) => {
     console.log('Returning updated user:', JSON.stringify({
       fbCommission: userWithNumbers.fbCommission,
       googleCommission: userWithNumbers.googleCommission,
-      plaintextPassword: userWithNumbers.plaintextPassword
     }, null, 2))
 
     return c.json({ message: 'User updated successfully', user: userWithNumbers })

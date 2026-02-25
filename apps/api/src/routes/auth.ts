@@ -593,7 +593,7 @@ auth.post('/2fa/verify', verifyToken, async (c) => {
     }
 
     // Verify the code
-    console.log(`2FA verify attempt: code=${code}, secret=${user.twoFactorSecret}`)
+    console.log(`2FA verify attempt: code=${code}, userId=${user.id}`)
     const isValid = verifyTOTP(code, user.twoFactorSecret, user.email)
     console.log(`2FA verify result: ${isValid}`)
 

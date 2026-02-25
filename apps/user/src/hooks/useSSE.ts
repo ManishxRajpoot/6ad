@@ -48,7 +48,7 @@ export function useSSE(handlers: SSEEventHandlers) {
   // Keep handlers ref up to date without recreating EventSource
   handlersRef.current = handlers
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (typeof window === 'undefined') return
 
     const token = localStorage.getItem('token')
@@ -62,7 +62,24 @@ export function useSSE(handlers: SSEEventHandlers) {
       eventSourceRef.current.close()
     }
 
-    const url = `${API_URL}/events/stream?token=${encodeURIComponent(token)}`
+    // Get a one-time SSE ticket (avoids exposing JWT in URL)
+    let url: string
+    try {
+      const res = await fetch(`${API_URL}/events/ticket`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const { ticket } = await res.json()
+        url = `${API_URL}/events/stream?ticket=${encodeURIComponent(ticket)}`
+      } else {
+        // Fallback to token if ticket endpoint not available
+        url = `${API_URL}/events/stream?token=${encodeURIComponent(token)}`
+      }
+    } catch {
+      url = `${API_URL}/events/stream?token=${encodeURIComponent(token)}`
+    }
+
     const es = new EventSource(url)
     eventSourceRef.current = es
 
