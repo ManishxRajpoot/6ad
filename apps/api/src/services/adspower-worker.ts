@@ -467,41 +467,31 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     // The post-login cooldown above provides sufficient session stabilization.
 
     // Step 4: Capture token via CDP network interception
-    // Navigate FB tab to a page that triggers API calls, intercept access_token from requests
+    // Key: set up network listener FIRST, THEN navigate to adsmanager (catches all requests)
     console.log(`[AdsPower CDP] Capturing token via CDP network interception...`)
 
     let capturedToken: string | null = null
 
-    // Method 1: Intercept network requests from adsmanager (most reliable)
-    // When adsmanager loads, it makes Graph API calls with access_token in URL
-    await cdpCleanupTabs(debugInfo.debugPort)
-
-    // Open adsmanager — its API calls will contain the token
-    console.log(`[AdsPower CDP] Opening adsmanager to intercept token from API calls...`)
-    const tabCreated = await cdpCreateTab(debugInfo.wsUrl, ADSMANAGER_URL)
-    if (!tabCreated) {
-      console.log(`[AdsPower CDP] Failed to create adsmanager tab`)
-    }
-
-    // Wait for page to start loading, then check network requests
-    await sleep(8000)
-
-    // Find the adsmanager or FB tab to intercept from
+    // Get current tabs — we'll reuse an existing one to avoid tab-creation timing issues
     const allTabs = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
-    const targetTab = allTabs.find((t: any) =>
-      t.type === 'page' && t.webSocketDebuggerUrl &&
-      (t.url?.includes('adsmanager.facebook.com') || t.url?.includes('www.facebook.com'))
-    )
+    console.log(`[AdsPower CDP] Found ${allTabs.length} tabs: ${allTabs.map((t: any) => `[${t.type}] ${t.url?.substring(0, 80)}`).join(' | ')}`)
+
+    // Find any usable page tab with a debugger URL
+    const targetTab = allTabs.find((t: any) => t.type === 'page' && t.webSocketDebuggerUrl)
 
     if (targetTab?.webSocketDebuggerUrl) {
-      // Use CDP to intercept network requests and find access_token
-      capturedToken = await cdpInterceptToken(targetTab.webSocketDebuggerUrl, 40000)
+      console.log(`[AdsPower CDP] Using tab: ${targetTab.url?.substring(0, 80)}`)
+      // Set up network interception BEFORE navigation — catches all API calls from the start
+      capturedToken = await cdpInterceptToken(targetTab.webSocketDebuggerUrl, 45000, ADSMANAGER_URL)
+    } else {
+      console.log(`[AdsPower CDP] No usable tab found for network interception!`)
     }
 
-    // Method 2: Try reading __accessToken from any FB tab (backup)
+    // Fallback: Try reading __accessToken from FB tab (works on www.facebook.com)
     if (!capturedToken) {
       console.log(`[AdsPower CDP] Network interception failed, trying __accessToken from page...`)
-      const fbTab = allTabs.find((t: any) =>
+      const fbTabs = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
+      const fbTab = fbTabs.find((t: any) =>
         t.type === 'page' && t.webSocketDebuggerUrl &&
         t.url?.includes('www.facebook.com')
       )
@@ -558,17 +548,21 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
 
 /**
  * Intercept network requests via CDP to capture EAA access tokens.
- * Listens for Graph API calls that contain access_token= in the URL or POST body.
+ * Sets up Network listener FIRST, then navigates to the target URL.
  * Validates each token via /me — returns first VALID user token, or null on timeout.
+ *
+ * @param tabWsUrl - WebSocket debugger URL for the tab
+ * @param timeoutMs - Max time to wait for a valid token
+ * @param navigateUrl - URL to navigate to (triggers API calls with tokens)
  */
-async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000): Promise<string | null> {
+async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000, navigateUrl?: string): Promise<string | null> {
   return new Promise((resolve) => {
     let ws: WebSocket | null = null
     let resolved = false
     let timeout: ReturnType<typeof setTimeout> | null = null
     let msgId = 1
     const seenTokens = new Set<string>()
-    let validating = false
+    let requestCount = 0
 
     function cleanup() {
       if (timeout) { clearTimeout(timeout); timeout = null }
@@ -581,6 +575,7 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000): P
     function done(token: string | null) {
       if (resolved) return
       resolved = true
+      console.log(`[AdsPower CDP] Network interception done: ${token ? 'TOKEN FOUND' : 'no token'} (${requestCount} requests seen, ${seenTokens.size} tokens checked)`)
       cleanup()
       resolve(token)
     }
@@ -611,20 +606,32 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000): P
     }
 
     try {
+      console.log(`[AdsPower CDP] Connecting WebSocket to tab: ${tabWsUrl.substring(0, 80)}...`)
       ws = new WebSocket(tabWsUrl)
 
       timeout = setTimeout(() => {
-        console.log(`[AdsPower CDP] Network interception timed out after ${timeoutMs / 1000}s (checked ${seenTokens.size} tokens)`)
+        console.log(`[AdsPower CDP] Network interception timed out after ${timeoutMs / 1000}s (${requestCount} requests, ${seenTokens.size} tokens checked)`)
         done(null)
       }, timeoutMs)
 
       ws.on('open', () => {
-        // Enable Network domain to receive request events
+        console.log(`[AdsPower CDP] WebSocket connected! Enabling Network domain...`)
+        // Enable Network domain FIRST to catch all subsequent requests
         ws?.send(JSON.stringify({ id: msgId++, method: 'Network.enable', params: {} }))
-        console.log(`[AdsPower CDP] Network interception started — listening for access_token...`)
 
-        // Reload page to trigger fresh API calls with token
-        ws?.send(JSON.stringify({ id: msgId++, method: 'Page.reload', params: {} }))
+        // Small delay to ensure Network is enabled before navigation
+        setTimeout(() => {
+          if (resolved) return
+          if (navigateUrl) {
+            // Navigate to the URL that triggers API calls containing access_token
+            console.log(`[AdsPower CDP] Navigating to: ${navigateUrl}`)
+            ws?.send(JSON.stringify({ id: msgId++, method: 'Page.navigate', params: { url: navigateUrl } }))
+          } else {
+            // Reload current page to trigger fresh API calls
+            console.log(`[AdsPower CDP] Reloading page to trigger API calls...`)
+            ws?.send(JSON.stringify({ id: msgId++, method: 'Page.reload', params: {} }))
+          }
+        }, 500)
       })
 
       ws.on('message', (data: Buffer) => {
@@ -633,6 +640,7 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000): P
           const msg = JSON.parse(data.toString())
 
           if (msg.method === 'Network.requestWillBeSent') {
+            requestCount++
             const url = msg.params?.request?.url || ''
             const postData = msg.params?.request?.postData || ''
 
@@ -659,6 +667,7 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000): P
       })
 
       ws.on('close', () => {
+        console.log(`[AdsPower CDP] Network interception WS closed unexpectedly`)
         if (!resolved) done(null)
       })
     } catch (err: any) {
