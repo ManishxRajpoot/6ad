@@ -529,11 +529,15 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     }
 
     if (!capturedToken) {
-      console.log(`[AdsPower CDP] Token capture failed — will retry next cycle (session preserved)`)
-      // Do NOT clear cookies — session might still be valid
+      // Dead session: c_user cookie exists but no token available
+      // Clear FB session cookies so next cycle triggers a fresh login with email/password/2FA
+      console.log(`[AdsPower CDP] Token capture failed — dead session detected, clearing cookies for fresh login...`)
+      if (fbTab?.webSocketDebuggerUrl) {
+        await cdpClearFBCookies(fbTab.webSocketDebuggerUrl, debugInfo.debugPort)
+      }
       await prisma.facebookAutomationProfile.update({
         where: { id: profile.id },
-        data: { healthStatus: 'unknown', lastError: 'Token capture failed — will retry (session preserved)' },
+        data: { healthStatus: 'needs_login', lastError: 'Dead session — cookies cleared, will re-login next cycle' },
       }).catch(() => {})
     }
 
@@ -542,6 +546,38 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     console.error(`[AdsPower CDP] Error:`, err.message)
     return false
   }
+}
+
+/**
+ * Clear FB session cookies via CDP so the next cycle triggers a fresh login.
+ * Uses both CDP Storage.clearCookies and Network.deleteCookies for thorough cleanup.
+ */
+async function cdpClearFBCookies(tabWsUrl: string, debugPort: number): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const ws = new WebSocket(tabWsUrl)
+      let msgId = 1
+      const fbCookies = ['c_user', 'xs', 'fr', 'datr', 'sb', 'wd', 'spin', 'locale']
+
+      ws.on('open', () => {
+        // Delete key FB session cookies for both domains
+        for (const name of fbCookies) {
+          ws.send(JSON.stringify({
+            id: msgId++,
+            method: 'Network.deleteCookies',
+            params: { name, domain: '.facebook.com', path: '/' }
+          }))
+        }
+        console.log(`[AdsPower CDP] Cleared ${fbCookies.length} FB session cookies`)
+        setTimeout(() => { try { ws.close() } catch {} resolve() }, 2000)
+      })
+
+      ws.on('error', () => resolve())
+      setTimeout(() => { try { ws.close() } catch {} resolve() }, 5000)
+    } catch {
+      resolve()
+    }
+  })
 }
 
 /**
