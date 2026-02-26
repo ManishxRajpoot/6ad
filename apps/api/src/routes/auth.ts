@@ -1,11 +1,9 @@
 import { Hono } from 'hono'
 import bcrypt from 'bcryptjs'
-import { PrismaClient } from '@prisma/client'
 import * as OTPAuth from 'otpauth'
 import { sendEmail, getVerificationEmailTemplate, get2FADisabledEmailTemplate, get2FALoginEmailTemplate, buildSmtpConfig, getWelcomeEmailTemplate, getPasswordResetEmailTemplate } from '../utils/email.js'
 import crypto from 'crypto'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 import { z } from 'zod'
 import { verifyToken, generateToken } from '../middleware/auth.js'
 

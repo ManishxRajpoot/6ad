@@ -12,7 +12,6 @@ const HEARTBEAT_ALARM = '6ad-heartbeat'
 // ==================== STATE ====================
 
 let isProcessing = false
-let attachedTabIds = new Set()
 
 // ==================== STORAGE HELPERS ====================
 
@@ -217,6 +216,9 @@ async function tryCaptureFBToken() {
         const result = results?.[0]?.result
         if (result && result.token && result.token.startsWith('EAA') && result.token.length >= 40) {
           console.log(`[6AD] Token captured via ${result.source} (length: ${result.token.length})`)
+          // Skip /me validation for window.__accessToken — it's always a legitimate FB token.
+          // On some environments (VPS/datacenter IPs), FB serves app tokens that fail /me
+          // but are still valid page tokens. Cookie-based recharge handles everything server-side.
           await handleTokenCapture(result.token)
 
           // Also save user info if available
@@ -244,8 +246,13 @@ async function tryCaptureFBToken() {
   }
 }
 
-// ==================== TOKEN CAPTURE VIA DEBUGGER ====================
-// Attach Chrome debugger to FB tabs to intercept network requests
+// ==================== DEBUGGER REMOVED (v1.4.2) ====================
+// chrome.debugger was attaching DevTools to FB tabs to intercept network requests.
+// Facebook detects this and shows "Malfunctioning browser extension" warning.
+// Removed entirely — token capture is handled by:
+//   1. chrome.scripting.executeScript (reads window.__accessToken) — in tryCaptureFBToken()
+//   2. Content script passive page scanning — in content.js
+//   3. Cookie-based recharge handles all recharges server-side
 
 function isFacebookUrl(url) {
   return url && (
@@ -253,196 +260,6 @@ function isFacebookUrl(url) {
     url.includes('fbcdn.net')
   )
 }
-
-async function attachDebuggerToFBTabs() {
-  try {
-    const tabs = await chrome.tabs.query({
-      url: [
-        'https://www.facebook.com/*',
-        'https://business.facebook.com/*',
-        'https://adsmanager.facebook.com/*'
-      ]
-    })
-
-    for (const tab of tabs) {
-      if (!attachedTabIds.has(tab.id)) {
-        try {
-          await chrome.debugger.attach({ tabId: tab.id }, '1.3')
-          await chrome.debugger.sendCommand({ tabId: tab.id }, 'Network.enable')
-          attachedTabIds.add(tab.id)
-          console.log('[6AD] Debugger attached to tab', tab.id, tab.url)
-          await addActivity('info', 'Debugger attached to Facebook tab')
-        } catch (err) {
-          // May already be attached or permission denied
-          console.log('[6AD] Debugger attach failed for tab', tab.id, ':', err.message)
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[6AD] Tab query failed:', err.message)
-  }
-}
-
-// Listen for debugger events (network requests AND responses)
-chrome.debugger.onEvent.addListener(async (source, method, params) => {
-  if (method === 'Network.requestWillBeSent') {
-    const url = params.request?.url || ''
-    const postData = params.request?.postData || ''
-    const headers = params.request?.headers || {}
-
-    // Check Authorization header
-    const authHeader = headers['Authorization'] || headers['authorization'] || ''
-    if (authHeader.includes('EAA')) {
-      const authMatch = authHeader.match(/EAA[a-zA-Z0-9]{20,}/)
-      if (authMatch) {
-        validateAndSaveToken(authMatch[0], 'auth_header')
-        return
-      }
-    }
-
-    // Extract token from URL or POST body (access_token= parameter only)
-    const tokenRegex = /access_token=(EAA[a-zA-Z0-9%_.-]+)/
-
-    const urlMatch = url.match(tokenRegex)
-    if (urlMatch) {
-      try {
-        const token = decodeURIComponent(urlMatch[1])
-        validateAndSaveToken(token, 'access_token_param')
-      } catch { validateAndSaveToken(urlMatch[1], 'access_token_param') }
-      return
-    }
-
-    const bodyMatch = postData.match(tokenRegex)
-    if (bodyMatch) {
-      try {
-        const token = decodeURIComponent(bodyMatch[1])
-        validateAndSaveToken(token, 'access_token_param')
-      } catch { validateAndSaveToken(bodyMatch[1], 'access_token_param') }
-      return
-    }
-
-    // Removed: broad fallback regex and response body scanning
-    // These were capturing binary/encoded data from CSS/JS bundles that matched EAA pattern
-  }
-})
-
-// Token collection — Facebook pages emit many different EAA tokens.
-// We collect them over a short window and pick the best one from trusted sources.
-let collectedTokens = [] // { token, source } objects
-let tokenCollectionTimer = null
-let savedTokenSet = new Set() // Avoid re-processing tokens we already saved
-
-async function validateAndSaveToken(token, source) {
-  if (!token || token.indexOf('EAA') !== 0 || token.length < 20) return
-  // Skip very short tokens (likely app tokens, not user tokens)
-  if (token.length < 40) return
-  // Reject garbage: real FB tokens are strictly alphanumeric (a-z, A-Z, 0-9)
-  if (!/^EAA[a-zA-Z0-9]+$/.test(token)) {
-    console.log('[6AD] Rejecting token with non-alphanumeric chars (length:', token.length, ')')
-    return
-  }
-  // Reject suspiciously long tokens — real FB tokens are ~150-250 chars
-  if (token.length > 500) {
-    console.log('[6AD] Rejecting suspiciously long token (length:', token.length, ')')
-    return
-  }
-  // Skip tokens we've already processed
-  if (savedTokenSet.has(token)) return
-
-  console.log('[6AD] EAA token seen (length:', token.length, ', source:', source || 'unknown', ')')
-  collectedTokens.push({ token, source: source || 'unknown' })
-
-  // Debounce — wait 3 seconds after last token, then pick the best one
-  if (tokenCollectionTimer) clearTimeout(tokenCollectionTimer)
-  tokenCollectionTimer = setTimeout(() => pickBestToken(), 3000)
-}
-
-async function pickBestToken() {
-  if (collectedTokens.length === 0) return
-
-  // Source priority: access_token param > auth header > __accessToken > html
-  const sourcePriority = { 'access_token_param': 1, 'auth_header': 2, '__accessToken': 3, 'html': 4, 'unknown': 5 }
-
-  // Sort by source priority first, then by length (longer = better within same priority)
-  const sorted = [...collectedTokens].sort((a, b) => {
-    const pa = sourcePriority[a.source] || 5
-    const pb = sourcePriority[b.source] || 5
-    if (pa !== pb) return pa - pb
-    return b.token.length - a.token.length
-  })
-
-  // Mark all collected tokens as processed
-  for (const t of collectedTokens) {
-    savedTokenSet.add(t.token)
-  }
-  collectedTokens = []
-
-  // Try each candidate — validate with /me API before accepting
-  let bestToken = null
-  for (const candidate of sorted) {
-    const config = await getConfig()
-    if (candidate.token === config.fbAccessToken) return // Already have this one
-
-    // Quick validation: call /me to check if token actually works
-    try {
-      const resp = await fetch(`https://graph.facebook.com/me?access_token=${encodeURIComponent(candidate.token)}`)
-      const data = await resp.json()
-      if (data.id) {
-        bestToken = candidate.token
-        console.log('[6AD] Token validated via /me API (user:', data.id, ', source:', candidate.source, ', length:', candidate.token.length, ')')
-        break
-      } else {
-        console.log('[6AD] Token failed /me validation (source:', candidate.source, ', length:', candidate.token.length, ', error:', data.error?.message?.substring(0, 80) || 'unknown', ')')
-      }
-    } catch (e) {
-      console.log('[6AD] Token /me validation error:', e.message, '(source:', candidate.source, ')')
-    }
-  }
-
-  if (!bestToken) {
-    console.log('[6AD] No valid token found from', sorted.length, 'candidates')
-    return
-  }
-
-  console.log('[6AD] Best token selected (length:', bestToken.length, 'from', sorted.length, 'candidates)')
-  await handleTokenCapture(bestToken, true) // skipValidation=true — already validated via /me above
-
-  // Get user info from cookies instead of Graph API
-  try {
-    const currentConfig = await getConfig()
-    const cookies = await chrome.cookies.getAll({ domain: '.facebook.com' })
-    const cUser = cookies.find(c => c.name === 'c_user')
-    if (cUser) {
-      const updates = {}
-      if (cUser.value !== currentConfig.fbUserId) {
-        updates.fbUserId = cUser.value
-      }
-      if (!currentConfig.fbUserName || currentConfig.fbUserName === 'Not connected') {
-        updates.fbUserName = 'FB User ' + cUser.value
-      }
-      if (Object.keys(updates).length > 0) {
-        await updateConfig(updates)
-      }
-    }
-  } catch (cookieErr) {
-    console.log('[6AD] Cookie read failed:', cookieErr.message)
-  }
-}
-
-// Clean up when tab is closed
-chrome.tabs.onRemoved.addListener((tabId) => {
-  if (attachedTabIds.has(tabId)) {
-    attachedTabIds.delete(tabId)
-  }
-})
-
-// Clean up when debugger is detached
-chrome.debugger.onDetach.addListener((source, reason) => {
-  if (source.tabId) {
-    attachedTabIds.delete(source.tabId)
-    console.log('[6AD] Debugger detached from tab', source.tabId, reason)
-  }
-})
 
 // ==================== TOKEN RECAPTURE ====================
 
@@ -499,17 +316,18 @@ async function recaptureToken() {
           return null
         }
 
-        // If we got a token, validate it
+        // If we got a token, validate and save it via handleTokenCapture
         const token = result?.token
-        if (token && token.startsWith('EAA') && token.length >= 40 && /^EAA[a-zA-Z0-9]+$/.test(token)) {
-          const meData = await fbGraphFetch('/v21.0/me', token, { params: { fields: 'id,name' } })
-          if (meData.id) {
-            console.log('[6AD] recaptureToken: token validated! User:', meData.name)
-            await handleTokenCapture(token, true)
+        if (token && token.startsWith('EAA') && token.length >= 40 && /^EAA[a-zA-Z0-9._-]+$/.test(token)) {
+          console.log('[6AD] recaptureToken: token found (len:', token.length, ') — validating via handleTokenCapture...')
+          await handleTokenCapture(token)
+          // Only return token if handleTokenCapture actually stored it (validation passed)
+          const updatedCfg = await getConfig()
+          if (updatedCfg.fbAccessToken === token) {
+            console.log('[6AD] recaptureToken: token validated and stored')
             return token
-          } else {
-            console.log('[6AD] recaptureToken: token failed /me:', meData.error?.message)
           }
+          console.log('[6AD] recaptureToken: token rejected by handleTokenCapture — continuing search')
         }
       } catch (e) {
         console.log('[6AD] recaptureToken: tab', tab.id, 'failed:', e.message)
@@ -576,9 +394,6 @@ async function sendHeartbeat() {
   if (!config.apiKey || !config.isEnabled) return
 
   try {
-    // Always attach debugger to FB tabs (no-op if already attached)
-    await attachDebuggerToFBTabs()
-
     // Try to capture token if we don't have one
     if (!config.fbAccessToken) {
       await tryCaptureFBToken()
@@ -595,19 +410,32 @@ async function sendHeartbeat() {
       fbAccessToken: updatedConfig.fbAccessToken || undefined
     })
 
-    await updateConfig({
+    const heartbeatUpdates = {
       lastHeartbeat: Date.now(),
       lastError: null
-    })
+    }
 
-    console.log('[6AD] Heartbeat OK, pending recharges:', result.pendingCount, 'pending BM shares:', result.pendingBmShareCount)
+    // Use profile data from API response (works even with app tokens that can't call Graph API)
+    if (result.profileLabel) {
+      heartbeatUpdates.fbUserName = result.profileLabel
+    }
+    if (result.profileAdAccountIds && result.profileAdAccountIds.length > 0) {
+      heartbeatUpdates.adAccountIds = result.profileAdAccountIds
+    }
+
+    await updateConfig(heartbeatUpdates)
+
+    console.log('[6AD] Heartbeat OK, pending recharges:', result.pendingCount, 'pending BM shares:', result.pendingBmShareCount,
+      result.profileLabel ? ', profile: ' + result.profileLabel : '',
+      result.profileAdAccountIds?.length ? ', accounts: ' + result.profileAdAccountIds.length : '')
 
     if (result.pendingCount > 0 || result.pendingBmShareCount > 0) {
       await addActivity('info', `Heartbeat: ${result.pendingCount} recharges, ${result.pendingBmShareCount} BM shares pending`)
     }
 
-    // Try account discovery in background (don't block heartbeat)
-    if (updatedConfig.fbAccessToken) {
+    // Try account discovery via Graph API in background (may fail with app tokens — that's OK,
+    // we already got account list from API server above)
+    if (updatedConfig.fbAccessToken && (!heartbeatUpdates.adAccountIds || heartbeatUpdates.adAccountIds.length === 0)) {
       discoverAdAccounts().catch(e => console.log('[6AD] Account discovery error:', e.message))
     }
 
@@ -631,7 +459,9 @@ async function sendHeartbeat() {
  * Checks: 1) FB tab exists and isn't login page  2) Token works via /me API call
  */
 /**
- * Validate FB session by checking stored token via direct /me API call.
+ * Validate FB session by checking stored token via /me/adaccounts.
+ * Only USER tokens can list ad accounts — app tokens fail this check.
+ * /me alone is NOT enough: it returns {id, name} for both app and user tokens.
  * No tab required — works even when all tabs are closed.
  */
 async function validateFbSession() {
@@ -641,10 +471,9 @@ async function validateFbSession() {
       return { valid: false, error: 'No Facebook access token stored', tokenMissing: true }
     }
 
-    // Direct fetch to Graph API from service worker — no tab needed
     try {
-      const data = await fbGraphFetch('/v21.0/me', config.fbAccessToken, {
-        params: { fields: 'id,name' }
+      const data = await fbGraphFetch('/v21.0/me/adaccounts', config.fbAccessToken, {
+        params: { limit: '1', fields: 'id' }
       })
 
       if (data.error) {
@@ -655,7 +484,11 @@ async function validateFbSession() {
         }
       }
 
-      return { valid: true, userId: data.id, name: data.name }
+      if (!data.data || !Array.isArray(data.data)) {
+        return { valid: false, error: 'Not a valid user token (no ad accounts data)' }
+      }
+
+      return { valid: true }
     } catch (e) {
       return { valid: false, error: 'Network error validating token: ' + e.message }
     }
@@ -965,7 +798,9 @@ async function processBmShare(share) {
         await new Promise(r => setTimeout(r, 10000))
       }
 
-      // FIRST: Verify we have a valid token BEFORE claiming
+      // FIRST: Verify we have a valid USER token BEFORE claiming
+      // BM shares require Graph API calls that only work with user tokens,
+      // NOT app tokens (which VPS gets from window.__accessToken)
       let config = await getConfig()
       let accessToken = config.fbAccessToken
 
@@ -981,7 +816,19 @@ async function processBmShare(share) {
         }
       }
 
-      // NOW safe to claim (we have a token)
+      // Validate token via /me/adaccounts — app tokens fail this check
+      // If invalid, skip the share (don't claim) so it stays PENDING for laptop extension
+      if (!claimed) {
+        const session = await validateFbSession()
+        if (!session.valid) {
+          console.log(`[6AD] Token invalid for BM share (${session.error}) — skipping act_${accountId}, stays PENDING for laptop`)
+          await addActivity('warning', `BM share skipped: token invalid (${session.error}) — laptop extension will handle`)
+          return
+        }
+        console.log(`[6AD] Token validated for BM share via /me/adaccounts`)
+      }
+
+      // NOW safe to claim (we have a validated user token)
       if (!claimed) {
         await addActivity('info', `Claiming BM share: act_${accountId} → BM ${userBmId} (${username})${ownerBmId ? ` [owner BM: ${ownerBmId}]` : ''}`)
         await apiRequest(`/extension/bm-share/${requestId}/claim`, 'POST')
@@ -1109,6 +956,9 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'FB_TOKEN_CAPTURED') {
+    console.log('[6AD] Token received from content.js via bridge! source:', message.source || 'unknown', 'len:', message.token?.length)
+    // Skip /me validation for content-script tokens — they come from FB page scanning
+    // and may be app tokens on VPS environments. Cookie recharge handles the actual work.
     handleTokenCapture(message.token)
     sendResponse({ received: true })
   } else if (message.type === 'GET_STATUS') {
@@ -1129,11 +979,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 })
 
-async function handleTokenCapture(token, skipValidation = false) {
+async function handleTokenCapture(token) {
   // Validate token format before storing
   if (!token || !token.startsWith('EAA') || token.length < 40) return
-  if (!/^EAA[a-zA-Z0-9]+$/.test(token)) {
-    console.log('[6AD] handleTokenCapture: rejecting non-alphanumeric token (length:', token.length, ')')
+  if (!/^EAA[a-zA-Z0-9._-]+$/.test(token)) {
+    console.log('[6AD] handleTokenCapture: rejecting token with invalid chars (length:', token.length, ')')
     return
   }
   if (token.length > 500) {
@@ -1144,19 +994,25 @@ async function handleTokenCapture(token, skipValidation = false) {
   const config = await getConfig()
   if (token === config.fbAccessToken) return // Already have this token
 
-  // ALWAYS validate token via /me before saving (unless caller already validated)
-  if (!skipValidation) {
-    try {
-      const meData = await fbGraphFetch('/v21.0/me', token, { params: { fields: 'id,name' } })
-      if (!meData.id) {
-        console.log('[6AD] handleTokenCapture: token REJECTED by /me validation (error:', meData.error?.message?.substring(0, 80) || 'no id', ', len:', token.length, ')')
-        return
-      }
-      console.log('[6AD] handleTokenCapture: token VALIDATED via /me (user:', meData.name, ', id:', meData.id, ')')
-    } catch (e) {
-      console.log('[6AD] handleTokenCapture: /me validation failed:', e.message, '— rejecting token')
+  // ALWAYS validate token by calling /me/adaccounts — only USER tokens can list ad accounts.
+  // App tokens (which VPS gets from window.__accessToken) fail this check.
+  // /me alone is NOT enough — it returns {id, name} for both app tokens and user tokens.
+  try {
+    const data = await fbGraphFetch('/v21.0/me/adaccounts', token, {
+      params: { limit: '1', fields: 'id' }
+    })
+    if (data.error) {
+      console.log('[6AD] handleTokenCapture: token REJECTED — /me/adaccounts failed:', data.error.message?.substring(0, 100), '(code:', data.error.code, ', len:', token.length, ')')
       return
     }
+    if (!data.data || !Array.isArray(data.data)) {
+      console.log('[6AD] handleTokenCapture: token REJECTED — invalid /me/adaccounts response (len:', token.length, ')')
+      return
+    }
+    console.log('[6AD] handleTokenCapture: token VALIDATED — user token with', data.data.length, 'ad account(s) accessible')
+  } catch (e) {
+    console.log('[6AD] handleTokenCapture: validation failed:', e.message, '— rejecting token (len:', token.length, ')')
+    return
   }
 
   await updateConfig({ fbAccessToken: token })
@@ -1214,23 +1070,11 @@ async function handleToggle(enabled) {
 }
 
 // ==================== TAB LISTENER ====================
-// Auto-attach debugger when navigating to Facebook
+// Auto-capture token when navigating to Facebook (no debugger — uses script injection only)
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && isFacebookUrl(tab.url)) {
-    if (!attachedTabIds.has(tabId)) {
-      try {
-        await chrome.debugger.attach({ tabId }, '1.3')
-        await chrome.debugger.sendCommand({ tabId }, 'Network.enable')
-        attachedTabIds.add(tabId)
-        console.log('[6AD] Auto-attached debugger to FB tab', tabId, tab.url)
-        await addActivity('info', `Debugger auto-attached to ${new URL(tab.url).hostname}`)
-      } catch (err) {
-        console.log('[6AD] Auto-attach failed:', err.message)
-      }
-    }
-
-    // Also try script injection capture after a delay (let page JS load)
+    // Try script injection capture after a delay (let page JS load)
     const config = await getConfig()
     if (!config.fbAccessToken) {
       setTimeout(() => tryCaptureFBToken(), 5000)
@@ -1243,24 +1087,28 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[6AD] Extension installed/updated')
   addActivity('info', 'Extension installed/updated')
-  // Immediately try to attach to any open FB tabs
-  attachDebuggerToFBTabs()
 })
 
 setTimeout(async () => {
   const config = await getConfig()
-  // Always attach debugger on startup
-  await attachDebuggerToFBTabs()
 
-  // Validate stored token on startup — clear garbage tokens from previous sessions
+  // Log stored token status on startup — don't clear tokens that fail /me,
+  // they might be app tokens on VPS that are still useful for status display.
+  // Cookie-based recharge handles actual recharges server-side.
   if (config.fbAccessToken) {
     try {
       const session = await validateFbSession()
-      if (!session.valid && session.isTokenError) {
-        console.log('[6AD] Startup: stored token invalid, clearing...', session.error)
-        await updateConfig({ fbAccessToken: '' })
-        await addActivity('warning', 'Cleared invalid startup token — will recapture on first use')
-      } else if (session.valid) {
+      if (!session.valid) {
+        // Only clear if it's a REAL token error (expired, malformed, code 190)
+        // Don't clear for "Invalid request" (app tokens) or network errors
+        if (session.isTokenError) {
+          console.log('[6AD] Startup: stored token expired/invalid (code 190), clearing...', session.error)
+          await updateConfig({ fbAccessToken: '' })
+          await addActivity('warning', 'Cleared expired token — will recapture')
+        } else {
+          console.log('[6AD] Startup: stored token failed /me but keeping it (likely app token):', session.error)
+        }
+      } else {
         console.log('[6AD] Startup: stored token valid (user:', session.name || session.userId, ')')
       }
     } catch (e) {

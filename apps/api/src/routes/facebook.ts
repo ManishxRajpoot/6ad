@@ -1,8 +1,6 @@
 import { Hono } from 'hono'
 import { verifyToken } from '../middleware/auth.js'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 
 const facebook = new Hono()
 

@@ -1,7 +1,5 @@
 import { Hono } from 'hono'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 import { verifyToken, requireAgent, requireAdmin } from '../middleware/auth.js'
 
 const dashboard = new Hono()

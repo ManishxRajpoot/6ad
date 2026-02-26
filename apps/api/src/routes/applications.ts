@@ -1,12 +1,11 @@
 import { Hono } from 'hono'
-import { PrismaClient, Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { randomInt } from 'crypto'
 import { verifyToken, requireUser, requireAdmin } from '../middleware/auth.js'
 import { processAdAccountApprovalReward } from '../services/referral-rewards.js'
 import { createNotification } from './notifications.js'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 const applications = new Hono()
 
 applications.use('*', verifyToken)

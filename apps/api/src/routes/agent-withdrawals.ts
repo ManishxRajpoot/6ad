@@ -1,9 +1,7 @@
 import { Hono } from 'hono'
-import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import { verifyToken, requireAgent, requireAdmin } from '../middleware/auth.js'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 const agentWithdrawals = new Hono()
 
 agentWithdrawals.use('*', verifyToken)

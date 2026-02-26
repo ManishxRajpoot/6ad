@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { PrismaClient, CryptoNetwork } from '@prisma/client'
+import type { CryptoNetwork } from '@prisma/client'
 import { z } from 'zod'
 import { randomInt } from 'crypto'
 import { verifyTransaction, CONTRACTS } from '../services/crypto/blockchain-verifier.js'
@@ -14,8 +14,7 @@ import {
   getAdminNotificationTemplate,
   getAgentDepositApprovedNotificationTemplate
 } from '../utils/email.js'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 import { verifyToken, requireAgent, requireAdmin, requireUser } from '../middleware/auth.js'
 import { createNotification } from './notifications.js'
 import sharp from 'sharp'

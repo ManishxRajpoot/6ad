@@ -848,6 +848,7 @@ export default function FacebookPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'APPROVED':
+      case 'COMPLETED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />

@@ -1,10 +1,8 @@
 import { Hono } from 'hono'
 import bcrypt from 'bcryptjs'
-import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
 import { sendEmail, getWelcomeEmailTemplate, buildSmtpConfig } from '../utils/email.js'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 import { z } from 'zod'
 import { verifyToken, requireAgent, requireAdmin } from '../middleware/auth.js'
 import { broadcastToUser } from '../services/event-bus.js'

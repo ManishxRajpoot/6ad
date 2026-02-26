@@ -10,11 +10,9 @@
  * AdsPower Local API: http://localhost:50325/api/v1/browser/...
  */
 
-import { PrismaClient } from '@prisma/client'
 import WebSocket from 'ws'
 import * as OTPAuth from 'otpauth'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 
 // ─── Configuration ─────────────────────────────────────────────────
 const CONFIG = {
@@ -31,6 +29,9 @@ const CONFIG = {
   MAX_TASKS_BEFORE_RESTART: 12,           // Safety restart after N tasks
   MAX_UPTIME_MS: 8 * 60 * 60 * 1000,     // Safety restart after 8 hours uptime
 }
+
+// OAuth token generation REMOVED (v1.4.2) — navigating to /dialog/oauth was unnecessary
+// and suspicious. Cookie-based recharge handles recharges server-side, extension captures tokens.
 
 const activeBrowsers = new Map<string, { profileId: string; serialNumber: string; launchedAt: number; failedCycles: number; tasksCompleted: number }>()
 
@@ -527,130 +528,28 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
         if (rFb) fbTab = rFb
       }
 
-      // Inject JS-level fetch/XHR interceptor — captures Bearer tokens + FormData
-      console.log(`[AdsPower CDP] Injecting JS token interceptor (with Bearer support)...`)
-      await cdpEvaluate(fbTab.webSocketDebuggerUrl, `
-        (function() {
-          if (window.__6adCdpInterceptor) return 'already_installed';
-          window.__6adCdpInterceptor = true;
-          window.__6adCapturedTokens = [];
-
-          function saveToken(token, source) {
-            if (!token || typeof token !== 'string') return;
-            if (token.indexOf('EAA') !== 0 || token.length < 20) return;
-            // DO NOT strip characters — EAA tokens can contain . _ -
-            for (var i = 0; i < window.__6adCapturedTokens.length; i++) {
-              if (window.__6adCapturedTokens[i].token === token) return;
-            }
-            window.__6adCapturedTokens.push({ token: token, source: source, time: Date.now() });
-          }
-
-          function extractToken(str) {
-            if (!str || typeof str !== 'string') return null;
-            // Case 1: Authorization: Bearer EAA... (Facebook's current auth method)
-            var bm = str.match(/Bearer\\s+(EAA[a-zA-Z0-9._-]+)/);
-            if (bm) return bm[1];
-            // Case 2: access_token=EAA... (legacy)
-            var m = str.match(/access_token=([^&\\s"']+)/);
-            if (m) {
-              try { var d = decodeURIComponent(m[1]); if (d.indexOf('EAA') === 0) return d; } catch(e) {}
-              if (m[1].indexOf('EAA') === 0) return m[1];
-            }
-            return null;
-          }
-
-          // Intercept fetch — check URL, headers, body
-          var origFetch = window.fetch;
-          window.fetch = function(input, init) {
-            try {
-              var url = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
-              var t = extractToken(url);
-              if (t) saveToken(t, 'fetch-url');
-              if (init) {
-                // Check Authorization header (primary for modern FB)
-                if (init.headers) {
-                  var h = init.headers;
-                  var auth = null;
-                  if (typeof h.get === 'function') auth = h.get('Authorization') || h.get('authorization');
-                  else if (typeof h === 'object') auth = h['Authorization'] || h['authorization'];
-                  if (auth) { var at = extractToken(auth); if (at) saveToken(at, 'fetch-auth-header'); }
-                }
-                if (init.body) {
-                  if (typeof init.body === 'string') { var bt = extractToken(init.body); if (bt) saveToken(bt, 'fetch-body'); }
-                  if (typeof init.body === 'object' && init.body.get) { try { var ft = init.body.get('access_token'); if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'fetch-formdata'); } catch(e) {} }
-                  if (init.body instanceof URLSearchParams) { var ut = init.body.get('access_token'); if (ut && ut.indexOf('EAA') === 0) saveToken(ut, 'fetch-urlsearchparams'); }
-                }
-              }
-            } catch(e) {}
-            return origFetch.apply(this, arguments);
-          };
-
-          // Intercept XMLHttpRequest — check URL, headers, body
-          var origOpen = XMLHttpRequest.prototype.open;
-          var origSend = XMLHttpRequest.prototype.send;
-          var origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
-          XMLHttpRequest.prototype.open = function(method, url) { this.__6adUrl = url; return origOpen.apply(this, arguments); };
-          XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
-            if (name && name.toLowerCase() === 'authorization' && value) {
-              var at = extractToken(value); if (at) saveToken(at, 'xhr-auth-header');
-            }
-            return origSetHeader.apply(this, arguments);
-          };
-          XMLHttpRequest.prototype.send = function(body) {
-            try {
-              if (this.__6adUrl) { var t = extractToken(String(this.__6adUrl)); if (t) saveToken(t, 'xhr-url'); }
-              if (body && typeof body === 'string') { var bt = extractToken(body); if (bt) saveToken(bt, 'xhr-body'); }
-              if (body && typeof body === 'object' && body.get) { try { var ft = body.get('access_token'); if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'xhr-formdata'); } catch(e) {} }
-            } catch(e) {}
-            return origSend.apply(this, arguments);
-          };
-
-          return 'installed';
-        })()
-      `)
-
-      // Quick check: maybe __accessToken already exists
+      // Quick check: maybe __accessToken already exists on home.php
       const quickToken = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.__accessToken || null`)
       if (quickToken && typeof quickToken === 'string' && quickToken.startsWith('EAA') && quickToken.length >= 100) {
         capturedToken = quickToken
         console.log(`[AdsPower CDP] __accessToken found on home.php immediately! (len=${quickToken.length})`)
       }
 
-      // Phase 2: Use CDP Network interception to capture Bearer tokens DURING Ads Manager load
-      // Key: Network.enable + Page.navigate BEFORE page loads = catches Authorization: Bearer EAA headers
+      // Phase 2 (OAuth) REMOVED — navigating to /dialog/oauth was suspicious and unnecessary.
+      // Cookie-based recharge handles recharges. Extension captures tokens from Ads Manager.
+
+      // Phase 3: Intercept FormData.prototype.append BEFORE page loads + CDP network fallback
+      // Key: Page.addScriptToEvaluateOnNewDocument injects interceptor before ANY page JS runs
+      // This catches access_token from multipart/form-data bodies (which CDP Network can't read)
       if (!capturedToken) {
-        console.log(`[AdsPower CDP] Phase 2: CDP network interception on Ads Manager (catches Bearer headers)...`)
+        console.log(`[AdsPower CDP] Phase 3: FormData interception on Ads Manager...`)
         capturedToken = await cdpInterceptToken(
           fbTab.webSocketDebuggerUrl,
           60000, // 60s timeout — adsmanager can be slow
           'https://adsmanager.facebook.com/adsmanager/manage/accounts'
         )
         if (capturedToken) {
-          console.log(`[AdsPower CDP] Token captured from Ads Manager Bearer headers!`)
-        }
-
-        // Also check JS intercepted tokens (for any late requests after page settled)
-        const intercepted = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `JSON.stringify(window.__6adCapturedTokens || [])`)
-        let tokens: any[] = []
-        try { tokens = JSON.parse(intercepted || '[]') } catch {}
-        if (tokens.length > 0) console.log(`[AdsPower CDP] JS interceptor also captured ${tokens.length} tokens`)
-
-        // Try each captured token (prefer longer ones — user tokens are typically >150 chars)
-        tokens.sort((a: any, b: any) => (b.token?.length || 0) - (a.token?.length || 0))
-        for (const t of tokens) {
-          if (capturedToken) break
-          if (t.token?.length < 100) {
-            console.log(`[AdsPower CDP] Skipping short token (${t.source}, len=${t.token.length})`)
-            continue
-          }
-          console.log(`[AdsPower CDP] Validating token from ${t.source} (len=${t.token.length})...`)
-          const meRes = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(t.token)}`).then(r => r.json()).catch(() => null)
-          if (meRes?.id) {
-            capturedToken = t.token
-            console.log(`[AdsPower CDP] Token VALID from JS interceptor! User: ${meRes.name} (${meRes.id}), source=${t.source}`)
-          } else {
-            console.log(`[AdsPower CDP] Token invalid (${t.source}): ${meRes?.error?.message?.substring(0, 60) || 'no id'}`)
-          }
+          console.log(`[AdsPower CDP] Token captured from Ads Manager FormData interception!`)
         }
 
         // Deep scan: check __accessToken + search ALL page HTML for EAA tokens
@@ -671,7 +570,7 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
               for (var i = 0; i < scripts.length; i++) {
                 var text = scripts[i].textContent || '';
                 if (text.length > 10000000) continue; // Skip huge scripts
-                var re = /EAA[a-zA-Z0-9]{30,500}/g;
+                var re = /EAA[a-zA-Z0-9._-]{30,500}/g;
                 var m;
                 while ((m = re.exec(text)) !== null) {
                   var tok = m[0];
@@ -682,7 +581,46 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
                 }
               }
 
-              // 3. Check common FB internal data stores
+              // 3. Try Facebook's internal require system for CurrentAccessToken
+              try {
+                if (typeof require === 'function') {
+                  var mod = require('CurrentAccessToken');
+                  if (mod && mod.getToken) {
+                    var reqToken = mod.getToken();
+                    if (reqToken && typeof reqToken === 'string' && reqToken.indexOf('EAA') === 0 && reqToken.length > 40 && !seen[reqToken]) {
+                      seen[reqToken] = true;
+                      results.htmlTokens.push({ token: reqToken.substring(0, 30) + '...', len: reqToken.length, full: reqToken });
+                      results.requireToken = true;
+                    }
+                  }
+                }
+              } catch(e) {}
+
+              // 4. Scan <script type="application/json"> tags (data-sjs payloads)
+              try {
+                var jsonScripts = document.querySelectorAll('script[type="application/json"]');
+                for (var j = 0; j < jsonScripts.length; j++) {
+                  var json = jsonScripts[j].textContent || '';
+                  if (json.length > 5000000) continue;
+                  var m3 = json.match(/"accessToken"\\s*:\\s*"(EAA[a-zA-Z0-9._-]{30,500})"/);
+                  if (m3 && !seen[m3[1]]) { seen[m3[1]] = true; results.htmlTokens.push({ token: m3[1].substring(0, 30) + '...', len: m3[1].length, full: m3[1] }); }
+                  var m4 = json.match(/"access_token"\\s*:\\s*"(EAA[a-zA-Z0-9._-]{30,500})"/);
+                  if (m4 && !seen[m4[1]]) { seen[m4[1]] = true; results.htmlTokens.push({ token: m4[1].substring(0, 30) + '...', len: m4[1].length, full: m4[1] }); }
+                  var m5 = json.match(/set\\(\\["(EAA[a-zA-Z0-9._-]{30,500})"\\]\\)/);
+                  if (m5 && !seen[m5[1]]) { seen[m5[1]] = true; results.htmlTokens.push({ token: m5[1].substring(0, 30) + '...', len: m5[1].length, full: m5[1] }); }
+                }
+              } catch(e) {}
+
+              // 5. Check __comet_data_store (React/Comet data)
+              try {
+                if (window.__comet_data_store) {
+                  var storeStr = JSON.stringify(window.__comet_data_store).substring(0, 2000000);
+                  var storeMatch = storeStr.match(/"accessToken"\\s*:\\s*"(EAA[a-zA-Z0-9._-]{30,500})"/);
+                  if (storeMatch && !seen[storeMatch[1]]) { seen[storeMatch[1]] = true; results.htmlTokens.push({ token: storeMatch[1].substring(0, 30) + '...', len: storeMatch[1].length, full: storeMatch[1] }); }
+                }
+              } catch(e) {}
+
+              // 6. Check common FB internal data stores
               try { if (window.__ar_ephemeral_data) results.arData = true; } catch(e) {}
               try {
                 var dtsg = document.querySelector('input[name="fb_dtsg"]');
@@ -724,9 +662,27 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
         }
       }
 
-      // Phase 3: Navigate back to FB home and try __accessToken there
+      // Phase 3b: Try business.facebook.com as alternative interception target
       if (!capturedToken) {
-        console.log(`[AdsPower CDP] Phase 3: Going back to FB home to read __accessToken...`)
+        console.log(`[AdsPower CDP] Phase 3b: Trying business.facebook.com...`)
+        capturedToken = await cdpInterceptToken(
+          fbTab.webSocketDebuggerUrl,
+          30000, // 30s shorter timeout
+          'https://business.facebook.com/latest/home'
+        )
+        if (capturedToken) {
+          console.log(`[AdsPower CDP] Token captured from business.facebook.com!`)
+        } else {
+          // Refresh tab reference after navigation
+          const rTabsBiz = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
+          const rFbBiz = rTabsBiz.find((t: any) => t.type === 'page' && t.webSocketDebuggerUrl && t.url?.includes('facebook.com'))
+          if (rFbBiz) fbTab = rFbBiz
+        }
+      }
+
+      // Phase 4: Navigate back to FB home and try __accessToken there
+      if (!capturedToken) {
+        console.log(`[AdsPower CDP] Phase 4: Going back to FB home to read __accessToken...`)
         await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.location.href = 'https://www.facebook.com/home.php'`)
         await sleep(10000)
 
@@ -768,6 +724,26 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
       } else {
         console.log(`[AdsPower CDP] Token failed /me validation:`, meRes?.error?.message || 'unknown')
         capturedToken = null
+      }
+    }
+
+    // Phase 5 (NEW): Extract cookies + fb_dtsg for cookie-based recharge fallback
+    if (!capturedToken && fbTab?.webSocketDebuggerUrl) {
+      console.log(`[AdsPower CDP] Phase 5: Extracting cookies + fb_dtsg for cookie-based fallback...`)
+      const session = await cdpExtractSession(fbTab.webSocketDebuggerUrl, debugInfo.debugPort)
+      if (session && session.cookies && session.userId) {
+        console.log(`[AdsPower CDP] Session extracted: userId=${session.userId}, dtsg=${session.dtsg ? 'yes' : 'no'}, cookies=${session.cookies.length} chars`)
+        await prisma.facebookAutomationProfile.update({
+          where: { id: profile.id },
+          data: {
+            fbCookies: session.cookies,
+            fbDtsg: session.dtsg || '',
+            healthStatus: 'cookie_fallback',
+            lastError: 'No EAA token — using cookie-based fallback',
+          },
+        }).catch((e: any) => console.log(`[AdsPower CDP] Failed to save session: ${e.message}`))
+      } else {
+        console.log(`[AdsPower CDP] Failed to extract session — cookies or userId missing`)
       }
     }
 
@@ -845,7 +821,7 @@ async function cdpClearFBCookies(tabWsUrl: string, debugPort: number): Promise<v
  * @param timeoutMs - Max time to wait for a valid token
  * @param navigateUrl - URL to navigate to (triggers API calls with tokens)
  */
-async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000, navigateUrl?: string): Promise<string | null> {
+async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 60000, navigateUrl?: string): Promise<string | null> {
   return new Promise((resolve) => {
     let ws: WebSocket | null = null
     let resolved = false
@@ -853,8 +829,8 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000, na
     let msgId = 1
     const seenTokens = new Set<string>()
     let requestCount = 0
-    let bearerCount = 0
-    let authHeaderCount = 0
+    let formDataTokenCount = 0
+    let runtimeEventCount = 0
 
     function cleanup() {
       if (timeout) { clearTimeout(timeout); timeout = null }
@@ -867,59 +843,252 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000, na
     function done(token: string | null) {
       if (resolved) return
       resolved = true
-      console.log(`[AdsPower CDP] Network interception done: ${token ? 'TOKEN FOUND' : 'no token'} (${requestCount} requests seen, ${seenTokens.size} tokens checked)`)
+      console.log(`[AdsPower CDP] Interception done: ${token ? 'TOKEN FOUND' : 'no token'} (${requestCount} network reqs, ${formDataTokenCount} FormData tokens, ${seenTokens.size} validated)`)
       cleanup()
       resolve(token)
     }
 
-    async function validateAndResolve(token: string) {
+    async function validateAndResolve(token: string, source: string) {
       if (resolved || seenTokens.has(token)) return
       seenTokens.add(token)
 
       // Skip very short tokens (app tokens tend to be shorter)
       if (token.length < 100) {
-        console.log(`[AdsPower CDP] Skipping short token (len=${token.length})`)
+        console.log(`[AdsPower CDP] Skipping short token from ${source} (len=${token.length})`)
         return
       }
 
-      console.log(`[AdsPower CDP] Validating intercepted token (len=${token.length}, ${token.substring(0, 20)}...)`)
+      console.log(`[AdsPower CDP] Validating token from ${source} (len=${token.length}, ${token.substring(0, 20)}...)`)
 
       try {
         const meRes = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`).then(r => r.json()).catch(() => null)
         if (meRes?.id) {
-          console.log(`[AdsPower CDP] Token VALID! User: ${meRes.name} (${meRes.id})`)
+          console.log(`[AdsPower CDP] Token VALID! User: ${meRes.name} (${meRes.id}) — captured via ${source}`)
           done(token)
         } else {
-          console.log(`[AdsPower CDP] Token invalid: ${meRes?.error?.message?.substring(0, 60) || 'no id'}`)
+          console.log(`[AdsPower CDP] Token invalid (${source}): ${meRes?.error?.message?.substring(0, 60) || 'no id'}`)
         }
       } catch (e: any) {
         console.log(`[AdsPower CDP] Token validation error: ${e.message}`)
       }
     }
 
+    // Comprehensive JS interceptor injected BEFORE page scripts via Page.addScriptToEvaluateOnNewDocument
+    // Catches access_token from ALL possible body construction methods:
+    // 1. FormData.append/set('access_token', ...)
+    // 2. URLSearchParams.append/set('access_token', ...)
+    // 3. URLSearchParams constructor with {access_token: ...}
+    // 4. fetch/XHR with string body containing access_token=EAA
+    // 5. fetch/XHR with FormData/URLSearchParams body (.get('access_token'))
+    const formDataInterceptorScript = `
+(function() {
+  var _6adCaptured = {};
+  var _6adCount = 0;
+
+  // Store tokens in window for later retrieval via Runtime.evaluate
+  window.__6adTokens = window.__6adTokens || [];
+
+  function capture(token, src) {
+    if (!token || typeof token !== 'string') return;
+    if (token.indexOf('EAA') !== 0 || token.length <= 40) return;
+    if (_6adCaptured[token]) return;
+    _6adCaptured[token] = true;
+    _6adCount++;
+    window.__6adTokens.push({ token: token, source: src, len: token.length });
+    console.log('[6AD_TOKEN]' + token);
+    console.log('[6AD_SRC]' + src + ' len=' + token.length);
+  }
+
+  function checkBody(body, src) {
+    if (!body) return;
+    // String body: access_token=EAA...
+    if (typeof body === 'string') {
+      var m = body.match(/access_token=(EAA[a-zA-Z0-9._-]+)/);
+      if (m) capture(m[1], src + '-string');
+      return;
+    }
+    // FormData or URLSearchParams: .get('access_token')
+    if (typeof body === 'object' && typeof body.get === 'function') {
+      try {
+        var tok = body.get('access_token');
+        if (tok) capture(tok, src + '-get');
+      } catch(e) {}
+    }
+  }
+
+  // === Hook FormData.prototype.append + set ===
+  var origFDAppend = FormData.prototype.append;
+  FormData.prototype.append = function(key, value) {
+    try { if (key === 'access_token') capture(value, 'fd-append'); } catch(e) {}
+    return origFDAppend.apply(this, arguments);
+  };
+  if (FormData.prototype.set) {
+    var origFDSet = FormData.prototype.set;
+    FormData.prototype.set = function(key, value) {
+      try { if (key === 'access_token') capture(value, 'fd-set'); } catch(e) {}
+      return origFDSet.apply(this, arguments);
+    };
+  }
+
+  // === Hook URLSearchParams.prototype.append + set ===
+  var origUSPAppend = URLSearchParams.prototype.append;
+  URLSearchParams.prototype.append = function(key, value) {
+    try { if (key === 'access_token') capture(value, 'usp-append'); } catch(e) {}
+    return origUSPAppend.apply(this, arguments);
+  };
+  if (URLSearchParams.prototype.set) {
+    var origUSPSet = URLSearchParams.prototype.set;
+    URLSearchParams.prototype.set = function(key, value) {
+      try { if (key === 'access_token') capture(value, 'usp-set'); } catch(e) {}
+      return origUSPSet.apply(this, arguments);
+    };
+  }
+
+  // === Hook URLSearchParams constructor to catch new URLSearchParams({access_token: 'EAA...'}) ===
+  var OrigUSP = URLSearchParams;
+  window.URLSearchParams = function(init) {
+    var instance = new OrigUSP(init);
+    try {
+      var tok = instance.get('access_token');
+      if (tok) capture(tok, 'usp-ctor');
+    } catch(e) {}
+    return instance;
+  };
+  window.URLSearchParams.prototype = OrigUSP.prototype;
+  window.URLSearchParams.toString = function() { return OrigUSP.toString(); };
+
+  // === Helper: scan text for tokens in JSON response format ===
+  function scanText(text, src) {
+    if (!text || typeof text !== 'string' || text.length > 500000) return;
+    var m1 = text.match(/"access_token"\\s*:\\s*"(EAA[a-zA-Z0-9._-]{30,500})"/);
+    if (m1) capture(m1[1], src + '-at');
+    var m2 = text.match(/"accessToken"\\s*:\\s*"(EAA[a-zA-Z0-9._-]{30,500})"/);
+    if (m2) capture(m2[1], src + '-AT');
+    var m3 = text.match(/set\\(\\["(EAA[a-zA-Z0-9._-]{30,500})"\\]\\)/);
+    if (m3) capture(m3[1], src + '-set');
+  }
+
+  // === Hook fetch — check request body + scan response body ===
+  var origFetch = window.fetch;
+  window.fetch = function(input, init) {
+    try {
+      if (init && init.body) checkBody(init.body, 'fetch');
+    } catch(e) {}
+    return origFetch.apply(this, arguments).then(function(resp) {
+      try {
+        if (resp.ok) {
+          resp.clone().text().then(function(text) { scanText(text, 'f-resp'); }).catch(function(){});
+        }
+      } catch(e) {}
+      return resp;
+    });
+  };
+
+  // === Hook XMLHttpRequest.send — check request body + scan response body ===
+  var origSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.send = function(body) {
+    try { if (body) checkBody(body, 'xhr'); } catch(e) {}
+    try {
+      this.addEventListener('load', function() {
+        try { if (this.responseText) scanText(this.responseText, 'x-resp'); } catch(e) {}
+      });
+    } catch(e) {}
+    return origSend.apply(this, arguments);
+  };
+
+  // Diagnostic: confirm interceptor is running
+  console.log('[6AD_INTERCEPTOR] installed on ' + window.location.hostname + ' (v1.3.0 — response scanning)');
+})();
+`
+
     try {
       console.log(`[AdsPower CDP] Connecting WebSocket to tab: ${tabWsUrl.substring(0, 80)}...`)
       ws = new WebSocket(tabWsUrl)
 
-      timeout = setTimeout(() => {
-        console.log(`[AdsPower CDP] Network interception timed out after ${timeoutMs / 1000}s (${requestCount} requests, ${seenTokens.size} tokens checked, ${bearerCount} Bearer EAA headers, ${authHeaderCount} Authorization headers)`)
-        done(null)
+      timeout = setTimeout(async () => {
+        console.log(`[AdsPower CDP] Interception timed out after ${timeoutMs / 1000}s (${requestCount} network reqs, ${formDataTokenCount} interceptor tokens, ${runtimeEventCount} console events, ${seenTokens.size} validated)`)
+
+        // FALLBACK: Try Runtime.evaluate to read tokens stored in window.__6adTokens
+        // This works even if Runtime.consoleAPICalled events weren't delivered
+        if (!resolved && ws && ws.readyState === WebSocket.OPEN) {
+          try {
+            const evalId = msgId++
+            ws.send(JSON.stringify({
+              id: evalId,
+              method: 'Runtime.evaluate',
+              params: { expression: 'JSON.stringify(window.__6adTokens || [])', returnByValue: true }
+            }))
+
+            // Wait briefly for the evaluate response
+            await new Promise<void>((evalResolve) => {
+              const evalTimeout = setTimeout(() => evalResolve(), 5000)
+              const origHandler = ws!.listeners('message')
+
+              function evalHandler(data: Buffer) {
+                try {
+                  const msg = JSON.parse(data.toString())
+                  if (msg.id === evalId && msg.result?.result?.value) {
+                    clearTimeout(evalTimeout)
+                    const tokensJson = msg.result.result.value
+                    const tokens = JSON.parse(typeof tokensJson === 'string' ? tokensJson : JSON.stringify(tokensJson))
+                    if (Array.isArray(tokens) && tokens.length > 0) {
+                      console.log(`[AdsPower CDP] FALLBACK: Runtime.evaluate found ${tokens.length} tokens in window.__6adTokens!`)
+                      // Sort by length descending — longer tokens are more likely user tokens
+                      tokens.sort((a: any, b: any) => (b.len || 0) - (a.len || 0))
+                      for (const t of tokens) {
+                        if (!resolved && t.token && t.token.startsWith('EAA') && t.token.length > 40) {
+                          formDataTokenCount++
+                          validateAndResolve(t.token, `fallback-${t.source}`)
+                        }
+                      }
+                    } else {
+                      console.log(`[AdsPower CDP] FALLBACK: window.__6adTokens is empty — interceptor may not have run`)
+                    }
+                    ws?.removeListener('message', evalHandler)
+                    // Give validation time to complete
+                    setTimeout(() => evalResolve(), 3000)
+                    return
+                  }
+                } catch {}
+              }
+
+              ws!.on('message', evalHandler)
+            })
+          } catch (e: any) {
+            console.log(`[AdsPower CDP] FALLBACK Runtime.evaluate failed: ${e.message}`)
+          }
+        }
+
+        if (!resolved) done(null)
       }, timeoutMs)
 
       ws.on('open', () => {
-        console.log(`[AdsPower CDP] WebSocket connected! Enabling Network domain...`)
-        // Enable Network domain FIRST to catch all subsequent requests
+        console.log(`[AdsPower CDP] WebSocket connected! Setting up interceptors...`)
+
+        // 1. Enable Page domain (required for addScriptToEvaluateOnNewDocument)
+        ws?.send(JSON.stringify({ id: msgId++, method: 'Page.enable', params: {} }))
+
+        // 2. Enable Runtime domain to receive console events (for FormData token capture)
+        ws?.send(JSON.stringify({ id: msgId++, method: 'Runtime.enable', params: {} }))
+
+        // 3. Enable Network domain (fallback for URL params / headers)
         ws?.send(JSON.stringify({ id: msgId++, method: 'Network.enable', params: {} }))
 
-        // Small delay to ensure Network is enabled before navigation
+        // 4. Inject comprehensive interceptor BEFORE page scripts run
+        ws?.send(JSON.stringify({
+          id: msgId++,
+          method: 'Page.addScriptToEvaluateOnNewDocument',
+          params: { source: formDataInterceptorScript }
+        }))
+        console.log(`[AdsPower CDP] Interceptor injected via addScriptToEvaluateOnNewDocument`)
+
+        // 5. Small delay to ensure all domains are enabled, then navigate
         setTimeout(() => {
           if (resolved) return
           if (navigateUrl) {
-            // Navigate to the URL that triggers API calls containing access_token
             console.log(`[AdsPower CDP] Navigating to: ${navigateUrl}`)
             ws?.send(JSON.stringify({ id: msgId++, method: 'Page.navigate', params: { url: navigateUrl } }))
           } else {
-            // Reload current page to trigger fresh API calls
             console.log(`[AdsPower CDP] Reloading page to trigger API calls...`)
             ws?.send(JSON.stringify({ id: msgId++, method: 'Page.reload', params: {} }))
           }
@@ -931,34 +1100,54 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000, na
         try {
           const msg = JSON.parse(data.toString())
 
+          // === PRIMARY: Token from JS interceptor via console.log ===
+          if (msg.method === 'Runtime.consoleAPICalled') {
+            runtimeEventCount++
+            const args = msg.params?.args || []
+            for (const arg of args) {
+              if (arg.type !== 'string' || typeof arg.value !== 'string') continue
+              const val = arg.value
+
+              if (val.startsWith('[6AD_TOKEN]')) {
+                const token = val.substring(11) // '[6AD_TOKEN]'.length = 11
+                if (token.startsWith('EAA') && token.length > 40) {
+                  formDataTokenCount++
+                  console.log(`[AdsPower CDP] JS interceptor token captured! (len=${token.length})`)
+                  validateAndResolve(token, 'js-interceptor')
+                }
+              } else if (val.startsWith('[6AD_SRC]')) {
+                console.log(`[AdsPower CDP] Token source: ${val.substring(9)}`)
+              } else if (val.startsWith('[6AD_INTERCEPTOR]')) {
+                console.log(`[AdsPower CDP] ${val}`)
+              }
+            }
+          }
+
+          // === FALLBACK: Token from network request URL/headers/postData ===
           if (msg.method === 'Network.requestWillBeSent') {
             requestCount++
             const url = msg.params?.request?.url || ''
             const postData = msg.params?.request?.postData || ''
             const headers = msg.params?.request?.headers || {}
 
-            // Check Authorization: Bearer EAA... header (Facebook's current auth method)
+            // Check Authorization header (rare but possible)
             const authHeader = headers['Authorization'] || headers['authorization'] || ''
-            if (authHeader) authHeaderCount++
             const bearerMatch = authHeader.match(/Bearer\s+(EAA[a-zA-Z0-9._-]+)/)
-            if (bearerMatch) {
-              bearerCount++
-              if (bearerMatch[1].length >= 40 && bearerMatch[1].length < 500) {
-                validateAndResolve(bearerMatch[1])
-              }
+            if (bearerMatch && bearerMatch[1].length >= 40 && bearerMatch[1].length < 500) {
+              validateAndResolve(bearerMatch[1], 'network-bearer')
             }
 
-            // Check URL for access_token (legacy format)
+            // Check URL params
             const urlMatch = url.match(/access_token=(EAA[a-zA-Z0-9._-]+)/)
             if (urlMatch && urlMatch[1].length >= 40 && urlMatch[1].length < 500) {
-              validateAndResolve(urlMatch[1])
+              validateAndResolve(urlMatch[1], 'network-url')
             }
 
-            // Also check POST body for access_token
+            // Check POST body (works for x-www-form-urlencoded, not multipart)
             if (postData) {
               const bodyMatch = postData.match(/access_token=(EAA[a-zA-Z0-9._-]+)/)
               if (bodyMatch && bodyMatch[1].length >= 40 && bodyMatch[1].length < 500) {
-                validateAndResolve(bodyMatch[1])
+                validateAndResolve(bodyMatch[1], 'network-postdata')
               }
             }
           }
@@ -966,19 +1155,259 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000, na
       })
 
       ws.on('error', (err: any) => {
-        console.log(`[AdsPower CDP] Network interception WS error:`, err.message)
+        console.log(`[AdsPower CDP] Interception WS error:`, err.message)
         done(null)
       })
 
       ws.on('close', () => {
-        console.log(`[AdsPower CDP] Network interception WS closed unexpectedly`)
+        console.log(`[AdsPower CDP] Interception WS closed unexpectedly`)
         if (!resolved) done(null)
       })
     } catch (err: any) {
-      console.log(`[AdsPower CDP] Network interception setup failed:`, err.message)
+      console.log(`[AdsPower CDP] Interception setup failed:`, err.message)
       done(null)
     }
   })
+}
+
+// cdpOAuthTokenCapture, extractTokenFromUrl, validateToken REMOVED (v1.4.2)
+// OAuth dialog navigation was unnecessary and suspicious.
+// Cookie-based recharge handles recharges server-side.
+// Extension captures tokens from window.__accessToken on Ads Manager.
+
+/**
+ * Extract Facebook session cookies + fb_dtsg from browser via CDP.
+ * Used as fallback for cookie-based recharge when no EAA token available.
+ */
+async function cdpExtractSession(tabWsUrl: string, debugPort: number): Promise<{ cookies: string; dtsg: string; userId: string } | null> {
+  return new Promise((resolve) => {
+    let ws: WebSocket | null = null
+    let resolved = false
+    let msgId = 1
+    let cookies = ''
+    let dtsg = ''
+    let userId = ''
+
+    const timeout = setTimeout(() => {
+      if (!resolved) { resolved = true; try { ws?.close() } catch {} resolve(null) }
+    }, 15000)
+
+    try {
+      ws = new WebSocket(tabWsUrl)
+
+      ws.on('open', () => {
+        // Request cookies
+        ws?.send(JSON.stringify({ id: msgId++, method: 'Network.getCookies', params: { urls: ['https://www.facebook.com', 'https://adsmanager.facebook.com', 'https://business.facebook.com'] } }))
+        // Request fb_dtsg from page
+        ws?.send(JSON.stringify({ id: msgId++, method: 'Runtime.evaluate', params: {
+          expression: `(function() { var d = document.querySelector('input[name="fb_dtsg"]'); return d ? d.value : (typeof require === 'function' ? (function() { try { return require('DTSGInitialData').token; } catch(e) { return null; } })() : null); })()`,
+          returnByValue: true
+        }}))
+      })
+
+      ws.on('message', (data: any) => {
+        try {
+          const msg = JSON.parse(data.toString())
+
+          // Handle getCookies response
+          if (msg.id === 1 && msg.result?.cookies) {
+            const fbCookies = msg.result.cookies as any[]
+            const important = ['c_user', 'xs', 'datr', 'fr', 'sb']
+            const parts: string[] = []
+            for (const c of fbCookies) {
+              if (important.includes(c.name)) {
+                parts.push(`${c.name}=${c.value}`)
+                if (c.name === 'c_user') userId = c.value
+              }
+            }
+            cookies = parts.join('; ')
+            console.log(`[AdsPower CDP] Session: extracted ${parts.length} cookies, userId=${userId || 'none'}`)
+          }
+
+          // Handle fb_dtsg response
+          if (msg.id === 2 && msg.result?.result?.value) {
+            dtsg = String(msg.result.result.value)
+            console.log(`[AdsPower CDP] Session: fb_dtsg=${dtsg.substring(0, 20)}...`)
+          }
+
+          // If we have both, resolve
+          if (cookies && userId) {
+            clearTimeout(timeout)
+            if (!resolved) {
+              resolved = true
+              try { ws?.close() } catch {}
+              resolve({ cookies, dtsg, userId })
+            }
+          }
+        } catch {}
+      })
+
+      ws.on('error', () => {
+        if (!resolved) { resolved = true; clearTimeout(timeout); resolve(null) }
+      })
+    } catch {
+      clearTimeout(timeout)
+      resolve(null)
+    }
+  })
+}
+
+/**
+ * Cookie-based recharge: call Facebook's internal API using session cookies.
+ * Bypasses EAA access tokens entirely — uses the same auth as the Ads Manager page.
+ */
+async function cookieBasedRecharge(
+  depositId: string,
+  adAccountId: string,
+  amount: number,
+  cookies: string,
+  dtsg: string
+): Promise<{ success: boolean; error?: string; details?: string }> {
+  adAccountId = adAccountId.trim()
+
+  try {
+    // Step 1: GET current spend cap via internal API
+    console.log(`[Cookie Recharge] GET act_${adAccountId} spend_cap via internal API...`)
+    const getResp = await fetch(`https://www.facebook.com/api/graphql/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookies,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Origin': 'https://www.facebook.com',
+        'Referer': 'https://www.facebook.com/adsmanager/manage/',
+      },
+      body: new URLSearchParams({
+        fb_dtsg: dtsg,
+        fb_api_caller_class: 'RelayModern',
+        fb_api_req_friendly_name: 'AdAccountSpendCapQuery',
+        variables: JSON.stringify({ adAccountID: `act_${adAccountId}` }),
+        doc_id: '0', // Will try REST fallback if GraphQL fails
+      }).toString(),
+    })
+    const getText = await getResp.text()
+    console.log(`[Cookie Recharge] GraphQL GET response (first 300): ${getText.substring(0, 300)}`)
+
+    // Try parsing GraphQL response for current spend cap
+    let currentCapCents = 0
+    try {
+      const gqlData = JSON.parse(getText)
+      // Look for spend_cap in nested response
+      const spendCap = gqlData?.data?.ad_account?.spend_cap ||
+                        gqlData?.data?.node?.spend_cap ||
+                        null
+      if (spendCap !== null && spendCap !== undefined) {
+        currentCapCents = parseInt(String(spendCap), 10)
+      }
+    } catch {}
+
+    // Fallback: try REST-style internal endpoint to read spend cap
+    if (currentCapCents === 0) {
+      console.log(`[Cookie Recharge] GraphQL didn't return spend_cap, trying REST fallback...`)
+      const restResp = await fetch(`https://graph.facebook.com/v21.0/act_${adAccountId}?fields=spend_cap,amount_spent,name`, {
+        headers: {
+          'Cookie': cookies,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      })
+      const restText = await restResp.text()
+      console.log(`[Cookie Recharge] REST GET response (first 200): ${restText.substring(0, 200)}`)
+      try {
+        const restData = JSON.parse(restText)
+        if (restData.spend_cap) {
+          currentCapCents = parseInt(restData.spend_cap, 10)
+        } else if (restData.error) {
+          // Graph API needs token — try the internal ads API
+          console.log(`[Cookie Recharge] Graph API requires token, trying internal ads API...`)
+          const adsResp = await fetch(`https://www.facebook.com/ads/manager/account_settings/information/?act=${adAccountId}`, {
+            headers: {
+              'Cookie': cookies,
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+          })
+          const adsHtml = await adsResp.text()
+          // Look for spend_cap in page data
+          const capMatch = adsHtml.match(/"spend_cap"\s*:\s*"?(\d+)"?/)
+          if (capMatch) {
+            currentCapCents = parseInt(capMatch[1], 10)
+            console.log(`[Cookie Recharge] Found spend_cap in page HTML: ${currentCapCents}`)
+          }
+        }
+      } catch {}
+    }
+
+    const currentCapDollars = currentCapCents / 100
+    const newCapDollars = currentCapDollars + amount
+    const newCapCents = Math.round(newCapDollars * 100)
+    console.log(`[Cookie Recharge] act_${adAccountId}: currentCap=$${currentCapDollars}, deposit=$${amount}, newCap=$${newCapDollars}`)
+
+    // Step 2: POST new spend cap via internal GraphQL
+    console.log(`[Cookie Recharge] POST new spend_cap=${newCapCents} cents via internal API...`)
+    const postResp = await fetch(`https://www.facebook.com/api/graphql/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': cookies,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Origin': 'https://www.facebook.com',
+        'Referer': 'https://www.facebook.com/adsmanager/manage/',
+      },
+      body: new URLSearchParams({
+        fb_dtsg: dtsg,
+        fb_api_caller_class: 'RelayModern',
+        fb_api_req_friendly_name: 'AdAccountSetSpendCapMutation',
+        variables: JSON.stringify({
+          input: {
+            ad_account_id: `act_${adAccountId}`,
+            spend_cap_amount: newCapCents.toString(),
+            client_mutation_id: Date.now().toString(),
+          }
+        }),
+        doc_id: '0',
+      }).toString(),
+    })
+    const postText = await postResp.text()
+    console.log(`[Cookie Recharge] GraphQL POST response (first 300): ${postText.substring(0, 300)}`)
+
+    // Check for success
+    try {
+      const postData = JSON.parse(postText)
+      if (postData.errors || postData.error) {
+        const errMsg = postData.errors?.[0]?.message || postData.error?.message || JSON.stringify(postData.errors || postData.error).substring(0, 200)
+        console.log(`[Cookie Recharge] GraphQL mutation error: ${errMsg}`)
+
+        // Last resort: try the standard Graph API POST with cookies as auth
+        // (Some FB internal endpoints accept cookie auth for Graph API)
+        console.log(`[Cookie Recharge] Trying direct Graph API POST with cookies...`)
+        const directResp = await fetch(`https://www.facebook.com/marketing/act_${adAccountId}/update`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Cookie': cookies,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Origin': 'https://www.facebook.com',
+          },
+          body: new URLSearchParams({
+            fb_dtsg: dtsg,
+            spend_cap: newCapDollars.toString(),
+          }).toString(),
+        })
+        const directText = await directResp.text()
+        console.log(`[Cookie Recharge] Direct POST response (first 200): ${directText.substring(0, 200)}`)
+
+        // If this also failed, return error
+        if (directResp.status !== 200 || directText.includes('error')) {
+          return { success: false, error: `Cookie recharge failed: ${errMsg}` }
+        }
+      }
+    } catch {}
+
+    const details = `currentCap=$${currentCapDollars}, newCap=$${newCapDollars} (cookie-based)`
+    console.log(`[Cookie Recharge] SUCCESS act_${adAccountId}: ${details}`)
+    return { success: true, details }
+  } catch (err: any) {
+    return { success: false, error: `Cookie recharge error: ${err.message}` }
+  }
 }
 
 /**
@@ -1684,6 +2113,22 @@ async function pollForTasks(): Promise<void> {
         break
       }
 
+      // Break early if profiles have cookie_fallback status — extension can't recharge without token
+      // Go directly to server-side cookie-based recharge
+      if ((Date.now() - startTime) > 30_000) {
+        const cookieFallbackProfiles = await prisma.facebookAutomationProfile.count({
+          where: {
+            id: { in: Array.from(profilesToLaunch.keys()) },
+            healthStatus: 'cookie_fallback',
+            fbCookies: { not: null },
+          },
+        })
+        if (cookieFallbackProfiles > 0 && remaining.filter(t => t.type === 'recharge').length > 0) {
+          console.log(`[AdsPower] ${cookieFallbackProfiles} profile(s) in cookie_fallback mode — breaking wait loop for cookie-based recharge`)
+          break
+        }
+      }
+
       // Break early if BM shares are stuck (not being claimed by extension) after 2 min
       const stuckBmShares = remaining.filter(t => t.type === 'bm_share')
       if (stuckBmShares.length > 0 && remaining.filter(t => t.type === 'recharge').length === 0 && (Date.now() - startTime) > 120_000) {
@@ -1725,26 +2170,28 @@ async function pollForTasks(): Promise<void> {
           await sleep(15_000)
         }
 
-        // Get fresh token
+        // Get fresh token or cookie session
         const updatedProfile = await prisma.facebookAutomationProfile.findUnique({
           where: { id: profileId },
-          select: { fbAccessToken: true, fbTokenCapturedAt: true, label: true, managedAdAccountIds: true },
+          select: { fbAccessToken: true, fbTokenCapturedAt: true, label: true, managedAdAccountIds: true, fbCookies: true, fbDtsg: true },
         })
         const tokenFresh = updatedProfile?.fbTokenCapturedAt && (Date.now() - updatedProfile.fbTokenCapturedAt.getTime()) < 300_000
-        if (!updatedProfile?.fbAccessToken || !tokenFresh) {
-          console.log(`[AdsPower] No fresh token for "${updatedProfile?.label || profileId}" — cannot do server-side recharge`)
+        const hasToken = updatedProfile?.fbAccessToken && tokenFresh
+        const hasCookies = updatedProfile?.fbCookies && typeof updatedProfile.fbCookies === 'string' && updatedProfile.fbCookies.includes('c_user=')
+
+        if (!hasToken && !hasCookies) {
+          console.log(`[AdsPower] No fresh token or cookies for "${updatedProfile?.label || profileId}" — cannot do server-side recharge`)
           continue
         }
 
-        console.log(`[AdsPower] Token available for "${updatedProfile.label}" — doing server-side recharge for ${failedDeposits.length} deposits...`)
+        const method = hasToken ? 'token' : 'cookie'
+        console.log(`[AdsPower] Recharge method: ${method} for "${updatedProfile!.label}" — processing ${failedDeposits.length} deposits...`)
 
         for (const deposit of failedDeposits) {
           const fbAccountId = deposit.adAccount?.accountId
           if (!fbAccountId) continue
 
           // ATOMIC CLAIM: only proceed if status is still PENDING/FAILED/NONE
-          // If extension already claimed (IN_PROGRESS) or completed (COMPLETED), count=0 → skip
-          // This is the same pattern as /extension/recharge/:id/claim endpoint
           const claimed = await prisma.accountDeposit.updateMany({
             where: {
               id: deposit.id,
@@ -1757,9 +2204,18 @@ async function pollForTasks(): Promise<void> {
             continue
           }
 
-          console.log(`[AdsPower] Server-side recharge: deposit ${deposit.id}, act_${fbAccountId}, $${deposit.amount}`)
+          console.log(`[AdsPower] Server-side recharge (${method}): deposit ${deposit.id}, act_${fbAccountId}, $${deposit.amount}`)
 
-          const result = await serverSideRecharge(deposit.id, fbAccountId, deposit.amount, updatedProfile.fbAccessToken!)
+          let result: { success: boolean; error?: string; details?: string }
+
+          if (hasToken) {
+            // Primary: use EAA access token
+            result = await serverSideRecharge(deposit.id, fbAccountId, deposit.amount, updatedProfile!.fbAccessToken!)
+          } else {
+            // Fallback: use cookies + fb_dtsg
+            result = await cookieBasedRecharge(deposit.id, fbAccountId, deposit.amount, updatedProfile!.fbCookies as string, updatedProfile!.fbDtsg || '')
+          }
+
           if (result.success) {
             await prisma.accountDeposit.update({
               where: { id: deposit.id },
@@ -1767,12 +2223,32 @@ async function pollForTasks(): Promise<void> {
                 rechargeStatus: 'COMPLETED',
                 rechargeMethod: 'SERVER',
                 rechargedAt: new Date(),
-                rechargedBy: 'server-worker',
+                rechargedBy: `server-worker-${method}`,
                 rechargeError: null,
               },
             })
-            console.log(`[AdsPower] Deposit ${deposit.id} RECHARGE COMPLETED via server! ${result.details}`)
+            console.log(`[AdsPower] Deposit ${deposit.id} RECHARGE COMPLETED via ${method}! ${result.details}`)
           } else {
+            // If token-based failed, try cookie fallback
+            if (hasToken && hasCookies) {
+              console.log(`[AdsPower] Token recharge failed, trying cookie fallback for ${deposit.id}...`)
+              const cookieResult = await cookieBasedRecharge(deposit.id, fbAccountId, deposit.amount, updatedProfile!.fbCookies as string, updatedProfile!.fbDtsg || '')
+              if (cookieResult.success) {
+                await prisma.accountDeposit.update({
+                  where: { id: deposit.id },
+                  data: {
+                    rechargeStatus: 'COMPLETED',
+                    rechargeMethod: 'SERVER',
+                    rechargedAt: new Date(),
+                    rechargedBy: 'server-worker-cookie-fallback',
+                    rechargeError: null,
+                  },
+                })
+                console.log(`[AdsPower] Deposit ${deposit.id} RECHARGE COMPLETED via cookie fallback! ${cookieResult.details}`)
+                continue
+              }
+              result = cookieResult
+            }
             await prisma.accountDeposit.update({
               where: { id: deposit.id },
               data: { rechargeStatus: 'FAILED', rechargeError: result.error },

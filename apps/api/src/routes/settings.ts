@@ -1,7 +1,5 @@
 import { Hono } from 'hono'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 import { verifyToken, requireAdmin, requireUser } from '../middleware/auth.js'
 import { broadcast } from '../services/event-bus.js'
 

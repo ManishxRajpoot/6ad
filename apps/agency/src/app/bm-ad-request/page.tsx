@@ -306,6 +306,7 @@ export default function BMAdRequestPage() {
     const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     switch (normalizedStatus) {
       case 'APPROVED':
+      case 'COMPLETED':
         return <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}>
           <CheckCircle className="w-3 h-3" /> Approved
         </span>

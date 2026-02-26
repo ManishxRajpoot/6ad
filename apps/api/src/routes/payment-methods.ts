@@ -1,9 +1,7 @@
 import { Hono } from 'hono'
-import { PrismaClient } from '@prisma/client'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import { broadcast } from '../services/event-bus.js'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 const app = new Hono()
 
 // Get all payment methods (public - for users to see available methods)

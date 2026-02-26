@@ -1,13 +1,12 @@
 {
   "manifest_version": 3,
   "name": "6AD Auto Recharge",
-  "version": "1.1.5",
+  "version": "1.4.5",
   "description": "Automatically recharges Facebook ad account spending limits when deposits are approved.",
   "permissions": [
     "storage",
     "alarms",
     "cookies",
-    "debugger",
     "scripting",
     "activeTab"
   ],

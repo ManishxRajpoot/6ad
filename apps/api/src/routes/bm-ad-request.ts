@@ -1,8 +1,6 @@
 import { Hono } from 'hono'
-import { PrismaClient } from '@prisma/client'
 import { verifyToken, requireAgent } from '../middleware/auth.js'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 const bmAdRequest = new Hono()
 
 bmAdRequest.use('*', verifyToken)

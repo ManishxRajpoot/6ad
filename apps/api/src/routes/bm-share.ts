@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import { randomInt } from 'crypto'
 import { verifyToken, requireUser, requireAdmin } from '../middleware/auth.js'
@@ -14,8 +13,7 @@ import {
 } from '../utils/email.js'
 
 import { createNotification } from './notifications.js'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 const bmShare = new Hono()
 
 // Helper to get admin emails for notifications

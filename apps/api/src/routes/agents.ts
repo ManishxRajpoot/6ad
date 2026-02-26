@@ -1,8 +1,6 @@
 import { Hono } from 'hono'
 import bcrypt from 'bcryptjs'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 import { z } from 'zod'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import { broadcastToUser } from '../services/event-bus.js'

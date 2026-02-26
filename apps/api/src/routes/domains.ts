@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import crypto from 'crypto'
 import dns from 'dns'
@@ -8,12 +7,11 @@ import { exec } from 'child_process'
 import path from 'path'
 import { verifyToken } from '../middleware/auth.js'
 import { generateEmailLogo } from '../utils/image.js'
+import { prisma } from '../lib/prisma.js'
 
 const resolveTxt = promisify(dns.resolveTxt)
 const resolve4 = promisify(dns.resolve4)
 const execPromise = promisify(exec)
-
-const prisma = new PrismaClient()
 
 // VPS IP address for custom domain DNS configuration
 const VPS_IP = process.env.VPS_IP || '72.61.249.140'

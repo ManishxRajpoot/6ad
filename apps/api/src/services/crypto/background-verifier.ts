@@ -1,9 +1,8 @@
-import { PrismaClient, CryptoNetwork } from '@prisma/client'
+import type { CryptoNetwork } from '@prisma/client'
 import { verifyTransaction } from './blockchain-verifier.js'
 import { processDepositReferralReward } from '../referral-rewards.js'
 import { sendEmail, getWalletDepositApprovedTemplate, getAgentDepositApprovedNotificationTemplate, buildSmtpConfig } from '../../utils/email.js'
-
-const prisma = new PrismaClient()
+import { prisma } from '../../lib/prisma.js'
 
 // Configuration
 const VERIFICATION_CONFIG = {

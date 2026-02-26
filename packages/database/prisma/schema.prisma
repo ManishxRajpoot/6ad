@@ -1385,6 +1385,10 @@ model FacebookAutomationProfile {
   fbTokenCapturedAt   DateTime?                 // When token was last captured
   fbTokenValidatedAt  DateTime?                 // When token was last validated
 
+  // Cookie-based fallback (when EAA token capture fails)
+  fbCookies           String?                   // Extracted session cookies for cookie-based API fallback
+  fbDtsg              String?                   // Facebook CSRF token (fb_dtsg)
+
   // Login attempt tracking (for rate limiting)
   loginAttemptsToday    Int               @default(0)     // Reset daily, max 3 per 24h
   lastLoginAttemptAt    DateTime?                          // When last CDP login was attempted

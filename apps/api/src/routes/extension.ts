@@ -9,14 +9,12 @@
  * Extension endpoints (API key auth): heartbeat, pending tasks, claim/complete/fail
  */
 import { Hono } from 'hono'
-import { PrismaClient } from '@prisma/client'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import { randomBytes } from 'crypto'
 import { getWorkerStatus } from '../services/adspower-worker.js'
 import { fetchFacebookOtp } from '../services/imap-reader.js'
 import * as OTPAuth from 'otpauth'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 const extension = new Hono()
 
 // ==================== ADMIN ENDPOINTS (JWT auth) ====================
@@ -368,11 +366,31 @@ async function verifyExtensionKey(c: any, next: any) {
   }
 
   // Find profile with this API key
-  const profile = await prisma.facebookAutomationProfile.findFirst({
+  let profile = await prisma.facebookAutomationProfile.findFirst({
     where: { extensionApiKey: key, isEnabled: true },
   })
 
+  // Auto-register: if key doesn't match but starts with ext_, try to match to the
+  // most recently active enabled profile. This handles VPS extension key rotation
+  // when AdsPower restarts and the extension generates/loads a different stored key.
+  if (!profile && key.startsWith('ext_')) {
+    const candidates = await prisma.facebookAutomationProfile.findMany({
+      where: { isEnabled: true },
+      orderBy: { lastHeartbeatAt: 'desc' },
+      take: 1,
+    })
+    if (candidates.length === 1) {
+      // Auto-update the profile's key to match what the extension is sending
+      profile = await prisma.facebookAutomationProfile.update({
+        where: { id: candidates[0].id },
+        data: { extensionApiKey: key },
+      })
+      console.log(`[Extension] Auto-registered key for "${profile.label}": ${key.substring(0, 16)}...`)
+    }
+  }
+
   if (!profile) {
+    console.warn(`[Extension] Invalid key received: ${key.substring(0, 16)}...`)
     return c.json({ error: 'Invalid extension key' }, 401)
   }
 
@@ -416,22 +434,22 @@ extension.post('/heartbeat', verifyExtensionKey, async (c) => {
       data: updateData,
     })
 
-    // Count pending items for the extension to process
+    // Count pending items for the extension to process (only recent — skip tasks older than 24h)
+    const recentCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const [pendingRecharges, pendingBmShares] = await Promise.all([
       prisma.accountDeposit.count({
         where: {
           status: 'APPROVED',
           rechargeStatus: { in: ['PENDING', 'NONE'] },
+          createdAt: { gte: recentCutoff },
         }
       }).catch(() => 0),
       prisma.bmShareRequest.count({
         where: {
-          status: 'PENDING',
+          status: { in: ['PENDING', 'APPROVED'] },
           platform: 'FACEBOOK',
           shareAttempts: { lt: 5 },
-          ...(profile.managedAdAccountIds?.length > 0
-            ? { adAccountId: { in: profile.managedAdAccountIds } }
-            : {}),
+          createdAt: { gte: recentCutoff },
         }
       }).catch(() => 0),
     ])
@@ -446,6 +464,10 @@ extension.post('/heartbeat', verifyExtensionKey, async (c) => {
       profileId: profile.id,
       pendingCount: pendingRecharges,
       pendingBmShareCount: pendingBmShares,
+      // Send profile data so extension can display without Graph API
+      // (app tokens on VPS can't call /me or /me/adaccounts)
+      profileLabel: profile.label || undefined,
+      profileAdAccountIds: profile.managedAdAccountIds || [],
     })
   } catch (err: any) {
     console.error('[Extension] Heartbeat error:', err.message)
@@ -460,20 +482,20 @@ extension.get('/pending-bm-shares', verifyExtensionKey, async (c) => {
     const profile = c.get('extensionProfile')
     const managedIds = profile.managedAdAccountIds || []
 
-    // Auto-reject requests that have failed too many times
+    // Auto-reject requests that have failed too many times (both PENDING and APPROVED)
     await prisma.bmShareRequest.updateMany({
-      where: { status: 'PENDING', shareAttempts: { gte: 5 } },
+      where: { status: { in: ['PENDING', 'APPROVED'] }, shareAttempts: { gte: 5 } },
       data: { status: 'REJECTED', shareError: 'MAX_RETRIES_EXCEEDED: Auto-rejected after 5 failed attempts', rejectedAt: new Date(), adminRemarks: 'Auto-rejected: exceeded max retry attempts' }
     }).catch(() => {})
 
-    // Build filter: only return tasks for ad accounts this profile manages
+    // Return BM shares ready for processing — includes both PENDING (auto-process)
+    // and APPROVED (admin-approved, ready for execution).
+    // Skip tasks older than 24h — stale tasks should be handled manually by admin.
     const whereClause: any = {
-      status: 'PENDING',
+      status: { in: ['PENDING', 'APPROVED'] },
       platform: 'FACEBOOK',
       shareAttempts: { lt: 5 },
-    }
-    if (managedIds.length > 0) {
-      whereClause.adAccountId = { in: managedIds }
+      createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
     }
 
     const shares = await prisma.bmShareRequest.findMany({
@@ -519,9 +541,9 @@ extension.get('/pending-bm-shares', verifyExtensionKey, async (c) => {
 extension.post('/bm-share/:id/claim', verifyExtensionKey, async (c) => {
   const id = c.req.param('id')
   try {
-    // Atomic claim: only succeeds if status is still PENDING
+    // Atomic claim: only succeeds if status is PENDING or APPROVED (not yet completed/rejected)
     const result = await prisma.bmShareRequest.updateMany({
-      where: { id, status: 'PENDING' },
+      where: { id, status: { in: ['PENDING', 'APPROVED'] } },
       data: { shareMethod: 'EXTENSION', shareAttempts: { increment: 1 } }
     })
     if (result.count === 0) {
@@ -540,7 +562,7 @@ extension.post('/bm-share/:id/complete', verifyExtensionKey, async (c) => {
     await prisma.bmShareRequest.update({
       where: { id },
       data: {
-        status: 'APPROVED',
+        status: 'COMPLETED',
         shareMethod: 'EXTENSION',
         approvedAt: new Date(),
         shareError: null,
@@ -579,10 +601,12 @@ extension.get('/pending-recharges', verifyExtensionKey, async (c) => {
     const managedIds = profile.managedAdAccountIds || []
 
     // Build filter: only return tasks for ad accounts this profile manages
+    // Skip tasks older than 24h — stale tasks should be handled manually by admin
     const whereClause: any = {
       status: 'APPROVED',
       rechargeStatus: { in: ['PENDING', 'NONE'] },
       rechargeAttempts: { lt: 5 },  // Max 5 attempts before giving up
+      createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
     }
     if (managedIds.length > 0) {
       whereClause.adAccount = { accountId: { in: managedIds } }

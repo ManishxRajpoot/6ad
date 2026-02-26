@@ -1301,6 +1301,7 @@ export default function FacebookPage() {
     const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
     switch (status) {
       case 'APPROVED':
+      case 'COMPLETED':
         return <span className={`${baseClasses} bg-emerald-50 border border-emerald-200 text-emerald-700`}><CheckCircle className="w-3 h-3" /> Approved</span>
       case 'PENDING':
         return <span className={`${baseClasses} bg-amber-50 border border-amber-200 text-amber-700`}><Clock className="w-3 h-3" /> Pending</span>

@@ -11,12 +11,10 @@
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
 import { addClient, removeClient, getClientCount } from '../services/event-bus.js'
 import type { JWTPayload } from '../middleware/auth.js'
 import crypto from 'crypto'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 const app = new Hono()
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'

@@ -7,15 +7,13 @@
  * C) Auto-refund permanently failed recharges (FAILED + attempts >= 5)
  */
 
-import { PrismaClient } from '@prisma/client'
 import {
   sendEmail,
   buildSmtpConfig,
   getAccountRechargeRejectedTemplate,
 } from '../utils/email.js'
 import { createNotification } from '../routes/notifications.js'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 
 // ─── Configuration ─────────────────────────────────────────────────
 const CONFIG = {
@@ -85,10 +83,10 @@ async function timeoutStuckRecharges(): Promise<number> {
 
 // ─── Step B: Timeout stuck BM shares ───────────────────────────────
 async function timeoutStuckBmShares(): Promise<number> {
-  // PENDING with max retries exhausted → auto-reject
+  // PENDING or APPROVED with max retries exhausted → auto-reject
   const stuckBmShares = await prisma.bmShareRequest.findMany({
     where: {
-      status: 'PENDING',
+      status: { in: ['PENDING', 'APPROVED'] },
       shareAttempts: { gte: CONFIG.MAX_SHARE_ATTEMPTS },
     },
     select: { id: true, applyId: true, shareAttempts: true },

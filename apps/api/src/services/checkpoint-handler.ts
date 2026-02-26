@@ -10,12 +10,10 @@
  * - sms_otp: Facebook sends a code via SMS → NOT auto-handled (needs manual action)
  * - identity_confirm: Facebook asks to confirm identity → NOT auto-handled
  */
-import { PrismaClient } from '@prisma/client'
 import { fetchFacebookOtp } from './imap-reader.js'
 import { humanDelay } from '../utils/delays.js'
 import type { Page } from 'rebrowser-puppeteer'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 
 export interface CheckpointResult {
   detected: boolean

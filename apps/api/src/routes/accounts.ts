@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import { cheetahApi } from '../services/cheetah-api.js'
 import { discoverAccountProfile } from '../services/adspower-worker.js'
@@ -22,7 +21,7 @@ import {
   getAgentRefundRejectedNotificationTemplate
 } from '../utils/email.js'
 
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma.js'
 
 type Platform = 'FACEBOOK' | 'GOOGLE' | 'TIKTOK' | 'SNAPCHAT' | 'BING'
 import { verifyToken, requireAgent, requireAdmin, requireUser } from '../middleware/auth.js'
