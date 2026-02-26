@@ -466,61 +466,114 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     // NOTE: Session warm-up (scrolling FB feed) intentionally skipped for recharges.
     // The post-login cooldown above provides sufficient session stabilization.
 
-    // Clean up tabs before opening adsmanager — leave only 1 FB tab
+    // Clean up tabs before token capture — leave only 1 FB tab
     await cdpCleanupTabs(debugInfo.debugPort)
 
-    // Step 4: Clear old stale token and open NEW tab to adsmanager for token capture
-    console.log(`[AdsPower CDP] Clearing old token from DB...`)
-    await prisma.facebookAutomationProfile.update({
-      where: { id: profile.id },
-      data: { fbAccessToken: null, fbTokenCapturedAt: null },
-    }).catch(() => {})
+    // Step 4: Read token directly from Facebook page via CDP
+    // window.__accessToken exists on www.facebook.com (NOT on adsmanager)
+    // So we read it directly from the FB tab that's already open from login step
+    console.log(`[AdsPower CDP] Reading __accessToken directly from Facebook page via CDP...`)
 
-    // Open NEW tab to adsmanager via CDP Target.createTarget (browser-level WS)
-    console.log(`[AdsPower CDP] Opening new adsmanager tab via Target.createTarget...`)
-    const tabCreated = await cdpCreateTab(debugInfo.wsUrl, ADSMANAGER_URL)
-    if (tabCreated) {
-      console.log(`[AdsPower CDP] Adsmanager tab created successfully!`)
-    } else {
-      console.error(`[AdsPower CDP] Failed to create adsmanager tab — trying window.open fallback...`)
-      // Fallback: try window.open on any available page tab
-      const freshTabs = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
-      const anyTab = freshTabs.find((t: any) => t.type === 'page' && t.webSocketDebuggerUrl)
-      if (anyTab?.webSocketDebuggerUrl) {
-        await cdpEvaluate(anyTab.webSocketDebuggerUrl, `window.open('${ADSMANAGER_URL}', '_blank')`)
-        console.log(`[AdsPower CDP] window.open fallback executed`)
+    let capturedToken: string | null = null
+
+    // Try reading __accessToken from the FB tab (already on facebook.com/home.php)
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      if (attempt > 1) {
+        console.log(`[AdsPower CDP] Token read attempt ${attempt}/5 — waiting 5s...`)
+        await sleep(5000)
+      }
+
+      // Find the FB tab's WebSocket URL
+      const allTabs = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
+      const fbTab = allTabs.find((t: any) =>
+        t.type === 'page' && t.webSocketDebuggerUrl &&
+        (t.url?.includes('www.facebook.com') || t.url?.includes('facebook.com/home'))
+      )
+
+      if (!fbTab?.webSocketDebuggerUrl) {
+        console.log(`[AdsPower CDP] No FB tab found (attempt ${attempt})`)
+        continue
+      }
+
+      const tokenResult = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `
+        (function() {
+          var token = window.__accessToken || null;
+          if (!token && typeof require === 'function') {
+            try { var mod = require('CurrentAccessToken'); if (mod && mod.getToken) token = mod.getToken(); } catch(e) {}
+          }
+          var cUser = document.cookie.match(/c_user=(\\d+)/);
+          return JSON.stringify({ token: token, loggedIn: !!cUser, userId: cUser ? cUser[1] : null });
+        })()
+      `)
+
+      if (tokenResult) {
+        try {
+          const parsed = JSON.parse(tokenResult)
+          if (parsed.token && parsed.token.startsWith('EAA') && parsed.token.length >= 40) {
+            // Validate token via Graph API /me
+            const meRes = await fetch(`https://graph.facebook.com/me?access_token=${encodeURIComponent(parsed.token)}`).then(r => r.json()).catch(() => null)
+            if (meRes?.id) {
+              capturedToken = parsed.token
+              console.log(`[AdsPower CDP] Token captured via CDP! User: ${meRes.name} (${meRes.id}), len=${parsed.token.length}`)
+              break
+            } else {
+              console.log(`[AdsPower CDP] Token found but /me validation failed (attempt ${attempt}):`, meRes?.error?.message || 'unknown')
+            }
+          } else if (!parsed.loggedIn) {
+            console.log(`[AdsPower CDP] FB is logged out (no c_user cookie) — attempt ${attempt}`)
+          } else {
+            console.log(`[AdsPower CDP] Logged in but no __accessToken yet (attempt ${attempt})`)
+          }
+        } catch (e: any) {
+          console.log(`[AdsPower CDP] Token parse error (attempt ${attempt}):`, e.message)
+        }
       }
     }
-    console.log(`[AdsPower CDP] Waiting 20s for extension to capture token from adsmanager...`)
-    await sleep(20000)
 
-    // Verify token was captured
-    const updatedProfile = await prisma.facebookAutomationProfile.findUnique({
-      where: { id: profile.id },
-      select: { fbAccessToken: true, fbTokenCapturedAt: true },
-    })
-    if (updatedProfile?.fbAccessToken) {
-      console.log(`[AdsPower CDP] Token captured successfully!`)
+    if (capturedToken) {
+      // Store token directly in DB — no need to wait for extension
+      await prisma.facebookAutomationProfile.update({
+        where: { id: profile.id },
+        data: {
+          fbAccessToken: capturedToken,
+          fbTokenCapturedAt: new Date(),
+          healthStatus: 'healthy',
+          lastError: null,
+        },
+      }).catch(() => {})
+      console.log(`[AdsPower CDP] Token stored in DB directly!`)
       workerStats.loggedInExecutions++
     } else {
-      console.log(`[AdsPower CDP] Token not yet captured — extension may need more time`)
+      console.log(`[AdsPower CDP] Could not capture token after 5 attempts`)
 
-      // STALE SESSION DETECTION: If "already_logged_in" but NO token → session was stale
-      if (loginResult?.status === 'already_logged_in') {
-        console.error(`[ALERT] Profile "${profile.label}" stale session — logged-in but token capture failed. Clearing cookies for re-login.`)
+      // Fallback: open adsmanager and wait for extension to intercept network requests
+      console.log(`[AdsPower CDP] Fallback: opening adsmanager for extension to capture...`)
+      await prisma.facebookAutomationProfile.update({
+        where: { id: profile.id },
+        data: { fbAccessToken: null, fbTokenCapturedAt: null },
+      }).catch(() => {})
 
-        // Clear FB cookies via CDP to force re-login on next attempt
-        await cdpEvaluate(wsUrl, `
-          document.cookie.split(';').forEach(function(c) {
-            var name = c.split('=')[0].trim();
-            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.facebook.com';
-          });
-          'cookies_cleared'
-        `).catch(() => {})
+      const tabCreated = await cdpCreateTab(debugInfo.wsUrl, ADSMANAGER_URL)
+      if (tabCreated) {
+        console.log(`[AdsPower CDP] Adsmanager tab created — waiting 30s for extension...`)
+      }
+      await sleep(30000)
 
+      // Check if extension captured it
+      const updatedProfile = await prisma.facebookAutomationProfile.findUnique({
+        where: { id: profile.id },
+        select: { fbAccessToken: true },
+      })
+      if (updatedProfile?.fbAccessToken) {
+        console.log(`[AdsPower CDP] Token captured by extension (fallback)!`)
+        workerStats.loggedInExecutions++
+      } else {
+        console.log(`[AdsPower CDP] Token capture failed completely — will retry next cycle`)
+        // Do NOT clear cookies — the session might still be valid
+        // Just mark as needs-retry so worker tries again
         await prisma.facebookAutomationProfile.update({
           where: { id: profile.id },
-          data: { healthStatus: 'unknown', lastError: 'Stale session — cookies cleared for re-login' },
+          data: { healthStatus: 'unknown', lastError: 'Token capture failed — will retry (session preserved)' },
         }).catch(() => {})
       }
     }
