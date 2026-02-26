@@ -466,9 +466,9 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     // NOTE: Session warm-up (scrolling FB feed) intentionally skipped for recharges.
     // The post-login cooldown above provides sufficient session stabilization.
 
-    // Step 4: Capture token from www.facebook.com
-    // Strategy: Navigate a tab to FB home (NOT adsmanager) — FB home has __accessToken and user tokens in API calls
-    console.log(`[AdsPower CDP] Capturing token from www.facebook.com...`)
+    // Step 4: Capture token — FB generates __accessToken only after Ads Manager loads
+    // Flow: home.php (warmup) → Ads Manager (forces token creation) → read token
+    console.log(`[AdsPower CDP] Step 4: Token capture starting...`)
 
     let capturedToken: string | null = null
 
@@ -477,7 +477,7 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     const pageTabs = allTabs.filter((t: any) => t.type === 'page' && t.webSocketDebuggerUrl)
     console.log(`[AdsPower CDP] Found ${pageTabs.length} page tabs: ${pageTabs.map((t: any) => t.url?.substring(0, 80)).join(' | ')}`)
 
-    // Find the best FB tab: prefer home.php, skip 2FA/checkpoint/remember_browser pages
+    // Find usable tab (prefer FB page, skip 2FA/checkpoint pages)
     let fbTab = pageTabs.find((t: any) =>
       t.url?.includes('www.facebook.com') &&
       !t.url?.includes('two_factor') &&
@@ -485,53 +485,86 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
       !t.url?.includes('checkpoint') &&
       !t.url?.includes('remember_browser')
     )
-
-    // If no clean FB tab, use any page tab and navigate it to home.php
-    if (!fbTab) {
-      fbTab = pageTabs[0] // Use first available page tab
-    }
+    if (!fbTab) fbTab = pageTabs[0]
 
     if (fbTab?.webSocketDebuggerUrl) {
-      // Ensure we're on a proper FB home page — navigate if needed
+      // Phase 1: Navigate to FB home for session warmup
       const tabUrl = fbTab.url || ''
       const isOnFbHome = tabUrl.includes('www.facebook.com') &&
         !tabUrl.includes('two_factor') && !tabUrl.includes('checkpoint') && !tabUrl.includes('remember_browser')
 
       if (!isOnFbHome) {
-        console.log(`[AdsPower CDP] Tab on ${tabUrl.substring(0, 60)} — navigating to FB home first...`)
+        console.log(`[AdsPower CDP] Tab on ${tabUrl.substring(0, 60)} — navigating to FB home for warmup...`)
         await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.location.href = 'https://www.facebook.com/home.php'`)
-        await sleep(8000) // Wait for FB home to load
-        // Refresh tab list and re-find the tab (URL changed)
+        await sleep(8000)
         const refreshedTabs = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
         const refreshedFb = refreshedTabs.find((t: any) =>
-          t.type === 'page' && t.webSocketDebuggerUrl && t.url?.includes('www.facebook.com/home')
+          t.type === 'page' && t.webSocketDebuggerUrl && t.url?.includes('www.facebook.com')
         )
         if (refreshedFb) fbTab = refreshedFb
       }
 
-      // Method A: Read window.__accessToken directly (available on www.facebook.com after page load)
-      console.log(`[AdsPower CDP] Trying window.__accessToken on FB tab (${fbTab.url?.substring(0, 60)})...`)
-      for (let attempt = 1; attempt <= 5; attempt++) {
-        if (attempt > 1) await sleep(3000)
-        const result = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.__accessToken || null`)
-        if (result && typeof result === 'string' && result.startsWith('EAA') && result.length >= 40) {
-          capturedToken = result
-          console.log(`[AdsPower CDP] __accessToken found! (attempt ${attempt}, len=${result.length})`)
-          break
-        }
-        console.log(`[AdsPower CDP] __accessToken attempt ${attempt}: ${result === null ? 'null' : `${String(result).substring(0, 20)}...`}`)
+      // Quick check: maybe __accessToken already exists (rare but possible)
+      const quickToken = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.__accessToken || null`)
+      if (quickToken && typeof quickToken === 'string' && quickToken.startsWith('EAA') && quickToken.length >= 100) {
+        capturedToken = quickToken
+        console.log(`[AdsPower CDP] __accessToken found on home.php immediately! (len=${quickToken.length})`)
       }
 
-      // Method B: If __accessToken not available, intercept network requests by reloading FB page
+      // Phase 2: Navigate to Ads Manager to force FB to generate the access token
+      // Facebook only creates window.__accessToken after authenticated API calls,
+      // which happen when Ads Manager loads.
       if (!capturedToken) {
-        console.log(`[AdsPower CDP] __accessToken not available, trying network interception on FB page...`)
-        capturedToken = await cdpInterceptToken(fbTab.webSocketDebuggerUrl, 45000)
+        console.log(`[AdsPower CDP] Phase 2: Navigating to Ads Manager to force token generation...`)
+
+        // Use CDP network interception while loading Ads Manager — capture token from API calls
+        capturedToken = await cdpInterceptToken(
+          fbTab.webSocketDebuggerUrl,
+          60000, // 60s timeout — adsmanager can be slow
+          'https://adsmanager.facebook.com/adsmanager/manage/accounts'
+        )
+
+        if (capturedToken) {
+          console.log(`[AdsPower CDP] Token captured from Ads Manager network requests!`)
+        }
+      }
+
+      // Phase 3: After Ads Manager has loaded, go back to FB home and read __accessToken
+      if (!capturedToken) {
+        console.log(`[AdsPower CDP] Phase 3: Ads Manager loaded — navigating back to FB home to read __accessToken...`)
+        await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.location.href = 'https://www.facebook.com/home.php'`)
+        await sleep(10000) // Wait for home.php to fully load after adsmanager session
+
+        // Refresh tab reference
+        const refreshedTabs2 = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
+        const refreshedFb2 = refreshedTabs2.find((t: any) =>
+          t.type === 'page' && t.webSocketDebuggerUrl && t.url?.includes('www.facebook.com')
+        )
+        if (refreshedFb2) fbTab = refreshedFb2
+
+        // Try reading __accessToken multiple times (FB may take a moment to populate it)
+        for (let attempt = 1; attempt <= 5; attempt++) {
+          if (attempt > 1) await sleep(3000)
+          const result = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.__accessToken || null`)
+          if (result && typeof result === 'string' && result.startsWith('EAA') && result.length >= 100) {
+            capturedToken = result
+            console.log(`[AdsPower CDP] __accessToken found after Ads Manager warmup! (attempt ${attempt}, len=${result.length})`)
+            break
+          }
+          console.log(`[AdsPower CDP] __accessToken attempt ${attempt}: ${result === null ? 'null' : `${String(result).substring(0, 20)}...`}`)
+        }
+      }
+
+      // Phase 4: Last resort — intercept network on FB home page reload
+      if (!capturedToken) {
+        console.log(`[AdsPower CDP] Phase 4: Last resort — network interception on FB home reload...`)
+        capturedToken = await cdpInterceptToken(fbTab.webSocketDebuggerUrl, 30000)
       }
     } else {
       console.log(`[AdsPower CDP] No usable page tab found!`)
     }
 
-    // Validate captured token
+    // Validate and store captured token
     if (capturedToken) {
       const meRes = await fetch(`https://graph.facebook.com/me?access_token=${encodeURIComponent(capturedToken)}`).then(r => r.json()).catch(() => null)
       if (meRes?.id) {
@@ -554,16 +587,29 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     }
 
     if (!capturedToken) {
-      // Dead session: c_user cookie exists but no token available
-      // Clear FB session cookies so next cycle triggers a fresh login with email/password/2FA
-      console.log(`[AdsPower CDP] Token capture failed — dead session detected, clearing cookies for fresh login...`)
-      if (fbTab?.webSocketDebuggerUrl) {
-        await cdpClearFBCookies(fbTab.webSocketDebuggerUrl, debugInfo.debugPort)
+      // Track failed cycles to prevent infinite loops
+      const browser = activeBrowsers.get(profile.id)
+      const failedCycles = (browser?.failedCycles || 0) + 1
+      if (browser) browser.failedCycles = failedCycles
+
+      if (failedCycles >= 3) {
+        // After 3 consecutive failed cycles, clear cookies for fresh login
+        console.log(`[AdsPower CDP] Token capture failed ${failedCycles} times — clearing cookies for fresh login...`)
+        if (fbTab?.webSocketDebuggerUrl) {
+          await cdpClearFBCookies(fbTab.webSocketDebuggerUrl, debugInfo.debugPort)
+        }
+        if (browser) browser.failedCycles = 0 // Reset after clearing
+        await prisma.facebookAutomationProfile.update({
+          where: { id: profile.id },
+          data: { healthStatus: 'needs_login', lastError: `Token capture failed ${failedCycles}x — cookies cleared, will re-login next cycle` },
+        }).catch(() => {})
+      } else {
+        console.log(`[AdsPower CDP] Token capture failed (cycle ${failedCycles}/3) — will retry next cycle`)
+        await prisma.facebookAutomationProfile.update({
+          where: { id: profile.id },
+          data: { lastError: `Token capture failed (attempt ${failedCycles}/3)` },
+        }).catch(() => {})
       }
-      await prisma.facebookAutomationProfile.update({
-        where: { id: profile.id },
-        data: { healthStatus: 'needs_login', lastError: 'Dead session — cookies cleared, will re-login next cycle' },
-      }).catch(() => {})
     }
 
     return true
