@@ -2,6 +2,9 @@
  * 6AD Auto Recharge - Content Script (MAIN world)
  * Runs directly in the page context on facebook.com, business.facebook.com, adsmanager.facebook.com
  * Intercepts XHR/fetch to capture EAA access tokens
+ *
+ * v1.1.5 — Fixed: Support Authorization: Bearer EAA tokens (FB's current auth method)
+ *         Fixed: Stop stripping valid token characters (. _ -)
  */
 
 (function () {
@@ -12,9 +15,8 @@
     if (!token || token === _6adLastToken) return
     if (token.indexOf('EAA') !== 0 || token.length < 20) return
 
-    // Clean token - remove any trailing non-alphanumeric chars
-    token = token.replace(/[^a-zA-Z0-9]/g, '')
-    if (token.length < 20) return
+    // DO NOT mutate the token — EAA tokens can contain . _ - characters
+    // Old bug: token.replace(/[^a-zA-Z0-9]/g, '') was destroying valid tokens
 
     _6adLastToken = token
 
@@ -31,7 +33,12 @@
 
   function extractToken(str) {
     if (!str || typeof str !== 'string') return null
-    // Match access_token parameter (URL-encoded or plain)
+
+    // Case 1: Authorization: Bearer EAA... (Facebook's current auth method)
+    var bearerMatch = str.match(/Bearer\s+(EAA[a-zA-Z0-9._-]+)/)
+    if (bearerMatch) return bearerMatch[1]
+
+    // Case 2: access_token=EAA... (legacy URL parameter format)
     var m = str.match(/access_token=([^&\s"']+)/)
     if (m) {
       try {
@@ -41,8 +48,7 @@
         if (m[1].indexOf('EAA') === 0) return m[1]
       }
     }
-    // Removed: bare EAA regex was capturing garbage from response bodies
-    // Only trust access_token= parameter extraction above
+
     return null
   }
 
@@ -62,7 +68,7 @@
     if (this.__6adHeaders) {
       this.__6adHeaders[name] = value
     }
-    // Check for token in Authorization header
+    // Check for token in Authorization header (primary method for modern FB)
     if (name.toLowerCase() === 'authorization' && value) {
       var t = extractToken(value)
       if (t) saveToken(t, 'xhr-auth-header')
@@ -103,7 +109,7 @@
       if (t) saveToken(t, 'fetch-url')
 
       if (init) {
-        // Check headers for Authorization
+        // Check headers for Authorization (primary method for modern FB GraphQL)
         if (init.headers) {
           var headers = init.headers
           if (typeof headers.get === 'function') {
@@ -147,11 +153,6 @@
     } catch (e) {}
     return origFetch.apply(this, arguments)
   }
-
-  // Removed: scanPageForTokens() and all callers — scanning inline scripts/meta tags
-  // captures garbage binary data that matches EAA pattern. Real tokens come from
-  // XHR/fetch access_token= parameters intercepted above, or window.__accessToken
-  // read by background.js.
 
   // ==================== Auto-Login Detection ====================
   // Detects Facebook login page and auto-fills credentials

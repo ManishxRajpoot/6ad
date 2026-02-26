@@ -527,8 +527,8 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
         if (rFb) fbTab = rFb
       }
 
-      // Inject JS-level fetch/XHR interceptor to capture FormData tokens that CDP misses
-      console.log(`[AdsPower CDP] Injecting JS token interceptor...`)
+      // Inject JS-level fetch/XHR interceptor — captures Bearer tokens + FormData
+      console.log(`[AdsPower CDP] Injecting JS token interceptor (with Bearer support)...`)
       await cdpEvaluate(fbTab.webSocketDebuggerUrl, `
         (function() {
           if (window.__6adCdpInterceptor) return 'already_installed';
@@ -537,10 +537,8 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
 
           function saveToken(token, source) {
             if (!token || typeof token !== 'string') return;
-            if (token.indexOf('EAA') !== 0 || token.length < 40) return;
-            token = token.replace(/[^a-zA-Z0-9]/g, '');
-            if (token.length < 40) return;
-            // Deduplicate
+            if (token.indexOf('EAA') !== 0 || token.length < 20) return;
+            // DO NOT strip characters — EAA tokens can contain . _ -
             for (var i = 0; i < window.__6adCapturedTokens.length; i++) {
               if (window.__6adCapturedTokens[i].token === token) return;
             }
@@ -549,6 +547,10 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
 
           function extractToken(str) {
             if (!str || typeof str !== 'string') return null;
+            // Case 1: Authorization: Bearer EAA... (Facebook's current auth method)
+            var bm = str.match(/Bearer\\s+(EAA[a-zA-Z0-9._-]+)/);
+            if (bm) return bm[1];
+            // Case 2: access_token=EAA... (legacy)
             var m = str.match(/access_token=([^&\\s"']+)/);
             if (m) {
               try { var d = decodeURIComponent(m[1]); if (d.indexOf('EAA') === 0) return d; } catch(e) {}
@@ -557,56 +559,48 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
             return null;
           }
 
-          // Intercept fetch
+          // Intercept fetch — check URL, headers, body
           var origFetch = window.fetch;
           window.fetch = function(input, init) {
             try {
               var url = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
               var t = extractToken(url);
               if (t) saveToken(t, 'fetch-url');
-              if (init && init.body) {
-                if (typeof init.body === 'string') {
-                  var bt = extractToken(init.body);
-                  if (bt) saveToken(bt, 'fetch-body');
+              if (init) {
+                // Check Authorization header (primary for modern FB)
+                if (init.headers) {
+                  var h = init.headers;
+                  var auth = null;
+                  if (typeof h.get === 'function') auth = h.get('Authorization') || h.get('authorization');
+                  else if (typeof h === 'object') auth = h['Authorization'] || h['authorization'];
+                  if (auth) { var at = extractToken(auth); if (at) saveToken(at, 'fetch-auth-header'); }
                 }
-                if (typeof init.body === 'object' && init.body.get) {
-                  try {
-                    var ft = init.body.get('access_token');
-                    if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'fetch-formdata');
-                  } catch(e) {}
-                }
-                if (init.body instanceof URLSearchParams) {
-                  var ut = init.body.get('access_token');
-                  if (ut && ut.indexOf('EAA') === 0) saveToken(ut, 'fetch-urlsearchparams');
+                if (init.body) {
+                  if (typeof init.body === 'string') { var bt = extractToken(init.body); if (bt) saveToken(bt, 'fetch-body'); }
+                  if (typeof init.body === 'object' && init.body.get) { try { var ft = init.body.get('access_token'); if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'fetch-formdata'); } catch(e) {} }
+                  if (init.body instanceof URLSearchParams) { var ut = init.body.get('access_token'); if (ut && ut.indexOf('EAA') === 0) saveToken(ut, 'fetch-urlsearchparams'); }
                 }
               }
             } catch(e) {}
             return origFetch.apply(this, arguments);
           };
 
-          // Intercept XMLHttpRequest
+          // Intercept XMLHttpRequest — check URL, headers, body
           var origOpen = XMLHttpRequest.prototype.open;
           var origSend = XMLHttpRequest.prototype.send;
-          XMLHttpRequest.prototype.open = function(method, url) {
-            this.__6adUrl = url;
-            return origOpen.apply(this, arguments);
+          var origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+          XMLHttpRequest.prototype.open = function(method, url) { this.__6adUrl = url; return origOpen.apply(this, arguments); };
+          XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
+            if (name && name.toLowerCase() === 'authorization' && value) {
+              var at = extractToken(value); if (at) saveToken(at, 'xhr-auth-header');
+            }
+            return origSetHeader.apply(this, arguments);
           };
           XMLHttpRequest.prototype.send = function(body) {
             try {
-              if (this.__6adUrl) {
-                var t = extractToken(String(this.__6adUrl));
-                if (t) saveToken(t, 'xhr-url');
-              }
-              if (body && typeof body === 'string') {
-                var bt = extractToken(body);
-                if (bt) saveToken(bt, 'xhr-body');
-              }
-              if (body && typeof body === 'object' && body.get) {
-                try {
-                  var ft = body.get('access_token');
-                  if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'xhr-formdata');
-                } catch(e) {}
-              }
+              if (this.__6adUrl) { var t = extractToken(String(this.__6adUrl)); if (t) saveToken(t, 'xhr-url'); }
+              if (body && typeof body === 'string') { var bt = extractToken(body); if (bt) saveToken(bt, 'xhr-body'); }
+              if (body && typeof body === 'object' && body.get) { try { var ft = body.get('access_token'); if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'xhr-formdata'); } catch(e) {} }
             } catch(e) {}
             return origSend.apply(this, arguments);
           };
@@ -628,7 +622,7 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
         await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.location.href = 'https://adsmanager.facebook.com/adsmanager/manage/accounts'`)
         await sleep(15000) // Wait for Ads Manager to load and make API calls
 
-        // Re-inject interceptor on new page (page navigation clears JS state)
+        // Re-inject interceptor on Ads Manager (page navigation clears JS state)
         await cdpEvaluate(fbTab.webSocketDebuggerUrl, `
           (function() {
             if (window.__6adCdpInterceptor) return 'already_installed';
@@ -636,21 +630,15 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
             window.__6adCapturedTokens = [];
             function saveToken(token, source) {
               if (!token || typeof token !== 'string') return;
-              if (token.indexOf('EAA') !== 0 || token.length < 40) return;
-              token = token.replace(/[^a-zA-Z0-9]/g, '');
-              if (token.length < 40) return;
-              for (var i = 0; i < window.__6adCapturedTokens.length; i++) {
-                if (window.__6adCapturedTokens[i].token === token) return;
-              }
+              if (token.indexOf('EAA') !== 0 || token.length < 20) return;
+              for (var i = 0; i < window.__6adCapturedTokens.length; i++) { if (window.__6adCapturedTokens[i].token === token) return; }
               window.__6adCapturedTokens.push({ token: token, source: source, time: Date.now() });
             }
             function extractToken(str) {
               if (!str || typeof str !== 'string') return null;
+              var bm = str.match(/Bearer\\s+(EAA[a-zA-Z0-9._-]+)/); if (bm) return bm[1];
               var m = str.match(/access_token=([^&\\s"']+)/);
-              if (m) {
-                try { var d = decodeURIComponent(m[1]); if (d.indexOf('EAA') === 0) return d; } catch(e) {}
-                if (m[1].indexOf('EAA') === 0) return m[1];
-              }
+              if (m) { try { var d = decodeURIComponent(m[1]); if (d.indexOf('EAA') === 0) return d; } catch(e) {} if (m[1].indexOf('EAA') === 0) return m[1]; }
               return null;
             }
             var origFetch = window.fetch;
@@ -658,17 +646,30 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
               try {
                 var url = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
                 var t = extractToken(url); if (t) saveToken(t, 'fetch-url');
-                if (init && init.body) {
-                  if (typeof init.body === 'string') { var bt = extractToken(init.body); if (bt) saveToken(bt, 'fetch-body'); }
-                  if (typeof init.body === 'object' && init.body.get) { try { var ft = init.body.get('access_token'); if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'fetch-formdata'); } catch(e) {} }
-                  if (init.body instanceof URLSearchParams) { var ut = init.body.get('access_token'); if (ut && ut.indexOf('EAA') === 0) saveToken(ut, 'fetch-urlsearchparams'); }
+                if (init) {
+                  if (init.headers) {
+                    var h = init.headers; var auth = null;
+                    if (typeof h.get === 'function') auth = h.get('Authorization') || h.get('authorization');
+                    else if (typeof h === 'object') auth = h['Authorization'] || h['authorization'];
+                    if (auth) { var at = extractToken(auth); if (at) saveToken(at, 'fetch-auth-header'); }
+                  }
+                  if (init.body) {
+                    if (typeof init.body === 'string') { var bt = extractToken(init.body); if (bt) saveToken(bt, 'fetch-body'); }
+                    if (typeof init.body === 'object' && init.body.get) { try { var ft = init.body.get('access_token'); if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'fetch-formdata'); } catch(e) {} }
+                    if (init.body instanceof URLSearchParams) { var ut = init.body.get('access_token'); if (ut && ut.indexOf('EAA') === 0) saveToken(ut, 'fetch-urlsearchparams'); }
+                  }
                 }
               } catch(e) {}
               return origFetch.apply(this, arguments);
             };
             var origOpen = XMLHttpRequest.prototype.open;
             var origSend = XMLHttpRequest.prototype.send;
+            var origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
             XMLHttpRequest.prototype.open = function(method, url) { this.__6adUrl = url; return origOpen.apply(this, arguments); };
+            XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
+              if (name && name.toLowerCase() === 'authorization' && value) { var at = extractToken(value); if (at) saveToken(at, 'xhr-auth-header'); }
+              return origSetHeader.apply(this, arguments);
+            };
             XMLHttpRequest.prototype.send = function(body) {
               try {
                 if (this.__6adUrl) { var t = extractToken(String(this.__6adUrl)); if (t) saveToken(t, 'xhr-url'); }
@@ -988,16 +989,24 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000, na
             requestCount++
             const url = msg.params?.request?.url || ''
             const postData = msg.params?.request?.postData || ''
+            const headers = msg.params?.request?.headers || {}
 
-            // Check URL for access_token
-            const urlMatch = url.match(/access_token=(EAA[a-zA-Z0-9]+)/)
+            // Check Authorization: Bearer EAA... header (Facebook's current auth method)
+            const authHeader = headers['Authorization'] || headers['authorization'] || ''
+            const bearerMatch = authHeader.match(/Bearer\s+(EAA[a-zA-Z0-9._-]+)/)
+            if (bearerMatch && bearerMatch[1].length >= 40 && bearerMatch[1].length < 500) {
+              validateAndResolve(bearerMatch[1])
+            }
+
+            // Check URL for access_token (legacy format)
+            const urlMatch = url.match(/access_token=(EAA[a-zA-Z0-9._-]+)/)
             if (urlMatch && urlMatch[1].length >= 40 && urlMatch[1].length < 500) {
               validateAndResolve(urlMatch[1])
             }
 
             // Also check POST body for access_token
             if (postData) {
-              const bodyMatch = postData.match(/access_token=(EAA[a-zA-Z0-9]+)/)
+              const bodyMatch = postData.match(/access_token=(EAA[a-zA-Z0-9._-]+)/)
               if (bodyMatch && bodyMatch[1].length >= 40 && bodyMatch[1].length < 500) {
                 validateAndResolve(bodyMatch[1])
               }
