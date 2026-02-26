@@ -1176,6 +1176,93 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 60000, na
 // Extension captures tokens from window.__accessToken on Ads Manager.
 
 /**
+ * Force token capture without full cdpAutoLogin flow.
+ * Finds an existing FB tab (or uses any tab), navigates to Ads Manager,
+ * and uses cdpInterceptToken() to capture a valid user token.
+ *
+ * This is a lightweight alternative to cdpAutoLogin() — no login form filling,
+ * just navigation + JS interceptor to capture tokens from network traffic.
+ *
+ * @returns The captured token, or null if capture failed
+ */
+async function cdpForceTokenCapture(serialNumber: string, profile: any): Promise<string | null> {
+  let debugInfo = browserDebugInfo.get(serialNumber)
+
+  // If no debug info, try refreshing from AdsPower API
+  if (!debugInfo) {
+    console.log(`[AdsPower CDP Force] No debug info for serial=${serialNumber}, trying to fetch...`)
+    try {
+      const resp = await fetch(`http://127.0.0.1:50325/api/v1/browser/active?serial_number=${serialNumber}`)
+      const data = await resp.json()
+      if (data.data?.ws?.puppeteer) {
+        const wsUrl = data.data.ws.puppeteer
+        const portMatch = wsUrl.match(/:(\d+)\//)
+        const debugPort = portMatch ? parseInt(portMatch[1]) : null
+        if (debugPort) {
+          debugInfo = { debugPort, wsUrl }
+          browserDebugInfo.set(serialNumber, debugInfo)
+        }
+      }
+    } catch (e: any) {
+      console.log(`[AdsPower CDP Force] Failed to get debug info: ${e.message}`)
+    }
+  }
+
+  if (!debugInfo) {
+    console.log(`[AdsPower CDP Force] No debug info available for serial=${serialNumber}`)
+    return null
+  }
+
+  try {
+    // Find an existing FB tab
+    const tabsResp = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`)
+    const tabs: any[] = await tabsResp.json()
+
+    // Prefer an existing Facebook tab
+    let targetTab = tabs.find((t: any) =>
+      t.url && (t.url.includes('facebook.com') || t.url.includes('adsmanager.facebook.com'))
+    )
+
+    // If no FB tab, use the first available tab
+    if (!targetTab) {
+      targetTab = tabs.find((t: any) => t.webSocketDebuggerUrl && t.type === 'page')
+    }
+
+    if (!targetTab?.webSocketDebuggerUrl) {
+      console.log(`[AdsPower CDP Force] No suitable tab found for token capture`)
+      return null
+    }
+
+    console.log(`[AdsPower CDP Force] Using tab: ${targetTab.url?.substring(0, 60)}...`)
+    const adsManagerUrl = 'https://adsmanager.facebook.com/adsmanager/manage/campaigns'
+
+    // Use existing cdpInterceptToken with 45s timeout
+    const token = await cdpInterceptToken(targetTab.webSocketDebuggerUrl, 45000, adsManagerUrl)
+
+    if (token) {
+      console.log(`[AdsPower CDP Force] Token captured! (len=${token.length}) — saving to DB...`)
+      // Save to database
+      await prisma.facebookAutomationProfile.update({
+        where: { id: profile.id },
+        data: {
+          fbAccessToken: token,
+          fbTokenCapturedAt: new Date(),
+          fbTokenValidatedAt: new Date(),
+          healthStatus: 'healthy',
+        },
+      })
+      return token
+    }
+
+    console.log(`[AdsPower CDP Force] No token captured within timeout`)
+    return null
+  } catch (err: any) {
+    console.error(`[AdsPower CDP Force] Error:`, err.message)
+    return null
+  }
+}
+
+/**
  * Extract Facebook session cookies + fb_dtsg from browser via CDP.
  * Used as fallback for cookie-based recharge when no EAA token available.
  */
@@ -1262,152 +1349,11 @@ async function cookieBasedRecharge(
   amount: number,
   cookies: string,
   dtsg: string
-): Promise<{ success: boolean; error?: string; details?: string }> {
-  adAccountId = adAccountId.trim()
-
-  try {
-    // Step 1: GET current spend cap via internal API
-    console.log(`[Cookie Recharge] GET act_${adAccountId} spend_cap via internal API...`)
-    const getResp = await fetch(`https://www.facebook.com/api/graphql/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookies,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Origin': 'https://www.facebook.com',
-        'Referer': 'https://www.facebook.com/adsmanager/manage/',
-      },
-      body: new URLSearchParams({
-        fb_dtsg: dtsg,
-        fb_api_caller_class: 'RelayModern',
-        fb_api_req_friendly_name: 'AdAccountSpendCapQuery',
-        variables: JSON.stringify({ adAccountID: `act_${adAccountId}` }),
-        doc_id: '0', // Will try REST fallback if GraphQL fails
-      }).toString(),
-    })
-    const getText = await getResp.text()
-    console.log(`[Cookie Recharge] GraphQL GET response (first 300): ${getText.substring(0, 300)}`)
-
-    // Try parsing GraphQL response for current spend cap
-    let currentCapCents = 0
-    try {
-      const gqlData = JSON.parse(getText)
-      // Look for spend_cap in nested response
-      const spendCap = gqlData?.data?.ad_account?.spend_cap ||
-                        gqlData?.data?.node?.spend_cap ||
-                        null
-      if (spendCap !== null && spendCap !== undefined) {
-        currentCapCents = parseInt(String(spendCap), 10)
-      }
-    } catch {}
-
-    // Fallback: try REST-style internal endpoint to read spend cap
-    if (currentCapCents === 0) {
-      console.log(`[Cookie Recharge] GraphQL didn't return spend_cap, trying REST fallback...`)
-      const restResp = await fetch(`https://graph.facebook.com/v21.0/act_${adAccountId}?fields=spend_cap,amount_spent,name`, {
-        headers: {
-          'Cookie': cookies,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
-      })
-      const restText = await restResp.text()
-      console.log(`[Cookie Recharge] REST GET response (first 200): ${restText.substring(0, 200)}`)
-      try {
-        const restData = JSON.parse(restText)
-        if (restData.spend_cap) {
-          currentCapCents = parseInt(restData.spend_cap, 10)
-        } else if (restData.error) {
-          // Graph API needs token — try the internal ads API
-          console.log(`[Cookie Recharge] Graph API requires token, trying internal ads API...`)
-          const adsResp = await fetch(`https://www.facebook.com/ads/manager/account_settings/information/?act=${adAccountId}`, {
-            headers: {
-              'Cookie': cookies,
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-          })
-          const adsHtml = await adsResp.text()
-          // Look for spend_cap in page data
-          const capMatch = adsHtml.match(/"spend_cap"\s*:\s*"?(\d+)"?/)
-          if (capMatch) {
-            currentCapCents = parseInt(capMatch[1], 10)
-            console.log(`[Cookie Recharge] Found spend_cap in page HTML: ${currentCapCents}`)
-          }
-        }
-      } catch {}
-    }
-
-    const currentCapDollars = currentCapCents / 100
-    const newCapDollars = currentCapDollars + amount
-    const newCapCents = Math.round(newCapDollars * 100)
-    console.log(`[Cookie Recharge] act_${adAccountId}: currentCap=$${currentCapDollars}, deposit=$${amount}, newCap=$${newCapDollars}`)
-
-    // Step 2: POST new spend cap via internal GraphQL
-    console.log(`[Cookie Recharge] POST new spend_cap=${newCapCents} cents via internal API...`)
-    const postResp = await fetch(`https://www.facebook.com/api/graphql/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookies,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Origin': 'https://www.facebook.com',
-        'Referer': 'https://www.facebook.com/adsmanager/manage/',
-      },
-      body: new URLSearchParams({
-        fb_dtsg: dtsg,
-        fb_api_caller_class: 'RelayModern',
-        fb_api_req_friendly_name: 'AdAccountSetSpendCapMutation',
-        variables: JSON.stringify({
-          input: {
-            ad_account_id: `act_${adAccountId}`,
-            spend_cap_amount: newCapCents.toString(),
-            client_mutation_id: Date.now().toString(),
-          }
-        }),
-        doc_id: '0',
-      }).toString(),
-    })
-    const postText = await postResp.text()
-    console.log(`[Cookie Recharge] GraphQL POST response (first 300): ${postText.substring(0, 300)}`)
-
-    // Check for success
-    try {
-      const postData = JSON.parse(postText)
-      if (postData.errors || postData.error) {
-        const errMsg = postData.errors?.[0]?.message || postData.error?.message || JSON.stringify(postData.errors || postData.error).substring(0, 200)
-        console.log(`[Cookie Recharge] GraphQL mutation error: ${errMsg}`)
-
-        // Last resort: try the standard Graph API POST with cookies as auth
-        // (Some FB internal endpoints accept cookie auth for Graph API)
-        console.log(`[Cookie Recharge] Trying direct Graph API POST with cookies...`)
-        const directResp = await fetch(`https://www.facebook.com/marketing/act_${adAccountId}/update`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Cookie': cookies,
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Origin': 'https://www.facebook.com',
-          },
-          body: new URLSearchParams({
-            fb_dtsg: dtsg,
-            spend_cap: newCapDollars.toString(),
-          }).toString(),
-        })
-        const directText = await directResp.text()
-        console.log(`[Cookie Recharge] Direct POST response (first 200): ${directText.substring(0, 200)}`)
-
-        // If this also failed, return error
-        if (directResp.status !== 200 || directText.includes('error')) {
-          return { success: false, error: `Cookie recharge failed: ${errMsg}` }
-        }
-      }
-    } catch {}
-
-    const details = `currentCap=$${currentCapDollars}, newCap=$${newCapDollars} (cookie-based)`
-    console.log(`[Cookie Recharge] SUCCESS act_${adAccountId}: ${details}`)
-    return { success: true, details }
-  } catch (err: any) {
-    return { success: false, error: `Cookie recharge error: ${err.message}` }
-  }
+): Promise<{ success: boolean; error?: string; details?: string; previousSpendCap?: number; newSpendCap?: number }> {
+  // Cookie-based recharge is unreliable — Facebook internal GraphQL requires real doc_ids.
+  // This function should ONLY return success if it can VERIFY the spend cap changed.
+  console.log(`[Cookie Recharge] Cookie-based recharge is not reliable — skipping for act_${adAccountId}. Use token-based or extension recharge instead.`)
+  return { success: false, error: 'Cookie-based recharge disabled — requires valid EAA token or Chrome extension' }
 }
 
 /**
@@ -1734,7 +1680,7 @@ async function cdpCleanupTabs(debugPort: number, keepAdsmanager = false): Promis
  * Server-side recharge: use stored FB token to update ad account spend cap.
  * Same logic as the extension but runs from Node.js, bypassing cached extension code.
  */
-async function serverSideRecharge(depositId: string, adAccountId: string, amount: number, accessToken: string): Promise<{ success: boolean; error?: string; details?: string }> {
+async function serverSideRecharge(depositId: string, adAccountId: string, amount: number, accessToken: string): Promise<{ success: boolean; error?: string; details?: string; previousSpendCap?: number; newSpendCap?: number }> {
   adAccountId = adAccountId.trim()
   const FB_GRAPH = 'https://graph.facebook.com/v21.0'
 
@@ -1755,9 +1701,10 @@ async function serverSideRecharge(depositId: string, adAccountId: string, amount
     const currentCapDollars = currentCapCents / 100
     const newCapDollars = currentCapDollars + amount
 
-    console.log(`[Server Recharge] act_${adAccountId}: currentCap=$${currentCapDollars}, deposit=$${amount}, newCap=$${newCapDollars}`)
+    console.log(`[Server Recharge] act_${adAccountId}: currentCap=$${currentCapDollars} (${currentCapCents} cents), deposit=$${amount}, newCap=$${newCapDollars}`)
 
-    // Step 2: POST new spend cap
+    // Step 2: POST new spend cap (Facebook Graph API expects spend_cap in the account currency, NOT cents)
+    // The Graph API spend_cap field returns cents but the POST expects dollars for the /act_{id} endpoint
     const postResp = await fetch(`${FB_GRAPH}/act_${adAccountId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1775,9 +1722,28 @@ async function serverSideRecharge(depositId: string, adAccountId: string, amount
       return { success: false, error: `FB POST error: ${postData.error.message || JSON.stringify(postData.error)}` }
     }
 
-    const details = `currentCap=$${currentCapDollars}, newCap=$${newCapDollars}`
+    // Step 3: VERIFY — re-read spend cap to confirm it actually changed
+    console.log(`[Server Recharge] Verifying spend cap change for act_${adAccountId}...`)
+    try {
+      const verifyResp = await fetch(`${FB_GRAPH}/act_${adAccountId}?fields=spend_cap&access_token=${encodeURIComponent(accessToken)}`)
+      const verifyText = await verifyResp.text()
+      const verifyData = JSON.parse(verifyText)
+      if (verifyData.spend_cap) {
+        const verifiedCapCents = parseInt(verifyData.spend_cap, 10)
+        const verifiedCapDollars = verifiedCapCents / 100
+        console.log(`[Server Recharge] Verified spend_cap for act_${adAccountId}: $${verifiedCapDollars} (expected $${newCapDollars})`)
+        if (verifiedCapDollars < newCapDollars - 0.01) {
+          return { success: false, error: `Spend cap verification failed: expected $${newCapDollars} but got $${verifiedCapDollars}`, previousSpendCap: currentCapDollars, newSpendCap: verifiedCapDollars }
+        }
+      }
+    } catch (verifyErr: any) {
+      console.log(`[Server Recharge] Verification read failed (non-fatal): ${verifyErr.message}`)
+      // Non-fatal — the POST succeeded, verification read might fail due to rate limiting
+    }
+
+    const details = `previousCap=$${currentCapDollars}, newCap=$${newCapDollars}`
     console.log(`[Server Recharge] SUCCESS act_${adAccountId}: ${details}`)
-    return { success: true, details }
+    return { success: true, details, previousSpendCap: currentCapDollars, newSpendCap: newCapDollars }
   } catch (err: any) {
     return { success: false, error: `Server recharge error: ${err.message}` }
   }
@@ -1819,6 +1785,7 @@ async function getPendingTasks(): Promise<PendingTask[]> {
   const bmShares = await prisma.bmShareRequest.findMany({
     where: { status: 'PENDING', platform: 'FACEBOOK', shareAttempts: { lt: 5 } },
     select: { id: true, adAccountId: true },
+    orderBy: { createdAt: 'asc' },
     take: 20,
   }).catch(() => [] as any[])
 
@@ -1826,6 +1793,7 @@ async function getPendingTasks(): Promise<PendingTask[]> {
   const recharges = await prisma.accountDeposit.findMany({
     where: { status: 'APPROVED', rechargeStatus: { in: ['PENDING', 'NONE'] } },
     select: { id: true, adAccountId: true, adAccount: { select: { accountId: true } } },
+    orderBy: { createdAt: 'asc' },
     take: 20,
   }).catch(() => [] as any[])
 
@@ -1945,12 +1913,23 @@ async function ensureBrowserRunning(profile: any): Promise<boolean> {
       await sleep(5_000)
       // Fall through to start fresh below
     } else {
-      // Browser is active — retry CDP auto-login since tasks are stuck
-      console.log(`[AdsPower] Browser active for "${profile.label}" (failedCycles=${info.failedCycles}) — retrying CDP auto-login...`)
-      const cdpLoginOk = await cdpAutoLogin(serialNumber, profile)
-      if (cdpLoginOk) {
-        console.log(`[AdsPower] CDP login action taken — waiting 15s for FB to complete login...`)
-        await sleep(15_000)
+      // Browser is active — check if we need CDP auto-login or if extension has a fresh token
+      const currentProfile = await prisma.facebookAutomationProfile.findUnique({
+        where: { id: profile.id },
+        select: { fbAccessToken: true, fbTokenCapturedAt: true },
+      })
+      const age = currentProfile?.fbTokenCapturedAt ? Date.now() - currentProfile.fbTokenCapturedAt.getTime() : Infinity
+      const tokenOk = currentProfile?.fbAccessToken && age < 2 * 60 * 60 * 1000
+
+      if (tokenOk) {
+        console.log(`[AdsPower] Browser active for "${profile.label}" with fresh token (age: ${(age / 60000).toFixed(1)} min) — extension will handle tasks`)
+      } else {
+        console.log(`[AdsPower] Browser active for "${profile.label}" (failedCycles=${info.failedCycles}) but no fresh token — retrying CDP auto-login...`)
+        const cdpLoginOk = await cdpAutoLogin(serialNumber, profile)
+        if (cdpLoginOk) {
+          console.log(`[AdsPower] CDP login action taken — waiting 15s for FB to complete login...`)
+          await sleep(15_000)
+        }
       }
       // Verify heartbeat is still working
       const heartbeatOk = await waitForHeartbeat(profile.id)
@@ -1984,17 +1963,32 @@ async function ensureBrowserRunning(profile: any): Promise<boolean> {
 
   activeBrowsers.set(profile.id, { profileId: profile.id, serialNumber, launchedAt: Date.now(), failedCycles: 0, tasksCompleted: 0 })
 
-  // CDP auto-login BEFORE waiting for heartbeat — click "Continue" button
-  // so FB is logged in by the time extension starts processing tasks
-  console.log(`[AdsPower] Proactive CDP auto-login for "${profile.label}" before heartbeat...`)
-  const cdpLoginOk = await cdpAutoLogin(serialNumber, profile)
-  if (cdpLoginOk) {
-    console.log(`[AdsPower] CDP login action taken — waiting 15s for FB to complete login...`)
-    await sleep(15_000)
+  // Check if profile already has a fresh token — if so, skip CDP auto-login entirely.
+  // The extension will try the stored token first (3-step escalation: token → rehydrate → login).
+  // CDP auto-login is only needed if there's no token at all.
+  const freshProfile = await prisma.facebookAutomationProfile.findUnique({
+    where: { id: profile.id },
+    select: { fbAccessToken: true, fbTokenCapturedAt: true },
+  })
+  const tokenAge = freshProfile?.fbTokenCapturedAt ? Date.now() - freshProfile.fbTokenCapturedAt.getTime() : Infinity
+  const hasRecentToken = freshProfile?.fbAccessToken && tokenAge < 2 * 60 * 60 * 1000 // 2 hours
+
+  if (hasRecentToken) {
+    console.log(`[AdsPower] Profile "${profile.label}" has fresh token (age: ${(tokenAge / 60000).toFixed(1)} min) — skipping CDP auto-login`)
+    // Just wait a bit for extension to boot up
+    await sleep(5_000)
   } else {
-    // Even if CDP failed, wait a bit — extension might already be logged in from previous session
-    console.log(`[AdsPower] CDP login failed — waiting 10s before checking heartbeat...`)
-    await sleep(10_000)
+    // No recent token — run CDP auto-login to establish FB session
+    console.log(`[AdsPower] No fresh token for "${profile.label}" (age: ${tokenAge === Infinity ? 'never' : (tokenAge / 60000).toFixed(1) + ' min'}) — running CDP auto-login...`)
+    const cdpLoginOk = await cdpAutoLogin(serialNumber, profile)
+    if (cdpLoginOk) {
+      console.log(`[AdsPower] CDP login action taken — waiting 15s for FB to complete login...`)
+      await sleep(15_000)
+    } else {
+      // Even if CDP failed, wait a bit — extension might already be logged in from previous session
+      console.log(`[AdsPower] CDP login failed — waiting 10s before checking heartbeat...`)
+      await sleep(10_000)
+    }
   }
 
   const heartbeatOk = await waitForHeartbeat(profile.id)
@@ -2024,21 +2018,18 @@ async function pollForTasks(): Promise<void> {
 
     console.log(`[AdsPower] Found ${tasks.length} pending tasks`)
 
-    // Group tasks by ad account → find correct profile for each
+    // Group tasks by admin-assigned profile (extensionProfileId on AdAccount)
+    // ONLY open the profile that admin assigned — no fallback to random profiles
     const profilesToLaunch = new Map<string, { profile: any; adAccountIds: Set<string> }>()
 
     for (const task of tasks) {
-      // Find profile that has this ad account
-      let profile = await findProfileForAdAccount(task.adAccountId)
+      // Find the admin-assigned profile for this ad account
+      const profile = await findProfileForAdAccount(task.adAccountId)
 
       if (!profile) {
-        // No profile has this ad account — use fallback
-        profile = await getAnyAvailableProfile()
-        if (!profile) {
-          console.log(`[AdsPower] No profile found for ad account ${task.adAccountId}`)
-          continue
-        }
-        console.log(`[AdsPower] No profile match for act_${task.adAccountId}, using fallback "${profile.label}"`)
+        // No profile assigned — skip, admin needs to assign one
+        console.log(`[AdsPower] act_${task.adAccountId} has no assigned profile — skipping (admin must assign extensionProfileId)`)
+        continue
       }
 
       if (!profilesToLaunch.has(profile.id)) {
@@ -2052,14 +2043,28 @@ async function pollForTasks(): Promise<void> {
       return
     }
 
-    // Launch each needed profile
+    // Pick ONE profile to launch this cycle — most tasks first
+    // Others will be picked up in the next 30s poll cycle
+    const sorted = Array.from(profilesToLaunch.entries()).sort((a, b) => {
+      return b[1].adAccountIds.size - a[1].adAccountIds.size
+    })
+
+    const [bestProfileId, { profile: bestProfile, adAccountIds: bestAccounts }] = sorted[0]
+    if (sorted.length > 1) {
+      console.log(`[AdsPower] ${sorted.length} profiles need launching — picking "${bestProfile.label}" first (${bestAccounts.size} tasks). Others deferred to next cycle.`)
+    }
+
+    // Launch only the best profile
     let anyBrowserLaunched = false
-    for (const [profileId, { profile, adAccountIds }] of profilesToLaunch) {
-      console.log(`[AdsPower] Opening "${profile.label}" (serial=${profile.adsPowerSerialNumber}) for ${adAccountIds.size} ad accounts: ${Array.from(adAccountIds).map(id => 'act_' + id).join(', ')}`)
-      const ok = await ensureBrowserRunning(profile)
-      if (!ok) continue
+    console.log(`[AdsPower] Opening "${bestProfile.label}" (serial=${bestProfile.adsPowerSerialNumber}) for ${bestAccounts.size} ad accounts: ${Array.from(bestAccounts).map(id => 'act_' + id).join(', ')}`)
+    const ok = await ensureBrowserRunning(bestProfile)
+    if (ok) {
       anyBrowserLaunched = true
-      console.log(`[AdsPower] Extension running in "${profile.label}" — processing...`)
+      console.log(`[AdsPower] Extension running in "${bestProfile.label}" — processing...`)
+    }
+    // Keep only the launched profile in profilesToLaunch for the rest of the function
+    for (const key of Array.from(profilesToLaunch.keys())) {
+      if (key !== bestProfileId) profilesToLaunch.delete(key)
     }
 
     // If no browser launched, skip the 5-min wait — tasks can't be processed
@@ -2113,8 +2118,30 @@ async function pollForTasks(): Promise<void> {
         break
       }
 
+      // After 60s, if extension still has no token, trigger CDP force token capture
+      if ((Date.now() - startTime) > 60_000) {
+        for (const [profileId, { profile: p }] of profilesToLaunch) {
+          const currentProfile = await prisma.facebookAutomationProfile.findUnique({
+            where: { id: profileId },
+            select: { fbAccessToken: true, fbTokenCapturedAt: true, label: true },
+          })
+          const tokenAge = currentProfile?.fbTokenCapturedAt ? Date.now() - currentProfile.fbTokenCapturedAt.getTime() : Infinity
+          const hasValidToken = currentProfile?.fbAccessToken && tokenAge < 300_000 // 5 min
+
+          if (!hasValidToken) {
+            console.log(`[AdsPower] Extension has no fresh token for "${currentProfile?.label || profileId}" after 60s — triggering CDP force token capture...`)
+            const serial = p.adsPowerSerialNumber!
+            const capturedToken = await cdpForceTokenCapture(serial, p)
+            if (capturedToken) {
+              console.log(`[AdsPower] CDP force token capture succeeded for "${currentProfile?.label}" (len=${capturedToken.length}) — extension should pick up tasks now`)
+            } else {
+              console.log(`[AdsPower] CDP force token capture failed for "${currentProfile?.label}" — will try cdpAutoLogin next`)
+            }
+          }
+        }
+      }
+
       // Break early if profiles have cookie_fallback status — extension can't recharge without token
-      // Go directly to server-side cookie-based recharge
       if ((Date.now() - startTime) > 30_000) {
         const cookieFallbackProfiles = await prisma.facebookAutomationProfile.count({
           where: {
@@ -2124,7 +2151,7 @@ async function pollForTasks(): Promise<void> {
           },
         })
         if (cookieFallbackProfiles > 0 && remaining.filter(t => t.type === 'recharge').length > 0) {
-          console.log(`[AdsPower] ${cookieFallbackProfiles} profile(s) in cookie_fallback mode — breaking wait loop for cookie-based recharge`)
+          console.log(`[AdsPower] ${cookieFallbackProfiles} profile(s) in cookie_fallback mode — breaking wait loop`)
           break
         }
       }
@@ -2170,22 +2197,20 @@ async function pollForTasks(): Promise<void> {
           await sleep(15_000)
         }
 
-        // Get fresh token or cookie session
+        // Get fresh token (cookie-based recharge is disabled — unreliable)
         const updatedProfile = await prisma.facebookAutomationProfile.findUnique({
           where: { id: profileId },
-          select: { fbAccessToken: true, fbTokenCapturedAt: true, label: true, managedAdAccountIds: true, fbCookies: true, fbDtsg: true },
+          select: { fbAccessToken: true, fbTokenCapturedAt: true, label: true, managedAdAccountIds: true },
         })
         const tokenFresh = updatedProfile?.fbTokenCapturedAt && (Date.now() - updatedProfile.fbTokenCapturedAt.getTime()) < 300_000
         const hasToken = updatedProfile?.fbAccessToken && tokenFresh
-        const hasCookies = updatedProfile?.fbCookies && typeof updatedProfile.fbCookies === 'string' && updatedProfile.fbCookies.includes('c_user=')
 
-        if (!hasToken && !hasCookies) {
-          console.log(`[AdsPower] No fresh token or cookies for "${updatedProfile?.label || profileId}" — cannot do server-side recharge`)
+        if (!hasToken) {
+          console.log(`[AdsPower] No fresh token for "${updatedProfile?.label || profileId}" — server-side recharge not possible, leaving for extension`)
           continue
         }
 
-        const method = hasToken ? 'token' : 'cookie'
-        console.log(`[AdsPower] Recharge method: ${method} for "${updatedProfile!.label}" — processing ${failedDeposits.length} deposits...`)
+        console.log(`[AdsPower] Server-side recharge (token) for "${updatedProfile!.label}" — processing ${failedDeposits.length} deposits...`)
 
         for (const deposit of failedDeposits) {
           const fbAccountId = deposit.adAccount?.accountId
@@ -2204,56 +2229,42 @@ async function pollForTasks(): Promise<void> {
             continue
           }
 
-          console.log(`[AdsPower] Server-side recharge (${method}): deposit ${deposit.id}, act_${fbAccountId}, $${deposit.amount}`)
+          console.log(`[AdsPower] Server-side recharge (token): deposit ${deposit.id}, act_${fbAccountId}, $${deposit.amount}`)
 
-          let result: { success: boolean; error?: string; details?: string }
-
-          if (hasToken) {
-            // Primary: use EAA access token
-            result = await serverSideRecharge(deposit.id, fbAccountId, deposit.amount, updatedProfile!.fbAccessToken!)
-          } else {
-            // Fallback: use cookies + fb_dtsg
-            result = await cookieBasedRecharge(deposit.id, fbAccountId, deposit.amount, updatedProfile!.fbCookies as string, updatedProfile!.fbDtsg || '')
-          }
+          const result = await serverSideRecharge(deposit.id, fbAccountId, deposit.amount, updatedProfile!.fbAccessToken!)
 
           if (result.success) {
+            const rechargeDetails = result.previousSpendCap !== undefined
+              ? `Server recharge: previousCap=$${result.previousSpendCap}, newCap=$${result.newSpendCap}`
+              : result.details || 'Server recharge completed'
             await prisma.accountDeposit.update({
               where: { id: deposit.id },
               data: {
                 rechargeStatus: 'COMPLETED',
                 rechargeMethod: 'SERVER',
                 rechargedAt: new Date(),
-                rechargedBy: `server-worker-${method}`,
+                rechargedBy: `server-worker-token`,
                 rechargeError: null,
+                adminRemarks: rechargeDetails,
               },
             })
-            console.log(`[AdsPower] Deposit ${deposit.id} RECHARGE COMPLETED via ${method}! ${result.details}`)
+            console.log(`[AdsPower] Deposit ${deposit.id} RECHARGE COMPLETED via token! ${result.details}`)
           } else {
-            // If token-based failed, try cookie fallback
-            if (hasToken && hasCookies) {
-              console.log(`[AdsPower] Token recharge failed, trying cookie fallback for ${deposit.id}...`)
-              const cookieResult = await cookieBasedRecharge(deposit.id, fbAccountId, deposit.amount, updatedProfile!.fbCookies as string, updatedProfile!.fbDtsg || '')
-              if (cookieResult.success) {
-                await prisma.accountDeposit.update({
-                  where: { id: deposit.id },
-                  data: {
-                    rechargeStatus: 'COMPLETED',
-                    rechargeMethod: 'SERVER',
-                    rechargedAt: new Date(),
-                    rechargedBy: 'server-worker-cookie-fallback',
-                    rechargeError: null,
-                  },
-                })
-                console.log(`[AdsPower] Deposit ${deposit.id} RECHARGE COMPLETED via cookie fallback! ${cookieResult.details}`)
-                continue
-              }
-              result = cookieResult
-            }
             await prisma.accountDeposit.update({
               where: { id: deposit.id },
               data: { rechargeStatus: 'FAILED', rechargeError: result.error },
             })
             console.error(`[AdsPower] Server recharge FAILED for ${deposit.id}: ${result.error}`)
+
+            // If token is invalid/expired, clear it so it's not reused
+            if (result.error?.includes('Invalid request') || result.error?.includes('Invalid OAuth') || result.error?.includes('expired')) {
+              console.log(`[AdsPower] Clearing invalid token for "${updatedProfile!.label}" — token rejected by Facebook`)
+              await prisma.facebookAutomationProfile.update({
+                where: { id: profileId },
+                data: { fbAccessToken: null, fbTokenCapturedAt: null, fbTokenValidatedAt: null },
+              })
+              break // Don't try more deposits with this bad token
+            }
           }
         }
       }
@@ -2360,6 +2371,16 @@ async function cleanupIdleBrowsers(): Promise<void> {
  */
 export async function discoverAccountProfile(adAccountId: string): Promise<string | null> {
   console.log(`[AdsPower Discovery] Starting discovery for act_${adAccountId}`)
+
+  // If the account already has an admin-assigned extensionProfileId, respect it — don't overwrite
+  const existingAccount = await prisma.adAccount.findFirst({
+    where: { accountId: adAccountId },
+    select: { extensionProfileId: true },
+  })
+  if (existingAccount?.extensionProfileId) {
+    console.log(`[AdsPower Discovery] act_${adAccountId} already has extensionProfileId=${existingAccount.extensionProfileId} (admin-assigned), skipping discovery`)
+    return existingAccount.extensionProfileId
+  }
 
   // Get all enabled profiles with AdsPower config
   const profiles = await prisma.facebookAutomationProfile.findMany({
