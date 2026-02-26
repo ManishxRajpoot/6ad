@@ -853,6 +853,8 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000, na
     let msgId = 1
     const seenTokens = new Set<string>()
     let requestCount = 0
+    let bearerCount = 0
+    let authHeaderCount = 0
 
     function cleanup() {
       if (timeout) { clearTimeout(timeout); timeout = null }
@@ -900,7 +902,7 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000, na
       ws = new WebSocket(tabWsUrl)
 
       timeout = setTimeout(() => {
-        console.log(`[AdsPower CDP] Network interception timed out after ${timeoutMs / 1000}s (${requestCount} requests, ${seenTokens.size} tokens checked)`)
+        console.log(`[AdsPower CDP] Network interception timed out after ${timeoutMs / 1000}s (${requestCount} requests, ${seenTokens.size} tokens checked, ${bearerCount} Bearer EAA headers, ${authHeaderCount} Authorization headers)`)
         done(null)
       }, timeoutMs)
 
@@ -937,9 +939,13 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000, na
 
             // Check Authorization: Bearer EAA... header (Facebook's current auth method)
             const authHeader = headers['Authorization'] || headers['authorization'] || ''
+            if (authHeader) authHeaderCount++
             const bearerMatch = authHeader.match(/Bearer\s+(EAA[a-zA-Z0-9._-]+)/)
-            if (bearerMatch && bearerMatch[1].length >= 40 && bearerMatch[1].length < 500) {
-              validateAndResolve(bearerMatch[1])
+            if (bearerMatch) {
+              bearerCount++
+              if (bearerMatch[1].length >= 40 && bearerMatch[1].length < 500) {
+                validateAndResolve(bearerMatch[1])
+              }
             }
 
             // Check URL for access_token (legacy format)
