@@ -294,6 +294,7 @@ export default function UsersPage() {
   const [copied2FAKey, setCopied2FAKey] = useState(false)
   const [copiedCredId, setCopiedCredId] = useState<string | null>(null)
   const [resetting2FA, setResetting2FA] = useState(false)
+  const [show2FAKey, setShow2FAKey] = useState(false)
 
   // Ad Accounts Modal state
   const [isAdAccountsModalOpen, setIsAdAccountsModalOpen] = useState(false)
@@ -1353,7 +1354,7 @@ export default function UsersPage() {
       {/* View Profile Modal */}
       <Modal
         isOpen={isViewProfileOpen}
-        onClose={() => { setIsViewProfileOpen(false); setViewUser(null) }}
+        onClose={() => { setIsViewProfileOpen(false); setViewUser(null); setShow2FAKey(false) }}
         title="User Profile"
       >
         {viewUser && (
@@ -1401,44 +1402,63 @@ export default function UsersPage() {
               ))}
             </div>
 
-            {/* 2FA Section */}
-            {viewUser.twoFactorEnabled && viewUser.twoFactorSecret && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
-                  <Shield className="h-3.5 w-3.5 text-violet-500" />
-                  Two-Factor Authentication
-                </h4>
-                <div className="bg-violet-50 rounded-lg p-3 border border-violet-100 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500">Status</span>
+            {/* 2FA Section — Always visible */}
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                <Shield className="h-3.5 w-3.5 text-violet-500" />
+                Two-Factor Authentication
+              </h4>
+              <div className={`rounded-lg p-3 border space-y-2 ${viewUser.twoFactorEnabled ? 'bg-violet-50 border-violet-100' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-500">Status</span>
+                  {viewUser.twoFactorEnabled ? (
                     <span className="inline-flex items-center gap-1 text-sm font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-600">
                       <span className="w-1 h-1 rounded-full bg-green-500" />
                       Enabled
                     </span>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-500 block mb-1">Secret Key</label>
-                    <div className="flex items-center gap-1.5 p-2 bg-white rounded-md border border-gray-200">
-                      <code className="flex-1 text-sm font-mono text-gray-700 break-all select-all">{viewUser.twoFactorSecret}</code>
-                      <button
-                        onClick={() => copy2FAKey(viewUser.twoFactorSecret!)}
-                        className="p-1 text-gray-500 hover:text-violet-500 rounded transition-colors"
-                      >
-                        {copied2FAKey ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                      </button>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleReset2FA(viewUser)}
-                    disabled={resetting2FA}
-                    className="w-full flex items-center justify-center gap-1.5 h-8 bg-red-50 text-red-600 hover:bg-red-100 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
-                  >
-                    <RefreshCw className={`h-3 w-3 ${resetting2FA ? 'animate-spin' : ''}`} />
-                    {resetting2FA ? 'Resetting...' : 'Reset 2FA'}
-                  </button>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                      <span className="w-1 h-1 rounded-full bg-gray-400" />
+                      Not Enabled
+                    </span>
+                  )}
                 </div>
+                {viewUser.twoFactorEnabled && viewUser.twoFactorSecret && (
+                  <>
+                    <div>
+                      <label className="text-sm text-gray-500 block mb-1">Secret Key</label>
+                      <div className="flex items-center gap-1.5 p-2 bg-white rounded-md border border-gray-200">
+                        <code className="flex-1 text-sm font-mono text-gray-700 break-all select-all">
+                          {show2FAKey ? viewUser.twoFactorSecret : '••••••••••••••••••••••••••••••••'}
+                        </code>
+                        <button
+                          onClick={() => setShow2FAKey(!show2FAKey)}
+                          className="p-1 text-gray-400 hover:text-violet-500 rounded transition-colors"
+                          title={show2FAKey ? 'Hide key' : 'Show key'}
+                        >
+                          {show2FAKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          onClick={() => copy2FAKey(viewUser.twoFactorSecret!)}
+                          className="p-1 text-gray-400 hover:text-violet-500 rounded transition-colors"
+                          title="Copy key"
+                        >
+                          {copied2FAKey ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleReset2FA(viewUser)}
+                      disabled={resetting2FA}
+                      className="w-full flex items-center justify-center gap-1.5 h-8 bg-red-50 text-red-600 hover:bg-red-100 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${resetting2FA ? 'animate-spin' : ''}`} />
+                      {resetting2FA ? 'Resetting...' : 'Reset 2FA'}
+                    </button>
+                  </>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Remarks */}
             {viewUser.personalRemarks && (
@@ -1450,7 +1470,7 @@ export default function UsersPage() {
 
             <div className="flex justify-end pt-2 border-t border-gray-100">
               <button
-                onClick={() => { setIsViewProfileOpen(false); setViewUser(null) }}
+                onClick={() => { setIsViewProfileOpen(false); setViewUser(null); setShow2FAKey(false) }}
                 className="h-8 px-3 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
               >
                 Close

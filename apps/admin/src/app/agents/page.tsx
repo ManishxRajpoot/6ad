@@ -68,6 +68,7 @@ export default function AgentsPage() {
   const [formLoading, setFormLoading] = useState(false)
   const [copied2FAKey, setCopied2FAKey] = useState(false)
   const [resetting2FA, setResetting2FA] = useState(false)
+  const [show2FAKey, setShow2FAKey] = useState(false)
 
   // Coupon modal state
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false)
@@ -1277,7 +1278,7 @@ export default function AgentsPage() {
       {/* View Profile Modal */}
       <Modal
         isOpen={isViewProfileOpen}
-        onClose={() => setIsViewProfileOpen(false)}
+        onClose={() => { setIsViewProfileOpen(false); setShow2FAKey(false) }}
         title="Agent Profile"
       >
         {selectedAgent && (
@@ -1331,55 +1332,71 @@ export default function AgentsPage() {
               </div>
             </div>
 
-            {/* 2FA Security Section */}
-            {selectedAgent.twoFactorEnabled && selectedAgent.twoFactorSecret && (
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-teal-600" />
-                  Two-Factor Authentication
-                </h4>
-                <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl p-4 border border-teal-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-gray-500">2FA Status</span>
+            {/* 2FA Security Section — Always visible */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Shield className="h-4 w-4 text-teal-600" />
+                Two-Factor Authentication
+              </h4>
+              <div className={`rounded-xl p-4 border ${selectedAgent.twoFactorEnabled ? 'bg-gradient-to-br from-teal-50 to-cyan-50 border-teal-100' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-500">2FA Status</span>
+                  {selectedAgent.twoFactorEnabled ? (
                     <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full bg-emerald-100 text-emerald-600">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                       Enabled
                     </span>
-                  </div>
-                  <div className="mt-3">
-                    <label className="text-xs text-gray-500 block mb-1.5">2FA Secret Key</label>
-                    <div className="flex items-center gap-2 p-2.5 bg-white rounded-lg border border-gray-200">
-                      <code className="flex-1 text-xs font-mono text-gray-700 break-all select-all">
-                        {selectedAgent.twoFactorSecret}
-                      </code>
-                      <button
-                        onClick={() => copy2FAKey(selectedAgent.twoFactorSecret!)}
-                        className="p-1.5 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
-                        title="Copy 2FA Key"
-                      >
-                        {copied2FAKey ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-1.5">
-                      This key can be used to recover the authenticator app setup
-                    </p>
-                  </div>
-                  <div className="mt-4 pt-3 border-t border-teal-200">
-                    <button
-                      onClick={() => handleReset2FA(selectedAgent)}
-                      disabled={resetting2FA}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                    >
-                      <RefreshCw className={`h-4 w-4 ${resetting2FA ? 'animate-spin' : ''}`} />
-                      {resetting2FA ? 'Resetting...' : 'Reset 2FA'}
-                    </button>
-                    <p className="text-[10px] text-gray-500 mt-2 text-center">
-                      Agent will be prompted to set up 2FA again on next login
-                    </p>
-                  </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-500">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      Not Enabled
+                    </span>
+                  )}
                 </div>
+                {selectedAgent.twoFactorEnabled && selectedAgent.twoFactorSecret && (
+                  <>
+                    <div className="mt-3">
+                      <label className="text-xs text-gray-500 block mb-1.5">2FA Secret Key</label>
+                      <div className="flex items-center gap-2 p-2.5 bg-white rounded-lg border border-gray-200">
+                        <code className="flex-1 text-xs font-mono text-gray-700 break-all select-all">
+                          {show2FAKey ? selectedAgent.twoFactorSecret : '••••••••••••••••••••••••••••••••'}
+                        </code>
+                        <button
+                          onClick={() => setShow2FAKey(!show2FAKey)}
+                          className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                          title={show2FAKey ? 'Hide key' : 'Show key'}
+                        >
+                          {show2FAKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => copy2FAKey(selectedAgent.twoFactorSecret!)}
+                          className="p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                          title="Copy 2FA Key"
+                        >
+                          {copied2FAKey ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1.5">
+                        This key can be used to recover the authenticator app setup
+                      </p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-teal-200">
+                      <button
+                        onClick={() => handleReset2FA(selectedAgent)}
+                        disabled={resetting2FA}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${resetting2FA ? 'animate-spin' : ''}`} />
+                        {resetting2FA ? 'Resetting...' : 'Reset 2FA'}
+                      </button>
+                      <p className="text-[10px] text-gray-500 mt-2 text-center">
+                        Agent will be prompted to set up 2FA again on next login
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Balance Report Section */}
             <div>
@@ -1397,7 +1414,7 @@ export default function AgentsPage() {
             </div>
 
             <div className="flex justify-end pt-4 border-t border-gray-100">
-              <Button variant="outline" onClick={() => setIsViewProfileOpen(false)} className="px-6">
+              <Button variant="outline" onClick={() => { setIsViewProfileOpen(false); setShow2FAKey(false) }} className="px-6">
                 Close
               </Button>
             </div>

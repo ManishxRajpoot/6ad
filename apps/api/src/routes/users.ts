@@ -131,6 +131,7 @@ users.get('/', requireAgent, async (c) => {
           personalRemarks: true,
           agentId: true,
           twoFactorEnabled: true,
+          twoFactorSecret: true,
           createdAt: true,
           agent: {
             select: { id: true, username: true }
