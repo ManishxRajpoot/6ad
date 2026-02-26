@@ -616,80 +616,24 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
         console.log(`[AdsPower CDP] __accessToken found on home.php immediately! (len=${quickToken.length})`)
       }
 
-      // Phase 2: Navigate to Ads Manager to trigger authenticated API calls
+      // Phase 2: Use CDP Network interception to capture Bearer tokens DURING Ads Manager load
+      // Key: Network.enable + Page.navigate BEFORE page loads = catches Authorization: Bearer EAA headers
       if (!capturedToken) {
-        console.log(`[AdsPower CDP] Phase 2: Navigating to Ads Manager to trigger token generation...`)
-        await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.location.href = 'https://adsmanager.facebook.com/adsmanager/manage/accounts'`)
-        await sleep(15000) // Wait for Ads Manager to load and make API calls
+        console.log(`[AdsPower CDP] Phase 2: CDP network interception on Ads Manager (catches Bearer headers)...`)
+        capturedToken = await cdpInterceptToken(
+          fbTab.webSocketDebuggerUrl,
+          60000, // 60s timeout — adsmanager can be slow
+          'https://adsmanager.facebook.com/adsmanager/manage/accounts'
+        )
+        if (capturedToken) {
+          console.log(`[AdsPower CDP] Token captured from Ads Manager Bearer headers!`)
+        }
 
-        // Re-inject interceptor on Ads Manager (page navigation clears JS state)
-        await cdpEvaluate(fbTab.webSocketDebuggerUrl, `
-          (function() {
-            if (window.__6adCdpInterceptor) return 'already_installed';
-            window.__6adCdpInterceptor = true;
-            window.__6adCapturedTokens = [];
-            function saveToken(token, source) {
-              if (!token || typeof token !== 'string') return;
-              if (token.indexOf('EAA') !== 0 || token.length < 20) return;
-              for (var i = 0; i < window.__6adCapturedTokens.length; i++) { if (window.__6adCapturedTokens[i].token === token) return; }
-              window.__6adCapturedTokens.push({ token: token, source: source, time: Date.now() });
-            }
-            function extractToken(str) {
-              if (!str || typeof str !== 'string') return null;
-              var bm = str.match(/Bearer\\s+(EAA[a-zA-Z0-9._-]+)/); if (bm) return bm[1];
-              var m = str.match(/access_token=([^&\\s"']+)/);
-              if (m) { try { var d = decodeURIComponent(m[1]); if (d.indexOf('EAA') === 0) return d; } catch(e) {} if (m[1].indexOf('EAA') === 0) return m[1]; }
-              return null;
-            }
-            var origFetch = window.fetch;
-            window.fetch = function(input, init) {
-              try {
-                var url = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
-                var t = extractToken(url); if (t) saveToken(t, 'fetch-url');
-                if (init) {
-                  if (init.headers) {
-                    var h = init.headers; var auth = null;
-                    if (typeof h.get === 'function') auth = h.get('Authorization') || h.get('authorization');
-                    else if (typeof h === 'object') auth = h['Authorization'] || h['authorization'];
-                    if (auth) { var at = extractToken(auth); if (at) saveToken(at, 'fetch-auth-header'); }
-                  }
-                  if (init.body) {
-                    if (typeof init.body === 'string') { var bt = extractToken(init.body); if (bt) saveToken(bt, 'fetch-body'); }
-                    if (typeof init.body === 'object' && init.body.get) { try { var ft = init.body.get('access_token'); if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'fetch-formdata'); } catch(e) {} }
-                    if (init.body instanceof URLSearchParams) { var ut = init.body.get('access_token'); if (ut && ut.indexOf('EAA') === 0) saveToken(ut, 'fetch-urlsearchparams'); }
-                  }
-                }
-              } catch(e) {}
-              return origFetch.apply(this, arguments);
-            };
-            var origOpen = XMLHttpRequest.prototype.open;
-            var origSend = XMLHttpRequest.prototype.send;
-            var origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
-            XMLHttpRequest.prototype.open = function(method, url) { this.__6adUrl = url; return origOpen.apply(this, arguments); };
-            XMLHttpRequest.prototype.setRequestHeader = function(name, value) {
-              if (name && name.toLowerCase() === 'authorization' && value) { var at = extractToken(value); if (at) saveToken(at, 'xhr-auth-header'); }
-              return origSetHeader.apply(this, arguments);
-            };
-            XMLHttpRequest.prototype.send = function(body) {
-              try {
-                if (this.__6adUrl) { var t = extractToken(String(this.__6adUrl)); if (t) saveToken(t, 'xhr-url'); }
-                if (body && typeof body === 'string') { var bt = extractToken(body); if (bt) saveToken(bt, 'xhr-body'); }
-                if (body && typeof body === 'object' && body.get) { try { var ft = body.get('access_token'); if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'xhr-formdata'); } catch(e) {} }
-              } catch(e) {}
-              return origSend.apply(this, arguments);
-            };
-            return 'installed';
-          })()
-        `)
-
-        // Wait more for API calls to happen with interceptors active
-        await sleep(15000)
-
-        // Check intercepted tokens
+        // Also check JS intercepted tokens (for any late requests after page settled)
         const intercepted = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `JSON.stringify(window.__6adCapturedTokens || [])`)
         let tokens: any[] = []
         try { tokens = JSON.parse(intercepted || '[]') } catch {}
-        console.log(`[AdsPower CDP] JS interceptor captured ${tokens.length} tokens on Ads Manager`)
+        if (tokens.length > 0) console.log(`[AdsPower CDP] JS interceptor also captured ${tokens.length} tokens`)
 
         // Try each captured token (prefer longer ones — user tokens are typically >150 chars)
         tokens.sort((a: any, b: any) => (b.token?.length || 0) - (a.token?.length || 0))
