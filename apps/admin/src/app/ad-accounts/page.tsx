@@ -7,6 +7,7 @@ import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
 import { accountsApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 import { useDateFilterStore } from '@/store/dateFilter'
 import {
   Search, ChevronDown, ChevronLeft, ChevronRight, Loader2,
@@ -77,6 +78,7 @@ const platformLabel = (p: string) => {
 
 export default function AllAdAccountsPage() {
   const toast = useToast()
+  const confirm = useConfirm()
   const { startDate, endDate } = useDateFilterStore()
 
   const [accounts, setAccounts] = useState<AdAccount[]>([])
@@ -154,7 +156,8 @@ export default function AllAdAccountsPage() {
   }
 
   const handleSuspend = async (acc: AdAccount) => {
-    if (!confirm(`Suspend "${acc.accountName || acc.accountId}"? It will be hidden from the user's panel.`)) return
+    const confirmed = await confirm({ title: 'Suspend Account', message: `Suspend "${acc.accountName || acc.accountId}"? It will be hidden from the user's panel.`, variant: 'danger' })
+    if (!confirmed) return
     setActionLoadingId(acc.id)
     try {
       await accountsApi.updateStatus(acc.id, 'SUSPENDED')
@@ -181,7 +184,8 @@ export default function AllAdAccountsPage() {
   }
 
   const handleDelete = async (acc: AdAccount) => {
-    if (!confirm(`Permanently delete "${acc.accountName || acc.accountId}"? This cannot be undone.`)) return
+    const confirmed = await confirm({ title: 'Delete Account', message: `Permanently delete "${acc.accountName || acc.accountId}"? This cannot be undone.`, variant: 'danger' })
+    if (!confirmed) return
     setActionLoadingId(acc.id)
     try {
       await accountsApi.delete(acc.id)

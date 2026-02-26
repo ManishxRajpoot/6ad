@@ -10,6 +10,7 @@ import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
 import { agentsApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 import {
   Plus, Search, MoreVertical, Eye, Edit, Ban, Trash2, DollarSign,
   Users as UsersIcon, ChevronDown, ChevronLeft, ChevronRight, Shield,
@@ -46,6 +47,7 @@ type Agent = {
 
 export default function AgentsPage() {
   const toast = useToast()
+  const confirm = useConfirm()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -134,9 +136,12 @@ export default function AgentsPage() {
   }
 
   const handleReset2FA = async (agent: Agent) => {
-    if (!confirm(`Are you sure you want to reset 2FA for ${agent.username}? They will need to set up 2FA again on next login.`)) {
-      return
-    }
+    const confirmed = await confirm({
+      title: 'Reset 2FA',
+      message: `Are you sure you want to reset 2FA for ${agent.username}? They will need to set up 2FA again on next login.`,
+      variant: 'danger'
+    })
+    if (!confirmed) return
 
     setResetting2FA(true)
     try {
@@ -312,14 +317,19 @@ export default function AgentsPage() {
   }
 
   const handleDeleteAgent = async (agent: Agent) => {
-    if (confirm(`Are you sure you want to delete ${agent.username}? This action cannot be undone. Note: Their users will NOT be deleted.`)) {
-      try {
-        await agentsApi.delete(agent.id)
-        toast.success('Agent Deleted', `${agent.username} has been removed from the system`)
-        fetchAgents()
-      } catch (error: any) {
-        toast.error('Failed to delete agent', error.message || 'An error occurred while deleting the agent')
-      }
+    const confirmed = await confirm({
+      title: 'Delete Agent',
+      message: `Are you sure you want to delete ${agent.username}? This action cannot be undone. Note: Their users will NOT be deleted.`,
+      variant: 'danger'
+    })
+    if (!confirmed) return
+
+    try {
+      await agentsApi.delete(agent.id)
+      toast.success('Agent Deleted', `${agent.username} has been removed from the system`)
+      fetchAgents()
+    } catch (error: any) {
+      toast.error('Failed to delete agent', error.message || 'An error occurred while deleting the agent')
     }
   }
 

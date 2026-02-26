@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { Table, TableHeader, TableBody, TableRow, TableCell } from '@/components/ui/Table'
 import { accountsApi, usersApi } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Plus, Search, Edit, Trash2 } from 'lucide-react'
 
@@ -41,6 +43,8 @@ type PlatformPageProps = {
 }
 
 export function PlatformPage({ platform, title }: PlatformPageProps) {
+  const toast = useToast()
+  const confirm = useConfirm()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -124,20 +128,21 @@ export function PlatformPage({ platform, title }: PlatformPageProps) {
       setIsModalOpen(false)
       fetchData()
     } catch (error: any) {
-      alert(error.message || 'Failed to save account')
+      toast.error('Error', error.message || 'Failed to save account')
     } finally {
       setFormLoading(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this account?')) return
+    const confirmed = await confirm({ title: 'Delete Account', message: 'Are you sure you want to delete this account?', variant: 'danger' })
+    if (!confirmed) return
 
     try {
       await accountsApi.delete(id)
       fetchData()
     } catch (error: any) {
-      alert(error.message || 'Failed to delete account')
+      toast.error('Error', error.message || 'Failed to delete account')
     }
   }
 

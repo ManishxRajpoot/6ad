@@ -17,6 +17,25 @@ import {
 const prisma = new PrismaClient()
 import { verifyToken, requireAgent, requireAdmin, requireUser } from '../middleware/auth.js'
 import { createNotification } from './notifications.js'
+import sharp from 'sharp'
+
+// Compress base64 image proof to reduce DB bloat (~80% smaller)
+async function compressPaymentProof(base64: string | undefined | null): Promise<string | null> {
+  if (!base64 || typeof base64 !== 'string') return null
+  // Only process base64 data URIs
+  const match = base64.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/)
+  if (!match) return base64 // Not a base64 image, store as-is (URL etc.)
+  try {
+    const buffer = Buffer.from(match[2], 'base64')
+    const compressed = await sharp(buffer)
+      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 60 })
+      .toBuffer()
+    return `data:image/jpeg;base64,${compressed.toString('base64')}`
+  } catch {
+    return base64 // If compression fails, store original
+  }
+}
 
 // Helper to get admin emails for notifications
 async function getAdminEmails(): Promise<string[]> {
@@ -92,7 +111,8 @@ const generateApplyId = () => {
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
-  const random = Math.floor(1000000 + Math.random() * 9000000) // 7-digit random
+  const { randomInt } = require('crypto')
+  const random = randomInt(1000000, 10000000) // 7-digit cryptographic random
   return `WD${year}${month}${day}${random}`
 }
 
@@ -101,13 +121,14 @@ const generateApplyId = () => {
 transactions.post('/deposits', requireUser, async (c) => {
   try {
     const userId = c.get('userId') as string
-    const { amount, paymentMethod, transactionId, remarks, paymentProof } = await c.req.json()
+    const { amount, paymentMethod, transactionId, remarks, paymentProof: rawProof } = await c.req.json()
 
     if (!amount || amount <= 0) {
       return c.json({ error: 'Invalid amount' }, 400)
     }
 
     const applyId = generateApplyId()
+    const paymentProof = await compressPaymentProof(rawProof)
 
     // Check if this is a crypto payment method by looking up the payment method
     const paymentMethodRecord = await prisma.paymentMethod.findFirst({
@@ -390,10 +411,6 @@ transactions.post('/deposits/:id/approve', requireAdmin, async (c) => {
       const agentLogoApprove = approvedDomain?.emailLogo || approvedDomain?.brandLogo || deposit.user.agent?.emailLogo || deposit.user.agent?.brandLogo || null
       const agentBrandNameApprove = deposit.user.agent?.username || null
 
-      // Debug logging for logo issue
-      console.log('[EMAIL DEBUG] Agent customDomains count:', deposit.user.agent?.customDomains?.length)
-      console.log('[EMAIL DEBUG] approvedDomain:', approvedDomain ? { hasLogo: !!approvedDomain.brandLogo, logoLength: approvedDomain.brandLogo?.length } : 'null')
-      console.log('[EMAIL DEBUG] agentLogoApprove starts with:', agentLogoApprove?.substring(0, 50))
       const userEmailTemplate = getWalletDepositApprovedTemplate({
         username: deposit.user.username,
         applyId: deposit.applyId,
@@ -720,11 +737,13 @@ transactions.get('/agent-deposits', requireAgent, async (c) => {
 transactions.post('/agent-deposits', requireAgent, async (c) => {
   try {
     const agentId = c.get('userId') as string
-    const { applyId, amount, paymentMethod, transactionId, remarks, paymentProof } = await c.req.json()
+    const { applyId, amount, paymentMethod, transactionId, remarks, paymentProof: rawAgentProof } = await c.req.json()
 
     if (!amount || amount <= 0) {
       return c.json({ error: 'Invalid amount' }, 400)
     }
+
+    const paymentProof = await compressPaymentProof(rawAgentProof)
 
     // Get agent info for email
     const agent = await prisma.user.findUnique({

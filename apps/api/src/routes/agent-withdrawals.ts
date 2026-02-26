@@ -372,7 +372,6 @@ agentWithdrawals.get('/admin', requireAdmin, async (c) => {
 // Admin can edit the approved amount - the full requested amount is debited from agent's balance
 // but only the approved amount is paid out
 agentWithdrawals.post('/:id/approve', requireAdmin, async (c) => {
-  console.log('========== APPROVE WITHDRAWAL ROUTE HIT ==========')
   try {
     const { id } = c.req.param()
     console.log('Approve withdrawal request for ID:', id)

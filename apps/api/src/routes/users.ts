@@ -534,7 +534,6 @@ users.post('/', requireAgent, async (c) => {
     }, null, 2))
 
     // Send welcome email with password reset link
-    console.log('=== WELCOME EMAIL: Starting to send welcome email to', normalizedEmail, '===')
     try {
       // Get agent branding info and custom domain for whitelabel
       let agentBrandInfo: { brandLogo?: string | null; emailLogo?: string | null; username?: string | null; emailSenderNameApproved?: string | null; smtpEnabled?: boolean | null; smtpHost?: string | null; smtpPort?: number | null; smtpUsername?: string | null; smtpPassword?: string | null; smtpEncryption?: string | null; smtpFromEmail?: string | null } = {}
@@ -586,10 +585,6 @@ users.post('/', requireAgent, async (c) => {
         agentBrandName: agentBrandInfo.username || null
       })
 
-      console.log('=== WELCOME EMAIL: About to call sendEmail to', normalizedEmail, '===')
-      console.log('=== WELCOME EMAIL: Reset link:', passwordResetLink, '===')
-      console.log('=== WELCOME EMAIL: Agent brand info:', JSON.stringify({ username: agentBrandInfo.username, smtpEnabled: agentBrandInfo.smtpEnabled, hasSmtpHost: !!agentBrandInfo.smtpHost }), '===')
-
       const emailResult = await sendEmail({
         to: normalizedEmail,
         ...welcomeEmail,
@@ -597,7 +592,6 @@ users.post('/', requireAgent, async (c) => {
         smtpConfig: buildSmtpConfig(agentBrandInfo)
       })
 
-      console.log(`=== WELCOME EMAIL: sendEmail returned ${emailResult} for ${normalizedEmail} ===`)
     } catch (emailError) {
       console.error('=== WELCOME EMAIL ERROR:', emailError, '===')
       // Don't fail user creation if email fails
@@ -733,11 +727,6 @@ users.patch('/:id', requireAgent, async (c) => {
       }
     }
 
-    // Log incoming request body for debugging
-    console.log('=== UPDATE USER REQUEST ===')
-    console.log('User ID:', id)
-    console.log('Request body:', JSON.stringify(body, null, 2))
-
     // If email is being changed, check if new email is already in use by another user
     if (body.email !== undefined) {
       const normalizedNewEmail = body.email.toLowerCase().trim()
@@ -799,8 +788,6 @@ users.patch('/:id', requireAgent, async (c) => {
     if (currentUserRole === 'ADMIN' && body.agentId !== undefined) {
       updateData.agentId = body.agentId || null
     }
-
-    console.log('Update data being sent to Prisma:', JSON.stringify(updateData, null, 2))
 
     const user = await prisma.user.update({
       where: { id },

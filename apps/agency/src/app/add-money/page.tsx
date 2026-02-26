@@ -152,7 +152,9 @@ export default function AddMoneyPage() {
     const year = now.getFullYear()
     const month = String(now.getMonth() + 1).padStart(2, '0')
     const day = String(now.getDate()).padStart(2, '0')
-    const randomNum = String(Math.floor(Math.random() * 10000000)).padStart(7, '0')
+    const arr = new Uint32Array(1)
+    crypto.getRandomValues(arr)
+    const randomNum = String(arr[0] % 10000000).padStart(7, '0')
     return `PWD${year}${month}${day}${randomNum}`
   }
 

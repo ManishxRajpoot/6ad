@@ -18,7 +18,8 @@ function generateApplyId(licenseType: 'NEW' | 'OLD'): string {
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
-  const random = String(Math.floor(1000000 + Math.random() * 9000000))
+  const { randomInt } = require('crypto')
+  const random = randomInt(1000000, 10000000)
 
   if (licenseType === 'NEW') {
     return `AD${year}${month}${day}${random}`
@@ -133,20 +134,6 @@ applications.post('/', requireUser, async (c) => {
     const totalCost = useCoupon
       ? depositAmount + commissionAmount
       : depositAmount + openingFee + commissionAmount
-
-    // Debug logging
-    console.log('=== Application Cost Calculation ===')
-    console.log('platform:', data.platform)
-    console.log('platformOpeningFee (from DB):', platformOpeningFee)
-    console.log('openingFeePerAccount:', openingFeePerAccount)
-    console.log('adAccountQty:', adAccountQty)
-    console.log('depositAmount:', depositAmount)
-    console.log('platformCommission:', platformCommission)
-    console.log('openingFee (total):', openingFee)
-    console.log('commissionAmount:', commissionAmount)
-    console.log('useCoupon:', useCoupon)
-    console.log('totalCost:', totalCost)
-    console.log('====================================')
 
     // Check if user has enough balance
     if (Number(user.walletBalance) < totalCost) {

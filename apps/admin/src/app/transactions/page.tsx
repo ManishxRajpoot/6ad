@@ -205,10 +205,8 @@ export default function TransactionsPage() {
     }
   }, [activeTab])
 
-  // Fetch data for a specific tab only
+  // Fetch data for a specific tab — always re-fetch to avoid stale data
   const fetchTabData = async (tab: TabType) => {
-    if (loadedTabs.has(tab) && !loading) return
-
     setLoading(true)
     try {
       if (tab === 'deposits') {
@@ -500,13 +498,34 @@ export default function TransactionsPage() {
     }
   }
 
-  const handleExportImage = () => {
-    const selected = (paginatedData as Transaction[]).filter(t => selectedRows.includes(t.id) && t.proofUrl)
+  const handleExportImage = async () => {
+    const selected = (paginatedData as Transaction[]).filter(t => selectedRows.includes(t.id) && (t.proofUrl || t.paymentProof))
     if (selected.length === 0) {
       toast.error('No Images', 'Select transactions with images to export')
       return
     }
-    toast.success('Exporting', `Exporting ${selected.length} images...`)
+    toast.success('Exporting', `Downloading ${selected.length} image(s)...`)
+    for (const tx of selected) {
+      const imageUrl = tx.paymentProof || tx.proofUrl
+      if (!imageUrl) continue
+      try {
+        const link = document.createElement('a')
+        if (imageUrl.startsWith('data:')) {
+          link.href = imageUrl
+        } else {
+          const res = await fetch(imageUrl)
+          const blob = await res.blob()
+          link.href = URL.createObjectURL(blob)
+        }
+        const ext = imageUrl.startsWith('data:image/png') ? 'png' : 'jpg'
+        link.download = `proof-${tx.applyId || tx.id}.${ext}`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      } catch {
+        toast.error('Download Failed', `Could not download proof for ${tx.applyId || tx.id}`)
+      }
+    }
   }
 
   const openImageModal = (url: string) => {

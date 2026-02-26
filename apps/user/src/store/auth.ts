@@ -28,7 +28,7 @@ type AuthState = {
   isAuthenticated: boolean
   isHydrated: boolean
   setAuth: (user: User, token: string) => void
-  updateUser: (user: User) => void
+  updateUser: (user: Partial<User>) => void
   logout: () => void
   setHydrated: (state: boolean) => void
 }
@@ -46,8 +46,10 @@ export const useAuthStore = create<AuthState>()(
         // Trigger SSE reconnect with fresh token (same-tab event)
         window.dispatchEvent(new Event('sse:reconnect'))
       },
-      updateUser: (user) => {
-        set({ user })
+      updateUser: (userData) => {
+        set((state) => ({
+          user: state.user ? { ...state.user, ...userData } : null
+        }))
       },
       logout: () => {
         localStorage.removeItem('token')
@@ -59,7 +61,21 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'user-auth-storage',
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
       onRehydrateStorage: () => (state) => {
+        if (state && typeof window !== 'undefined') {
+          const token = localStorage.getItem('token')
+          if (token) {
+            state.token = token
+          } else {
+            state.user = null
+            state.isAuthenticated = false
+            state.token = null
+          }
+        }
         state?.setHydrated(true)
       },
     }

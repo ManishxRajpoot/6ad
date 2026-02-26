@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useToast } from '@/contexts/ToastContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -8,7 +10,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Table, TableHeader, TableBody, TableRow, TableCell } from '@/components/ui/Table'
 import { settingsApi, cheetahApi, cryptoApi } from '@/lib/api'
-import { Plus, Edit, Trash2, CreditCard, Copy, Check, Globe, Eye, EyeOff, Ban, Link, Save, Mail, Palette, Send, Server, Zap, RefreshCw, DollarSign, Wallet, Coins, Database } from 'lucide-react'
+import { Plus, Edit, Trash2, CreditCard, Copy, Check, Globe, Eye, EyeOff, Ban, Link, Save, Mail, Palette, Send, Server, Zap, RefreshCw, Coins, Database } from 'lucide-react'
 import { FacebookPlatformIcon, GooglePlatformIcon, TikTokPlatformIcon, SnapchatPlatformIcon, BingPlatformIcon } from '@/components/icons/PlatformIcons'
 
 type PayLink = {
@@ -33,6 +35,8 @@ type PlatformSettings = {
 }
 
 export default function SettingsPage() {
+  const toast = useToast()
+  const confirm = useConfirm()
   const [paylinks, setPaylinks] = useState<PayLink[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -160,10 +164,10 @@ export default function SettingsPage() {
     setSavingProfileLinks(true)
     try {
       await settingsApi.profileShareLinks.update(profileShareLinks)
-      alert('Profile share links saved successfully!')
+      toast.success('Saved', 'Profile share links saved successfully!')
     } catch (error) {
       console.error('Failed to save profile share links:', error)
-      alert('Failed to save profile share links')
+      toast.error('Error', 'Failed to save profile share links')
     } finally {
       setSavingProfileLinks(false)
     }
@@ -184,10 +188,10 @@ export default function SettingsPage() {
     setSavingReferralDomain(true)
     try {
       await settingsApi.referralDomain.update(referralDomain)
-      alert('Referral domain saved successfully!')
+      toast.success('Saved', 'Referral domain saved successfully!')
     } catch (error) {
       console.error('Failed to save referral domain:', error)
-      alert('Failed to save referral domain')
+      toast.error('Error', 'Failed to save referral domain')
     } finally {
       setSavingReferralDomain(false)
     }
@@ -210,10 +214,10 @@ export default function SettingsPage() {
     setSavingEmailBranding(true)
     try {
       await settingsApi.emailBranding.update(emailBranding)
-      alert('Email branding saved successfully!')
+      toast.success('Saved', 'Email branding saved successfully!')
     } catch (error) {
       console.error('Failed to save email branding:', error)
-      alert('Failed to save email branding')
+      toast.error('Error', 'Failed to save email branding')
     } finally {
       setSavingEmailBranding(false)
     }
@@ -242,11 +246,11 @@ export default function SettingsPage() {
         user: smtpSettings.user,
         ...(smtpSettings.password ? { password: smtpSettings.password } : {}),
       })
-      alert('SMTP settings saved successfully!')
+      toast.success('Saved', 'SMTP settings saved successfully!')
       setSmtpSettings(prev => ({ ...prev, password: '', isConfigured: true }))
     } catch (error) {
       console.error('Failed to save SMTP settings:', error)
-      alert('Failed to save SMTP settings')
+      toast.error('Error', 'Failed to save SMTP settings')
     } finally {
       setSavingSmtp(false)
     }
@@ -254,20 +258,20 @@ export default function SettingsPage() {
 
   const testSmtpConnection = async () => {
     if (!testEmail) {
-      alert('Please enter a test email address')
+      toast.error('Missing Email', 'Please enter a test email address')
       return
     }
     setTestingSmtp(true)
     try {
       const result = await settingsApi.smtp.test(testEmail)
       if (result.success) {
-        alert('Test email sent successfully! Please check your inbox.')
+        toast.success('Test Passed', 'Test email sent successfully! Please check your inbox.')
       } else {
-        alert(`Test failed: ${result.message}`)
+        toast.error('Test Failed', result.message)
       }
     } catch (error: any) {
       console.error('SMTP test failed:', error)
-      alert(`Test failed: ${error.message || 'Unknown error'}`)
+      toast.error('Test Failed', error.message || 'Unknown error')
     } finally {
       setTestingSmtp(false)
     }
@@ -310,7 +314,7 @@ export default function SettingsPage() {
   const saveCryptoWallet = async (network: 'TRON_TRC20' | 'BSC_BEP20') => {
     const wallet = cryptoWallets[network]
     if (!wallet.walletAddress) {
-      alert('Wallet address is required')
+      toast.error('Missing Address', 'Wallet address is required')
       return
     }
     setSavingCryptoWallet(network)
@@ -320,9 +324,9 @@ export default function SettingsPage() {
         walletAddress: wallet.walletAddress,
         isEnabled: wallet.isEnabled
       })
-      alert(`${network === 'TRON_TRC20' ? 'TRC20' : 'BEP20'} wallet saved successfully!`)
+      toast.success('Saved', `${network === 'TRON_TRC20' ? 'TRC20' : 'BEP20'} wallet saved successfully!`)
     } catch (error: any) {
-      alert(`Failed to save: ${error.message || 'Unknown error'}`)
+      toast.error('Save Failed', error.message || 'Unknown error')
     } finally {
       setSavingCryptoWallet(null)
     }
@@ -331,7 +335,7 @@ export default function SettingsPage() {
   const toggleCryptoWallet = async (network: 'TRON_TRC20' | 'BSC_BEP20') => {
     const wallet = cryptoWallets[network]
     if (!wallet.walletAddress && !wallet.isEnabled) {
-      alert('Please configure wallet address first')
+      toast.error('Not Configured', 'Please configure wallet address first')
       return
     }
     setSavingCryptoWallet(network)
@@ -342,7 +346,7 @@ export default function SettingsPage() {
         [network]: { ...prev[network], isEnabled: !wallet.isEnabled }
       }))
     } catch (error: any) {
-      alert(`Failed to toggle: ${error.message || 'Unknown error'}`)
+      toast.error('Toggle Failed', error.message || 'Unknown error')
     } finally {
       setSavingCryptoWallet(null)
     }
@@ -369,12 +373,12 @@ export default function SettingsPage() {
     setSavingCheetahConfig(true)
     try {
       await cheetahApi.config.update({ environment: cheetahEnvironment })
-      alert(`API configured successfully! (${cheetahEnvironment} environment)`)
+      toast.success('Configured', `API configured successfully! (${cheetahEnvironment} environment)`)
       setCheetahConfigured(true)
       fetchCheetahQuota()
     } catch (error: any) {
       console.error('Failed to save config:', error)
-      alert(`Failed to configure: ${error.message || 'Unknown error'}`)
+      toast.error('Configuration Failed', error.message || 'Unknown error')
     } finally {
       setSavingCheetahConfig(false)
     }
@@ -444,20 +448,21 @@ export default function SettingsPage() {
       setIsModalOpen(false)
       fetchPaylinks()
     } catch (error: any) {
-      alert(error.message || 'Failed to save payment method')
+      toast.error('Save Failed', error.message || 'Failed to save payment method')
     } finally {
       setFormLoading(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this payment method?')) return
+    const confirmed = await confirm({ title: 'Delete Payment Method', message: 'Are you sure you want to delete this payment method?', variant: 'danger' })
+    if (!confirmed) return
 
     try {
       await settingsApi.paylinks.delete(id)
       fetchPaylinks()
     } catch (error: any) {
-      alert(error.message || 'Failed to delete payment method')
+      toast.error('Delete Failed', error.message || 'Failed to delete payment method')
     }
   }
 

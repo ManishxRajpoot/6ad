@@ -8,6 +8,7 @@ import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
 import { usersApi, agentsApi, accountsApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 import { useDateFilterStore } from '@/store/dateFilter'
 import {
   Plus, Search, MoreVertical, Eye, Edit, Trash2, Shield, Copy, Check,
@@ -59,6 +60,7 @@ type Agent = {
 
 export default function UsersPage() {
   const toast = useToast()
+  const confirm = useConfirm()
   const { startDate, endDate } = useDateFilterStore()
   const [users, setUsers] = useState<User[]>([])
   const [agents, setAgents] = useState<Agent[]>([])
@@ -350,7 +352,12 @@ export default function UsersPage() {
   }
 
   const handleReset2FA = async (user: User) => {
-    if (!confirm(`Are you sure you want to reset 2FA for ${user.username}?`)) return
+    const confirmed = await confirm({
+      title: 'Reset 2FA',
+      message: `Are you sure you want to reset 2FA for ${user.username}? They will need to set up 2FA again on next login.`,
+      variant: 'danger'
+    })
+    if (!confirmed) return
 
     setResetting2FA(true)
     try {
@@ -396,7 +403,12 @@ export default function UsersPage() {
   }
 
   const handleRemoveAccount = async (accountId: string, accountName: string) => {
-    if (!confirm(`Remove "${accountName}" from this user's panel?`)) return
+    const confirmed = await confirm({
+      title: 'Remove Account',
+      message: `Remove "${accountName}" from this user's panel?`,
+      variant: 'danger'
+    })
+    if (!confirmed) return
 
     setRemovingAccountId(accountId)
     try {

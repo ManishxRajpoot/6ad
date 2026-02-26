@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { StatsChart } from '@/components/ui/StatsChart'
 import { domainsApi, agentsApi } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
 import {
   Globe, Check, X, AlertCircle, CheckCircle, Clock, Search,
   Mail, Image, Sparkles, Loader2, Eye, History, XCircle
@@ -48,6 +49,7 @@ type AgentCard = {
 type TabType = 'pending' | 'history'
 
 export default function WhitelabelPage() {
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState<TabType>('pending')
   const [agents, setAgents] = useState<AgentCard[]>([])
   const [historyAgents, setHistoryAgents] = useState<AgentCard[]>([])
@@ -168,7 +170,7 @@ export default function WhitelabelPage() {
     try {
       await domainsApi.approve(card.domain.id)
       removeItemFromCard(card.agent.id, 'domain')
-    } catch (err: any) { alert(err.message || 'Failed to approve domain') }
+    } catch (err: any) { toast.error('Approve Failed', err.message || 'Failed to approve domain') }
     finally { setProcessing(null) }
   }
 
@@ -178,14 +180,14 @@ export default function WhitelabelPage() {
       try {
         await domainsApi.approveLogo(card.domain.id)
         removeItemFromCard(card.agent.id, 'logo')
-      } catch (err: any) { alert(err.message || 'Failed to approve logo') }
+      } catch (err: any) { toast.error('Approve Failed', err.message || 'Failed to approve logo') }
       finally { setProcessing(null) }
     } else if (card.branding?.logoStatus === 'PENDING') {
       setProcessing(`${card.agent.id}-userlogo`)
       try {
         await domainsApi.approveUserLogo(card.agent.id)
         removeItemFromCard(card.agent.id, 'userLogo')
-      } catch (err: any) { alert(err.message || 'Failed to approve logo') }
+      } catch (err: any) { toast.error('Approve Failed', err.message || 'Failed to approve logo') }
       finally { setProcessing(null) }
     }
   }
@@ -196,14 +198,14 @@ export default function WhitelabelPage() {
       try {
         await domainsApi.approveFavicon(card.domain.id)
         removeItemFromCard(card.agent.id, 'favicon')
-      } catch (err: any) { alert(err.message || 'Failed to approve favicon') }
+      } catch (err: any) { toast.error('Approve Failed', err.message || 'Failed to approve favicon') }
       finally { setProcessing(null) }
     } else if (card.branding?.faviconStatus === 'PENDING') {
       setProcessing(`${card.agent.id}-userfavicon`)
       try {
         await domainsApi.approveUserFavicon(card.agent.id)
         removeItemFromCard(card.agent.id, 'userFavicon')
-      } catch (err: any) { alert(err.message || 'Failed to approve favicon') }
+      } catch (err: any) { toast.error('Approve Failed', err.message || 'Failed to approve favicon') }
       finally { setProcessing(null) }
     }
   }
@@ -213,7 +215,7 @@ export default function WhitelabelPage() {
     try {
       await agentsApi.emailSettings.approve(card.agent.id)
       removeItemFromCard(card.agent.id, 'emailSenderName')
-    } catch (err: any) { alert(err.message || 'Failed to approve email sender name') }
+    } catch (err: any) { toast.error('Approve Failed', err.message || 'Failed to approve email sender name') }
     finally { setProcessing(null) }
   }
 
@@ -224,7 +226,7 @@ export default function WhitelabelPage() {
       await domainsApi.approveAll(card.domain.id)
       setAgents(prev => prev.filter(c => c.agent.id !== card.agent.id))
       if (historyAgents.length > 0) fetchHistory()
-    } catch (err: any) { alert(err.message || 'Failed to approve all') }
+    } catch (err: any) { toast.error('Approve Failed', err.message || 'Failed to approve all') }
     finally { setProcessing(null) }
   }
 
@@ -267,7 +269,7 @@ export default function WhitelabelPage() {
       }
       setShowRejectModal(false)
       setRejectTarget(null)
-    } catch (err: any) { alert(err.message || 'Failed to reject') }
+    } catch (err: any) { toast.error('Reject Failed', err.message || 'Failed to reject') }
     finally { setProcessing(null) }
   }
 

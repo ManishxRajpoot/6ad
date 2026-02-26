@@ -76,7 +76,8 @@ function generateApplyId(): string {
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
-  const random = String(Math.floor(1000000 + Math.random() * 9000000))
+  const { randomInt } = require('crypto')
+  const random = randomInt(1000000, 10000000)
   return `BM${year}${month}${day}${random}`
 }
 

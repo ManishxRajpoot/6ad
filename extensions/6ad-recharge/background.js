@@ -333,7 +333,7 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
 // Token collection — Facebook pages emit many different EAA tokens.
 // We collect them over a short window and pick the best one from trusted sources.
 let collectedTokens = [] // { token, source } objects
-let tokenCollectionTimer = null
+// tokenCollectionTimer removed — using chrome.alarms('6ad-token-debounce') for MV3 safety
 let savedTokenSet = new Set() // Avoid re-processing tokens we already saved
 
 async function validateAndSaveToken(token, source) {
@@ -357,8 +357,8 @@ async function validateAndSaveToken(token, source) {
   collectedTokens.push({ token, source: source || 'unknown' })
 
   // Debounce — wait 3 seconds after last token, then pick the best one
-  if (tokenCollectionTimer) clearTimeout(tokenCollectionTimer)
-  tokenCollectionTimer = setTimeout(() => pickBestToken(), 3000)
+  // Use chrome.alarms for MV3 safety (setTimeout may not fire if SW goes idle)
+  chrome.alarms.create('6ad-token-debounce', { delayInMinutes: 0.05 }) // ~3 seconds
 }
 
 async function pickBestToken() {
@@ -1106,6 +1106,10 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (config.isEnabled && config.apiKey) {
       await sendHeartbeat()
     }
+  } else if (alarm.name === '6ad-token-debounce') {
+    await pickBestToken()
+  } else if (alarm.name === '6ad-startup-init') {
+    await onStartupInit()
   }
 })
 
@@ -1274,7 +1278,8 @@ chrome.runtime.onInstalled.addListener(() => {
   attachDebuggerToFBTabs()
 })
 
-setTimeout(async () => {
+// MV3-safe startup: use chrome.alarms instead of setTimeout for deferred init
+async function onStartupInit() {
   const config = await getConfig()
   // Always attach debugger on startup
   await attachDebuggerToFBTabs()
@@ -1298,6 +1303,15 @@ setTimeout(async () => {
   if (config.apiKey && config.isEnabled) {
     await sendHeartbeat()
   }
-}, 3000)
+}
+
+// Use a one-time alarm for deferred startup (MV3 service workers kill setTimeout after 30s idle)
+chrome.alarms.create('6ad-startup-init', { delayInMinutes: 0.05 }) // ~3 seconds
+
+// Also run on browser startup (covers cold starts)
+chrome.runtime.onStartup.addListener(() => {
+  console.log('[6AD] Browser startup detected')
+  onStartupInit()
+})
 
 console.log('[6AD] Background service worker loaded')

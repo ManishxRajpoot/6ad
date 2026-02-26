@@ -19,6 +19,8 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { announcementsApi } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 
 interface Announcement {
   id: string
@@ -48,6 +50,8 @@ const roleOptions = [
 ]
 
 export default function AnnouncementsPage() {
+  const toast = useToast()
+  const confirm = useConfirm()
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -132,20 +136,21 @@ export default function AnnouncementsPage() {
       setIsModalOpen(false)
       fetchAnnouncements()
     } catch (error) {
-      alert('Failed to save announcement')
+      toast.error('Error', 'Failed to save announcement')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this announcement?')) return
+    const confirmed = await confirm({ title: 'Delete Announcement', message: 'Are you sure you want to delete this announcement?', variant: 'danger' })
+    if (!confirmed) return
 
     try {
       await announcementsApi.delete(id)
       fetchAnnouncements()
     } catch {
-      alert('Failed to delete announcement')
+      toast.error('Error', 'Failed to delete announcement')
     }
   }
 
@@ -154,7 +159,7 @@ export default function AnnouncementsPage() {
       await announcementsApi.update(announcement.id, { isActive: !announcement.isActive })
       fetchAnnouncements()
     } catch {
-      alert('Failed to update announcement')
+      toast.error('Error', 'Failed to update announcement')
     }
   }
 

@@ -84,7 +84,21 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'agency-auth-storage',
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
       onRehydrateStorage: () => (state) => {
+        if (state && typeof window !== 'undefined') {
+          const token = localStorage.getItem('token')
+          if (token) {
+            state.token = token
+          } else {
+            state.user = null
+            state.isAuthenticated = false
+            state.token = null
+          }
+        }
         state?.setHydrated(true)
       },
     }

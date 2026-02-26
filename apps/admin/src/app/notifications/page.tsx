@@ -21,6 +21,7 @@ import {
   Megaphone,
 } from 'lucide-react'
 import { notificationsApi, usersApi } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
 
 interface NotificationLog {
   id: string
@@ -48,6 +49,7 @@ const notificationTypes = [
 ]
 
 export default function NotificationsPage() {
+  const toast = useToast()
   const [logs, setLogs] = useState<NotificationLog[]>([])
   const [users, setUsers] = useState<{ id: string; username: string; email: string }[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -115,7 +117,7 @@ export default function NotificationsPage() {
       setIsModalOpen(false)
       fetchData()
     } catch (error) {
-      alert('Failed to send notification')
+      toast.error('Error', 'Failed to send notification')
     } finally {
       setIsSubmitting(false)
     }

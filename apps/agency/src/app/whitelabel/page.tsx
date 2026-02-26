@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { domainsApi, brandingApi, smtpApi, DnsHealthResult } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 import {
   Globe,
   Plus,
@@ -49,6 +50,7 @@ type CustomDomain = {
 
 export default function WhitelabelPage() {
   const toast = useToast()
+  const confirm = useConfirm()
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('domain')
@@ -415,7 +417,13 @@ export default function WhitelabelPage() {
   }
 
   const handleDeleteDomain = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this domain request?')) return
+    const ok = await confirm({
+      title: 'Delete Domain',
+      message: 'Are you sure you want to delete this domain request?',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    })
+    if (!ok) return
 
     try {
       await domainsApi.delete(id)

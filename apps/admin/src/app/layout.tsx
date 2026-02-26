@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { ToastProvider } from '@/contexts/ToastContext'
+import { ConfirmProvider } from '@/contexts/ConfirmContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { UpdateChecker } from '@/components/UpdateChecker'
 
@@ -25,8 +26,10 @@ export default function RootLayout({
       <body className={inter.className}>
         <ErrorBoundary>
           <ToastProvider>
-            {children}
-            <UpdateChecker />
+            <ConfirmProvider>
+              {children}
+              <UpdateChecker />
+            </ConfirmProvider>
           </ToastProvider>
         </ErrorBoundary>
       </body>

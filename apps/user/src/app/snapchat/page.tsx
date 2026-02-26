@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, PlatformStatus } from '@/lib/api'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon } from '@/components/icons/MenuIcons'
+import { useToast } from '@/contexts/ToastContext'
 
 // Animated Counter Component - smoothly animates number changes
 function AnimatedCounter({ value, duration = 500 }: { value: number; duration?: number }) {
@@ -139,6 +140,7 @@ const brandColorDark = '#E6E300'
 const brandGradient = 'from-[#FFFC00] to-[#E6E300]'
 
 export default function SnapchatPage() {
+  const { showToast } = useToast()
   const [activeSubPage, setActiveSubPage] = useState<SubPage>('apply-ads-account')
   const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['account-manage', 'deposit-manage', 'after-sale'])
   const [searchQuery, setSearchQuery] = useState('')
@@ -324,12 +326,12 @@ export default function SnapchatPage() {
         break
 
       default:
-        alert('Export not available for this option')
+        showToast('warning', 'Warning', 'Export not available for this option')
         return
     }
 
     if (data.length === 0) {
-      alert('No data available to export')
+      showToast('warning', 'Warning', 'No data available to export')
       return
     }
 

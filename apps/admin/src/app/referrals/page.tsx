@@ -20,6 +20,7 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { referralsApi, settingsApi } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
 
 interface Referral {
   id: string
@@ -47,6 +48,7 @@ interface ReferralSettings {
 }
 
 export default function ReferralsPage() {
+  const toast = useToast()
   const [referrals, setReferrals] = useState<Referral[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -99,7 +101,7 @@ export default function ReferralsPage() {
       })
       setIsSettingsOpen(false)
     } catch {
-      alert('Failed to save settings')
+      toast.error('Error', 'Failed to save settings')
     } finally {
       setIsSavingSettings(false)
     }

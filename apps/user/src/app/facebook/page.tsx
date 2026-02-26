@@ -13,6 +13,7 @@ import { applicationsApi, authApi, accountsApi, transactionsApi, accountDeposits
 import { Confetti, useConfetti } from '@/components/ui/Confetti'
 import { useSSEEvent } from '@/hooks/useSSEEvent'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon, EmptyStateIcon } from '@/components/icons/MenuIcons'
+import { useToast } from '@/contexts/ToastContext'
 import { useAuthStore } from '@/store/auth'
 import {
   Search,
@@ -248,6 +249,7 @@ type DepositRow = {
 export default function FacebookPage() {
   const ITEMS_PER_PAGE = 10
   const { updateUser } = useAuthStore()
+  const { showToast } = useToast()
   const { showConfetti, triggerConfetti, stopConfetti } = useConfetti()
 
   const searchParams = useSearchParams()
@@ -732,7 +734,7 @@ export default function FacebookPage() {
     }
 
     if (data.length === 0) {
-      alert('No data available to export')
+      showToast('warning', 'Warning', 'No data available to export')
       return
     }
 
@@ -1039,7 +1041,7 @@ export default function FacebookPage() {
         setUserRefunds(refundsRes.refunds || [])
         refreshStats()
       } catch (error: any) {
-        alert(error.message || 'Failed to submit refund request')
+        showToast('error', 'Error', error.message || 'Failed to submit refund request')
       } finally {
         setIsSubmitting(false)
       }
@@ -1069,7 +1071,7 @@ export default function FacebookPage() {
       // Refresh stats immediately
       refreshStats()
     } catch (error: any) {
-      alert(error.message || 'Failed to submit transfer request')
+      showToast('error', 'Error', error.message || 'Failed to submit transfer request')
     } finally {
       setIsSubmitting(false)
     }

@@ -9,6 +9,7 @@ import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
 import { applicationsApi, usersApi, bmShareApi, accountDepositsApi, accountRefundsApi, balanceTransfersApi, extensionApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 import {
   Search,
   Plus,
@@ -138,6 +139,7 @@ type Tab = 'account-list' | 'bm-share' | 'deposit-list' | 'refund-list'
 
 export default function FacebookPage() {
   const toast = useToast()
+  const confirm = useConfirm()
   const [activeTab, setActiveTab] = useState<Tab>('account-list')
   const [applications, setApplications] = useState<Application[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -410,17 +412,18 @@ export default function FacebookPage() {
       await bmShareApi.approve(id)
       fetchBmShareRequests()
     } catch (error: any) {
-      alert(error.message || 'Failed to approve')
+      toast.error('Approve Failed', error.message || 'Failed to approve')
     }
   }
 
   const handleBmShareReject = async (id: string) => {
-    if (!confirm('Are you sure you want to reject this BM Share request?')) return
+    const confirmed = await confirm({ title: 'Reject BM Share', message: 'Are you sure you want to reject this BM Share request?', variant: 'danger' })
+    if (!confirmed) return
     try {
       await bmShareApi.reject(id)
       fetchBmShareRequests()
     } catch (error: any) {
-      alert(error.message || 'Failed to reject')
+      toast.error('Reject Failed', error.message || 'Failed to reject')
     }
   }
 
@@ -429,17 +432,18 @@ export default function FacebookPage() {
       await bmShareApi.retry(id)
       fetchBmShareRequests()
     } catch (error: any) {
-      alert(error.message || 'Failed to retry')
+      toast.error('Retry Failed', error.message || 'Failed to retry')
     }
   }
 
   const handleBmShareForceResolve = async (id: string) => {
-    if (!confirm('Force resolve will mark this BM share as completed WITHOUT actually sharing. Are you sure?')) return
+    const confirmed = await confirm({ title: 'Force Resolve', message: 'Force resolve will mark this BM share as completed WITHOUT actually sharing. Are you sure?', variant: 'danger' })
+    if (!confirmed) return
     try {
       await bmShareApi.forceResolve(id)
       fetchBmShareRequests()
     } catch (error: any) {
-      alert(error.message || 'Failed to force resolve')
+      toast.error('Force Resolve Failed', error.message || 'Failed to force resolve')
     }
   }
 
@@ -469,7 +473,8 @@ export default function FacebookPage() {
   }
 
   const handleDepositReject = async (id: string) => {
-    if (!confirm('Are you sure you want to reject this deposit request?')) return
+    const confirmed = await confirm({ title: 'Reject Deposit', message: 'Are you sure you want to reject this deposit request?', variant: 'danger' })
+    if (!confirmed) return
     try {
       await accountDepositsApi.reject(id)
       toast.success('Deposit Rejected', 'Deposit rejected and amount refunded to user wallet')
@@ -490,7 +495,8 @@ export default function FacebookPage() {
   }
 
   const handleForceApprove = async (id: string) => {
-    if (!confirm('Force approve will mark recharge as completed WITHOUT updating the Facebook spending limit. Are you sure?')) return
+    const confirmed = await confirm({ title: 'Force Approve', message: 'Force approve will mark recharge as completed WITHOUT updating the Facebook spending limit. Are you sure?', variant: 'danger' })
+    if (!confirmed) return
     try {
       await accountDepositsApi.forceApprove(id)
       toast.success('Force Approved', 'Deposit marked as completed. Update spending limit manually if needed.')
@@ -506,17 +512,18 @@ export default function FacebookPage() {
       await accountRefundsApi.approve(id)
       fetchAccountRefunds()
     } catch (error: any) {
-      alert(error.message || 'Failed to approve')
+      toast.error('Approve Failed', error.message || 'Failed to approve')
     }
   }
 
   const handleRefundReject = async (id: string) => {
-    if (!confirm('Are you sure you want to reject this refund request?')) return
+    const confirmed = await confirm({ title: 'Reject Refund', message: 'Are you sure you want to reject this refund request?', variant: 'danger' })
+    if (!confirmed) return
     try {
       await accountRefundsApi.reject(id)
       fetchAccountRefunds()
     } catch (error: any) {
-      alert(error.message || 'Failed to reject')
+      toast.error('Reject Failed', error.message || 'Failed to reject')
     }
   }
 
@@ -529,7 +536,7 @@ export default function FacebookPage() {
   const handleRefundAmountSave = async (id: string) => {
     const amount = parseFloat(editingRefundAmount)
     if (isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid amount')
+      toast.error('Invalid Amount', 'Please enter a valid amount')
       return
     }
     try {
@@ -538,7 +545,7 @@ export default function FacebookPage() {
       setEditingRefundAmount('')
       fetchAccountRefunds()
     } catch (error: any) {
-      alert(error.message || 'Failed to update amount')
+      toast.error('Update Failed', error.message || 'Failed to update amount')
     }
   }
 
@@ -609,7 +616,7 @@ export default function FacebookPage() {
 
     const validAccounts = approveForm.filter(acc => acc.accountId && acc.accountId.trim() !== '')
     if (validAccounts.length === 0) {
-      alert('Please enter at least one Account ID')
+      toast.error('Validation Error', 'Please enter at least one Account ID')
       return
     }
 
@@ -619,32 +626,33 @@ export default function FacebookPage() {
       setSelectedApplication(null)
       fetchData()
     } catch (error: any) {
-      alert(error.message || 'Failed to approve')
+      toast.error('Approve Failed', error.message || 'Failed to approve')
     }
   }
 
   // Handle reject
   const handleReject = async (app: Application, refund: boolean = false) => {
-    if (!confirm(`Are you sure you want to reject this application${refund ? ' and refund' : ''}?`)) return
+    const confirmed = await confirm({ title: 'Reject Application', message: `Are you sure you want to reject this application${refund ? ' and refund' : ''}?`, variant: 'danger' })
+    if (!confirmed) return
 
     try {
       await applicationsApi.reject(app.id, refund)
       fetchData()
     } catch (error: any) {
-      alert(error.message || 'Failed to reject')
+      toast.error('Reject Failed', error.message || 'Failed to reject')
     }
   }
 
   // Handle create account directly
   const handleCreateAccount = async () => {
     if (!createForm.userId) {
-      alert('Please select a user')
+      toast.error('Validation Error', 'Please select a user')
       return
     }
 
     const validAccounts = createForm.accounts.filter(a => a.name && a.accountId)
     if (validAccounts.length === 0) {
-      alert('Please enter at least one account with name and ID')
+      toast.error('Validation Error', 'Please enter at least one account with name and ID')
       return
     }
 
@@ -655,7 +663,7 @@ export default function FacebookPage() {
       setSelectedProfileId('')
       fetchData()
     } catch (error: any) {
-      alert(error.message || 'Failed to create accounts')
+      toast.error('Create Failed', error.message || 'Failed to create accounts')
     }
   }
 
@@ -677,7 +685,7 @@ export default function FacebookPage() {
   // Bulk action
   const handleBulkAction = async (action: 'approve' | 'reject') => {
     if (selectedItems.length === 0) {
-      alert('No items selected')
+      toast.error('No Selection', 'No items selected')
       return
     }
 
@@ -711,14 +719,14 @@ export default function FacebookPage() {
       setBulkSelectedProfileId('')
       setShowBulkApproveModal(true)
     } else {
-      const refund = confirm('Do you want to refund the users?')
+      const refund = await confirm({ title: 'Refund', message: 'Do you want to refund the users?' })
       try {
         await applicationsApi.bulkReject(selectedItems, refund)
         setSelectedItems([])
         setSelectMultiple(false)
         fetchData()
       } catch (error: any) {
-        alert(error.message || 'Failed to bulk reject')
+        toast.error('Bulk Reject Failed', error.message || 'Failed to bulk reject')
       }
     }
   }
@@ -730,7 +738,7 @@ export default function FacebookPage() {
       const hasValidAccount = accounts.some(acc => acc.accountId && acc.accountId.trim() !== '')
       if (!hasValidAccount) {
         const app = applications.find(a => a.id === appId)
-        alert(`Please enter at least one Account ID for ${app?.user?.username || 'application'}`)
+        toast.error('Validation Error', `Please enter at least one Account ID for ${app?.user?.username || 'application'}`)
         return
       }
     }
@@ -749,7 +757,7 @@ export default function FacebookPage() {
       setSelectMultiple(false)
       fetchData()
     } catch (error: any) {
-      alert(error.message || 'Failed to bulk approve')
+      toast.error('Bulk Approve Failed', error.message || 'Failed to bulk approve')
     } finally {
       setBulkApproveLoading(false)
     }
@@ -758,22 +766,22 @@ export default function FacebookPage() {
   // Handle add coupons
   const handleAddCoupons = async () => {
     if (!couponForm.userId) {
-      alert('Please select a user')
+      toast.error('Validation Error', 'Please select a user')
       return
     }
     if (couponForm.amount < 1) {
-      alert('Please enter a valid number of coupons')
+      toast.error('Validation Error', 'Please enter a valid number of coupons')
       return
     }
 
     setCouponLoading(true)
     try {
       await usersApi.addCoupons(couponForm.userId, couponForm.amount)
-      alert(`Successfully added ${couponForm.amount} coupon(s) to user`)
+      toast.success('Coupons Added', `Successfully added ${couponForm.amount} coupon(s) to user`)
       setShowCouponModal(false)
       setCouponForm({ userId: '', amount: 1 })
     } catch (error: any) {
-      alert(error.message || 'Failed to add coupons')
+      toast.error('Coupon Failed', error.message || 'Failed to add coupons')
     } finally {
       setCouponLoading(false)
     }

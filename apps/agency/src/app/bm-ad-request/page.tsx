@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { StatsChart } from '@/components/ui/StatsChart'
 import { Loader2, Search, ChevronLeft, ChevronRight, Download, X, Eye, ChevronDown, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { bmAdRequestApi, usersApi } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
 import * as XLSX from 'xlsx'
 
 // Platform icons - Black & White (compact size matching users page)
@@ -108,6 +109,7 @@ interface BMShare {
 }
 
 export default function BMAdRequestPage() {
+  const toast = useToast()
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'account' | 'bm'>('account')
   const [applications, setApplications] = useState<Application[]>([])
@@ -529,7 +531,7 @@ export default function BMAdRequestPage() {
       setExportUserSearch('')
     } catch (err) {
       console.error('Export failed:', err)
-      alert('Failed to export data. Please try again.')
+      toast.error('Failed to export data. Please try again.')
     } finally {
       setExporting(false)
     }

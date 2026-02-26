@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { extensionApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
+import { useConfirm } from '@/contexts/ConfirmContext'
 import { Select } from '@/components/ui/Select'
 import { Copy, Check, RefreshCw, Plus, Trash2, Plug, Wifi, WifiOff, ToggleLeft, ToggleRight, Pencil, Eye, EyeOff, KeyRound, Mail, Lock, ArrowRightLeft } from 'lucide-react'
 
@@ -34,6 +35,7 @@ type ExtensionProfile = {
 
 export default function ExtensionPage() {
   const toast = useToast()
+  const confirm = useConfirm()
   const [profiles, setProfiles] = useState<ExtensionProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -114,7 +116,8 @@ export default function ExtensionPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this extension profile? The extension will stop working.')) return
+    const confirmed = await confirm({ title: 'Delete Profile', message: 'Delete this extension profile? The extension will stop working.', variant: 'danger' })
+    if (!confirmed) return
     setDeletingId(id)
     try {
       await extensionApi.profiles.delete(id)
@@ -185,11 +188,11 @@ export default function ExtensionPage() {
     setReassigning(true)
     try {
       const result = await extensionApi.profiles.reassign(reassignProfile.id, targetProfileId)
-      alert(`${result.reassignedCount} ad account(s) reassigned from "${result.sourceProfile}" to "${result.targetProfile}"`)
+      toast.success('Reassign Complete', `${result.reassignedCount} ad account(s) reassigned from "${result.sourceProfile}" to "${result.targetProfile}"`)
       setReassignProfile(null)
       await fetchProfiles()
     } catch (error: any) {
-      alert(error.message || 'Failed to reassign accounts')
+      toast.error('Reassign Failed', error.message || 'Failed to reassign accounts')
     } finally {
       setReassigning(false)
     }

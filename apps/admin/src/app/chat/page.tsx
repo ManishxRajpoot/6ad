@@ -16,6 +16,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { chatApi } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
 import { formatDistanceToNow } from 'date-fns'
 
 interface Message {
@@ -45,6 +46,7 @@ interface ChatRoom {
 }
 
 export default function ChatPage() {
+  const toast = useToast()
   const [rooms, setRooms] = useState<ChatRoom[]>([])
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -110,7 +112,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, res.message])
       setNewMessage('')
     } catch {
-      alert('Failed to send message')
+      toast.error('Error', 'Failed to send message')
     } finally {
       setIsSending(false)
     }
@@ -124,7 +126,7 @@ export default function ChatPage() {
         setSelectedRoom(prev => prev ? { ...prev, status: 'CLOSED' } : null)
       }
     } catch {
-      alert('Failed to close room')
+      toast.error('Error', 'Failed to close room')
     }
   }
 
@@ -136,7 +138,7 @@ export default function ChatPage() {
         setSelectedRoom(prev => prev ? { ...prev, status: 'OPEN' } : null)
       }
     } catch {
-      alert('Failed to reopen room')
+      toast.error('Error', 'Failed to reopen room')
     }
   }
 

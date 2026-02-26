@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, applicationsApi, PlatformStatus } from '@/lib/api'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon } from '@/components/icons/MenuIcons'
+import { useToast } from '@/contexts/ToastContext'
 
 // Animated Counter Component - smoothly animates number changes
 function AnimatedCounter({ value, duration = 500 }: { value: number; duration?: number }) {
@@ -190,6 +191,7 @@ const brandColorDark = '#3367D6'
 const brandGradient = 'from-[#4285F4] to-[#3367D6]'
 
 export default function GooglePage() {
+  const { showToast } = useToast()
   const [activeSubPage, setActiveSubPage] = useState<SubPage>('apply-ads-account')
   const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['account-manage', 'deposit-manage', 'after-sale'])
   const [searchQuery, setSearchQuery] = useState('')
@@ -524,12 +526,12 @@ export default function GooglePage() {
         break
 
       default:
-        alert('Export not available for this option')
+        showToast('warning', 'Warning', 'Export not available for this option')
         return
     }
 
     if (data.length === 0) {
-      alert('No data available to export')
+      showToast('warning', 'Warning', 'No data available to export')
       return
     }
 

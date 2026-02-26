@@ -1,16 +1,41 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Bell, Search, ChevronDown, ChevronLeft, ChevronRight, X, Calendar, SlidersHorizontal } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { Bell, Search, ChevronDown, ChevronLeft, ChevronRight, X, Calendar, SlidersHorizontal, LayoutDashboard, Users, UserCog, CreditCard, FileText, ArrowUpRight, Settings, Megaphone, Globe, Ticket, Gift, Plug, Layers } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useDateFilterStore } from '@/store/dateFilter'
+
+const searchablePages = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Agents', href: '/agents', icon: UserCog },
+  { name: 'Users', href: '/users', icon: Users },
+  { name: 'Transactions', href: '/transactions', icon: CreditCard },
+  { name: 'Withdrawals', href: '/withdrawals', icon: ArrowUpRight },
+  { name: 'Reports', href: '/reports', icon: FileText },
+  { name: 'All Ad Accounts', href: '/ad-accounts', icon: Layers },
+  { name: 'Facebook', href: '/facebook', icon: Megaphone },
+  { name: 'Google', href: '/google', icon: Globe },
+  { name: 'TikTok', href: '/tiktok', icon: Globe },
+  { name: 'Snapchat', href: '/snapchat', icon: Globe },
+  { name: 'Bing', href: '/bing', icon: Globe },
+  { name: 'Announcements', href: '/announcements', icon: Megaphone },
+  { name: 'Notifications', href: '/notifications', icon: Bell },
+  { name: 'Coupons', href: '/coupons', icon: Ticket },
+  { name: 'Referrals', href: '/referrals', icon: Gift },
+  { name: 'Extension API', href: '/extension', icon: Plug },
+  { name: 'Whitelabel', href: '/domain-requests', icon: Globe },
+  { name: 'Settings', href: '/settings', icon: Settings },
+]
 
 type HeaderProps = {
   title: string
   subtitle?: string
+  pendingCount?: number
 }
 
-export function Header({ title, subtitle }: HeaderProps) {
+export function Header({ title, subtitle, pendingCount }: HeaderProps) {
+  const router = useRouter()
   const user = useAuthStore((state) => state.user)
   const { startDate, endDate, setDateRange, clearDateRange } = useDateFilterStore()
 
@@ -18,6 +43,77 @@ export function Header({ title, subtitle }: HeaderProps) {
   const [calendarMonth, setCalendarMonth] = useState(new Date())
   const [selectingDate, setSelectingDate] = useState<'start' | 'end'>('start')
   const [tempStart, setTempStart] = useState<Date | null>(null)
+
+  // Search / Command Palette state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const searchContainerRef = useRef<HTMLDivElement>(null)
+
+  const filteredPages = searchQuery.trim()
+    ? searchablePages.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : searchablePages
+
+  const handleSearchNavigate = useCallback((href: string) => {
+    router.push(href)
+    setSearchQuery('')
+    setIsSearchOpen(false)
+    searchInputRef.current?.blur()
+  }, [router])
+
+  // ⌘K shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setIsSearchOpen(true)
+        setTimeout(() => searchInputRef.current?.focus(), 0)
+      }
+      if (e.key === 'Escape') {
+        setIsSearchOpen(false)
+        setSearchQuery('')
+        searchInputRef.current?.blur()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Arrow key navigation in search results
+  useEffect(() => {
+    if (!isSearchOpen) return
+    const handleSearchKeys = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSelectedIndex(i => Math.min(i + 1, filteredPages.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSelectedIndex(i => Math.max(i - 1, 0))
+      } else if (e.key === 'Enter' && filteredPages[selectedIndex]) {
+        e.preventDefault()
+        handleSearchNavigate(filteredPages[selectedIndex].href)
+      }
+    }
+    document.addEventListener('keydown', handleSearchKeys)
+    return () => document.removeEventListener('keydown', handleSearchKeys)
+  }, [isSearchOpen, selectedIndex, filteredPages, handleSearchNavigate])
+
+  // Reset selected index on query change
+  useEffect(() => { setSelectedIndex(0) }, [searchQuery])
+
+  // Close search when clicking outside
+  useEffect(() => {
+    if (!isSearchOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchOpen(false)
+        setSearchQuery('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isSearchOpen])
 
   // Sync temp state with global state
   useEffect(() => {
@@ -76,18 +172,47 @@ export function Header({ title, subtitle }: HeaderProps) {
 
       {/* Right — Actions */}
       <div className="flex items-center gap-1.5">
-        {/* Search (command palette style) */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+        {/* Search — Command Palette */}
+        <div className="relative" ref={searchContainerRef}>
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 z-10" />
           <input
+            ref={searchInputRef}
             type="text"
-            placeholder="Search..."
+            placeholder="Search pages..."
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setIsSearchOpen(true) }}
+            onFocus={() => setIsSearchOpen(true)}
             className="h-8 w-[180px] rounded-lg border border-gray-200 bg-white pl-8 pr-9 text-[13px] placeholder:text-gray-400 focus:border-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-200 transition-all focus:w-[240px]"
           />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-0.5">
-            <kbd className="text-[10px] text-gray-400 bg-gray-100 px-1 py-0.5 rounded border border-gray-200">⌘</kbd>
-            <kbd className="text-[10px] text-gray-400 bg-gray-100 px-1 py-0.5 rounded border border-gray-200">K</kbd>
-          </div>
+          {!isSearchOpen && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-0.5">
+              <kbd className="text-[10px] text-gray-400 bg-gray-100 px-1 py-0.5 rounded border border-gray-200">⌘</kbd>
+              <kbd className="text-[10px] text-gray-400 bg-gray-100 px-1 py-0.5 rounded border border-gray-200">K</kbd>
+            </div>
+          )}
+          {isSearchOpen && (
+            <div className="absolute right-0 top-9 z-50 w-[280px] bg-white rounded-lg shadow-lg border border-gray-100 py-1 max-h-[320px] overflow-y-auto">
+              {filteredPages.length === 0 ? (
+                <p className="px-3 py-4 text-[12px] text-gray-400 text-center">No pages found</p>
+              ) : (
+                filteredPages.map((page, idx) => {
+                  const Icon = page.icon
+                  return (
+                    <button
+                      key={page.href}
+                      onClick={() => handleSearchNavigate(page.href)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-[13px] transition-colors ${
+                        idx === selectedIndex ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                      <span>{page.name}</span>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          )}
         </div>
 
         {/* Date Picker */}
@@ -226,9 +351,14 @@ export function Header({ title, subtitle }: HeaderProps) {
         <div className="w-px h-5 bg-gray-200 mx-1.5" />
 
         {/* Notifications */}
-        <button className="relative flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-200/60 transition-colors">
+        <button
+          onClick={() => router.push('/notifications')}
+          className="relative flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-200/60 transition-colors"
+        >
           <Bell className="h-4 w-4 text-gray-500" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+          {(pendingCount ?? 0) > 0 && (
+            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+          )}
         </button>
 
         {/* User — compact avatar + dropdown */}

@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { dashboardApi } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
 import {
   TrendingUp,
-  ChevronDown,
   Loader2,
 } from 'lucide-react'
 import {
@@ -208,6 +208,7 @@ type MonthlyRevenue = {
 }
 
 export default function DashboardPage() {
+  const toast = useToast()
   const [stats, setStats] = useState<DashboardStats>({
     totalRevenue: 0,
     revenueChange: 0,
@@ -223,11 +224,14 @@ export default function DashboardPage() {
   const [platformStats, setPlatformStats] = useState<PlatformStat[]>([])
   const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyRevenue[]>([])
   const [loading, setLoading] = useState(true)
-  const [performancePeriod, setPerformancePeriod] = useState<'Day' | 'Week' | 'Month'>('Day')
+  const [fetchError, setFetchError] = useState(false)
+  const [revenuePeriod, setRevenuePeriod] = useState<'3M' | '6M' | '12M'>('12M')
+  const [performancePeriod, setPerformancePeriod] = useState<'3M' | '6M' | '12M'>('6M')
 
   const fetchData = useCallback(async () => {
     try {
-      const dashboardData = await dashboardApi.getStats().catch(() => ({ stats: {} as any, platformStats: [], topAgents: [], monthlyRevenue: [] }))
+      setFetchError(false)
+      const dashboardData = await dashboardApi.getStats()
 
       if (dashboardData.stats) {
         const s = dashboardData.stats
@@ -255,6 +259,8 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
+      setFetchError(true)
+      toast.error('Dashboard Error', 'Failed to load dashboard data. Showing cached values.')
     } finally {
       setLoading(false)
     }
@@ -282,6 +288,12 @@ export default function DashboardPage() {
   return (
     <DashboardLayout title="Super Admin Dashboard">
       <div className="space-y-5">
+        {fetchError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 flex items-center gap-2">
+            <span className="text-red-600 text-sm font-medium">⚠ Failed to load dashboard data.</span>
+            <button onClick={fetchData} className="text-red-700 text-sm underline hover:no-underline">Retry</button>
+          </div>
+        )}
         {/* KPI Cards Row - Using single reusable component */}
         <div className="grid grid-cols-4 gap-4">
           <KPICard
@@ -326,24 +338,36 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <h3 className="text-sm font-semibold text-gray-900">Total Revenue</h3>
-                <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 border border-gray-200 rounded-lg">
-                  This Week <ChevronDown className="w-3 h-3" />
-                </button>
+                <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+                  {(['3M', '6M', '12M'] as const).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setRevenuePeriod(p)}
+                      className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
+                        revenuePeriod === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-gray-900" />
-                  <span className="text-[10px] text-gray-400">Income</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-gray-300" />
-                  <span className="text-[10px] text-gray-400">Outcome</span>
-                </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-gray-900" />
+                <span className="text-[10px] text-gray-400">Revenue</span>
               </div>
             </div>
-            {monthlyRevenue.length > 0 ? (
+            {(() => {
+              const monthCount = revenuePeriod === '3M' ? 3 : revenuePeriod === '6M' ? 6 : 12
+              const filteredRevenue = monthlyRevenue.slice(-monthCount)
+              if (filteredRevenue.length === 0) return (
+                <div className="flex items-center justify-center h-[220px] text-sm text-gray-400">
+                  No revenue data yet
+                </div>
+              )
+              return (
               <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={monthlyRevenue.map(m => ({ name: m.month, revenue: m.total }))}>
+                <LineChart data={filteredRevenue.map(m => ({ name: m.month, revenue: m.total }))}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} />
                   <YAxis
@@ -373,11 +397,8 @@ export default function DashboardPage() {
                   />
                 </LineChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[220px] text-sm text-gray-400">
-                No revenue data yet
-              </div>
-            )}
+              )
+            })()}
           </div>
 
           {/* In Amount Statistics */}
@@ -385,11 +406,8 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-2">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">In Amount Statistics</h3>
-                <p className="text-[11px] text-gray-400">Platform distribution overview</p>
+                <p className="text-[11px] text-gray-400">Platform distribution — all time</p>
               </div>
-              <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 border border-gray-200 rounded-lg">
-                This Month <ChevronDown className="w-3 h-3" />
-              </button>
             </div>
 
             {(() => {
@@ -471,65 +489,70 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-gray-900">Agents Performance</h3>
               <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
-                {(['Day', 'Week', 'Month'] as const).map((period) => (
+                {(['3M', '6M', '12M'] as const).map((p) => (
                   <button
-                    key={period}
-                    onClick={() => setPerformancePeriod(period)}
+                    key={p}
+                    onClick={() => setPerformancePeriod(p)}
                     className={`px-3.5 py-1.5 text-[11px] font-medium rounded-md transition-all ${
-                      performancePeriod === period
+                      performancePeriod === p
                         ? 'bg-white text-gray-900 shadow-sm'
                         : 'text-gray-400'
                     }`}
                   >
-                    {period}
+                    {p}
                   </button>
                 ))}
               </div>
             </div>
-            {monthlyRevenue.length > 0 ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={monthlyRevenue.map(m => ({ name: m.month, revenue: m.total }))}>
-                  <defs>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#111827" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#111827" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fill: '#94A3B8' }}
-                    width={40}
-                    tickFormatter={(v) => v === 0 ? '0' : `$${(v/1000).toFixed(0)}k`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      fontSize: '11px',
-                    }}
-                    formatter={(value: number) => [`$${value.toLocaleString()}`, 'Revenue']}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#111827"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorRevenue)"
-                    dot={{ fill: '#111827', strokeWidth: 0, r: 4 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[220px] text-sm text-gray-400">
-                No performance data yet
-              </div>
-            )}
+            {(() => {
+              const monthCount = performancePeriod === '3M' ? 3 : performancePeriod === '6M' ? 6 : 12
+              const filteredPerf = monthlyRevenue.slice(-monthCount)
+              if (filteredPerf.length === 0) return (
+                <div className="flex items-center justify-center h-[220px] text-sm text-gray-400">
+                  No performance data yet
+                </div>
+              )
+              return (
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={filteredPerf.map(m => ({ name: m.month, revenue: m.total }))}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#111827" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#111827" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 11, fill: '#94A3B8' }}
+                      width={40}
+                      tickFormatter={(v) => v === 0 ? '0' : `$${(v/1000).toFixed(0)}k`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        fontSize: '11px',
+                      }}
+                      formatter={(value: number) => [`$${value.toLocaleString()}`, 'Revenue']}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#111827"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorRevenue)"
+                      dot={{ fill: '#111827', strokeWidth: 0, r: 4 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )
+            })()}
           </div>
 
           {/* Top 5 Agents */}
@@ -537,11 +560,8 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">Top 5 Agents</h3>
-                <p className="text-[11px] text-gray-400">Best performing agents</p>
+                <p className="text-[11px] text-gray-400">By user count</p>
               </div>
-              <button className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-400 border border-gray-200 rounded-lg">
-                This Month <ChevronDown className="w-3 h-3" />
-              </button>
             </div>
 
             <div className="space-y-3">

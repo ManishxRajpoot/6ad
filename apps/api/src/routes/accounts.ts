@@ -78,12 +78,12 @@ const generateAccountDepositApplyId = (platform: string) => {
   return `${prefix}${year}${month}${day}${random}`
 }
 
-// Hardcoded Cheetah API credentials
+// Cheetah API credentials from environment
 const CHEETAH_CREDENTIALS = {
   production: {
-    appid: 'wvLY386',
-    secret: '7fd454af-84f1-4e62-9130-4989181063ed',
-    baseUrl: 'https://open-api.cmcm.com',
+    appid: process.env.CHEETAH_APPID || '',
+    secret: process.env.CHEETAH_SECRET || '',
+    baseUrl: process.env.CHEETAH_BASE_URL || 'https://open-api.cmcm.com',
   },
 }
 
@@ -873,7 +873,7 @@ accounts.post('/', requireUser, async (c) => {
     const existing = await prisma.adAccount.findFirst({
       where: {
         platform: data.platform,
-        accountId: data.accountId
+        accountId: data.accountId.trim()
       }
     })
 
@@ -1753,11 +1753,19 @@ accounts.patch('/:id', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
     const body = await c.req.json()
-    if (body.accountId) body.accountId = body.accountId.trim()
+
+    // Whitelist allowed fields to prevent arbitrary field injection
+    const allowedFields = ['accountId', 'accountName', 'platform', 'status', 'bmId', 'timezone', 'currency', 'dailyLimit', 'notes', 'threshold', 'rechargeAmount', 'autoRecharge', 'extensionProfileId', 'cheetahAccountId', 'topupMode']
+    const data: Record<string, any> = {}
+    for (const key of allowedFields) {
+      if (key in body) {
+        data[key] = typeof body[key] === 'string' ? body[key].trim() : body[key]
+      }
+    }
 
     const account = await prisma.adAccount.update({
       where: { id },
-      data: body
+      data
     })
 
     return c.json({ message: 'Account updated', account })
@@ -2539,28 +2547,22 @@ accounts.get('/:id/insights', requireUser, async (c) => {
     const userRole = c.get('userRole')
     const { startDate, endDate } = c.req.query()
 
-    console.log('[DEBUG insights] Received id param:', id, 'startDate:', startDate, 'endDate:', endDate)
-
     // Find account by database ID or by Facebook accountId
     let account = null
     try {
       account = await prisma.adAccount.findUnique({
         where: { id }
       })
-      console.log('[DEBUG insights] findUnique result:', account ? `found (accountId: ${account.accountId})` : 'not found')
     } catch {
       // id is not a valid ObjectId - try as accountId instead
-      console.log('[DEBUG insights] findUnique failed (not a valid ObjectId), trying findFirst by accountId')
     }
     if (!account) {
       account = await prisma.adAccount.findFirst({
         where: { accountId: id }
       })
-      console.log('[DEBUG insights] findFirst by accountId result:', account ? `found (id: ${account.id})` : 'not found')
     }
 
     if (!account) {
-      console.log('[DEBUG insights] Account not found for id:', id)
       return c.json({ error: 'Account not found' }, 404)
     }
 
@@ -2591,7 +2593,6 @@ accounts.get('/:id/insights', requireUser, async (c) => {
       'impressions,clicks,spend,actions'
     )
 
-    console.log('[DEBUG insights] Cheetah response code:', result.code, 'data type:', Array.isArray(result.data) ? `array(${result.data.length})` : typeof result.data, 'msg:', result.msg)
     if (result.code === 0) {
       // Conversion action keywords — only real business outcomes, not engagement metrics
       // We pick the one with the HIGHEST value among these (at account level we don't know campaign objective)
@@ -2639,12 +2640,6 @@ accounts.get('/:id/insights', requireUser, async (c) => {
 
       // Normalize: Cheetah may return a single object or an array
       const rawData = Array.isArray(result.data) ? result.data : [result.data]
-
-      // Log first day's actions for debugging
-      if (rawData.length > 0 && rawData[0].actions) {
-        const firstDay = rawData[0]
-        console.log('[DEBUG insights] Day:', firstDay.date_start || firstDay.date, 'Action types:', JSON.stringify(Array.isArray(firstDay.actions) ? firstDay.actions.map((a: any) => `${a.action_type}=${a.value}`) : firstDay.actions))
-      }
 
       // Process each day and compute totals on server
       let totalSpent = 0, totalImpressions = 0, totalClicks = 0, totalResults = 0
