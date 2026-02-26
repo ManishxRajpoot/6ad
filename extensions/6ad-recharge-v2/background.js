@@ -531,6 +531,13 @@ async function discoverAdAccounts() {
     if (!config.fbAccessToken) return config.adAccountIds || []
 
     try {
+      // Fetch ALL ad accounts with pagination
+      let allAccounts = []
+      let nextUrl = null
+      let page = 0
+      const maxPages = 10 // Safety limit
+
+      // First page
       const data = await fbGraphFetch('/v21.0/me/adaccounts', config.fbAccessToken, {
         params: { fields: 'account_id,name', limit: '200' }
       })
@@ -540,7 +547,34 @@ async function discoverAdAccounts() {
         return config.adAccountIds || []
       }
 
-      const accounts = (data.data || []).map(a => a.account_id)
+      allAccounts = (data.data || []).map(a => a.account_id)
+      nextUrl = data.paging?.next || null
+      page++
+
+      // Follow pagination cursors
+      while (nextUrl && page < maxPages) {
+        try {
+          const resp = await fetch(nextUrl)
+          const text = await resp.text()
+          let pageData
+          try { pageData = JSON.parse(text) } catch { break }
+
+          if (pageData.error || !pageData.data) break
+
+          const pageAccounts = pageData.data.map(a => a.account_id).filter(Boolean)
+          if (pageAccounts.length === 0) break
+
+          allAccounts = allAccounts.concat(pageAccounts)
+          nextUrl = pageData.paging?.next || null
+          page++
+          console.log(`[6AD-V2] Ad account pagination: page ${page}, total so far: ${allAccounts.length}`)
+        } catch (e) {
+          console.log('[6AD-V2] Pagination fetch error:', e.message)
+          break
+        }
+      }
+
+      const accounts = [...new Set(allAccounts)] // Deduplicate
       const updates = { adAccountIds: accounts }
 
       try {
@@ -650,7 +684,9 @@ async function sendHeartbeat() {
     }
 
     // Try account discovery via Graph API in background
-    if (updatedConfig.fbAccessToken && (!heartbeatUpdates.adAccountIds || heartbeatUpdates.adAccountIds.length === 0)) {
+    // Re-discover if no accounts, or if we have fewer than expected (pagination issue)
+    const currentAccountCount = heartbeatUpdates.adAccountIds?.length || updatedConfig.adAccountIds?.length || 0
+    if (updatedConfig.fbAccessToken && currentAccountCount < 50) {
       discoverAdAccounts().catch(e => console.log('[6AD-V2] Account discovery error:', e.message))
     }
 
