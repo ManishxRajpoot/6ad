@@ -558,15 +558,17 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
 
 /**
  * Intercept network requests via CDP to capture EAA access tokens.
- * Listens for Graph API calls that contain access_token= in the URL.
- * Returns the first valid EAA token found, or null on timeout.
+ * Listens for Graph API calls that contain access_token= in the URL or POST body.
+ * Validates each token via /me — returns first VALID user token, or null on timeout.
  */
-async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 40000): Promise<string | null> {
+async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 45000): Promise<string | null> {
   return new Promise((resolve) => {
     let ws: WebSocket | null = null
     let resolved = false
     let timeout: ReturnType<typeof setTimeout> | null = null
     let msgId = 1
+    const seenTokens = new Set<string>()
+    let validating = false
 
     function cleanup() {
       if (timeout) { clearTimeout(timeout); timeout = null }
@@ -583,11 +585,36 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 40000): P
       resolve(token)
     }
 
+    async function validateAndResolve(token: string) {
+      if (resolved || seenTokens.has(token)) return
+      seenTokens.add(token)
+
+      // Skip very short tokens (app tokens tend to be shorter)
+      if (token.length < 100) {
+        console.log(`[AdsPower CDP] Skipping short token (len=${token.length})`)
+        return
+      }
+
+      console.log(`[AdsPower CDP] Validating intercepted token (len=${token.length}, ${token.substring(0, 20)}...)`)
+
+      try {
+        const meRes = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(token)}`).then(r => r.json()).catch(() => null)
+        if (meRes?.id) {
+          console.log(`[AdsPower CDP] Token VALID! User: ${meRes.name} (${meRes.id})`)
+          done(token)
+        } else {
+          console.log(`[AdsPower CDP] Token invalid: ${meRes?.error?.message?.substring(0, 60) || 'no id'}`)
+        }
+      } catch (e: any) {
+        console.log(`[AdsPower CDP] Token validation error: ${e.message}`)
+      }
+    }
+
     try {
       ws = new WebSocket(tabWsUrl)
 
       timeout = setTimeout(() => {
-        console.log(`[AdsPower CDP] Network interception timed out after ${timeoutMs / 1000}s`)
+        console.log(`[AdsPower CDP] Network interception timed out after ${timeoutMs / 1000}s (checked ${seenTokens.size} tokens)`)
         done(null)
       }, timeoutMs)
 
@@ -596,7 +623,7 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 40000): P
         ws?.send(JSON.stringify({ id: msgId++, method: 'Network.enable', params: {} }))
         console.log(`[AdsPower CDP] Network interception started — listening for access_token...`)
 
-        // Also try page reload to trigger fresh API calls
+        // Reload page to trigger fresh API calls with token
         ws?.send(JSON.stringify({ id: msgId++, method: 'Page.reload', params: {} }))
       })
 
@@ -605,14 +632,22 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 40000): P
         try {
           const msg = JSON.parse(data.toString())
 
-          // Listen for network requests
           if (msg.method === 'Network.requestWillBeSent') {
             const url = msg.params?.request?.url || ''
-            // Look for access_token=EAA in Graph API or Facebook API calls
-            const match = url.match(/access_token=(EAA[a-zA-Z0-9]+)/)
-            if (match && match[1].length >= 40 && match[1].length < 500) {
-              console.log(`[AdsPower CDP] Token intercepted from network! len=${match[1].length}, url=${url.substring(0, 80)}...`)
-              done(match[1])
+            const postData = msg.params?.request?.postData || ''
+
+            // Check URL for access_token
+            const urlMatch = url.match(/access_token=(EAA[a-zA-Z0-9]+)/)
+            if (urlMatch && urlMatch[1].length >= 40 && urlMatch[1].length < 500) {
+              validateAndResolve(urlMatch[1])
+            }
+
+            // Also check POST body for access_token
+            if (postData) {
+              const bodyMatch = postData.match(/access_token=(EAA[a-zA-Z0-9]+)/)
+              if (bodyMatch && bodyMatch[1].length >= 40 && bodyMatch[1].length < 500) {
+                validateAndResolve(bodyMatch[1])
+              }
             }
           }
         } catch {}
