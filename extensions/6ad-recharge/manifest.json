@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "6AD Auto Recharge",
-  "version": "1.1.5",
+  "version": "1.1.4",
   "description": "Automatically recharges Facebook ad account spending limits when deposits are approved.",
   "permissions": [
     "storage",
@@ -17,9 +17,7 @@
     "https://business.facebook.com/*",
     "https://adsmanager.facebook.com/*",
     "*://api.6ad.in/*",
-    "http://localhost:5001/*",
-    "http://localhost:3004/*",
-    "https://ads-check.6ad.in/*"
+    "http://localhost:5001/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -43,15 +41,6 @@
       ],
       "js": ["bridge.js"],
       "run_at": "document_start",
-      "world": "ISOLATED"
-    },
-    {
-      "matches": [
-        "http://localhost:3004/*",
-        "https://ads-check.6ad.in/*"
-      ],
-      "js": ["ads-check-inject.js"],
-      "run_at": "document_idle",
       "world": "ISOLATED"
     }
   ],

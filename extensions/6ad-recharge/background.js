@@ -247,10 +247,6 @@ async function tryCaptureFBToken() {
 // ==================== TOKEN CAPTURE VIA DEBUGGER ====================
 // Attach Chrome debugger to FB tabs to intercept network requests
 
-function isAdsCheckUrl(url) {
-  return url && (url.includes('localhost:3004') || url.includes('ads-check.6ad.in'))
-}
-
 function isFacebookUrl(url) {
   return url && (
     url.includes('facebook.com') ||
@@ -333,7 +329,7 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
 // Token collection — Facebook pages emit many different EAA tokens.
 // We collect them over a short window and pick the best one from trusted sources.
 let collectedTokens = [] // { token, source } objects
-// tokenCollectionTimer removed — using chrome.alarms('6ad-token-debounce') for MV3 safety
+let tokenCollectionTimer = null
 let savedTokenSet = new Set() // Avoid re-processing tokens we already saved
 
 async function validateAndSaveToken(token, source) {
@@ -357,8 +353,8 @@ async function validateAndSaveToken(token, source) {
   collectedTokens.push({ token, source: source || 'unknown' })
 
   // Debounce — wait 3 seconds after last token, then pick the best one
-  // Use chrome.alarms for MV3 safety (setTimeout may not fire if SW goes idle)
-  chrome.alarms.create('6ad-token-debounce', { delayInMinutes: 0.05 }) // ~3 seconds
+  if (tokenCollectionTimer) clearTimeout(tokenCollectionTimer)
+  tokenCollectionTimer = setTimeout(() => pickBestToken(), 3000)
 }
 
 async function pickBestToken() {
@@ -1106,10 +1102,6 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (config.isEnabled && config.apiKey) {
       await sendHeartbeat()
     }
-  } else if (alarm.name === '6ad-token-debounce') {
-    await pickBestToken()
-  } else if (alarm.name === '6ad-startup-init') {
-    await onStartupInit()
   }
 })
 
@@ -1244,29 +1236,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       setTimeout(() => tryCaptureFBToken(), 5000)
     }
   }
-
-  // Inject token into ads-check pages
-  if (changeInfo.status === 'complete' && tab.url && isAdsCheckUrl(tab.url)) {
-    const config = await getConfig()
-    const token = config.fbAccessToken
-    if (token && token.startsWith('EAA') && token.length >= 40) {
-      setTimeout(async () => {
-        try {
-          await chrome.scripting.executeScript({
-            target: { tabId },
-            world: 'MAIN',
-            func: (t) => {
-              window.postMessage({ type: '__6AD_ADS_CHECK_TOKEN__', token: t }, window.location.origin)
-            },
-            args: [token]
-          })
-          console.log('[6AD] Token injected into ads-check page')
-        } catch (err) {
-          console.log('[6AD] Ads-check inject failed:', err.message)
-        }
-      }, 1500)
-    }
-  }
 })
 
 // ==================== STARTUP ====================
@@ -1278,8 +1247,7 @@ chrome.runtime.onInstalled.addListener(() => {
   attachDebuggerToFBTabs()
 })
 
-// MV3-safe startup: use chrome.alarms instead of setTimeout for deferred init
-async function onStartupInit() {
+setTimeout(async () => {
   const config = await getConfig()
   // Always attach debugger on startup
   await attachDebuggerToFBTabs()
@@ -1303,15 +1271,6 @@ async function onStartupInit() {
   if (config.apiKey && config.isEnabled) {
     await sendHeartbeat()
   }
-}
-
-// Use a one-time alarm for deferred startup (MV3 service workers kill setTimeout after 30s idle)
-chrome.alarms.create('6ad-startup-init', { delayInMinutes: 0.05 }) // ~3 seconds
-
-// Also run on browser startup (covers cold starts)
-chrome.runtime.onStartup.addListener(() => {
-  console.log('[6AD] Browser startup detected')
-  onStartupInit()
-})
+}, 3000)
 
 console.log('[6AD] Background service worker loaded')
