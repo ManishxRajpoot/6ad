@@ -466,8 +466,10 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     // NOTE: Session warm-up (scrolling FB feed) intentionally skipped for recharges.
     // The post-login cooldown above provides sufficient session stabilization.
 
-    // Step 4: Capture token — FB generates __accessToken only after Ads Manager loads
-    // Flow: home.php (warmup) → Ads Manager (forces token creation) → read token
+    // Step 4: Capture token
+    // Key insight: FB sends access_token in FormData POST bodies, which CDP Network.requestWillBeSent
+    // doesn't capture (multipart bodies are empty in postData). So we inject JS-level interceptors
+    // (same approach as the extension) and read captured tokens via CDP.
     console.log(`[AdsPower CDP] Step 4: Token capture starting...`)
 
     let capturedToken: string | null = null
@@ -477,15 +479,38 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     const pageTabs = allTabs.filter((t: any) => t.type === 'page' && t.webSocketDebuggerUrl)
     console.log(`[AdsPower CDP] Found ${pageTabs.length} page tabs: ${pageTabs.map((t: any) => t.url?.substring(0, 80)).join(' | ')}`)
 
+    // Phase 0: Dismiss any lingering remember_browser / checkpoint pages
+    for (const tab of pageTabs) {
+      const tUrl = tab.url || ''
+      if (/two_factor|remember_browser|checkpoint|save_device/.test(tUrl) && tab.webSocketDebuggerUrl) {
+        console.log(`[AdsPower CDP] Dismissing lingering page: ${tUrl.substring(0, 80)}`)
+        await cdpEvaluate(tab.webSocketDebuggerUrl, `
+          (function() {
+            var btns = document.querySelectorAll('button[type="submit"], div[role="button"], a[role="button"], button');
+            for (var i = 0; i < btns.length; i++) {
+              var t = (btns[i].textContent || '').trim().toLowerCase();
+              if (/continue|ok|yes|save|trust|skip|not now|done/i.test(t) && btns[i].offsetWidth > 30) {
+                btns[i].click();
+                return 'clicked: ' + t.substring(0, 20);
+              }
+            }
+            var sub = document.querySelector('button[type="submit"]');
+            if (sub && sub.offsetWidth > 30) { sub.click(); return 'clicked_submit'; }
+            return 'no_button';
+          })()
+        `).then((r: any) => console.log(`[AdsPower CDP] Dismiss result: ${r}`)).catch(() => {})
+        await sleep(3000)
+      }
+    }
+
     // Find usable tab (prefer FB page, skip 2FA/checkpoint pages)
-    let fbTab = pageTabs.find((t: any) =>
+    const refreshedAllTabs = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
+    const refreshedPageTabs = refreshedAllTabs.filter((t: any) => t.type === 'page' && t.webSocketDebuggerUrl)
+    let fbTab = refreshedPageTabs.find((t: any) =>
       t.url?.includes('www.facebook.com') &&
-      !t.url?.includes('two_factor') &&
-      !t.url?.includes('two_step') &&
-      !t.url?.includes('checkpoint') &&
-      !t.url?.includes('remember_browser')
+      !t.url?.includes('two_factor') && !t.url?.includes('checkpoint') && !t.url?.includes('remember_browser')
     )
-    if (!fbTab) fbTab = pageTabs[0]
+    if (!fbTab) fbTab = refreshedPageTabs[0]
 
     if (fbTab?.webSocketDebuggerUrl) {
       // Phase 1: Navigate to FB home for session warmup
@@ -497,68 +522,222 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
         console.log(`[AdsPower CDP] Tab on ${tabUrl.substring(0, 60)} — navigating to FB home for warmup...`)
         await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.location.href = 'https://www.facebook.com/home.php'`)
         await sleep(8000)
-        const refreshedTabs = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
-        const refreshedFb = refreshedTabs.find((t: any) =>
-          t.type === 'page' && t.webSocketDebuggerUrl && t.url?.includes('www.facebook.com')
-        )
-        if (refreshedFb) fbTab = refreshedFb
+        const rTabs = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
+        const rFb = rTabs.find((t: any) => t.type === 'page' && t.webSocketDebuggerUrl && t.url?.includes('www.facebook.com'))
+        if (rFb) fbTab = rFb
       }
 
-      // Quick check: maybe __accessToken already exists (rare but possible)
+      // Inject JS-level fetch/XHR interceptor to capture FormData tokens that CDP misses
+      console.log(`[AdsPower CDP] Injecting JS token interceptor...`)
+      await cdpEvaluate(fbTab.webSocketDebuggerUrl, `
+        (function() {
+          if (window.__6adCdpInterceptor) return 'already_installed';
+          window.__6adCdpInterceptor = true;
+          window.__6adCapturedTokens = [];
+
+          function saveToken(token, source) {
+            if (!token || typeof token !== 'string') return;
+            if (token.indexOf('EAA') !== 0 || token.length < 40) return;
+            token = token.replace(/[^a-zA-Z0-9]/g, '');
+            if (token.length < 40) return;
+            // Deduplicate
+            for (var i = 0; i < window.__6adCapturedTokens.length; i++) {
+              if (window.__6adCapturedTokens[i].token === token) return;
+            }
+            window.__6adCapturedTokens.push({ token: token, source: source, time: Date.now() });
+          }
+
+          function extractToken(str) {
+            if (!str || typeof str !== 'string') return null;
+            var m = str.match(/access_token=([^&\\s"']+)/);
+            if (m) {
+              try { var d = decodeURIComponent(m[1]); if (d.indexOf('EAA') === 0) return d; } catch(e) {}
+              if (m[1].indexOf('EAA') === 0) return m[1];
+            }
+            return null;
+          }
+
+          // Intercept fetch
+          var origFetch = window.fetch;
+          window.fetch = function(input, init) {
+            try {
+              var url = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
+              var t = extractToken(url);
+              if (t) saveToken(t, 'fetch-url');
+              if (init && init.body) {
+                if (typeof init.body === 'string') {
+                  var bt = extractToken(init.body);
+                  if (bt) saveToken(bt, 'fetch-body');
+                }
+                if (typeof init.body === 'object' && init.body.get) {
+                  try {
+                    var ft = init.body.get('access_token');
+                    if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'fetch-formdata');
+                  } catch(e) {}
+                }
+                if (init.body instanceof URLSearchParams) {
+                  var ut = init.body.get('access_token');
+                  if (ut && ut.indexOf('EAA') === 0) saveToken(ut, 'fetch-urlsearchparams');
+                }
+              }
+            } catch(e) {}
+            return origFetch.apply(this, arguments);
+          };
+
+          // Intercept XMLHttpRequest
+          var origOpen = XMLHttpRequest.prototype.open;
+          var origSend = XMLHttpRequest.prototype.send;
+          XMLHttpRequest.prototype.open = function(method, url) {
+            this.__6adUrl = url;
+            return origOpen.apply(this, arguments);
+          };
+          XMLHttpRequest.prototype.send = function(body) {
+            try {
+              if (this.__6adUrl) {
+                var t = extractToken(String(this.__6adUrl));
+                if (t) saveToken(t, 'xhr-url');
+              }
+              if (body && typeof body === 'string') {
+                var bt = extractToken(body);
+                if (bt) saveToken(bt, 'xhr-body');
+              }
+              if (body && typeof body === 'object' && body.get) {
+                try {
+                  var ft = body.get('access_token');
+                  if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'xhr-formdata');
+                } catch(e) {}
+              }
+            } catch(e) {}
+            return origSend.apply(this, arguments);
+          };
+
+          return 'installed';
+        })()
+      `)
+
+      // Quick check: maybe __accessToken already exists
       const quickToken = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.__accessToken || null`)
       if (quickToken && typeof quickToken === 'string' && quickToken.startsWith('EAA') && quickToken.length >= 100) {
         capturedToken = quickToken
         console.log(`[AdsPower CDP] __accessToken found on home.php immediately! (len=${quickToken.length})`)
       }
 
-      // Phase 2: Navigate to Ads Manager to force FB to generate the access token
-      // Facebook only creates window.__accessToken after authenticated API calls,
-      // which happen when Ads Manager loads.
+      // Phase 2: Navigate to Ads Manager to trigger authenticated API calls
       if (!capturedToken) {
-        console.log(`[AdsPower CDP] Phase 2: Navigating to Ads Manager to force token generation...`)
+        console.log(`[AdsPower CDP] Phase 2: Navigating to Ads Manager to trigger token generation...`)
+        await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.location.href = 'https://adsmanager.facebook.com/adsmanager/manage/accounts'`)
+        await sleep(15000) // Wait for Ads Manager to load and make API calls
 
-        // Use CDP network interception while loading Ads Manager — capture token from API calls
-        capturedToken = await cdpInterceptToken(
-          fbTab.webSocketDebuggerUrl,
-          60000, // 60s timeout — adsmanager can be slow
-          'https://adsmanager.facebook.com/adsmanager/manage/accounts'
-        )
+        // Re-inject interceptor on new page (page navigation clears JS state)
+        await cdpEvaluate(fbTab.webSocketDebuggerUrl, `
+          (function() {
+            if (window.__6adCdpInterceptor) return 'already_installed';
+            window.__6adCdpInterceptor = true;
+            window.__6adCapturedTokens = [];
+            function saveToken(token, source) {
+              if (!token || typeof token !== 'string') return;
+              if (token.indexOf('EAA') !== 0 || token.length < 40) return;
+              token = token.replace(/[^a-zA-Z0-9]/g, '');
+              if (token.length < 40) return;
+              for (var i = 0; i < window.__6adCapturedTokens.length; i++) {
+                if (window.__6adCapturedTokens[i].token === token) return;
+              }
+              window.__6adCapturedTokens.push({ token: token, source: source, time: Date.now() });
+            }
+            function extractToken(str) {
+              if (!str || typeof str !== 'string') return null;
+              var m = str.match(/access_token=([^&\\s"']+)/);
+              if (m) {
+                try { var d = decodeURIComponent(m[1]); if (d.indexOf('EAA') === 0) return d; } catch(e) {}
+                if (m[1].indexOf('EAA') === 0) return m[1];
+              }
+              return null;
+            }
+            var origFetch = window.fetch;
+            window.fetch = function(input, init) {
+              try {
+                var url = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
+                var t = extractToken(url); if (t) saveToken(t, 'fetch-url');
+                if (init && init.body) {
+                  if (typeof init.body === 'string') { var bt = extractToken(init.body); if (bt) saveToken(bt, 'fetch-body'); }
+                  if (typeof init.body === 'object' && init.body.get) { try { var ft = init.body.get('access_token'); if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'fetch-formdata'); } catch(e) {} }
+                  if (init.body instanceof URLSearchParams) { var ut = init.body.get('access_token'); if (ut && ut.indexOf('EAA') === 0) saveToken(ut, 'fetch-urlsearchparams'); }
+                }
+              } catch(e) {}
+              return origFetch.apply(this, arguments);
+            };
+            var origOpen = XMLHttpRequest.prototype.open;
+            var origSend = XMLHttpRequest.prototype.send;
+            XMLHttpRequest.prototype.open = function(method, url) { this.__6adUrl = url; return origOpen.apply(this, arguments); };
+            XMLHttpRequest.prototype.send = function(body) {
+              try {
+                if (this.__6adUrl) { var t = extractToken(String(this.__6adUrl)); if (t) saveToken(t, 'xhr-url'); }
+                if (body && typeof body === 'string') { var bt = extractToken(body); if (bt) saveToken(bt, 'xhr-body'); }
+                if (body && typeof body === 'object' && body.get) { try { var ft = body.get('access_token'); if (ft && ft.indexOf('EAA') === 0) saveToken(ft, 'xhr-formdata'); } catch(e) {} }
+              } catch(e) {}
+              return origSend.apply(this, arguments);
+            };
+            return 'installed';
+          })()
+        `)
 
-        if (capturedToken) {
-          console.log(`[AdsPower CDP] Token captured from Ads Manager network requests!`)
+        // Wait more for API calls to happen with interceptors active
+        await sleep(15000)
+
+        // Check intercepted tokens
+        const intercepted = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `JSON.stringify(window.__6adCapturedTokens || [])`)
+        let tokens: any[] = []
+        try { tokens = JSON.parse(intercepted || '[]') } catch {}
+        console.log(`[AdsPower CDP] JS interceptor captured ${tokens.length} tokens on Ads Manager`)
+
+        // Try each captured token (prefer longer ones — user tokens are typically >150 chars)
+        tokens.sort((a: any, b: any) => (b.token?.length || 0) - (a.token?.length || 0))
+        for (const t of tokens) {
+          if (capturedToken) break
+          if (t.token?.length < 100) {
+            console.log(`[AdsPower CDP] Skipping short token (${t.source}, len=${t.token.length})`)
+            continue
+          }
+          console.log(`[AdsPower CDP] Validating token from ${t.source} (len=${t.token.length})...`)
+          const meRes = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(t.token)}`).then(r => r.json()).catch(() => null)
+          if (meRes?.id) {
+            capturedToken = t.token
+            console.log(`[AdsPower CDP] Token VALID from JS interceptor! User: ${meRes.name} (${meRes.id}), source=${t.source}`)
+          } else {
+            console.log(`[AdsPower CDP] Token invalid (${t.source}): ${meRes?.error?.message?.substring(0, 60) || 'no id'}`)
+          }
+        }
+
+        // Also check __accessToken on Ads Manager page
+        if (!capturedToken) {
+          const adsToken = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.__accessToken || null`)
+          if (adsToken && typeof adsToken === 'string' && adsToken.startsWith('EAA') && adsToken.length >= 100) {
+            capturedToken = adsToken
+            console.log(`[AdsPower CDP] __accessToken found on Ads Manager page! (len=${adsToken.length})`)
+          }
         }
       }
 
-      // Phase 3: After Ads Manager has loaded, go back to FB home and read __accessToken
+      // Phase 3: Navigate back to FB home and try __accessToken there
       if (!capturedToken) {
-        console.log(`[AdsPower CDP] Phase 3: Ads Manager loaded — navigating back to FB home to read __accessToken...`)
+        console.log(`[AdsPower CDP] Phase 3: Going back to FB home to read __accessToken...`)
         await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.location.href = 'https://www.facebook.com/home.php'`)
-        await sleep(10000) // Wait for home.php to fully load after adsmanager session
+        await sleep(10000)
 
-        // Refresh tab reference
-        const refreshedTabs2 = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
-        const refreshedFb2 = refreshedTabs2.find((t: any) =>
-          t.type === 'page' && t.webSocketDebuggerUrl && t.url?.includes('www.facebook.com')
-        )
-        if (refreshedFb2) fbTab = refreshedFb2
+        const rTabs3 = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
+        const rFb3 = rTabs3.find((t: any) => t.type === 'page' && t.webSocketDebuggerUrl && t.url?.includes('www.facebook.com'))
+        if (rFb3) fbTab = rFb3
 
-        // Try reading __accessToken multiple times (FB may take a moment to populate it)
         for (let attempt = 1; attempt <= 5; attempt++) {
           if (attempt > 1) await sleep(3000)
           const result = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.__accessToken || null`)
           if (result && typeof result === 'string' && result.startsWith('EAA') && result.length >= 100) {
             capturedToken = result
-            console.log(`[AdsPower CDP] __accessToken found after Ads Manager warmup! (attempt ${attempt}, len=${result.length})`)
+            console.log(`[AdsPower CDP] __accessToken found on home.php! (attempt ${attempt}, len=${result.length})`)
             break
           }
           console.log(`[AdsPower CDP] __accessToken attempt ${attempt}: ${result === null ? 'null' : `${String(result).substring(0, 20)}...`}`)
         }
-      }
-
-      // Phase 4: Last resort — intercept network on FB home page reload
-      if (!capturedToken) {
-        console.log(`[AdsPower CDP] Phase 4: Last resort — network interception on FB home reload...`)
-        capturedToken = await cdpInterceptToken(fbTab.webSocketDebuggerUrl, 30000)
       }
     } else {
       console.log(`[AdsPower CDP] No usable page tab found!`)
