@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { PrismaClient, CryptoNetwork } from '@prisma/client'
 import { z } from 'zod'
+import { randomInt } from 'crypto'
 import { verifyTransaction, CONTRACTS } from '../services/crypto/blockchain-verifier.js'
 import { queueForVerification, getVerificationStatus, getPendingCount } from '../services/crypto/background-verifier.js'
 import { processDepositReferralReward } from '../services/referral-rewards.js'
@@ -111,7 +112,6 @@ const generateApplyId = () => {
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
-  const { randomInt } = require('crypto')
   const random = randomInt(1000000, 10000000) // 7-digit cryptographic random
   return `WD${year}${month}${day}${random}`
 }

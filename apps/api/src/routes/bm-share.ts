@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
+import { randomInt } from 'crypto'
 import { verifyToken, requireUser, requireAdmin } from '../middleware/auth.js'
 import { cheetahApi } from '../services/cheetah-api.js'
 import {
@@ -76,7 +77,6 @@ function generateApplyId(): string {
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
-  const { randomInt } = require('crypto')
   const random = randomInt(1000000, 10000000)
   return `BM${year}${month}${day}${random}`
 }
