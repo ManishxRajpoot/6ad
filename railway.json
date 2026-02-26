@@ -3,7 +3,7 @@
   "build": {
     "builder": "NIXPACKS",
     "installCommand": "npm ci --include=dev",
-    "buildCommand": "npm run db:generate && cd packages/database && npm run build && cd ../../apps/api && npm run build"
+    "buildCommand": "npm run db:generate && npm run build --workspace=packages/database && npm run build --workspace=apps/api"
   },
   "deploy": {
     "startCommand": "node apps/api/dist/index.js",
