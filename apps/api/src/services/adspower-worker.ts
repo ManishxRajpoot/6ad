@@ -467,9 +467,7 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     // The post-login cooldown above provides sufficient session stabilization.
 
     // Step 4: Capture token from www.facebook.com
-    // Strategy: Stay on www.facebook.com (NOT adsmanager) — FB home page API calls use user tokens
-    // Method A: Read window.__accessToken from DOM (fastest, most reliable on www.facebook.com)
-    // Method B: Intercept network requests for access_token=EAA in API calls (backup)
+    // Strategy: Navigate a tab to FB home (NOT adsmanager) — FB home has __accessToken and user tokens in API calls
     console.log(`[AdsPower CDP] Capturing token from www.facebook.com...`)
 
     let capturedToken: string | null = null
@@ -479,12 +477,40 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
     const pageTabs = allTabs.filter((t: any) => t.type === 'page' && t.webSocketDebuggerUrl)
     console.log(`[AdsPower CDP] Found ${pageTabs.length} page tabs: ${pageTabs.map((t: any) => t.url?.substring(0, 80)).join(' | ')}`)
 
-    // Find the www.facebook.com tab (should exist from Step 2 login check)
-    const fbTab = pageTabs.find((t: any) => t.url?.includes('www.facebook.com'))
+    // Find the best FB tab: prefer home.php, skip 2FA/checkpoint/remember_browser pages
+    let fbTab = pageTabs.find((t: any) =>
+      t.url?.includes('www.facebook.com') &&
+      !t.url?.includes('two_factor') &&
+      !t.url?.includes('two_step') &&
+      !t.url?.includes('checkpoint') &&
+      !t.url?.includes('remember_browser')
+    )
+
+    // If no clean FB tab, use any page tab and navigate it to home.php
+    if (!fbTab) {
+      fbTab = pageTabs[0] // Use first available page tab
+    }
 
     if (fbTab?.webSocketDebuggerUrl) {
+      // Ensure we're on a proper FB home page — navigate if needed
+      const tabUrl = fbTab.url || ''
+      const isOnFbHome = tabUrl.includes('www.facebook.com') &&
+        !tabUrl.includes('two_factor') && !tabUrl.includes('checkpoint') && !tabUrl.includes('remember_browser')
+
+      if (!isOnFbHome) {
+        console.log(`[AdsPower CDP] Tab on ${tabUrl.substring(0, 60)} — navigating to FB home first...`)
+        await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.location.href = 'https://www.facebook.com/home.php'`)
+        await sleep(8000) // Wait for FB home to load
+        // Refresh tab list and re-find the tab (URL changed)
+        const refreshedTabs = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`).then(r => r.json()).catch(() => [])
+        const refreshedFb = refreshedTabs.find((t: any) =>
+          t.type === 'page' && t.webSocketDebuggerUrl && t.url?.includes('www.facebook.com/home')
+        )
+        if (refreshedFb) fbTab = refreshedFb
+      }
+
       // Method A: Read window.__accessToken directly (available on www.facebook.com after page load)
-      console.log(`[AdsPower CDP] Trying window.__accessToken on FB tab...`)
+      console.log(`[AdsPower CDP] Trying window.__accessToken on FB tab (${fbTab.url?.substring(0, 60)})...`)
       for (let attempt = 1; attempt <= 5; attempt++) {
         if (attempt > 1) await sleep(3000)
         const result = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.__accessToken || null`)
@@ -499,11 +525,10 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
       // Method B: If __accessToken not available, intercept network requests by reloading FB page
       if (!capturedToken) {
         console.log(`[AdsPower CDP] __accessToken not available, trying network interception on FB page...`)
-        // Reload www.facebook.com (NOT navigate to adsmanager!) — FB API calls carry user tokens
         capturedToken = await cdpInterceptToken(fbTab.webSocketDebuggerUrl, 45000)
       }
     } else {
-      console.log(`[AdsPower CDP] No www.facebook.com tab found! Tabs: ${pageTabs.map((t: any) => t.url?.substring(0, 60)).join(', ')}`)
+      console.log(`[AdsPower CDP] No usable page tab found!`)
     }
 
     // Validate captured token
