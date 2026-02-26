@@ -26,7 +26,7 @@ const CONFIG = {
   TASK_TIMEOUT_MS: 300_000,
   IDLE_CLOSE_DELAY_MS: 120_000,           // 2 min — close browser shortly after task completes
   POST_LOGIN_COOLDOWN_MS: 30_000,         // 30s cooldown after fresh login before opening adsmanager
-  MAX_LOGINS_PER_DAY: 3,                  // Max login attempts per profile per 24h
+  MAX_LOGINS_PER_DAY: 999,                // No practical limit — let it retry as needed
   LOGIN_BACKOFF_BASE_MS: 60_000,          // Base backoff after failed login (1 min)
   MAX_TASKS_BEFORE_RESTART: 12,           // Safety restart after N tasks
   MAX_UPTIME_MS: 8 * 60 * 60 * 1000,     // Safety restart after 8 hours uptime
