@@ -708,12 +708,73 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
           }
         }
 
-        // Also check __accessToken on Ads Manager page
+        // Deep scan: check __accessToken + search ALL page HTML for EAA tokens
         if (!capturedToken) {
-          const adsToken = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `window.__accessToken || null`)
-          if (adsToken && typeof adsToken === 'string' && adsToken.startsWith('EAA') && adsToken.length >= 100) {
-            capturedToken = adsToken
-            console.log(`[AdsPower CDP] __accessToken found on Ads Manager page! (len=${adsToken.length})`)
+          console.log(`[AdsPower CDP] Deep scanning page for EAA tokens...`)
+          const scanResult = await cdpEvaluate(fbTab.webSocketDebuggerUrl, `
+            (function() {
+              var results = { accessToken: null, htmlTokens: [], url: window.location.href.substring(0, 80) };
+
+              // 1. window.__accessToken
+              if (window.__accessToken && typeof window.__accessToken === 'string' && window.__accessToken.indexOf('EAA') === 0) {
+                results.accessToken = { token: window.__accessToken, len: window.__accessToken.length };
+              }
+
+              // 2. Scan all script tags for EAA patterns
+              var scripts = document.querySelectorAll('script');
+              var seen = {};
+              for (var i = 0; i < scripts.length; i++) {
+                var text = scripts[i].textContent || '';
+                if (text.length > 10000000) continue; // Skip huge scripts
+                var re = /EAA[a-zA-Z0-9]{30,500}/g;
+                var m;
+                while ((m = re.exec(text)) !== null) {
+                  var tok = m[0];
+                  if (!seen[tok]) {
+                    seen[tok] = true;
+                    results.htmlTokens.push({ token: tok.substring(0, 30) + '...', len: tok.length, full: tok });
+                  }
+                }
+              }
+
+              // 3. Check common FB internal data stores
+              try { if (window.__ar_ephemeral_data) results.arData = true; } catch(e) {}
+              try {
+                var dtsg = document.querySelector('input[name="fb_dtsg"]');
+                if (dtsg) results.dtsg = dtsg.value ? dtsg.value.substring(0, 20) : 'empty';
+              } catch(e) {}
+
+              return JSON.stringify(results);
+            })()
+          `)
+          try {
+            const scan = JSON.parse(scanResult || '{}')
+            console.log(`[AdsPower CDP] Deep scan on ${scan.url}: __accessToken=${scan.accessToken ? 'len=' + scan.accessToken.len : 'null'}, htmlTokens=${scan.htmlTokens?.length || 0}, dtsg=${scan.dtsg || 'none'}`)
+
+            // Try the __accessToken first
+            if (scan.accessToken?.token && scan.accessToken.len >= 100) {
+              capturedToken = scan.accessToken.token
+              console.log(`[AdsPower CDP] Using __accessToken (len=${scan.accessToken.len})`)
+            }
+
+            // Try HTML tokens (sorted by length descending — user tokens are longer)
+            if (!capturedToken && scan.htmlTokens?.length > 0) {
+              scan.htmlTokens.sort((a: any, b: any) => (b.len || 0) - (a.len || 0))
+              for (const ht of scan.htmlTokens) {
+                if (capturedToken) break
+                if (ht.len < 100) continue
+                console.log(`[AdsPower CDP] Testing HTML token (len=${ht.len})...`)
+                const meRes = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(ht.full)}`).then(r => r.json()).catch(() => null)
+                if (meRes?.id) {
+                  capturedToken = ht.full
+                  console.log(`[AdsPower CDP] HTML token VALID! User: ${meRes.name} (${meRes.id})`)
+                } else {
+                  console.log(`[AdsPower CDP] HTML token invalid: ${meRes?.error?.message?.substring(0, 60) || 'no id'}`)
+                }
+              }
+            }
+          } catch (e: any) {
+            console.log(`[AdsPower CDP] Deep scan parse error: ${e.message}`)
           }
         }
       }
