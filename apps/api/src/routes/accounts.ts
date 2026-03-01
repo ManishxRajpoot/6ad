@@ -1675,53 +1675,28 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
 
     const depositAmount = Number(deposit.amount) || 0
     const commissionAmount = Number(deposit.commissionAmount) || 0
-    const totalRefund = depositAmount + commissionAmount
 
-    await prisma.$transaction(async (tx) => {
-      // Update deposit status
-      await tx.accountDeposit.update({
-        where: { id },
-        data: {
-          status: 'REJECTED',
-          adminRemarks
-        }
-      })
-
-      // Refund total cost (deposit + commission) back to user's wallet
-      const balanceBefore = Number(deposit.adAccount.user.walletBalance)
-      const balanceAfter = balanceBefore + totalRefund
-
-      await tx.user.update({
-        where: { id: deposit.adAccount.userId },
-        data: { walletBalance: balanceAfter }
-      })
-
-      // Create wallet flow record for refund
-      await tx.walletFlow.create({
-        data: {
-          type: 'REFUND',
-          amount: totalRefund,
-          balanceBefore,
-          balanceAfter,
-          referenceId: id,
-          referenceType: 'account_deposit_rejected',
-          userId: deposit.adAccount.userId,
-          description: `Refund for rejected deposit: $${depositAmount.toFixed(2)} + Fee $${commissionAmount.toFixed(2)} = $${totalRefund.toFixed(2)} to ${deposit.adAccount.platform} account ${deposit.adAccount.accountId}`
-        }
-      })
+    // Just reject — no refund to wallet
+    await prisma.accountDeposit.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        adminRemarks
+      }
     })
 
-    // Send rejection email to user with refund info
+    // Send rejection email to user
     const approvedDomainReject = deposit.adAccount.user.agent?.customDomains?.[0]
     const agentReject = deposit.adAccount.user.agent
     const agentLogoReject = approvedDomainReject?.emailLogo || approvedDomainReject?.brandLogo || agentReject?.emailLogo || agentReject?.brandLogo || null
     const agentBrandNameReject = deposit.adAccount.user.agent?.username || null
+    const totalCost = depositAmount + commissionAmount
     const userEmailTemplate = getAccountRechargeRejectedTemplate({
       username: deposit.adAccount.user.username,
       applyId: deposit.applyId,
       amount: depositAmount,
       commission: commissionAmount,
-      totalCost: totalRefund,
+      totalCost,
       platform: deposit.adAccount.platform,
       accountId: deposit.adAccount.accountId,
       accountName: deposit.adAccount.accountName || undefined,
@@ -1735,11 +1710,11 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       userId: deposit.adAccount.userId,
       type: 'DEPOSIT_REJECTED',
       title: 'Ad Account Deposit Rejected',
-      message: `Your deposit of $${depositAmount.toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} has been rejected and refunded.${adminRemarks ? ' Reason: ' + adminRemarks : ''}`,
+      message: `Your deposit of $${depositAmount.toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} has been rejected.${adminRemarks ? ' Reason: ' + adminRemarks : ''}`,
       link: '/facebook'
     })
 
-    return c.json({ message: 'Account deposit rejected and refunded' })
+    return c.json({ message: 'Account deposit rejected' })
   } catch (error) {
     console.error('Reject account deposit error:', error)
     return c.json({ error: 'Failed to reject deposit' }, 500)
