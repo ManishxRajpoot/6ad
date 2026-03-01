@@ -2644,10 +2644,19 @@ export async function discoverAccountProfile(adAccountId: string): Promise<strin
 // ─── Public API ────────────────────────────────────────────────────
 
 export function startAdsPowerWorker(): void {
-  console.log('[AdsPower] Worker registered (recharges/BM shares handled by server queues)')
+  console.log('[AdsPower] Worker started — CDP auto-login + browser management enabled')
   console.log(`[AdsPower] API base: ${CONFIG.ADSPOWER_API_BASE}`)
-  // pollForTasks() disabled — Token Pool, Recharge Queue, and BM Share Queue handle all processing
-  // Exported functions (cdpAutoLogin, cdpInterceptToken, serverSideRecharge, etc.) still used by new services
+  console.log(`[AdsPower] Poll interval: ${CONFIG.POLL_INTERVAL_MS / 1000}s`)
+
+  // Initial poll after 10s startup delay
+  setTimeout(() => {
+    pollForTasks().catch(e => console.error('[AdsPower] Poll error:', e.message)).finally(() => { isProcessing = false })
+  }, 10_000)
+
+  // Regular polling
+  pollInterval = setInterval(() => {
+    pollForTasks().catch(e => console.error('[AdsPower] Poll error:', e.message)).finally(() => { isProcessing = false })
+  }, CONFIG.POLL_INTERVAL_MS)
 }
 
 export async function stopAdsPowerWorker(): Promise<void> {

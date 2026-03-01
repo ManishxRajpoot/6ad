@@ -42,6 +42,7 @@ import { startHeartbeat } from './services/event-bus.js'
 import { startTaskWatchdog } from './services/task-watchdog.js'
 import { startRechargeCron } from './services/recharge-cron.js'
 import { startBmShareCron } from './services/bm-share-cron.js'
+import { startAdsPowerWorker } from './services/adspower-worker.js'
 
 const app = new Hono()
 
@@ -126,6 +127,9 @@ startTaskWatchdog()
 // Start recharge & BM share cron (Cheetah → Graph API automation)
 startRechargeCron()
 startBmShareCron()
+
+// Start AdsPower worker (CDP auto-login + browser management for extension)
+startAdsPowerWorker()
 
 // Start server
 const port = Number(process.env.PORT) || 5001
