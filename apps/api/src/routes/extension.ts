@@ -8,6 +8,7 @@ import { Hono } from 'hono'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import { randomBytes } from 'crypto'
 import { prisma } from '../lib/prisma.js'
+import { cdpAutoLogin, startBrowser, CONFIG } from '../services/adspower-worker.js'
 
 const extension = new Hono()
 
@@ -317,6 +318,42 @@ admin.post('/profiles/:id/reassign', async (c) => {
       targetProfile: targetProfile.label,
     })
   } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+/**
+ * POST /extension/admin/profiles/:id/cdp-login — Trigger CDP auto-login for a profile
+ * Admin only. Launches AdsPower browser and runs login detection + auto-fill.
+ */
+admin.post('/profiles/:id/cdp-login', async (c) => {
+  const id = c.req.param('id')
+  try {
+    const profile = await prisma.facebookAutomationProfile.findUnique({
+      where: { id },
+      select: { id: true, label: true, adsPowerSerialNumber: true, isEnabled: true, fbLoginEmail: true },
+    })
+    if (!profile) return c.json({ error: 'Profile not found' }, 404)
+    if (!profile.adsPowerSerialNumber) return c.json({ error: 'No AdsPower serial number' }, 400)
+    if (!profile.fbLoginEmail) return c.json({ error: 'No FB login credentials' }, 400)
+
+    const serial = profile.adsPowerSerialNumber
+    console.log(`[CDP-Login] Manual trigger for "${profile.label}" (serial=${serial})`)
+
+    // Launch browser
+    const launched = await startBrowser(serial)
+    if (!launched) return c.json({ error: 'Failed to launch browser', serial }, 500)
+
+    console.log(`[CDP-Login] Browser launched — waiting 15s for load...`)
+    await new Promise(r => setTimeout(r, 15000))
+
+    // Run CDP auto-login
+    const result = await cdpAutoLogin(serial, profile)
+    console.log(`[CDP-Login] Result: ${result}`)
+
+    return c.json({ success: result, profile: profile.label, serial })
+  } catch (err: any) {
+    console.error(`[CDP-Login] Error:`, err.message)
     return c.json({ error: err.message }, 500)
   }
 })
