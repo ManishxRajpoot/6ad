@@ -392,14 +392,27 @@ extension.post('/token', async (c) => {
     }
 
     // Update profile with new token
+    const updateData: any = {
+      fbAccessToken: token,
+      fbTokenCapturedAt: new Date(),
+      lastHeartbeatAt: new Date(),
+      status: 'IDLE',
+    }
+
+    // Fetch FB user info (name + UID) from Graph API using the token
+    try {
+      const meResp = await fetch(`https://graph.facebook.com/me?fields=id,name&access_token=${encodeURIComponent(token)}`)
+      if (meResp.ok) {
+        const me = await meResp.json() as any
+        if (me.id) updateData.fbUserId = me.id
+        if (me.name) updateData.fbUserName = me.name
+        console.log(`[Extension] FB user info for "${profile.label}": ${me.name} (${me.id})`)
+      }
+    } catch {}
+
     await prisma.facebookAutomationProfile.update({
       where: { id: profile.id },
-      data: {
-        fbAccessToken: token,
-        fbTokenCapturedAt: new Date(),
-        lastHeartbeatAt: new Date(),
-        status: 'IDLE',
-      },
+      data: updateData,
     })
 
     console.log(`[Extension] Token captured for "${profile.label}" (${token.substring(0, 10)}...)`)
