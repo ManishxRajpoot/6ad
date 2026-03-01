@@ -208,12 +208,20 @@ async function tryCaptureFBToken() {
                 } catch(e) {}
               }
 
-              // 3. Get user info
+              // 3. Get user info — multiple fallbacks since c_user may be missing
               const cUser = document.cookie.match(/c_user=(\d+)/)
               if (cUser) result.userId = cUser[1]
 
               const um = html.match(/"USER_ID":"(\d+)"/)
               if (um) result.userId = um[1]
+
+              // Fallback: CurrentUserInitialData module (works even when c_user cookie is missing)
+              if (!result.userId && typeof require === 'function') {
+                try {
+                  const userMod = require('CurrentUserInitialData')
+                  if (userMod && userMod.USER_ID) result.userId = userMod.USER_ID
+                } catch(e) {}
+              }
 
               return result
             } catch (e) {
@@ -385,7 +393,29 @@ async function recaptureToken() {
           target: { tabId: tab.id },
           world: 'MAIN',
           func: () => {
-            const loggedIn = !!window.__accessToken || document.cookie.includes('c_user=')
+            // Multi-signal login detection — c_user alone is unreliable
+            // FB can revoke c_user via session downgrade without logging user out
+            const hasCUser = document.cookie.includes('c_user=')
+            const hasXS = document.cookie.includes('xs=')
+            const hasDatetr = document.cookie.includes('datr=')
+            const cookieSignals = [hasCUser, hasXS, hasDatetr].filter(Boolean).length
+
+            // DOM signals — navbar present means FB is loaded & user session active
+            const hasNavbar = !!(document.querySelector('[role="banner"]') || document.querySelector('[data-pagelet="FixedHeader"]') || document.querySelector('div[aria-label="Facebook"]'))
+            const isLoginPage = /\/login|\/checkpoint|accounts\.facebook/.test(window.location.href)
+
+            // USER_ID in page HTML — FB embeds this even when c_user is missing
+            const hasUserIdInHtml = /"USER_ID":"(\d+)"/.test(document.documentElement?.innerHTML?.substring(0, 50000) || '')
+
+            // Logged in if: (any 2 cookies) OR (1 cookie + navbar) OR (navbar + userId in HTML) OR has c_user
+            // NOT logged in if: on login page, or zero signals
+            const loggedIn = !isLoginPage && (
+              hasCUser ||
+              cookieSignals >= 2 ||
+              (cookieSignals >= 1 && hasNavbar) ||
+              (hasNavbar && hasUserIdInHtml)
+            )
+
             let token = null
             if (window.__accessToken) token = window.__accessToken
             if (!token && typeof require === 'function') {
@@ -473,20 +503,44 @@ async function rehydrateToken() {
 
     const tab = tabs[0]
 
-    // First check if logged in
+    // First check if logged in — multi-signal detection (c_user alone is unreliable)
     try {
       const loginCheck = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         world: 'MAIN',
-        func: () => ({ loggedIn: document.cookie.includes('c_user=') })
+        func: () => {
+          const hasCUser = document.cookie.includes('c_user=')
+          const hasXS = document.cookie.includes('xs=')
+          const hasDatetr = document.cookie.includes('datr=')
+          const cookieSignals = [hasCUser, hasXS, hasDatetr].filter(Boolean).length
+          const hasNavbar = !!(document.querySelector('[role="banner"]') || document.querySelector('[data-pagelet="FixedHeader"]') || document.querySelector('div[aria-label="Facebook"]'))
+          const isLoginPage = /\/login|\/checkpoint|accounts\.facebook/.test(window.location.href)
+          const hasUserIdInHtml = /"USER_ID":"(\d+)"/.test(document.documentElement?.innerHTML?.substring(0, 50000) || '')
+
+          const loggedIn = !isLoginPage && (
+            hasCUser ||
+            cookieSignals >= 2 ||
+            (cookieSignals >= 1 && hasNavbar) ||
+            (hasNavbar && hasUserIdInHtml)
+          )
+          return { loggedIn, hasCUser, hasXS, hasDatetr, hasNavbar, isLoginPage }
+        }
       })
-      if (!loginCheck?.[0]?.result?.loggedIn) {
-        console.log('[6AD-V2] rehydrateToken: FB is LOGGED OUT — returning null, adspower-worker will auto-login')
+      const checkResult = loginCheck?.[0]?.result
+      if (checkResult && !checkResult.loggedIn) {
+        console.log('[6AD-V2] rehydrateToken: FB is LOGGED OUT — signals:', JSON.stringify(checkResult), '— returning null, adspower-worker will auto-login')
         await addActivity('warning', 'FB logged out during rehydration — server will handle login')
         return null
       }
+      // If script execution failed (e.g. cross-origin), be OPTIMISTIC — try navigation anyway
+      // Better to attempt Ads Manager navigation and fail than to give up prematurely
+      if (!checkResult) {
+        console.log('[6AD-V2] rehydrateToken: login check returned no result — proceeding optimistically')
+      }
     } catch (e) {
-      console.log('[6AD-V2] rehydrateToken: login check failed:', e.message)
+      // Script execution can fail on cross-origin or restricted pages
+      // Be OPTIMISTIC — proceed with navigation attempt rather than bailing
+      console.log('[6AD-V2] rehydrateToken: login check failed:', e.message, '— proceeding optimistically')
     }
 
     // Navigate to Ads Manager — this triggers dozens of Graph API calls
@@ -690,12 +744,9 @@ async function sendHeartbeat() {
       discoverAdAccounts().catch(e => console.log('[6AD-V2] Account discovery error:', e.message))
     }
 
-    if (result.pendingCount > 0) {
-      await checkAndProcessRecharges()
-    }
-
-    if (result.pendingBmShareCount > 0) {
-      await checkAndProcessBmShares()
+    // Server queues handle all recharges and BM shares — extension only does heartbeat + discovery
+    if (result.pendingCount > 0 || result.pendingBmShareCount > 0) {
+      console.log(`[6AD-V2] ${result.pendingCount} recharges + ${result.pendingBmShareCount} BM shares pending — server queues handle these`)
     }
   } catch (err) {
     console.error('[6AD-V2] Heartbeat failed:', err.message)

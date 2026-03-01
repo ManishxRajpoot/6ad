@@ -437,6 +437,12 @@ model AccountDeposit {
   rechargedAt       DateTime?
   rechargedBy       String?                               // ExtensionSession ID that completed it
 
+  // Post-recharge verification (idempotent recharge safety)
+  previousSpendCap    Float?                              // Spend cap BEFORE recharge (for idempotency check)
+  newSpendCap         Float?                              // Spend cap AFTER recharge (verified)
+  verifiedAt          DateTime?                           // When post-recharge verification passed
+  verificationFailed  Boolean           @default(false)   // True = needs manual review (verification mismatch)
+
   approvedAt        DateTime?
 
   createdAt         DateTime          @default(now())
@@ -1384,6 +1390,7 @@ model FacebookAutomationProfile {
   fbAccessToken       String?                   // Facebook EAA... access token
   fbTokenCapturedAt   DateTime?                 // When token was last captured
   fbTokenValidatedAt  DateTime?                 // When token was last validated
+  tokenScopes         Json?                     // { adsRead, adsManagement, businessManagement, testedAt } — cached scopes
 
   // Cookie-based fallback (when EAA token capture fails)
   fbCookies           String?                   // Extracted session cookies for cookie-based API fallback
@@ -1408,63 +1415,6 @@ model FacebookAutomationProfile {
   updatedAt           DateTime                  @updatedAt
 
   @@index([extensionApiKey])
-}
-
-// ==========================================
-// Automation Job Queue
-// ==========================================
-
-enum AutomationJobType {
-  RECHARGE
-  BM_SHARE
-}
-
-enum AutomationJobStatus {
-  PENDING
-  RUNNING
-  COMPLETED
-  FAILED
-  NEEDS_MANUAL_ACTION
-}
-
-model AutomationJob {
-  id                  String               @id @default(auto()) @map("_id") @db.ObjectId
-
-  // Job type and status
-  type                AutomationJobType
-  status              AutomationJobStatus  @default(PENDING)
-
-  // Source reference
-  sourceId            String               // AccountDeposit.id or BmShareRequest.id
-  sourceType          String               // "AccountDeposit" or "BmShareRequest"
-
-  // Payload — everything the worker needs (JSON)
-  payload             String               // JSON: { adAccountId, depositAmount, ... }
-
-  // Execution tracking
-  assignedProfileId   String?              @db.ObjectId
-  attempts            Int                  @default(0)
-  maxAttempts         Int                  @default(3)
-  lastAttemptAt       DateTime?
-  nextRetryAt         DateTime?
-
-  // Result
-  result              String?              // JSON: { previousSpendCap, newSpendCap, ... }
-  error               String?
-
-  // Logs + Screenshots (JSON arrays)
-  logs                String?              // JSON: [{ timestamp, level, message }]
-  screenshots         String?              // JSON: [{ label, base64, timestamp }]
-
-  // Timestamps
-  startedAt           DateTime?
-  completedAt         DateTime?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-
-  @@index([status])
-  @@index([type, status])
-  @@index([assignedProfileId])
 }
 
 // ==========================================

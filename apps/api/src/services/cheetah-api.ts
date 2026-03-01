@@ -1,7 +1,22 @@
 import crypto from 'crypto'
+import { prisma } from '../lib/prisma.js'
 
 // Cheetah Mobile Open API Service
 // Documentation: 猎豹移动 OPEN API
+
+// Hardcoded credentials (same used everywhere)
+const CHEETAH_CREDENTIALS = {
+  test: {
+    appid: 'D6lVRPk',
+    secret: 'f38d64ad-0d0b-4e94-8c5f-27a9e014bf87',
+    baseUrl: 'https://test-open-api.neverbugs.com',
+  },
+  production: {
+    appid: 'wvLY386',
+    secret: '7fd454af-84f1-4e62-9130-4989181063ed',
+    baseUrl: 'https://open-api.cmcm.com',
+  },
+} as const
 
 interface CheetahConfig {
   appid: string
@@ -471,6 +486,26 @@ class CheetahApiService {
   // Get available quota
   async getQuota(): Promise<CheetahResponse<{ available_quota: string }>> {
     return this.request('/v1/quota', 'GET')
+  }
+
+  // Load config from DB setting (centralised — no more duplication)
+  async loadConfig(): Promise<boolean> {
+    try {
+      let env: 'test' | 'production' = 'production'
+      try {
+        const setting = await prisma.setting.findUnique({ where: { key: 'cheetah_api_config' } })
+        if (setting && setting.value) {
+          const config = JSON.parse(setting.value as string)
+          env = config.environment || 'production'
+        }
+      } catch (_) {
+        // DB failure → use production default
+      }
+      this.setConfig(CHEETAH_CREDENTIALS[env])
+      return true
+    } catch (_) {
+      return false
+    }
   }
 }
 

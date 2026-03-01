@@ -1,4 +1,14 @@
 import 'dotenv/config'
+
+// ─── Global Error Handlers (prevent crash from stray WebSocket/CDP errors) ──
+process.on('uncaughtException', (err) => {
+  console.error(`[UNCAUGHT] ${err.message}`)
+  // Don't exit — keep the server running
+})
+process.on('unhandledRejection', (reason: any) => {
+  console.error(`[UNHANDLED REJECTION] ${reason?.message || reason}`)
+})
+
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
@@ -29,8 +39,9 @@ import extensionRoutes from './routes/extension.js'
 import reportRoutes from './routes/reports.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
-import { startAdsPowerWorker } from './services/adspower-worker.js'
 import { startTaskWatchdog } from './services/task-watchdog.js'
+import { startRechargeCron } from './services/recharge-cron.js'
+import { startBmShareCron } from './services/bm-share-cron.js'
 
 const app = new Hono()
 
@@ -109,11 +120,12 @@ startBackgroundVerifier().catch(console.error)
 // Start SSE heartbeat for real-time event delivery
 startHeartbeat()
 
-// Start AdsPower on-demand browser worker
-startAdsPowerWorker()
-
 // Start stuck task watchdog (auto-timeout + auto-refund)
 startTaskWatchdog()
+
+// Start recharge & BM share cron (Cheetah → Graph API automation)
+startRechargeCron()
+startBmShareCron()
 
 // Start server
 const port = Number(process.env.PORT) || 5001

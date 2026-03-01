@@ -15,7 +15,7 @@ import * as OTPAuth from 'otpauth'
 import { prisma } from '../lib/prisma.js'
 
 // ─── Configuration ─────────────────────────────────────────────────
-const CONFIG = {
+export const CONFIG = {
   POLL_INTERVAL_MS: 30_000,
   ADSPOWER_API_BASE: process.env.ADSPOWER_API_BASE || 'http://localhost:50325',
   ADSPOWER_API_KEY: process.env.ADSPOWER_API_KEY || '1c36652b562b009f94bb48545b3b091f00205f7c6f0c18b1',
@@ -55,7 +55,7 @@ interface AdsPowerResponse {
   data?: { ws?: { puppeteer: string; selenium: string }; webdriver?: string; status?: string }
 }
 
-async function adsPowerRequest(path: string): Promise<AdsPowerResponse> {
+export async function adsPowerRequest(path: string): Promise<AdsPowerResponse> {
   try {
     // Append api_key to every request (required by AdsPower paid plans)
     const separator = path.includes('?') ? '&' : '?'
@@ -68,9 +68,9 @@ async function adsPowerRequest(path: string): Promise<AdsPowerResponse> {
 }
 
 // Store debug info per serial number for CDP access
-const browserDebugInfo = new Map<string, { debugPort: number; wsUrl: string }>()
+export const browserDebugInfo = new Map<string, { debugPort: number; wsUrl: string }>()
 
-async function startBrowser(serialNumber: string): Promise<boolean> {
+export async function startBrowser(serialNumber: string): Promise<boolean> {
   console.log(`[AdsPower] Starting browser serial=${serialNumber} with extension`)
   const launchArgs = encodeURIComponent(JSON.stringify(['--no-sandbox']))
   const openTabs = encodeURIComponent(JSON.stringify(['https://www.facebook.com/']))
@@ -133,7 +133,7 @@ async function startBrowser(serialNumber: string): Promise<boolean> {
  *   3. Fill email/password and click login if needed
  *   4. Open NEW tab to adsmanager URL — extension intercepts API calls to capture token
  */
-async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean> {
+export async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean> {
   let debugInfo = browserDebugInfo.get(serialNumber)
 
   // If no debug info, try refreshing from AdsPower API
@@ -285,9 +285,25 @@ async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean
       (function() {
         var url = window.location.href;
 
-        // Already logged in? (has c_user cookie = active session)
-        if (document.cookie.includes('c_user=')) {
-          return { status: 'already_logged_in', url: url.substring(0, 100) };
+        // Already logged in? Multi-signal detection — c_user alone is unreliable
+        // FB can revoke c_user via session downgrade without logging user out
+        var hasCUser = document.cookie.includes('c_user=');
+        var hasXS = document.cookie.includes('xs=');
+        var hasDatetr = document.cookie.includes('datr=');
+        var cookieSignals = [hasCUser, hasXS, hasDatetr].filter(Boolean).length;
+        var hasNavbar = !!(document.querySelector('[role="banner"]') || document.querySelector('[data-pagelet="FixedHeader"]') || document.querySelector('div[aria-label="Facebook"]'));
+        var isLoginPage = /\/login|\/checkpoint|accounts\.facebook/.test(url);
+        var hasUserIdInHtml = /"USER_ID":"\\d+"/.test((document.documentElement?.innerHTML || '').substring(0, 50000));
+
+        var isLoggedIn = !isLoginPage && (
+          hasCUser ||
+          cookieSignals >= 2 ||
+          (cookieSignals >= 1 && hasNavbar) ||
+          (hasNavbar && hasUserIdInHtml)
+        );
+
+        if (isLoggedIn) {
+          return { status: 'already_logged_in', url: url.substring(0, 100), signals: { hasCUser: hasCUser, hasXS: hasXS, hasDatetr: hasDatetr, hasNavbar: hasNavbar } };
         }
 
         // 2FA page? (pending from previous login attempt — FB redirected directly here)
@@ -821,7 +837,7 @@ async function cdpClearFBCookies(tabWsUrl: string, debugPort: number): Promise<v
  * @param timeoutMs - Max time to wait for a valid token
  * @param navigateUrl - URL to navigate to (triggers API calls with tokens)
  */
-async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 60000, navigateUrl?: string): Promise<string | null> {
+export async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 60000, navigateUrl?: string): Promise<string | null> {
   return new Promise((resolve) => {
     let ws: WebSocket | null = null
     let resolved = false
@@ -835,7 +851,11 @@ async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 60000, na
     function cleanup() {
       if (timeout) { clearTimeout(timeout); timeout = null }
       if (ws) {
-        try { ws.removeAllListeners(); ws.close() } catch {}
+        try {
+          ws.removeAllListeners()
+          // Use terminate() instead of close() — close() throws if WebSocket is still CONNECTING
+          ws.terminate()
+        } catch (e) { /* ignore cleanup errors */ }
         ws = null
       }
     }
@@ -1359,7 +1379,7 @@ async function cookieBasedRecharge(
 /**
  * Execute JavaScript via Chrome DevTools Protocol WebSocket
  */
-async function cdpEvaluate(wsUrl: string, expression: string): Promise<any> {
+export async function cdpEvaluate(wsUrl: string, expression: string): Promise<any> {
   return new Promise((resolve, reject) => {
     let ws: WebSocket | null = null
     let resolved = false
@@ -1368,7 +1388,11 @@ async function cdpEvaluate(wsUrl: string, expression: string): Promise<any> {
     function cleanup() {
       if (timeout) { clearTimeout(timeout); timeout = null }
       if (ws) {
-        try { ws.removeAllListeners(); ws.close() } catch {}
+        try {
+          ws.removeAllListeners()
+          // Use terminate() instead of close() — close() throws if WebSocket is still CONNECTING
+          ws.terminate()
+        } catch (e) { /* ignore cleanup errors */ }
         ws = null
       }
     }
@@ -1395,6 +1419,20 @@ async function cdpEvaluate(wsUrl: string, expression: string): Promise<any> {
           if (msg.id === id) {
             resolved = true
             const value = msg.result?.result?.value || null
+            // Log details when value is null to debug cdpEvaluate failures
+            if (!value) {
+              const resultType = msg.result?.result?.type
+              const subtype = msg.result?.result?.subtype
+              const desc = msg.result?.result?.description?.substring(0, 200)
+              const exDetails = msg.result?.exceptionDetails
+              if (exDetails) {
+                console.log(`[CDP Debug] Eval exception: ${exDetails.text || ''} ${exDetails.exception?.description?.substring(0, 200) || ''}`)
+              } else if (resultType === 'undefined') {
+                // Normal — expression returned undefined (not an error)
+              } else {
+                console.log(`[CDP Debug] Eval returned null — type=${resultType}, subtype=${subtype || 'none'}, desc=${desc || 'none'}`)
+              }
+            }
             cleanup()
             resolve(value)
           }
@@ -1402,17 +1440,156 @@ async function cdpEvaluate(wsUrl: string, expression: string): Promise<any> {
       })
 
       ws.on('error', (err: any) => {
+        console.log(`[CDP Debug] WebSocket error for ${wsUrl.substring(0, 60)}: ${err.message}`)
         if (!resolved) { resolved = true; cleanup(); resolve(null) }
       })
 
-      ws.on('close', () => {
-        if (!resolved) { resolved = true; cleanup(); resolve(null) }
+      ws.on('close', (code: number, reason: string) => {
+        if (!resolved) {
+          console.log(`[CDP Debug] WebSocket closed before response — code=${code}, url=${wsUrl.substring(0, 60)}`)
+          resolved = true; cleanup(); resolve(null)
+        }
       })
     } catch (err: any) {
+      console.log(`[CDP Debug] WebSocket create error: ${err.message}`)
       cleanup()
       resolve(null)
     }
   })
+}
+
+/**
+ * Execute a Graph API call from inside the browser via CDP.
+ * Facebook first-party tokens only work within browser context (with cookies).
+ * The access_token MUST be passed — browser cookies alone don't authenticate Graph API calls.
+ *
+ * Flow: get debug info → find FB tab → cdpEvaluate(fetch(...)) → return result
+ * Browser MUST already be started by caller (via Browser Pool).
+ */
+export async function cdpGraphFetch(
+  serialNumber: string,
+  url: string,
+  method: 'GET' | 'POST' = 'GET',
+  body?: Record<string, string>,
+  accessToken?: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  // 1. Get debug info (browser must already be started by caller via Browser Pool)
+  let debugInfo = browserDebugInfo.get(serialNumber)
+  if (!debugInfo) {
+    // Try fetching from AdsPower API
+    try {
+      const resp = await fetch(`${CONFIG.ADSPOWER_API_BASE}/api/v1/browser/active?serial_number=${serialNumber}`)
+      const data = await resp.json() as any
+      if (data.data?.ws?.puppeteer) {
+        const wsUrl = data.data.ws.puppeteer
+        const portMatch = wsUrl.match(/:(\d+)\//)
+        if (portMatch) {
+          debugInfo = { debugPort: parseInt(portMatch[1]), wsUrl }
+          browserDebugInfo.set(serialNumber, debugInfo)
+        }
+      }
+    } catch {}
+  }
+  if (!debugInfo) return { success: false, error: 'No browser debug info — is browser started?' }
+
+  // 2. Find a facebook.com tab (or any page tab as fallback)
+  let tabs: any[]
+  try {
+    const tabsResp = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`)
+    tabs = await tabsResp.json() as any[]
+  } catch (err: any) {
+    return { success: false, error: `Cannot list tabs: ${err.message}` }
+  }
+
+  let targetTab = tabs.find((t: any) => t.url?.includes('facebook.com') && t.type === 'page')
+
+  if (!targetTab) {
+    // No FB tab — navigate the first available tab to facebook.com
+    const fallbackTab = tabs.find((t: any) => t.webSocketDebuggerUrl && t.type === 'page')
+    if (!fallbackTab?.webSocketDebuggerUrl) return { success: false, error: 'No suitable browser tab found' }
+
+    console.log(`[cdpGraphFetch] No facebook.com tab — navigating ${fallbackTab.url?.substring(0, 40)} → facebook.com`)
+    await cdpEvaluate(fallbackTab.webSocketDebuggerUrl, `window.location.href = 'https://www.facebook.com/'`)
+    await new Promise(r => setTimeout(r, 3000)) // wait for navigation
+
+    // Re-fetch tabs to get updated URL
+    const tabsResp2 = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`)
+    const tabs2 = await tabsResp2.json() as any[]
+    targetTab = tabs2.find((t: any) => t.url?.includes('facebook.com') && t.type === 'page')
+    if (!targetTab) targetTab = tabs2.find((t: any) => t.webSocketDebuggerUrl && t.type === 'page')
+    if (!targetTab?.webSocketDebuggerUrl) return { success: false, error: 'Failed to navigate to facebook.com' }
+  }
+
+  if (!targetTab?.webSocketDebuggerUrl) return { success: false, error: 'No suitable browser tab found' }
+
+  console.log(`[cdpGraphFetch] ${method} ${url.substring(0, 80)}... via tab ${targetTab.url?.substring(0, 50)}`)
+
+  // 3. Inject access_token if provided
+  let finalUrl = url
+  let finalBody = { ...(body || {}) }
+  if (accessToken) {
+    if (method === 'GET') {
+      finalUrl += (finalUrl.includes('?') ? '&' : '?') + `access_token=${encodeURIComponent(accessToken)}`
+    } else {
+      finalBody.access_token = accessToken
+    }
+  }
+
+  // 4. Build JS fetch expression — use IIFE to avoid any syntax issues
+  //    credentials: 'include' ensures browser cookies are sent for cross-origin requests
+  //    (www.facebook.com → graph.facebook.com)
+  let jsExpression: string
+  if (method === 'GET') {
+    jsExpression = `
+      (async function() {
+        try {
+          const r = await fetch(${JSON.stringify(finalUrl)}, { credentials: 'include' });
+          const d = await r.json();
+          return { ok: true, data: d };
+        } catch(e) {
+          return { ok: false, error: e.message };
+        }
+      })()
+    `
+  } else {
+    const bodyStr = new URLSearchParams(finalBody).toString()
+    jsExpression = `
+      (async function() {
+        try {
+          const r = await fetch(${JSON.stringify(finalUrl)}, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: ${JSON.stringify(bodyStr)}
+          });
+          const d = await r.json();
+          return { ok: true, data: d };
+        } catch(e) {
+          return { ok: false, error: e.message };
+        }
+      })()
+    `
+  }
+
+  // 5. Execute via CDP
+  const result = await cdpEvaluate(targetTab.webSocketDebuggerUrl, jsExpression)
+  if (!result) return { success: false, error: 'CDP evaluate returned null (timeout or WS error)' }
+  if (!result.ok) return { success: false, error: result.error || 'In-browser fetch failed' }
+  if (result.data?.error) {
+    // Log full error for debugging first-party token issues
+    const errCode = result.data.error.code || '?'
+    const errMsg = result.data.error.message || JSON.stringify(result.data.error)
+    const errType = result.data.error.type || ''
+    const opesMids = result.data.error.opes_mids ? ' (has opes_mids)' : ''
+    console.log(`[cdpGraphFetch] Error response: code=${errCode} type=${errType}${opesMids} msg=${errMsg.substring(0, 120)}`)
+    return {
+      success: false,
+      data: result.data,
+      error: `${errMsg} (code ${errCode})`
+    }
+  }
+
+  return { success: true, data: result.data }
 }
 
 /**
@@ -1680,7 +1857,7 @@ async function cdpCleanupTabs(debugPort: number, keepAdsmanager = false): Promis
  * Server-side recharge: use stored FB token to update ad account spend cap.
  * Same logic as the extension but runs from Node.js, bypassing cached extension code.
  */
-async function serverSideRecharge(depositId: string, adAccountId: string, amount: number, accessToken: string): Promise<{ success: boolean; error?: string; details?: string; previousSpendCap?: number; newSpendCap?: number }> {
+export async function serverSideRecharge(depositId: string, adAccountId: string, amount: number, accessToken: string): Promise<{ success: boolean; error?: string; details?: string; previousSpendCap?: number; newSpendCap?: number }> {
   adAccountId = adAccountId.trim()
   const FB_GRAPH = 'https://graph.facebook.com/v21.0'
 
@@ -1749,7 +1926,7 @@ async function serverSideRecharge(depositId: string, adAccountId: string, amount
   }
 }
 
-async function stopBrowser(serialNumber: string): Promise<boolean> {
+export async function stopBrowser(serialNumber: string): Promise<boolean> {
   console.log(`[AdsPower] Stopping browser serial=${serialNumber}`)
   const res = await adsPowerRequest(`/api/v1/browser/stop?serial_number=${serialNumber}`)
   // Always clean up memory regardless of stop result
@@ -1759,7 +1936,7 @@ async function stopBrowser(serialNumber: string): Promise<boolean> {
   return false
 }
 
-async function isBrowserActive(serialNumber: string): Promise<boolean> {
+export async function isBrowserActive(serialNumber: string): Promise<boolean> {
   const res = await adsPowerRequest(`/api/v1/browser/active?serial_number=${serialNumber}`)
   return res.code === 0 && res.data?.status === 'Active'
 }
@@ -1813,7 +1990,7 @@ async function getPendingTasks(): Promise<PendingTask[]> {
  *   2. Heartbeat match: profile has this adAccountId in managedAdAccountIds
  *   3. No match: return null → caller uses fallback
  */
-async function findProfileForAdAccount(adAccountId: string): Promise<any | null> {
+export async function findProfileForAdAccount(adAccountId: string): Promise<any | null> {
   // 1. Direct link from AdAccount → extensionProfileId
   const adAccount = await prisma.adAccount.findFirst({
     where: { accountId: adAccountId },
@@ -2467,16 +2644,10 @@ export async function discoverAccountProfile(adAccountId: string): Promise<strin
 // ─── Public API ────────────────────────────────────────────────────
 
 export function startAdsPowerWorker(): void {
-  console.log('[AdsPower] Starting on-demand worker...')
+  console.log('[AdsPower] Worker registered (recharges/BM shares handled by server queues)')
   console.log(`[AdsPower] API base: ${CONFIG.ADSPOWER_API_BASE}`)
-  console.log(`[AdsPower] Poll interval: ${CONFIG.POLL_INTERVAL_MS / 1000}s`)
-
-  pollForTasks().catch(err => console.error('[AdsPower] Initial poll error:', err))
-  pollInterval = setInterval(() => {
-    pollForTasks().catch(err => console.error('[AdsPower] Poll error:', err))
-  }, CONFIG.POLL_INTERVAL_MS)
-
-  console.log('[AdsPower] Worker started')
+  // pollForTasks() disabled — Token Pool, Recharge Queue, and BM Share Queue handle all processing
+  // Exported functions (cdpAutoLogin, cdpInterceptToken, serverSideRecharge, etc.) still used by new services
 }
 
 export async function stopAdsPowerWorker(): Promise<void> {

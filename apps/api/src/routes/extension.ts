@@ -1,20 +1,14 @@
 /**
  * Extension API Routes
  *
- * Multi-profile extension management.
- * Each extension profile has its own API key (extensionApiKey on FacebookAutomationProfile).
- * The Chrome extension sends X-Extension-Key header, server matches to profile.
- *
- * Admin endpoints (JWT auth): CRUD profiles, generate keys
- * Extension endpoints (API key auth): heartbeat, pending tasks, claim/complete/fail
+ * Admin endpoints for managing FacebookAutomationProfile records.
+ * Profile data is still useful for admin reference (FB tokens, AdsPower config, etc.)
  */
 import { Hono } from 'hono'
 import { verifyToken, requireAdmin } from '../middleware/auth.js'
 import { randomBytes } from 'crypto'
-import { getWorkerStatus } from '../services/adspower-worker.js'
-import { fetchFacebookOtp } from '../services/imap-reader.js'
-import * as OTPAuth from 'otpauth'
 import { prisma } from '../lib/prisma.js'
+
 const extension = new Hono()
 
 // ==================== ADMIN ENDPOINTS (JWT auth) ====================
@@ -76,7 +70,7 @@ admin.post('/profiles', async (c) => {
     const { label, remarks, adsPowerSerialNumber, adsPowerProfileId, managedAdAccountIds } = await c.req.json()
     if (!label) return c.json({ error: 'Label is required' }, 400)
 
-    const apiKey = 'ext_' + randomBytes(24).toString('hex')
+    const apiKey = '6ad_' + randomBytes(24).toString('hex')
 
     const profile = await prisma.facebookAutomationProfile.create({
       data: {
@@ -219,7 +213,7 @@ admin.delete('/profiles/:id', async (c) => {
 admin.post('/profiles/:id/regenerate-key', async (c) => {
   const id = c.req.param('id')
   try {
-    const newKey = 'ext_' + randomBytes(24).toString('hex')
+    const newKey = '6ad_' + randomBytes(24).toString('hex')
     const profile = await prisma.facebookAutomationProfile.update({
       where: { id },
       data: { extensionApiKey: newKey },
@@ -327,489 +321,218 @@ admin.post('/profiles/:id/reassign', async (c) => {
   }
 })
 
-/**
- * GET /extension/admin/adspower-status — Get AdsPower worker status
- */
-admin.get('/adspower-status', async (c) => {
-  try {
-    const status = getWorkerStatus()
-    const { recharges, bmShares } = await getPendingTaskCountsForAdmin()
-    return c.json({ ...status, pendingRecharges: recharges, pendingBmShares: bmShares })
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500)
-  }
-})
-
-async function getPendingTaskCountsForAdmin() {
-  const [recharges, bmShares] = await Promise.all([
-    prisma.accountDeposit.count({
-      where: { status: 'APPROVED', rechargeStatus: { in: ['PENDING', 'NONE'] } }
-    }).catch(() => 0),
-    prisma.bmShareRequest.count({
-      where: { status: 'PENDING', platform: 'FACEBOOK', shareAttempts: { lt: 5 } }
-    }).catch(() => 0),
-  ])
-  return { recharges, bmShares }
-}
-
 extension.route('/admin', admin)
 
-// ==================== EXTENSION ENDPOINTS (API key auth) ====================
+// ==================== EXTENSION TOKEN ENDPOINT (API key auth) ====================
 
 /**
- * Middleware: Find profile by X-Extension-Key header
+ * POST /extension/token — Receive captured FB token from Token Harvester extension
+ * Auth: X-API-Key header (extensionApiKey from profile)
  */
-async function verifyExtensionKey(c: any, next: any) {
-  const key = c.req.header('X-Extension-Key')
-  if (!key) {
-    return c.json({ error: 'Missing X-Extension-Key header' }, 401)
-  }
-
-  // Find profile with this API key
-  let profile = await prisma.facebookAutomationProfile.findFirst({
-    where: { extensionApiKey: key, isEnabled: true },
-  })
-
-  // Auto-register: if key doesn't match but starts with ext_, try to match to the
-  // most recently active enabled profile. This handles VPS extension key rotation
-  // when AdsPower restarts and the extension generates/loads a different stored key.
-  if (!profile && key.startsWith('ext_')) {
-    const candidates = await prisma.facebookAutomationProfile.findMany({
-      where: { isEnabled: true },
-      orderBy: { lastHeartbeatAt: 'desc' },
-      take: 1,
-    })
-    if (candidates.length === 1) {
-      // Auto-update the profile's key to match what the extension is sending
-      profile = await prisma.facebookAutomationProfile.update({
-        where: { id: candidates[0].id },
-        data: { extensionApiKey: key },
-      })
-      console.log(`[Extension] Auto-registered key for "${profile.label}": ${key.substring(0, 16)}...`)
-    }
-  }
-
-  if (!profile) {
-    console.warn(`[Extension] Invalid key received: ${key.substring(0, 16)}...`)
-    return c.json({ error: 'Invalid extension key' }, 401)
-  }
-
-  // Store profile in context for downstream handlers
-  c.set('extensionProfile', profile)
-  await next()
-}
-
-/**
- * POST /extension/heartbeat
- * Extension sends this every 10 seconds with the latest FB access token.
- */
-extension.post('/heartbeat', verifyExtensionKey, async (c) => {
+extension.post('/token', async (c) => {
   try {
-    const profile = c.get('extensionProfile')
-    const body = await c.req.json()
-    const { fbAccessToken, fbUserId, fbUserName, adAccountIds } = body
+    const apiKey = c.req.header('x-api-key')
+    if (!apiKey) return c.json({ error: 'Missing X-API-Key header' }, 401)
 
-    // Update profile with heartbeat data
-    const updateData: any = {
-      lastHeartbeatAt: new Date(),
-      status: 'ACTIVE',
+    const profile = await prisma.facebookAutomationProfile.findFirst({
+      where: { extensionApiKey: apiKey, isEnabled: true },
+      select: { id: true, label: true, fbAccessToken: true },
+    })
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const { token } = await c.req.json()
+    if (!token || typeof token !== 'string' || !token.startsWith('EAA') || token.length < 20) {
+      return c.json({ error: 'Invalid token format' }, 400)
     }
 
-    if (fbUserId) updateData.fbUserId = fbUserId
-    if (fbUserName) updateData.fbUserName = fbUserName
-
-    if (fbAccessToken) {
-      updateData.fbAccessToken = fbAccessToken
-      updateData.fbTokenCapturedAt = new Date()
-      updateData.fbTokenValidatedAt = new Date()
+    // Skip update if token hasn't changed
+    if (token === profile.fbAccessToken) {
+      await prisma.facebookAutomationProfile.update({
+        where: { id: profile.id },
+        data: { lastHeartbeatAt: new Date() },
+      })
+      return c.json({ ok: true, changed: false })
     }
 
-    // Store ad account IDs this profile has access to (for smart task routing)
-    if (adAccountIds && Array.isArray(adAccountIds) && adAccountIds.length > 0) {
-      updateData.managedAdAccountIds = adAccountIds
-    }
-
+    // Update profile with new token
     await prisma.facebookAutomationProfile.update({
       where: { id: profile.id },
-      data: updateData,
-    })
-
-    // Count pending items for the extension to process (only recent — skip tasks older than 24h)
-    const recentCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    const [pendingRecharges, pendingBmShares] = await Promise.all([
-      prisma.accountDeposit.count({
-        where: {
-          status: 'APPROVED',
-          rechargeStatus: { in: ['PENDING', 'NONE'] },
-          createdAt: { gte: recentCutoff },
-        }
-      }).catch(() => 0),
-      prisma.bmShareRequest.count({
-        where: {
-          status: { in: ['PENDING', 'APPROVED'] },
-          platform: 'FACEBOOK',
-          shareAttempts: { lt: 5 },
-          createdAt: { gte: recentCutoff },
-        }
-      }).catch(() => 0),
-    ])
-
-    // Warn if profile has no FB token but tasks are pending
-    if (!fbAccessToken && (pendingRecharges > 0 || pendingBmShares > 0)) {
-      console.warn(`[Extension] ⚠️ Profile "${profile.label}" has NO FB token but ${pendingRecharges} recharges + ${pendingBmShares} BM shares pending — FB may be logged out!`)
-    }
-
-    return c.json({
-      ok: true,
-      profileId: profile.id,
-      pendingCount: pendingRecharges,
-      pendingBmShareCount: pendingBmShares,
-      // Send profile data so extension can display without Graph API
-      // (app tokens on VPS can't call /me or /me/adaccounts)
-      profileLabel: profile.label || undefined,
-      profileAdAccountIds: profile.managedAdAccountIds || [],
-    })
-  } catch (err: any) {
-    console.error('[Extension] Heartbeat error:', err.message)
-    return c.json({ error: err.message }, 500)
-  }
-})
-
-// ==================== BM SHARE ====================
-
-extension.get('/pending-bm-shares', verifyExtensionKey, async (c) => {
-  try {
-    const profile = c.get('extensionProfile')
-    const managedIds = profile.managedAdAccountIds || []
-
-    // Auto-reject requests that have failed too many times (both PENDING and APPROVED)
-    await prisma.bmShareRequest.updateMany({
-      where: { status: { in: ['PENDING', 'APPROVED'] }, shareAttempts: { gte: 5 } },
-      data: { status: 'REJECTED', shareError: 'MAX_RETRIES_EXCEEDED: Auto-rejected after 5 failed attempts', rejectedAt: new Date(), adminRemarks: 'Auto-rejected: exceeded max retry attempts' }
-    }).catch(() => {})
-
-    // Return BM shares ready for processing — includes both PENDING (auto-process)
-    // and APPROVED (admin-approved, ready for execution).
-    // Skip tasks older than 24h — stale tasks should be handled manually by admin.
-    const whereClause: any = {
-      status: { in: ['PENDING', 'APPROVED'] },
-      platform: 'FACEBOOK',
-      shareAttempts: { lt: 5 },
-      createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-    }
-
-    const shares = await prisma.bmShareRequest.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'asc' },
-      take: 5,
-      select: {
-        id: true,
-        adAccountId: true,
-        adAccountName: true,
-        bmId: true,
-        user: { select: { username: true } },
-      }
-    })
-
-    // Look up sourceBmId for each ad account (the owner's BM)
-    const bmShares = await Promise.all(shares.map(async (s) => {
-      let ownerBmId: string | null = null
-      try {
-        const adAccount = await prisma.adAccount.findFirst({
-          where: { accountId: s.adAccountId },
-          select: { sourceBmId: true, bmId: true }
-        })
-        ownerBmId = adAccount?.sourceBmId || adAccount?.bmId || null
-      } catch {}
-
-      return {
-        requestId: s.id,
-        adAccountId: s.adAccountId,
-        adAccountName: s.adAccountName,
-        userBmId: s.bmId,
-        ownerBmId,
-        username: s.user?.username || 'unknown',
-      }
-    }))
-
-    return c.json({ bmShares })
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500)
-  }
-})
-
-extension.post('/bm-share/:id/claim', verifyExtensionKey, async (c) => {
-  const id = c.req.param('id')
-  try {
-    // Atomic claim: only succeeds if status is PENDING or APPROVED (not yet completed/rejected)
-    const result = await prisma.bmShareRequest.updateMany({
-      where: { id, status: { in: ['PENDING', 'APPROVED'] } },
-      data: { shareMethod: 'EXTENSION', shareAttempts: { increment: 1 } }
-    })
-    if (result.count === 0) {
-      return c.json({ error: 'BM share already claimed or not available' }, 409)
-    }
-    return c.json({ ok: true })
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500)
-  }
-})
-
-extension.post('/bm-share/:id/complete', verifyExtensionKey, async (c) => {
-  const id = c.req.param('id')
-  const profile = c.get('extensionProfile')
-  try {
-    await prisma.bmShareRequest.update({
-      where: { id },
       data: {
-        status: 'COMPLETED',
-        shareMethod: 'EXTENSION',
-        approvedAt: new Date(),
-        shareError: null,
-        adminRemarks: `BM share completed via Chrome extension (${profile.label}).`,
-      }
+        fbAccessToken: token,
+        fbTokenCapturedAt: new Date(),
+        lastHeartbeatAt: new Date(),
+        status: 'IDLE',
+      },
     })
-    console.log(`[Extension] BM share completed: ${id} by ${profile.label}`)
-    return c.json({ ok: true })
+
+    console.log(`[Extension] Token captured for "${profile.label}" (${token.substring(0, 10)}...)`)
+    return c.json({ ok: true, changed: true })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
 })
 
-extension.post('/bm-share/:id/failed', verifyExtensionKey, async (c) => {
-  const id = c.req.param('id')
+// ==================== EXTENSION POLL ENDPOINT (API key auth) ====================
+
+/**
+ * GET /extension/poll — Extension polls for pending tasks
+ * Returns recharge + BM share tasks for this profile's managed accounts.
+ */
+extension.get('/poll', async (c) => {
   try {
-    const body = await c.req.json().catch(() => ({}))
-    await prisma.bmShareRequest.update({
-      where: { id },
-      data: {
-        shareError: body.error || 'Extension BM share failed',
-        shareAttempts: { increment: 1 },
-      }
+    const apiKey = c.req.header('x-api-key')
+    if (!apiKey) return c.json({ error: 'Missing X-API-Key header' }, 401)
+
+    const profile = await prisma.facebookAutomationProfile.findFirst({
+      where: { extensionApiKey: apiKey, isEnabled: true },
+      select: { id: true, label: true, managedAdAccountIds: true },
     })
-    return c.json({ ok: true })
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500)
-  }
-})
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
 
-// ==================== RECHARGES ====================
+    // Update heartbeat
+    await prisma.facebookAutomationProfile.update({
+      where: { id: profile.id },
+      data: { lastHeartbeatAt: new Date(), status: 'IDLE' },
+    })
 
-extension.get('/pending-recharges', verifyExtensionKey, async (c) => {
-  try {
-    const profile = c.get('extensionProfile')
     const managedIds = profile.managedAdAccountIds || []
-
-    // Build filter: only return tasks for ad accounts this profile manages
-    // Skip tasks older than 24h — stale tasks should be handled manually by admin
-    const whereClause: any = {
-      status: 'APPROVED',
-      rechargeStatus: { in: ['PENDING', 'NONE'] },
-      rechargeAttempts: { lt: 5 },  // Max 5 attempts before giving up
-      createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-    }
-    if (managedIds.length > 0) {
-      whereClause.adAccount = { accountId: { in: managedIds } }
+    if (managedIds.length === 0) {
+      return c.json({ tasks: [], heartbeat: true })
     }
 
-    const deposits = await prisma.accountDeposit.findMany({
-      where: whereClause,
-      orderBy: { approvedAt: 'asc' },
-      take: 5,
-      include: {
-        adAccount: { select: { accountId: true, accountName: true } },
-      }
-    })
+    const tasks: any[] = []
 
-    return c.json({
-      recharges: deposits.map(d => ({
-        depositId: d.id,
-        adAccountId: d.adAccount?.accountId || d.adAccountId,
-        adAccountName: d.adAccount?.accountName || '',
-        amount: d.amount,
-        approvedAt: d.approvedAt,
-      }))
-    })
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500)
-  }
-})
-
-extension.post('/recharge/:id/claim', verifyExtensionKey, async (c) => {
-  const id = c.req.param('id')
-  try {
-    // Atomic claim: only succeeds if status is still PENDING/NONE (prevents double-claiming)
-    const result = await prisma.accountDeposit.updateMany({
+    // Find pending recharges for managed accounts
+    const pendingRecharges = await prisma.accountDeposit.findMany({
       where: {
-        id,
+        status: 'APPROVED',
         rechargeStatus: { in: ['PENDING', 'NONE'] },
+        rechargeAttempts: { lt: 10 },
+        adAccount: { accountId: { in: managedIds } },
       },
-      data: {
-        rechargeStatus: 'IN_PROGRESS',
-        rechargeMethod: 'EXTENSION',
-        rechargeAttempts: { increment: 1 },
-      }
-    })
-    if (result.count === 0) {
-      return c.json({ error: 'Task already claimed or not available' }, 409)
-    }
-    return c.json({ ok: true })
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500)
-  }
-})
-
-extension.post('/recharge/:id/complete', verifyExtensionKey, async (c) => {
-  const id = c.req.param('id')
-  try {
-    // State guard: only complete tasks that are IN_PROGRESS
-    const result = await prisma.accountDeposit.updateMany({
-      where: { id, rechargeStatus: 'IN_PROGRESS' },
-      data: {
-        rechargeStatus: 'COMPLETED',
-        rechargeMethod: 'EXTENSION',
-        rechargedAt: new Date(),
-        rechargedBy: 'extension',
-        rechargeError: null,
-      }
-    })
-    if (result.count === 0) {
-      return c.json({ error: 'Task not in progress — cannot complete' }, 409)
-    }
-    return c.json({ ok: true })
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500)
-  }
-})
-
-extension.post('/recharge/:id/failed', verifyExtensionKey, async (c) => {
-  const id = c.req.param('id')
-  try {
-    const body = await c.req.json().catch(() => ({}))
-    const errorMsg = body.error || 'Extension recharge failed'
-    console.error(`[Recharge Failed] Deposit ${id}: ${errorMsg}`)
-    // State guard: only fail tasks that are IN_PROGRESS
-    const result = await prisma.accountDeposit.updateMany({
-      where: { id, rechargeStatus: 'IN_PROGRESS' },
-      data: {
-        rechargeStatus: 'FAILED',
-        rechargeError: errorMsg,
-      }
-    })
-    if (result.count === 0) {
-      return c.json({ error: 'Task not in progress — cannot mark failed' }, 409)
-    }
-    return c.json({ ok: true })
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500)
-  }
-})
-
-// ==================== AUTO-LOGIN SUPPORT ====================
-
-// GET /extension/login-credentials - Get FB login credentials for auto-re-login
-extension.get('/login-credentials', verifyExtensionKey, async (c) => {
-  try {
-    const profile = c.get('extensionProfile')
-    const data = await prisma.facebookAutomationProfile.findUnique({
-      where: { id: profile.id },
-      select: {
-        fbLoginEmail: true,
-        fbLoginPassword: true,
-        twoFactorSecret: true,
-        imapHost: true,
-        imapUser: true,
-        imapPassword: true,
+      include: {
+        adAccount: { select: { accountId: true, accountName: true, platform: true } },
       },
+      orderBy: { createdAt: 'asc' },
+      take: 2,
     })
 
-    if (!data?.fbLoginEmail || !data?.fbLoginPassword) {
-      return c.json({ error: 'No login credentials configured for this profile' }, 404)
+    for (const dep of pendingRecharges) {
+      tasks.push({
+        type: 'RECHARGE',
+        depositId: dep.id,
+        accountId: dep.adAccount.accountId,
+        accountName: dep.adAccount.accountName,
+        amount: Number(dep.amount),
+        applyId: dep.applyId,
+      })
     }
 
-    return c.json({
-      email: data.fbLoginEmail,
-      password: data.fbLoginPassword,
-      has2fa: !!data.twoFactorSecret,
-      hasImap: !!(data.imapHost && data.imapUser && data.imapPassword),
-    })
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500)
-  }
-})
-
-// POST /extension/fetch-otp - Fetch Facebook OTP code via IMAP
-extension.post('/fetch-otp', verifyExtensionKey, async (c) => {
-  try {
-    const profile = c.get('extensionProfile')
-    const data = await prisma.facebookAutomationProfile.findUnique({
-      where: { id: profile.id },
-      select: {
-        label: true,
-        imapHost: true,
-        imapPort: true,
-        imapUser: true,
-        imapPassword: true,
-        imapSecure: true,
+    // Find pending BM shares for managed accounts
+    const pendingBmShares = await prisma.bmShareRequest.findMany({
+      where: {
+        status: 'PENDING',
+        platform: 'FACEBOOK',
+        shareAttempts: { lt: 10 },
+        adAccountId: { in: managedIds },
       },
+      orderBy: { createdAt: 'asc' },
+      take: 2,
     })
 
-    if (!data?.imapHost || !data?.imapUser || !data?.imapPassword) {
-      return c.json({ error: 'No IMAP credentials configured for this profile' }, 404)
+    for (const req of pendingBmShares) {
+      tasks.push({
+        type: 'BM_SHARE',
+        requestId: req.id,
+        accountId: req.adAccountId,
+        accountName: req.adAccountName,
+        bmId: req.bmId,
+        applyId: req.applyId,
+      })
     }
 
-    console.log(`[Auto-Login] Fetching OTP for profile "${data.label}" via ${data.imapHost}`)
-
-    const otp = await fetchFacebookOtp({
-      host: data.imapHost,
-      port: data.imapPort || 993,
-      user: data.imapUser,
-      password: data.imapPassword,
-      secure: data.imapSecure ?? true,
-    }, 60_000) // 60s max wait for OTP
-
-    if (!otp) {
-      console.warn(`[Auto-Login] OTP not found for profile "${data.label}"`)
-      return c.json({ error: 'OTP not received within timeout', otp: null })
-    }
-
-    console.log(`[Auto-Login] OTP found for profile "${data.label}": ${otp}`)
-    return c.json({ otp })
+    return c.json({ tasks, heartbeat: true })
   } catch (err: any) {
-    console.error('[Auto-Login] Fetch OTP error:', err.message)
     return c.json({ error: err.message }, 500)
   }
 })
 
-// GET /extension/generate-2fa - Generate TOTP 2FA code from stored secret
-extension.get('/generate-2fa', verifyExtensionKey, async (c) => {
-  try {
-    const profile = c.get('extensionProfile')
-    const data = await prisma.facebookAutomationProfile.findUnique({
-      where: { id: profile.id },
-      select: { label: true, twoFactorSecret: true },
-    })
+// ==================== EXTENSION TASK RESULT ENDPOINT (API key auth) ====================
 
-    if (!data?.twoFactorSecret) {
-      return c.json({ error: 'No 2FA secret configured for this profile' }, 404)
+/**
+ * POST /extension/task-result — Extension reports task completion
+ */
+extension.post('/task-result', async (c) => {
+  try {
+    const apiKey = c.req.header('x-api-key')
+    if (!apiKey) return c.json({ error: 'Missing X-API-Key header' }, 401)
+
+    const profile = await prisma.facebookAutomationProfile.findFirst({
+      where: { extensionApiKey: apiKey, isEnabled: true },
+      select: { id: true, label: true },
+    })
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const { type, depositId, requestId, success, error, data } = await c.req.json()
+
+    if (type === 'RECHARGE' && depositId) {
+      if (success) {
+        await prisma.accountDeposit.update({
+          where: { id: depositId },
+          data: {
+            rechargeStatus: 'COMPLETED',
+            rechargeMethod: 'EXTENSION',
+            rechargedAt: new Date(),
+            rechargeError: null,
+            rechargeAttempts: { increment: 1 },
+            previousSpendCap: data?.previousSpendCap ?? null,
+            newSpendCap: data?.newSpendCap ?? null,
+          },
+        })
+        console.log(`[Extension] Recharge SUCCESS by "${profile.label}": deposit ${depositId} ($${data?.newSpendCap || '?'})`)
+      } else {
+        await prisma.accountDeposit.update({
+          where: { id: depositId },
+          data: {
+            rechargeStatus: 'PENDING',
+            rechargeAttempts: { increment: 1 },
+            rechargeError: `Extension: ${error || 'Unknown error'}`,
+          },
+        })
+        console.log(`[Extension] Recharge FAILED by "${profile.label}": deposit ${depositId} — ${error}`)
+      }
+      return c.json({ ok: true })
     }
 
-    const totp = new OTPAuth.TOTP({
-      issuer: 'Facebook',
-      label: data.label || 'FB',
-      algorithm: 'SHA1',
-      digits: 6,
-      period: 30,
-      secret: OTPAuth.Secret.fromBase32(data.twoFactorSecret),
-    })
+    if (type === 'BM_SHARE' && requestId) {
+      if (success) {
+        await prisma.bmShareRequest.update({
+          where: { id: requestId },
+          data: {
+            status: 'APPROVED',
+            shareMethod: 'EXTENSION',
+            approvedAt: new Date(),
+            shareError: null,
+            shareAttempts: { increment: 1 },
+            adminRemarks: `BM share completed by extension worker "${profile.label}"`,
+          },
+        })
+        console.log(`[Extension] BM Share SUCCESS by "${profile.label}": request ${requestId}`)
+      } else {
+        await prisma.bmShareRequest.update({
+          where: { id: requestId },
+          data: {
+            shareAttempts: { increment: 1 },
+            shareError: `Extension: ${error || 'Unknown error'}`,
+          },
+        })
+        console.log(`[Extension] BM Share FAILED by "${profile.label}": request ${requestId} — ${error}`)
+      }
+      return c.json({ ok: true })
+    }
 
-    const code = totp.generate()
-    const remaining = 30 - (Math.floor(Date.now() / 1000) % 30)
-
-    console.log(`[Auto-Login] Generated 2FA code for profile "${data.label}": ${code} (${remaining}s remaining)`)
-    return c.json({ code, remaining })
+    return c.json({ error: 'Invalid task type or missing ID' }, 400)
   } catch (err: any) {
-    console.error('[Auto-Login] Generate 2FA error:', err.message)
     return c.json({ error: err.message }, 500)
   }
 })

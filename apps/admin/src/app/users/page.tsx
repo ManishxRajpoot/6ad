@@ -843,28 +843,19 @@ export default function UsersPage() {
                           </button>
                         </div>
                         <div className="flex items-center gap-1">
+                          <code className="font-medium px-1.5 py-0.5 rounded text-sm text-gray-700 bg-gray-100">
+                            {showPasswordId === user.id
+                              ? (user.plaintextPassword || 'No password')
+                              : '••••••'}
+                          </code>
                           <button
                             onClick={() => setShowPasswordId(showPasswordId === user.id ? null : user.id)}
-                            className="flex items-center gap-1 group"
+                            className="flex-shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors"
+                            title={showPasswordId === user.id ? 'Hide password' : 'Show password'}
                           >
-                            <code className={`font-medium px-1.5 py-0.5 rounded text-sm transition-all duration-300 ease-out ${
-                              showPasswordId === user.id && user.plaintextPassword
-                                ? 'text-gray-700 bg-gray-100'
-                                : showPasswordId === user.id && !user.plaintextPassword
-                                ? 'text-red-500 bg-red-50'
-                                : 'text-gray-400 bg-gray-100'
-                            }`}>
-                              {showPasswordId === user.id
-                                ? (user.plaintextPassword || 'Reset needed')
-                                : '••••••'}
-                            </code>
-                            <span className="flex-shrink-0">
-                              {showPasswordId === user.id ? (
-                                <EyeOff className="w-3.5 h-3.5 text-gray-400" />
-                              ) : (
-                                <Eye className="w-3 h-3 text-gray-400" />
-                              )}
-                            </span>
+                            {showPasswordId === user.id
+                              ? <EyeOff className="w-3 h-3 text-gray-500" />
+                              : <Eye className="w-3 h-3 text-gray-400" />}
                           </button>
                           {showPasswordId === user.id && user.plaintextPassword && (
                             <button

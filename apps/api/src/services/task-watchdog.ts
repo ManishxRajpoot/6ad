@@ -20,8 +20,8 @@ const CONFIG = {
   POLL_INTERVAL_MS: 2 * 60 * 1000,         // Check every 2 minutes
   IN_PROGRESS_TIMEOUT_MS: 15 * 60 * 1000,  // IN_PROGRESS > 15 min → FAILED
   PENDING_TIMEOUT_MS: 30 * 60 * 1000,      // PENDING > 30 min (only if max retries hit)
-  MAX_RECHARGE_ATTEMPTS: 5,
-  MAX_SHARE_ATTEMPTS: 5,
+  MAX_RECHARGE_ATTEMPTS: 10,               // Matches recharge-cron MAX_ATTEMPTS
+  MAX_SHARE_ATTEMPTS: 10,                  // Matches bm-share-cron MAX_ATTEMPTS
 }
 
 let pollInterval: NodeJS.Timeout | null = null
@@ -247,12 +247,33 @@ async function autoRefundFailedRecharges(): Promise<number> {
   return refundedCount
 }
 
+// ─── Step D: Token health check (logging only) ──────────────────────
+async function logTokenHealth(): Promise<void> {
+  const profiles = await prisma.facebookAutomationProfile.findMany({
+    where: { isEnabled: true },
+    select: { fbAccessToken: true, fbTokenCapturedAt: true },
+  })
+
+  const total = profiles.length
+  if (total === 0) return
+
+  const withToken = profiles.filter(p => !!p.fbAccessToken).length
+  const staleThreshold = Date.now() - 24 * 60 * 60 * 1000
+  const stale = profiles.filter(p => p.fbAccessToken && p.fbTokenCapturedAt && p.fbTokenCapturedAt.getTime() < staleThreshold).length
+  const missing = total - withToken
+
+  if (missing > 0 || stale > 0) {
+    console.log(`[Watchdog] Token health: ${withToken}/${total} profiles have tokens (${stale} stale >24h, ${missing} missing)`)
+  }
+}
+
 // ─── Main watchdog cycle ───────────────────────────────────────────
 async function runWatchdogCycle(): Promise<void> {
   try {
     const timedOutRecharges = await timeoutStuckRecharges()
     const timedOutBmShares = await timeoutStuckBmShares()
     const refundedDeposits = await autoRefundFailedRecharges()
+    await logTokenHealth()
 
     // Only log if something happened
     if (timedOutRecharges > 0 || timedOutBmShares > 0 || refundedDeposits > 0) {

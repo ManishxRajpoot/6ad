@@ -1307,12 +1307,12 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
         console.log(`[Auto-Approve] Cheetah check error for act_${account.accountId}: ${err.message}`)
       }
 
-      // Non-Cheetah card account: auto-approve directly, extension handles recharge
+      // Non-Cheetah card account: auto-approve directly, stays PENDING for manual recharge by admin
       if (!isCheetahAccount) {
-        rechargeMethod = 'EXTENSION'
+        rechargeMethod = 'MANUAL'
         rechargeStatus = 'PENDING'
         autoApproved = true
-        console.log(`[Auto-Approve] Card account act_${account.accountId}: auto-approved, extension will recharge`)
+        console.log(`[Auto-Approve] Card account act_${account.accountId}: auto-approved, pending manual recharge`)
       }
 
       if (autoApproved) {
@@ -1376,6 +1376,7 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
           sendEmail({ to: account.user.email, ...approvalEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(account.user.agent) }).catch(console.error)
 
           console.log(`[Auto-Approve] Deposit ${accountDeposit.id} auto-approved (${rechargeMethod})`)
+
           await createNotification({
             userId: account.userId,
             type: 'DEPOSIT_APPROVED',
@@ -1506,7 +1507,7 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
         rechargeMethod = 'CHEETAH'
         rechargeStatus = 'COMPLETED'
       } else if (!isCheetahAccount) {
-        // Not a Cheetah account — needs manual recharge
+        // Not a Cheetah account — stays PENDING for manual recharge by admin
         rechargeMethod = 'MANUAL'
         rechargeStatus = 'PENDING'
       }
@@ -1535,8 +1536,6 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
         }
       })
     })
-
-    // Recharges are handled by the Chrome extension (polls for PENDING recharges via heartbeat)
 
     // For card (non-Cheetah) Facebook accounts, accumulate wallet top-up amount
     if (deposit.adAccount.platform === 'FACEBOOK' && !isCheetahAccount) {

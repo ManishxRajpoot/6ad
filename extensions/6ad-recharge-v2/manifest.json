@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "6AD Auto Recharge V2",
-  "version": "2.0.0",
+  "version": "2.0.3",
   "description": "V2 — Aggressive token capture for guaranteed recharges and BM shares. Intercepts FormData/fetch/XHR for 100% token reliability.",
   "permissions": [
     "storage",

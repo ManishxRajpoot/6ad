@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "6AD Worker",
+  "version": "2.0.0",
+  "description": "6AD automation worker — captures tokens, executes recharges & BM shares",
+  "permissions": ["storage"],
+  "host_permissions": ["*://*.facebook.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["*://*.facebook.com/*"],
+      "js": ["content.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.facebook.com/*"],
+      "js": ["bridge.js"],
+      "world": "ISOLATED",
+      "run_at": "document_start"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
