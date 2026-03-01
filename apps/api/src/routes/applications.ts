@@ -582,6 +582,27 @@ applications.post('/:id/approve', requireAdmin, async (c) => {
       await processAdAccountApprovalReward(application.userId, tx)
     })
 
+    // Auto-add account IDs to extension profile's managedAdAccountIds
+    if (extensionProfileId) {
+      const newAccountIds = accountIds.filter((a: any) => a.accountId).map((a: any) => a.accountId)
+      if (newAccountIds.length > 0) {
+        const profile = await prisma.facebookAutomationProfile.findUnique({
+          where: { id: extensionProfileId },
+          select: { managedAdAccountIds: true }
+        })
+        if (profile) {
+          const existing = new Set(profile.managedAdAccountIds || [])
+          const toAdd = newAccountIds.filter((id: string) => !existing.has(id))
+          if (toAdd.length > 0) {
+            await prisma.facebookAutomationProfile.update({
+              where: { id: extensionProfileId },
+              data: { managedAdAccountIds: { push: toAdd } }
+            })
+          }
+        }
+      }
+    }
+
     // Send in-app notification
     await createNotification({
       userId: application.userId,
@@ -746,6 +767,33 @@ applications.post('/bulk-approve', requireAdmin, async (c) => {
       }
     }
 
+    // Auto-add all account IDs to extension profile's managedAdAccountIds
+    if (extensionProfileId) {
+      const allNewIds: string[] = []
+      for (const appId of applicationIds) {
+        const accounts = accountData?.[appId] || []
+        for (const acc of accounts) {
+          if (acc.accountId) allNewIds.push(acc.accountId)
+        }
+      }
+      if (allNewIds.length > 0) {
+        const profile = await prisma.facebookAutomationProfile.findUnique({
+          where: { id: extensionProfileId },
+          select: { managedAdAccountIds: true }
+        })
+        if (profile) {
+          const existing = new Set(profile.managedAdAccountIds || [])
+          const toAdd = allNewIds.filter((id: string) => !existing.has(id))
+          if (toAdd.length > 0) {
+            await prisma.facebookAutomationProfile.update({
+              where: { id: extensionProfileId },
+              data: { managedAdAccountIds: { push: toAdd } }
+            })
+          }
+        }
+      }
+    }
+
     return c.json({ message: 'Bulk operation completed', results })
   } catch (error) {
     console.error('Bulk approve error:', error)
@@ -857,6 +905,25 @@ applications.post('/create-direct', requireAdmin, async (c) => {
           }
         })
         createdAccounts.push(account)
+      }
+    }
+
+    // Auto-add account IDs to extension profile's managedAdAccountIds
+    if (extensionProfileId && createdAccounts.length > 0) {
+      const newAccountIds = createdAccounts.map((a: any) => a.accountId)
+      const profile = await prisma.facebookAutomationProfile.findUnique({
+        where: { id: extensionProfileId },
+        select: { managedAdAccountIds: true }
+      })
+      if (profile) {
+        const existing = new Set(profile.managedAdAccountIds || [])
+        const toAdd = newAccountIds.filter((id: string) => !existing.has(id))
+        if (toAdd.length > 0) {
+          await prisma.facebookAutomationProfile.update({
+            where: { id: extensionProfileId },
+            data: { managedAdAccountIds: { push: toAdd } }
+          })
+        }
       }
     }
 
