@@ -478,8 +478,45 @@ export async function cdpAutoLogin(serialNumber: string, profile: any): Promise<
       console.log(`[AdsPower CDP] Already logged in — skipping cooldown`)
     }
 
-    // NOTE: Session warm-up (scrolling FB feed) intentionally skipped for recharges.
-    // The post-login cooldown above provides sufficient session stabilization.
+    // Step 3b: Extract FB user info (name + UID) from browser page
+    // c_user cookie = Facebook UID, page has the user's display name
+    try {
+      const userInfoScript = [
+        '(function() {',
+        '  var uid = null;',
+        '  var cookies = document.cookie.split(";");',
+        '  for (var i = 0; i < cookies.length; i++) {',
+        '    var c = cookies[i].trim();',
+        '    if (c.indexOf("c_user=") === 0) { uid = c.substring(7); break; }',
+        '  }',
+        '  var name = null;',
+        '  var profileLink = document.querySelector(\'a[href*="/profile"] span, a[aria-label][href*="/" ] span\');',
+        '  if (profileLink) name = profileLink.textContent;',
+        '  if (!name) {',
+        '    var el = document.querySelector(\'div[aria-label="Your profile"] span, a[aria-label="Profile"]\');',
+        '    if (el) name = el.getAttribute("aria-label") || el.textContent;',
+        '  }',
+        '  if (!name) {',
+        '    var match = (document.documentElement.innerHTML || "").substring(0, 100000).match(/"NAME":"([^"]+)"/);',
+        '    if (match) name = match[1];',
+        '  }',
+        '  return { uid: uid, name: name };',
+        '})()',
+      ].join('\n')
+      const userInfo = await cdpEvaluate(wsUrl, userInfoScript)
+      if (userInfo?.uid || userInfo?.name) {
+        const updateData: any = {}
+        if (userInfo.uid) updateData.fbUserId = userInfo.uid
+        if (userInfo.name) updateData.fbUserName = userInfo.name
+        await prisma.facebookAutomationProfile.update({
+          where: { id: profile.id },
+          data: updateData,
+        }).catch(() => {})
+        console.log(`[AdsPower CDP] Updated FB user info: ${userInfo.name || '?'} (UID: ${userInfo.uid || '?'})`)
+      }
+    } catch (e: any) {
+      console.log(`[AdsPower CDP] Could not extract FB user info: ${e.message}`)
+    }
 
     // Step 4: Capture token
     // Key insight: FB sends access_token in FormData POST bodies, which CDP Network.requestWillBeSent
