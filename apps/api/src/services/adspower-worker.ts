@@ -277,109 +277,107 @@ export async function cdpAutoLogin(serialNumber: string, profile: any): Promise<
     }
 
     // Step 2: POLL for login form — try every 2s for up to 12s
-    // home.php shows login form for ~10s before redirect, so we have plenty of time
+    // Split into separate CDP evaluations to avoid esbuild corrupting template literals
+    // Detection script has NO dynamic values — safe from bundler corruption
+    const DETECT_SCRIPT = [
+      '(function() {',
+      '  var url = window.location.href;',
+      '  var hasCUser = document.cookie.includes("c_user=");',
+      '  var hasXS = document.cookie.includes("xs=");',
+      '  var hasDatetr = document.cookie.includes("datr=");',
+      '  var cookieSignals = [hasCUser, hasXS, hasDatetr].filter(Boolean).length;',
+      '  var hasNavbar = !!(document.querySelector(\'[role="banner"]\') || document.querySelector(\'[data-pagelet="FixedHeader"]\') || document.querySelector(\'div[aria-label="Facebook"]\'));',
+      '  var isLoginPage = /\\/login|\\/checkpoint|accounts\\.facebook/.test(url);',
+      '  var hasUserIdInHtml = /"USER_ID":"\\d+"/.test((document.documentElement && document.documentElement.innerHTML || "").substring(0, 50000));',
+      '  var isLoggedIn = !isLoginPage && (hasCUser || cookieSignals >= 2 || (cookieSignals >= 1 && hasNavbar) || (hasNavbar && hasUserIdInHtml));',
+      '  if (isLoggedIn) return { status: "already_logged_in", url: url.substring(0, 100), signals: { hasCUser: hasCUser, hasXS: hasXS, hasDatetr: hasDatetr, hasNavbar: hasNavbar } };',
+      '  if (/two_step_verification|two_factor|checkpoint/.test(url)) return { status: "2fa_page", url: url.substring(0, 150), inputCount: document.querySelectorAll("input").length };',
+      '  var emailInput = document.querySelector(\'input[name="email"], input[id="email"], input[type="email"]\');',
+      '  var passInput = document.querySelector(\'input[name="pass"], input[type="password"]\');',
+      '  if (!emailInput || !passInput) {',
+      '    var allInputs = document.querySelectorAll("input");',
+      '    var foundEmail = null, foundPass = null;',
+      '    for (var j = 0; j < allInputs.length; j++) {',
+      '      var inp = allInputs[j]; var type = (inp.type || "").toLowerCase();',
+      '      if (type === "password" && !foundPass) foundPass = inp;',
+      '      else if ((type === "text" || type === "email" || type === "") && !foundEmail) { if (inp.offsetWidth > 0 && inp.offsetHeight > 0) foundEmail = inp; }',
+      '    }',
+      '    if (!emailInput && foundEmail) emailInput = foundEmail;',
+      '    if (!passInput && foundPass) passInput = foundPass;',
+      '  }',
+      '  if (!emailInput || !passInput) return { status: "no_form", url: url.substring(0, 150), title: document.title.substring(0, 80), inputCount: document.querySelectorAll("input").length };',
+      '  return { status: "login_form_found", url: url.substring(0, 150) };',
+      '})()',
+    ].join('\n')
+
+    // Build credential-fill + click script with string concatenation (NOT template literal)
+    // This avoids esbuild corrupting embedded dynamic values
+    function buildFillAndClickScript(email: string, password: string): string {
+      const safeEmail = JSON.stringify(email)
+      const safePass = JSON.stringify(password)
+      return [
+        '(function() {',
+        '  var emailInput = document.querySelector(\'input[name="email"], input[id="email"], input[type="email"]\');',
+        '  var passInput = document.querySelector(\'input[name="pass"], input[type="password"]\');',
+        '  if (!emailInput || !passInput) {',
+        '    var allInputs = document.querySelectorAll("input");',
+        '    var foundEmail = null, foundPass = null;',
+        '    for (var j = 0; j < allInputs.length; j++) {',
+        '      var inp = allInputs[j]; var type = (inp.type || "").toLowerCase();',
+        '      if (type === "password" && !foundPass) foundPass = inp;',
+        '      else if ((type === "text" || type === "email" || type === "") && !foundEmail) { if (inp.offsetWidth > 0 && inp.offsetHeight > 0) foundEmail = inp; }',
+        '    }',
+        '    if (!emailInput && foundEmail) emailInput = foundEmail;',
+        '    if (!passInput && foundPass) passInput = foundPass;',
+        '  }',
+        '  if (!emailInput || !passInput) return { status: "no_form_for_fill" };',
+        '  var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;',
+        '  setter.call(emailInput, ' + safeEmail + ');',
+        '  emailInput.dispatchEvent(new Event("input", { bubbles: true }));',
+        '  emailInput.dispatchEvent(new Event("change", { bubbles: true }));',
+        '  setter.call(passInput, ' + safePass + ');',
+        '  passInput.dispatchEvent(new Event("input", { bubbles: true }));',
+        '  passInput.dispatchEvent(new Event("change", { bubbles: true }));',
+        '  var btn = document.querySelector(\'button[name="login"], button[type="submit"], button[data-testid="royal_login_button"], button[id="loginbutton"]\');',
+        '  if (btn) { btn.click(); return { status: "login_clicked", btnSelector: "standard" }; }',
+        '  var buttons = document.querySelectorAll(\'button, div[role="button"], a[role="button"]\');',
+        '  for (var k = 0; k < buttons.length; k++) {',
+        '    var btnText = (buttons[k].textContent || "").trim().toLowerCase();',
+        '    if (btnText === "log in" || btnText === "login" || btnText === "sign in") {',
+        '      var rect = buttons[k].getBoundingClientRect();',
+        '      if (rect.width > 50 && rect.height > 20) { buttons[k].click(); return { status: "login_text_clicked", text: btnText }; }',
+        '    }',
+        '  }',
+        '  var form = emailInput.closest("form") || passInput.closest("form");',
+        '  if (form) { form.submit(); return { status: "form_submitted" }; }',
+        '  passInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }));',
+        '  passInput.dispatchEvent(new KeyboardEvent("keypress", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }));',
+        '  passInput.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }));',
+        '  return { status: "enter_pressed" };',
+        '})()',
+      ].join('\n')
+    }
+
     let loginResult: any = null
     for (let attempt = 1; attempt <= 5; attempt++) {
       console.log(`[AdsPower CDP] Checking for login form (attempt ${attempt}/5)...`)
-      loginResult = await cdpEvaluate(wsUrl, `
-      (function() {
-        var url = window.location.href;
 
-        // Already logged in? Multi-signal detection — c_user alone is unreliable
-        // FB can revoke c_user via session downgrade without logging user out
-        var hasCUser = document.cookie.includes('c_user=');
-        var hasXS = document.cookie.includes('xs=');
-        var hasDatetr = document.cookie.includes('datr=');
-        var cookieSignals = [hasCUser, hasXS, hasDatetr].filter(Boolean).length;
-        var hasNavbar = !!(document.querySelector('[role="banner"]') || document.querySelector('[data-pagelet="FixedHeader"]') || document.querySelector('div[aria-label="Facebook"]'));
-        var isLoginPage = /\/login|\/checkpoint|accounts\.facebook/.test(url);
-        var hasUserIdInHtml = /"USER_ID":"\\d+"/.test((document.documentElement?.innerHTML || '').substring(0, 50000));
+      // Phase 1: Detect page state (no credentials in this script)
+      loginResult = await cdpEvaluate(wsUrl, DETECT_SCRIPT)
 
-        var isLoggedIn = !isLoginPage && (
-          hasCUser ||
-          cookieSignals >= 2 ||
-          (cookieSignals >= 1 && hasNavbar) ||
-          (hasNavbar && hasUserIdInHtml)
-        );
+      console.log(`[AdsPower CDP] Attempt ${attempt} detect result:`, JSON.stringify(loginResult))
 
-        if (isLoggedIn) {
-          return { status: 'already_logged_in', url: url.substring(0, 100), signals: { hasCUser: hasCUser, hasXS: hasXS, hasDatetr: hasDatetr, hasNavbar: hasNavbar } };
-        }
+      // Already logged in or 2FA — break immediately
+      if (loginResult?.status === 'already_logged_in' || loginResult?.status === '2fa_page') {
+        break
+      }
 
-        // 2FA page? (pending from previous login attempt — FB redirected directly here)
-        if (/two_step_verification|two_factor|checkpoint/.test(url)) {
-          return { status: '2fa_page', url: url.substring(0, 150), inputCount: document.querySelectorAll('input').length };
-        }
-
-        // Find login form inputs — expanded selectors
-        var emailInput = document.querySelector('input[name="email"], input[id="email"], input[type="email"]');
-        var passInput = document.querySelector('input[name="pass"], input[type="password"]');
-
-        // Broad fallback: any visible text input + password input
-        if (!emailInput || !passInput) {
-          var allInputs = document.querySelectorAll('input');
-          var foundEmail = null, foundPass = null;
-          for (var j = 0; j < allInputs.length; j++) {
-            var inp = allInputs[j];
-            var type = (inp.type || '').toLowerCase();
-            if (type === 'password' && !foundPass) foundPass = inp;
-            else if ((type === 'text' || type === 'email' || type === '') && !foundEmail) {
-              if (inp.offsetWidth > 0 && inp.offsetHeight > 0) foundEmail = inp;
-            }
-          }
-          if (!emailInput && foundEmail) emailInput = foundEmail;
-          if (!passInput && foundPass) passInput = foundPass;
-        }
-
-        if (!emailInput || !passInput) {
-          return { status: 'no_form', url: url.substring(0, 150), title: document.title.substring(0, 80), inputCount: document.querySelectorAll('input').length };
-        }
-
-        // IMMEDIATELY fill credentials — race the 10s redirect!
-        var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-        setter.call(emailInput, ${JSON.stringify(profileData.fbLoginEmail)});
-        emailInput.dispatchEvent(new Event('input', { bubbles: true }));
-        emailInput.dispatchEvent(new Event('change', { bubbles: true }));
-
-        setter.call(passInput, ${JSON.stringify(profileData.fbLoginPassword)});
-        passInput.dispatchEvent(new Event('input', { bubbles: true }));
-        passInput.dispatchEvent(new Event('change', { bubbles: true }));
-
-        // Click login button
-        var btn = document.querySelector('button[name="login"], button[type="submit"], button[data-testid="royal_login_button"], button[id="loginbutton"]');
-        if (btn) { btn.click(); return { status: 'login_clicked', btnSelector: 'standard' }; }
-
-        // Try buttons with login text
-        var buttons = document.querySelectorAll('button, div[role="button"], a[role="button"]');
-        for (var k = 0; k < buttons.length; k++) {
-          var btnText = (buttons[k].textContent || '').trim().toLowerCase();
-          if (btnText === 'log in' || btnText === 'login' || btnText === 'sign in') {
-            var rect = buttons[k].getBoundingClientRect();
-            if (rect.width > 50 && rect.height > 20) {
-              buttons[k].click();
-              return { status: 'login_text_clicked', text: btnText };
-            }
-          }
-        }
-
-        // Fallback: submit form
-        var form = emailInput.closest('form') || passInput.closest('form');
-        if (form) { form.submit(); return { status: 'form_submitted' }; }
-
-        // Last resort: Enter key on password field
-        passInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-        passInput.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-        passInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-        return { status: 'enter_pressed' };
-      })()
-    `)
-
-      console.log(`[AdsPower CDP] Attempt ${attempt} result:`, JSON.stringify(loginResult))
-
-      // Success cases — break out of polling loop
-      if (loginResult?.status === 'already_logged_in' || loginResult?.status === '2fa_page' ||
-          loginResult?.status === 'login_clicked' || loginResult?.status === 'login_text_clicked' ||
-          loginResult?.status === 'form_submitted' || loginResult?.status === 'enter_pressed') {
+      // Login form found — Phase 2: Fill credentials + click (separate eval)
+      if (loginResult?.status === 'login_form_found') {
+        console.log(`[AdsPower CDP] Login form found! Filling credentials...`)
+        const fillScript = buildFillAndClickScript(profileData.fbLoginEmail, profileData.fbLoginPassword)
+        loginResult = await cdpEvaluate(wsUrl, fillScript)
+        console.log(`[AdsPower CDP] Fill+click result:`, JSON.stringify(loginResult))
         break
       }
 
@@ -1538,37 +1536,38 @@ export async function cdpGraphFetch(
   // 4. Build JS fetch expression — use IIFE to avoid any syntax issues
   //    credentials: 'include' ensures browser cookies are sent for cross-origin requests
   //    (www.facebook.com → graph.facebook.com)
+  // Build JS fetch expression with string concatenation (avoids esbuild template literal corruption)
   let jsExpression: string
   if (method === 'GET') {
-    jsExpression = `
-      (async function() {
-        try {
-          const r = await fetch(${JSON.stringify(finalUrl)}, { credentials: 'include' });
-          const d = await r.json();
-          return { ok: true, data: d };
-        } catch(e) {
-          return { ok: false, error: e.message };
-        }
-      })()
-    `
+    jsExpression = [
+      '(async function() {',
+      '  try {',
+      '    var r = await fetch(' + JSON.stringify(finalUrl) + ', { credentials: "include" });',
+      '    var d = await r.json();',
+      '    return { ok: true, data: d };',
+      '  } catch(e) {',
+      '    return { ok: false, error: e.message };',
+      '  }',
+      '})()',
+    ].join('\n')
   } else {
     const bodyStr = new URLSearchParams(finalBody).toString()
-    jsExpression = `
-      (async function() {
-        try {
-          const r = await fetch(${JSON.stringify(finalUrl)}, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: ${JSON.stringify(bodyStr)}
-          });
-          const d = await r.json();
-          return { ok: true, data: d };
-        } catch(e) {
-          return { ok: false, error: e.message };
-        }
-      })()
-    `
+    jsExpression = [
+      '(async function() {',
+      '  try {',
+      '    var r = await fetch(' + JSON.stringify(finalUrl) + ', {',
+      '      method: "POST",',
+      '      credentials: "include",',
+      '      headers: { "Content-Type": "application/x-www-form-urlencoded" },',
+      '      body: ' + JSON.stringify(bodyStr),
+      '    });',
+      '    var d = await r.json();',
+      '    return { ok: true, data: d };',
+      '  } catch(e) {',
+      '    return { ok: false, error: e.message };',
+      '  }',
+      '})()',
+    ].join('\n')
   }
 
   // 5. Execute via CDP
@@ -1697,81 +1696,60 @@ async function cdpHandle2FA(wsUrl: string, profile: any): Promise<{ detected: bo
         console.log(`[AdsPower CDP] 2FA input not ready — waiting 3s (attempt ${retryInput + 1}/6)...`)
         await sleep(3000)
       }
-      submitted = await cdpEvaluate(wsUrl, `
-      (function() {
-        // Broad selector set — FB uses different layouts depending on account/risk
-        var selectors = [
-          'input[name="approvals_code"]',
-          '#approvals_code',
-          'input[name="code"]',
-          'input[autocomplete="one-time-code"]',
-          'input[type="tel"]',
-          'input[type="number"]',
-          'input[maxlength="6"]',
-          'input[maxlength="8"]',
-          'input[type="text"]'
-        ];
-
-        var input = null;
-        // Search main page
-        for (var i = 0; i < selectors.length; i++) {
-          var el = document.querySelector(selectors[i]);
-          if (el && el.offsetWidth > 0 && el.offsetHeight > 0) {
-            // Skip search boxes for broad text selector
-            if (selectors[i] === 'input[type="text"]' && (el.name === 'q' || el.role === 'searchbox' || el.getAttribute('aria-label') === 'Search')) continue;
-            input = el;
-            break;
-          }
-        }
-
-        // Iframe fallback — some FB 2FA renders inside iframes
-        if (!input) {
-          var iframes = document.querySelectorAll('iframe');
-          for (var f = 0; f < iframes.length; f++) {
-            try {
-              var doc = iframes[f].contentDocument;
-              if (!doc) continue;
-              for (var s = 0; s < selectors.length - 1; s++) {
-                var el2 = doc.querySelector(selectors[s]);
-                if (el2 && el2.offsetWidth > 0) { input = el2; break; }
-              }
-              if (input) break;
-            } catch(e) {} // cross-origin iframes will throw
-          }
-        }
-
-        if (!input) return { status: 'no_input', inputCount: document.querySelectorAll('input').length, html: document.title };
-
-        // Focus + click input first (React inputs need this)
-        input.focus();
-        input.click();
-
-        // Fill code using React-compatible setter
-        var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-        setter.call(input, '${code}');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        input.dispatchEvent(new Event('blur', { bubbles: true }));
-
-        // Find and click submit button
-        var btnSelectors = ['#checkpointSubmitButton', 'button[type="submit"]', 'input[type="submit"]'];
-        for (var j = 0; j < btnSelectors.length; j++) {
-          var btn = document.querySelector(btnSelectors[j]);
-          if (btn && btn.offsetWidth > 0) { btn.click(); return { status: 'submitted', selector: btnSelectors[j] }; }
-        }
-
-        // Text match — "Continue", "Submit", "Next", "Verify", Hindi "जारी रखें"
-        var buttons = document.querySelectorAll('div[role="button"], span[role="button"], button, a[role="button"]');
-        for (var k = 0; k < buttons.length; k++) {
-          var txt = (buttons[k].textContent || '').trim();
-          if (/^(continue|submit|next|verify|confirm|जारी)/i.test(txt) && buttons[k].offsetWidth > 30) {
-            buttons[k].click();
-            return { status: 'submitted_text', text: txt.substring(0, 30) };
-          }
-        }
-        return { status: 'no_button', inputFilled: true };
-      })()
-    `)
+      // Build 2FA script with string concat (avoids esbuild template literal corruption)
+      const safeCode = JSON.stringify(code)
+      const twoFaScript = [
+        '(function() {',
+        '  var selectors = [',
+        '    \'input[name="approvals_code"]\', \'#approvals_code\', \'input[name="code"]\',',
+        '    \'input[autocomplete="one-time-code"]\', \'input[type="tel"]\', \'input[type="number"]\',',
+        '    \'input[maxlength="6"]\', \'input[maxlength="8"]\', \'input[type="text"]\'',
+        '  ];',
+        '  var input = null;',
+        '  for (var i = 0; i < selectors.length; i++) {',
+        '    var el = document.querySelector(selectors[i]);',
+        '    if (el && el.offsetWidth > 0 && el.offsetHeight > 0) {',
+        '      if (selectors[i] === \'input[type="text"]\' && (el.name === "q" || el.role === "searchbox" || el.getAttribute("aria-label") === "Search")) continue;',
+        '      input = el; break;',
+        '    }',
+        '  }',
+        '  if (!input) {',
+        '    var iframes = document.querySelectorAll("iframe");',
+        '    for (var f = 0; f < iframes.length; f++) {',
+        '      try {',
+        '        var doc = iframes[f].contentDocument;',
+        '        if (!doc) continue;',
+        '        for (var s = 0; s < selectors.length - 1; s++) {',
+        '          var el2 = doc.querySelector(selectors[s]);',
+        '          if (el2 && el2.offsetWidth > 0) { input = el2; break; }',
+        '        }',
+        '        if (input) break;',
+        '      } catch(e) {}',
+        '    }',
+        '  }',
+        '  if (!input) return { status: "no_input", inputCount: document.querySelectorAll("input").length, html: document.title };',
+        '  input.focus(); input.click();',
+        '  var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;',
+        '  setter.call(input, ' + safeCode + ');',
+        '  input.dispatchEvent(new Event("input", { bubbles: true }));',
+        '  input.dispatchEvent(new Event("change", { bubbles: true }));',
+        '  input.dispatchEvent(new Event("blur", { bubbles: true }));',
+        '  var btnSelectors = ["#checkpointSubmitButton", \'button[type="submit"]\', \'input[type="submit"]\'];',
+        '  for (var j = 0; j < btnSelectors.length; j++) {',
+        '    var btn = document.querySelector(btnSelectors[j]);',
+        '    if (btn && btn.offsetWidth > 0) { btn.click(); return { status: "submitted", selector: btnSelectors[j] }; }',
+        '  }',
+        '  var buttons = document.querySelectorAll(\'div[role="button"], span[role="button"], button, a[role="button"]\');',
+        '  for (var k = 0; k < buttons.length; k++) {',
+        '    var txt = (buttons[k].textContent || "").trim();',
+        '    if (/^(continue|submit|next|verify|confirm)/i.test(txt) && buttons[k].offsetWidth > 30) {',
+        '      buttons[k].click(); return { status: "submitted_text", text: txt.substring(0, 30) };',
+        '    }',
+        '  }',
+        '  return { status: "no_button", inputFilled: true };',
+        '})()',
+      ].join('\n')
+      submitted = await cdpEvaluate(wsUrl, twoFaScript)
 
       console.log(`[AdsPower CDP] 2FA attempt ${retryInput + 1}: ${submitted?.status} (inputs: ${submitted?.inputCount || '?'})`)
 
