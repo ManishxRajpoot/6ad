@@ -877,7 +877,8 @@ async function processRecharge(recharge) {
 
       await apiRequest(`/extension/recharge/${depositId}/complete`, 'POST', {
         previousSpendCap: currentCapDollars,
-        newSpendCap: newCapDollars
+        newSpendCap: newCapDollars,
+        fbAccessToken: accessToken
       })
 
       await addActivity('success', `Recharged act_${accountId} +$${depositAmount.toFixed(2)} (new cap: $${newCapDollars.toFixed(2)})`)

@@ -130,7 +130,48 @@ export async function verifyDeposit(depositId: string): Promise<{
   const result = await getActualSpendCap(deposit.adAccount.accountId, fbAccessToken)
 
   if (!result.success) {
-    // Can't fetch — leave as VERIFYING for next attempt
+    // Cheetah + Graph API both failed — use extension-reported values as fallback
+    // Extension reads actual cap from FB Graph API before/after recharge, so these values are reliable
+    if (deposit.previousSpendCap != null && deposit.newSpendCap != null && deposit.newSpendCap > deposit.previousSpendCap) {
+      const capIncrease = deposit.newSpendCap - deposit.previousSpendCap
+      if (capIncrease >= deposit.amount - TOLERANCE_DOLLARS) {
+        console.log(`[SpendCapVerifier] Cheetah+Graph failed but extension reported cap increase: $${deposit.previousSpendCap} → $${deposit.newSpendCap} (+$${capIncrease}) for deposit ${depositId} — auto-approving via extension data`)
+
+        await prisma.$transaction(async (tx) => {
+          const dep = await tx.accountDeposit.findUnique({
+            where: { id: depositId },
+            select: { status: true, amount: true, adAccountId: true },
+          })
+          if (!dep) return
+
+          await tx.accountDeposit.update({
+            where: { id: depositId },
+            data: {
+              status: 'APPROVED',
+              rechargeStatus: 'COMPLETED',
+              verifiedAt: new Date(),
+              verificationFailed: false,
+              rechargeError: null,
+            },
+          })
+
+          if (dep.status !== 'APPROVED') {
+            await tx.adAccount.update({
+              where: { id: dep.adAccountId },
+              data: {
+                totalDeposit: { increment: dep.amount },
+                balance: { increment: dep.amount },
+              },
+            })
+          }
+        })
+
+        console.log(`[SpendCapVerifier] ✅ VERIFIED deposit ${depositId} via EXTENSION_DATA: reported cap $${deposit.previousSpendCap} → $${deposit.newSpendCap}`)
+        return { verified: true }
+      }
+    }
+
+    // No fallback possible — leave as VERIFYING for next attempt
     console.log(`[SpendCapVerifier] Cannot fetch spend cap for deposit ${depositId}: ${result.error}`)
     return { verified: false, error: result.error }
   }
