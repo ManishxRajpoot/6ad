@@ -6,6 +6,7 @@
  * B) Timeout stuck BM shares (PENDING with max retries)
  * C) Auto-refund permanently failed recharges (FAILED + attempts >= 5)
  * E) Auto-fix profile ↔ ad account mapping mismatches
+ * F) Revive stale profiles — detect FB logout, restart browser + CDP auto-login
  */
 
 import {
@@ -15,6 +16,7 @@ import {
 } from '../utils/email.js'
 import { createNotification } from '../routes/notifications.js'
 import { prisma } from '../lib/prisma.js'
+import { cdpAutoLogin, startBrowser, stopBrowser, isBrowserActive } from './adspower-worker.js'
 
 // ─── Configuration ─────────────────────────────────────────────────
 const CONFIG = {
@@ -24,6 +26,8 @@ const CONFIG = {
   VERIFYING_TIMEOUT_MS: 30 * 60 * 1000,    // VERIFYING > 30 min → VERIFY_FAILED
   MAX_RECHARGE_ATTEMPTS: 10,               // Matches recharge-cron MAX_ATTEMPTS
   MAX_SHARE_ATTEMPTS: 10,                  // Matches bm-share-cron MAX_ATTEMPTS
+  STALE_HEARTBEAT_MS: 5 * 60 * 1000,       // Extension heartbeat older than 5 min → stale
+  REVIVE_COOLDOWN_MS: 10 * 60 * 1000,      // Don't retry revive within 10 min of last attempt
 }
 
 let pollInterval: NodeJS.Timeout | null = null
@@ -359,6 +363,117 @@ async function autoFixProfileMappings(): Promise<number> {
   return fixCount
 }
 
+// ─── Step F: Revive stale profiles (FB logged out → CDP auto-login) ──
+const lastReviveAttempt = new Map<string, number>()
+
+async function reviveStaleProfiles(): Promise<number> {
+  let revivedCount = 0
+
+  // Find enabled profiles with stale heartbeat (extension stopped polling)
+  const staleThreshold = new Date(Date.now() - CONFIG.STALE_HEARTBEAT_MS)
+  const staleProfiles = await prisma.facebookAutomationProfile.findMany({
+    where: {
+      isEnabled: true,
+      adsPowerSerialNumber: { not: null },
+      fbLoginEmail: { not: null },  // Must have login credentials for CDP
+      OR: [
+        { lastHeartbeatAt: { lt: staleThreshold } },
+        { lastHeartbeatAt: null },
+      ],
+    },
+    select: {
+      id: true,
+      label: true,
+      adsPowerSerialNumber: true,
+      managedAdAccountIds: true,
+      lastHeartbeatAt: true,
+    },
+  })
+
+  if (staleProfiles.length === 0) return 0
+
+  for (const profile of staleProfiles) {
+    const serial = profile.adsPowerSerialNumber!
+    const label = profile.label || serial
+
+    // Check cooldown — don't retry if we just attempted
+    const lastAttempt = lastReviveAttempt.get(profile.id) || 0
+    if (Date.now() - lastAttempt < CONFIG.REVIVE_COOLDOWN_MS) continue
+
+    // Check if this profile has any pending deposits
+    const managedIds = profile.managedAdAccountIds || []
+    if (managedIds.length === 0) continue
+
+    const pendingCount = await prisma.accountDeposit.count({
+      where: {
+        approvedAt: { not: null },
+        rechargeStatus: { in: ['PENDING', 'NONE'] },
+        adAccount: { accountId: { in: managedIds } },
+      },
+    })
+
+    // Also check pending BM shares
+    const pendingBmShares = await prisma.bmShareRequest.count({
+      where: {
+        status: 'PENDING',
+        platform: 'FACEBOOK',
+        adAccountId: { in: managedIds },
+      },
+    })
+
+    if (pendingCount === 0 && pendingBmShares === 0) continue
+
+    // This profile is stale AND has pending tasks → revive it
+    const staleMinutes = profile.lastHeartbeatAt
+      ? ((Date.now() - profile.lastHeartbeatAt.getTime()) / 60000).toFixed(0)
+      : 'never'
+
+    console.log(`[Watchdog] Reviving stale profile "${label}" (heartbeat: ${staleMinutes} min ago, ${pendingCount} deposits + ${pendingBmShares} BM shares pending)`)
+    lastReviveAttempt.set(profile.id, Date.now())
+
+    try {
+      // 1. Check if browser is running
+      const isActive = await isBrowserActive(serial)
+
+      if (isActive) {
+        // Browser running but extension stale → FB probably logged out
+        // Stop and restart for a clean session
+        console.log(`[Watchdog] Browser active but extension stale for "${label}" — restarting...`)
+        await stopBrowser(serial)
+        await new Promise(r => setTimeout(r, 5000))
+      }
+
+      // 2. Start browser
+      const launched = await startBrowser(serial)
+      if (!launched) {
+        console.log(`[Watchdog] Failed to start browser for "${label}"`)
+        continue
+      }
+      console.log(`[Watchdog] Browser started for "${label}" — waiting 15s for load...`)
+      await new Promise(r => setTimeout(r, 15000))
+
+      // 3. Reload full profile for CDP login (needs credentials)
+      const fullProfile = await prisma.facebookAutomationProfile.findUnique({
+        where: { id: profile.id },
+      })
+      if (!fullProfile) continue
+
+      // 4. Run CDP auto-login
+      const cdpOk = await cdpAutoLogin(serial, fullProfile)
+      if (cdpOk) {
+        console.log(`[Watchdog] ✅ CDP login triggered for "${label}" — FB session should restore`)
+        revivedCount++
+      } else {
+        console.log(`[Watchdog] ❌ CDP login failed for "${label}" — will retry in ${CONFIG.REVIVE_COOLDOWN_MS / 60000} min`)
+      }
+    } catch (err: any) {
+      console.error(`[Watchdog] Error reviving "${label}":`, err.message)
+    }
+  }
+
+  return revivedCount
+}
+
 // ─── Main watchdog cycle ───────────────────────────────────────────
 async function runWatchdogCycle(): Promise<void> {
   try {
@@ -367,11 +482,12 @@ async function runWatchdogCycle(): Promise<void> {
     const timedOutBmShares = await timeoutStuckBmShares()
     const refundedDeposits = await autoRefundFailedRecharges()
     const fixedMappings = await autoFixProfileMappings()
+    const revivedProfiles = await reviveStaleProfiles()
     await logTokenHealth()
 
     // Only log if something happened
-    if (timedOutRecharges > 0 || timedOutVerifications > 0 || timedOutBmShares > 0 || refundedDeposits > 0 || fixedMappings > 0) {
-      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutVerifications} verifications, ${timedOutBmShares} BM shares, auto-refunded ${refundedDeposits} deposits, fixed ${fixedMappings} profile mappings`)
+    if (timedOutRecharges > 0 || timedOutVerifications > 0 || timedOutBmShares > 0 || refundedDeposits > 0 || fixedMappings > 0 || revivedProfiles > 0) {
+      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutVerifications} verifications, ${timedOutBmShares} BM shares, auto-refunded ${refundedDeposits} deposits, fixed ${fixedMappings} mappings, revived ${revivedProfiles} profiles`)
     }
   } catch (error) {
     console.error('[Watchdog] Cycle error:', error)
