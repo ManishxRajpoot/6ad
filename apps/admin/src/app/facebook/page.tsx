@@ -1477,7 +1477,7 @@ export default function FacebookPage() {
                               <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                               Rejected
                             </span>
-                          ) : dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'VERIFY_FAILED' ? (
+                          ) : dep.status === 'PENDING' && dep.rechargeStatus === 'VERIFY_FAILED' ? (
                             <span
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 cursor-help"
                               title={dep.rechargeError || 'Spend cap verification failed'}
@@ -1485,12 +1485,12 @@ export default function FacebookPage() {
                               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                               Verify Failed
                             </span>
-                          ) : dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'VERIFYING' ? (
+                          ) : dep.status === 'PENDING' && dep.rechargeStatus === 'VERIFYING' ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700">
                               <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
                               Verifying
                             </span>
-                          ) : dep.status === 'PENDING' && dep.approvedAt && (dep.rechargeStatus === 'FAILED') ? (
+                          ) : dep.status === 'PENDING' && dep.rechargeStatus === 'FAILED' ? (
                             <span
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 cursor-help"
                               title={dep.rechargeError || 'Recharge failed'}
@@ -1498,7 +1498,7 @@ export default function FacebookPage() {
                               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                               Failed
                             </span>
-                          ) : dep.status === 'PENDING' && dep.approvedAt ? (
+                          ) : dep.status === 'PENDING' && dep.rechargeStatus === 'IN_PROGRESS' ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700">
                               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                               Processing
@@ -1533,60 +1533,30 @@ export default function FacebookPage() {
                               {dep.adminRemarks || 'Rejected'}
                             </span>
                           )}
-                          {/* PENDING + approvedAt — processing states */}
-                          {dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'FAILED' && (
+                          {/* PENDING — show rechargeStatus sub-states */}
+                          {dep.status === 'PENDING' && dep.rechargeStatus === 'FAILED' && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 cursor-help truncate max-w-full" title={dep.rechargeError || 'Recharge failed'}>
                               Failed: {dep.rechargeError || 'Unknown error'}
                             </span>
                           )}
-                          {dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'VERIFYING' && (
+                          {dep.status === 'PENDING' && dep.rechargeStatus === 'VERIFYING' && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 animate-pulse">Verifying spend cap...</span>
                           )}
-                          {dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'VERIFY_FAILED' && (
+                          {dep.status === 'PENDING' && dep.rechargeStatus === 'VERIFY_FAILED' && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 cursor-help truncate max-w-full" title={dep.rechargeError || 'Verification failed'}>
                               Verify Failed: {dep.rechargeError || 'Mismatch'}
                             </span>
                           )}
-                          {dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'IN_PROGRESS' && (
+                          {dep.status === 'PENDING' && dep.rechargeStatus === 'IN_PROGRESS' && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 animate-pulse">Recharging...</span>
                           )}
-                          {dep.status === 'PENDING' && dep.approvedAt && (dep.rechargeStatus === 'PENDING' || dep.rechargeStatus === 'NONE' || !dep.rechargeStatus) && (
+                          {dep.status === 'PENDING' && (dep.rechargeStatus === 'PENDING' || dep.rechargeStatus === 'NONE' || !dep.rechargeStatus) && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">Waiting for extension...</span>
-                          )}
-                          {/* PENDING + no approvedAt — not yet approved by admin */}
-                          {dep.status === 'PENDING' && !dep.approvedAt && (
-                            <span className="text-xs text-gray-400">—</span>
                           )}
                         </td>
                         <td className="py-2.5 px-2 xl:px-3">
-                          {/* PENDING — no approvedAt: Approve button + dropdown */}
-                          {dep.status === 'PENDING' && !dep.approvedAt && (
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => handleDepositApprove(dep.id)}
-                                disabled={approvingDepositId === dep.id}
-                                className="p-1.5 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                                title="Approve"
-                              >
-                                {approvingDepositId === dep.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Check className="w-4 h-4" />
-                                )}
-                              </button>
-                              <div className="deposit-action-dropdown">
-                                <button
-                                  onClick={(e) => openDepositDropdown(dep.id, e)}
-                                  className="p-1.5 rounded bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors"
-                                  title="More actions"
-                                >
-                                  <MoreVertical className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                          {/* PENDING + approvedAt: processing — show dropdown with Force Approve, Retry, Reject */}
-                          {dep.status === 'PENDING' && dep.approvedAt && (
+                          {/* PENDING — show dropdown with actions */}
+                          {dep.status === 'PENDING' && (
                             <div className="flex items-center justify-center gap-1">
                               <div className="deposit-action-dropdown">
                                 <button
@@ -1635,23 +1605,18 @@ export default function FacebookPage() {
           {depositActionDropdown && depositDropdownPos && (() => {
             const dep = filteredDeposits.find(d => d.id === depositActionDropdown)
             if (!dep) return null
-            const isProcessing = dep.status === 'PENDING' && !!dep.approvedAt
             return (
               <div
                 className="fixed w-44 bg-white border border-gray-200 rounded-lg shadow-lg py-1 deposit-action-dropdown"
                 style={{ top: depositDropdownPos.top, left: depositDropdownPos.left, zIndex: 9999 }}
               >
-                {isProcessing && (
-                  <>
-                    <button onClick={() => { setDepositActionDropdown(null); handleForceApprove(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-violet-600 hover:bg-violet-50 transition-colors">Force Approve</button>
-                    {dep.rechargeStatus === 'VERIFY_FAILED' ? (
-                      <button onClick={() => { setDepositActionDropdown(null); handleRetryVerification(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-purple-600 hover:bg-purple-50 transition-colors">Retry Verification</button>
-                    ) : (
-                      <button onClick={() => { setDepositActionDropdown(null); handleRetryRecharge(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors">Retry Recharge</button>
-                    )}
-                    <div className="border-t border-gray-100 my-1" />
-                  </>
+                <button onClick={() => { setDepositActionDropdown(null); handleForceApprove(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-violet-600 hover:bg-violet-50 transition-colors">Force Approve</button>
+                {dep.rechargeStatus === 'VERIFY_FAILED' ? (
+                  <button onClick={() => { setDepositActionDropdown(null); handleRetryVerification(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-purple-600 hover:bg-purple-50 transition-colors">Retry Verification</button>
+                ) : (
+                  <button onClick={() => { setDepositActionDropdown(null); handleRetryRecharge(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors">Retry Recharge</button>
                 )}
+                <div className="border-t border-gray-100 my-1" />
                 <button onClick={() => { setDepositActionDropdown(null); handleDepositRejectRefund(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">Reject with Refund</button>
                 <button onClick={() => { setDepositActionDropdown(null); handleDepositReject(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">Reject (No Refund)</button>
               </div>

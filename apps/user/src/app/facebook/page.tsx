@@ -1299,8 +1299,8 @@ export default function FacebookPage() {
 
   const getStatusBadge = (status: string, deposit?: any) => {
     const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
-    // Show detailed recharge status for deposits
-    if (deposit && status === 'PENDING' && deposit.approvedAt) {
+    // Show detailed recharge status for PENDING deposits
+    if (deposit && status === 'PENDING') {
       if (deposit.rechargeStatus === 'VERIFY_FAILED') {
         return <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700 animate-pulse`}><XCircle className="w-3 h-3" /> Verify Failed</span>
       }
@@ -1311,9 +1311,8 @@ export default function FacebookPage() {
         return <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700 animate-pulse`}><XCircle className="w-3 h-3" /> Failed</span>
       }
       if (deposit.rechargeStatus === 'IN_PROGRESS') {
-        return <span className={`${baseClasses} bg-blue-50 border border-blue-200 text-blue-700 animate-pulse`}><Clock className="w-3 h-3" /> Recharging</span>
+        return <span className={`${baseClasses} bg-blue-50 border border-blue-200 text-blue-700 animate-pulse`}><Clock className="w-3 h-3" /> Processing</span>
       }
-      return <span className={`${baseClasses} bg-blue-50 border border-blue-200 text-blue-700 animate-pulse`}><Clock className="w-3 h-3" /> Processing</span>
     }
     switch (status) {
       case 'APPROVED':
@@ -1816,12 +1815,11 @@ export default function FacebookPage() {
                     const getDepositStatus = () => {
                       if (dep.status === 'APPROVED') return { label: 'Approved', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' }
                       if (dep.status === 'REJECTED') return { label: 'Rejected', color: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' }
-                      if (dep.status === 'PENDING' && dep.approvedAt) {
+                      if (dep.status === 'PENDING') {
                         if (dep.rechargeStatus === 'VERIFY_FAILED') return { label: 'Verify Failed', color: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500 animate-pulse' }
                         if (dep.rechargeStatus === 'VERIFYING') return { label: 'Verifying', color: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500 animate-pulse' }
                         if (dep.rechargeStatus === 'FAILED') return { label: 'Failed', color: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500 animate-pulse' }
-                        if (dep.rechargeStatus === 'IN_PROGRESS') return { label: 'Recharging', color: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500 animate-pulse' }
-                        return { label: 'Processing', color: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500 animate-pulse' }
+                        if (dep.rechargeStatus === 'IN_PROGRESS') return { label: 'Processing', color: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500 animate-pulse' }
                       }
                       return { label: 'Pending', color: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' }
                     }
