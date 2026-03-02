@@ -4,16 +4,10 @@
  * Runs every 2 minutes to:
  * A) Timeout stuck recharges (IN_PROGRESS > 15 min, PENDING with max retries)
  * B) Timeout stuck BM shares (PENDING with max retries)
- * C) Auto-refund permanently failed recharges (FAILED + attempts >= 5)
+ * C) Auto-reject permanently failed recharges (FAILED + attempts >= max) — NO auto-refund, admin decides
  * E) Auto-fix profile ↔ ad account mapping mismatches
  * F) Revive stale profiles — detect FB logout, restart browser + CDP auto-login
  */
-
-import {
-  sendEmail,
-  buildSmtpConfig,
-  getAccountRechargeRejectedTemplate,
-} from '../utils/email.js'
 import { createNotification } from '../routes/notifications.js'
 import { prisma } from '../lib/prisma.js'
 import { cdpAutoLogin, startBrowser, stopBrowser, isBrowserActive } from './adspower-worker.js'
@@ -144,12 +138,13 @@ async function timeoutStuckBmShares(): Promise<number> {
   return stuckBmShares.length
 }
 
-// ─── Step C: Auto-refund permanently failed recharges ──────────────
-async function autoRefundFailedRecharges(): Promise<number> {
-  // Find deposits that are APPROVED (money deducted) but recharge permanently FAILED
+// ─── Step C: Auto-reject permanently failed recharges (NO auto-refund) ──────────────
+async function autoRejectFailedRecharges(): Promise<number> {
+  // Find PENDING deposits where recharge permanently FAILED (max attempts exhausted)
+  // Mark as REJECTED — admin must manually review and decide on refund
   const permanentlyFailed = await prisma.accountDeposit.findMany({
     where: {
-      status: 'APPROVED',
+      status: 'PENDING',
       rechargeStatus: 'FAILED',
       rechargeAttempts: { gte: CONFIG.MAX_RECHARGE_ATTEMPTS },
     },
@@ -181,104 +176,37 @@ async function autoRefundFailedRecharges(): Promise<number> {
     },
   })
 
-  let refundedCount = 0
+  let rejectedCount = 0
 
   for (const deposit of permanentlyFailed) {
     try {
-      const depositAmount = Number(deposit.amount) || 0
-      const commissionAmount = Number(deposit.commissionAmount) || 0
-      const totalRefund = depositAmount + commissionAmount
-
-      if (totalRefund <= 0) {
-        console.log(`[Watchdog] Skipping auto-refund for ${deposit.id} — zero amount`)
-        continue
-      }
-
-      await prisma.$transaction(async (tx) => {
-        // 1. Mark deposit as REJECTED (same pattern as manual reject in accounts.ts)
-        await tx.accountDeposit.update({
-          where: { id: deposit.id },
-          data: {
-            status: 'REJECTED',
-            adminRemarks: `Auto-refunded: Recharge permanently failed after ${deposit.rechargeAttempts} attempts. Error: ${deposit.rechargeError || 'unknown'}`,
-          },
-        })
-
-        // 2. Reverse the ad account balance increment (undo the approval)
-        await tx.adAccount.update({
-          where: { id: deposit.adAccountId },
-          data: {
-            totalDeposit: { decrement: depositAmount },
-            balance: { decrement: depositAmount },
-          },
-        })
-
-        // 3. Refund to user wallet
-        const balanceBefore = Number(deposit.adAccount.user.walletBalance)
-        const balanceAfter = balanceBefore + totalRefund
-
-        await tx.user.update({
-          where: { id: deposit.adAccount.userId },
-          data: { walletBalance: balanceAfter },
-        })
-
-        // 4. Create WalletFlow REFUND record
-        await tx.walletFlow.create({
-          data: {
-            type: 'REFUND',
-            amount: totalRefund,
-            balanceBefore,
-            balanceAfter,
-            referenceId: deposit.id,
-            referenceType: 'recharge_auto_refund',
-            userId: deposit.adAccount.userId,
-            description: `Auto-refund: Recharge failed for ${deposit.adAccount.platform} account ${deposit.adAccount.accountId}. $${depositAmount.toFixed(2)} + Fee $${commissionAmount.toFixed(2)} = $${totalRefund.toFixed(2)}`,
-          },
-        })
+      // Mark as REJECTED — NO auto-refund. Funds stay on hold, admin must review.
+      await prisma.accountDeposit.update({
+        where: { id: deposit.id },
+        data: {
+          status: 'REJECTED',
+          rejectedAt: new Date(),
+          adminRemarks: `Auto-rejected: Recharge failed after ${deposit.rechargeAttempts} attempts. Error: ${deposit.rechargeError || 'unknown'}. Funds on hold — admin must review.`,
+        },
       })
 
-      // 5. Send notification (fire and forget)
+      // Send notification to user
       createNotification({
         userId: deposit.adAccount.userId,
         type: 'DEPOSIT_REJECTED',
-        title: 'Deposit Auto-Refunded',
-        message: `Your deposit of $${depositAmount.toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} could not be recharged and has been automatically refunded to your wallet.`,
+        title: 'Recharge Request Rejected',
+        message: `Your recharge of $${Number(deposit.amount).toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} could not be completed. Please contact admin for resolution.`,
         link: '/facebook',
       }).catch(() => {})
 
-      // 6. Send rejection email with refund info (reuse existing template)
-      const approvedDomain = deposit.adAccount.user.agent?.customDomains?.[0]
-      const agent = deposit.adAccount.user.agent
-      const agentLogo = approvedDomain?.emailLogo || approvedDomain?.brandLogo || agent?.emailLogo || agent?.brandLogo || null
-      const agentBrandName = agent?.username || null
-      const emailTemplate = getAccountRechargeRejectedTemplate({
-        username: deposit.adAccount.user.username,
-        applyId: deposit.applyId,
-        amount: depositAmount,
-        commission: commissionAmount,
-        totalCost: totalRefund,
-        platform: deposit.adAccount.platform,
-        accountId: deposit.adAccount.accountId,
-        accountName: deposit.adAccount.accountName || undefined,
-        adminRemarks: `Recharge failed after ${deposit.rechargeAttempts} attempts. Your deposit has been automatically refunded.`,
-        agentLogo,
-        agentBrandName,
-      })
-      sendEmail({
-        to: deposit.adAccount.user.email,
-        ...emailTemplate,
-        senderName: agent?.emailSenderNameApproved || undefined,
-        smtpConfig: buildSmtpConfig(agent),
-      }).catch(console.error)
-
-      console.log(`[Watchdog] Auto-refunded deposit ${deposit.id} (${deposit.applyId || 'N/A'}) — $${totalRefund.toFixed(2)} → user ${deposit.adAccount.userId}`)
-      refundedCount++
+      console.log(`[Watchdog] Auto-rejected deposit ${deposit.id} (${deposit.applyId || 'N/A'}) — funds on hold, admin must review`)
+      rejectedCount++
     } catch (error) {
-      console.error(`[Watchdog] Failed to auto-refund deposit ${deposit.id}:`, error)
+      console.error(`[Watchdog] Failed to auto-reject deposit ${deposit.id}:`, error)
     }
   }
 
-  return refundedCount
+  return rejectedCount
 }
 
 // ─── Step D: Token health check (logging only) ──────────────────────
@@ -480,14 +408,14 @@ async function runWatchdogCycle(): Promise<void> {
     const timedOutRecharges = await timeoutStuckRecharges()
     const timedOutVerifications = await timeoutStuckVerifications()
     const timedOutBmShares = await timeoutStuckBmShares()
-    const refundedDeposits = await autoRefundFailedRecharges()
+    const rejectedDeposits = await autoRejectFailedRecharges()
     const fixedMappings = await autoFixProfileMappings()
     const revivedProfiles = await reviveStaleProfiles()
     await logTokenHealth()
 
     // Only log if something happened
-    if (timedOutRecharges > 0 || timedOutVerifications > 0 || timedOutBmShares > 0 || refundedDeposits > 0 || fixedMappings > 0 || revivedProfiles > 0) {
-      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutVerifications} verifications, ${timedOutBmShares} BM shares, auto-refunded ${refundedDeposits} deposits, fixed ${fixedMappings} mappings, revived ${revivedProfiles} profiles`)
+    if (timedOutRecharges > 0 || timedOutVerifications > 0 || timedOutBmShares > 0 || rejectedDeposits > 0 || fixedMappings > 0 || revivedProfiles > 0) {
+      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutVerifications} verifications, ${timedOutBmShares} BM shares, rejected ${rejectedDeposits} deposits, fixed ${fixedMappings} mappings, revived ${revivedProfiles} profiles`)
     }
   } catch (error) {
     console.error('[Watchdog] Cycle error:', error)

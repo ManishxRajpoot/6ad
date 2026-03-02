@@ -176,17 +176,19 @@ export async function verifyDeposit(depositId: string): Promise<{
     console.log(`[SpendCapVerifier] ✅ VERIFIED deposit ${depositId} via ${result.source}: actual=$${actualCap} >= expected=$${expectedCap}`)
     return { verified: true }
   } else {
-    // ❌ MISMATCH — mark as failed
+    // ❌ Spending cap NOT increased → REJECTED. No auto-refund — admin decides.
     await prisma.accountDeposit.update({
       where: { id: depositId },
       data: {
+        status: 'REJECTED',
         rechargeStatus: 'VERIFY_FAILED',
         verificationFailed: true,
-        rechargeError: `Verification failed (${result.source}): expected spend cap $${expectedCap}, actual $${actualCap}`,
+        rejectedAt: new Date(),
+        rechargeError: `Spending cap not increased (${result.source}): expected $${expectedCap}, actual $${actualCap}`,
       },
     })
 
-    console.log(`[SpendCapVerifier] ❌ FAILED deposit ${depositId}: expected=$${expectedCap}, actual=$${actualCap} (${result.source})`)
+    console.log(`[SpendCapVerifier] ❌ REJECTED deposit ${depositId}: expected=$${expectedCap}, actual=$${actualCap} (${result.source}) — funds on hold, admin must review`)
     return { verified: false, error: `Expected $${expectedCap}, actual $${actualCap}` }
   }
 }
