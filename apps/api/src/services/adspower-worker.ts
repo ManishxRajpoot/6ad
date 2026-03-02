@@ -1992,7 +1992,7 @@ async function getPendingTasks(): Promise<PendingTask[]> {
 
   // Recharges: adAccountId is MongoDB ObjectID, need adAccount.accountId for Facebook ID
   const recharges = await prisma.accountDeposit.findMany({
-    where: { status: 'APPROVED', rechargeStatus: { in: ['PENDING', 'NONE'] } },
+    where: { approvedAt: { not: null }, rechargeStatus: { in: ['PENDING', 'NONE'] } },
     select: { id: true, adAccountId: true, adAccount: { select: { accountId: true } } },
     orderBy: { createdAt: 'asc' },
     take: 20,
@@ -2308,7 +2308,7 @@ async function pollForTasks(): Promise<void> {
       // Break early if deposits are failing due to login issues — go straight to CDP retry
       const loginFailed = await prisma.accountDeposit.count({
         where: {
-          status: 'APPROVED',
+          approvedAt: { not: null },
           rechargeStatus: 'FAILED',
           rechargeError: { contains: 'Auto-login' },
           updatedAt: { gte: new Date(Date.now() - 60_000) },
@@ -2371,7 +2371,7 @@ async function pollForTasks(): Promise<void> {
     // Check if tasks failed due to login issues OR tasks are still stuck as PENDING
     const failedDeposits = await prisma.accountDeposit.findMany({
       where: {
-        status: 'APPROVED',
+        approvedAt: { not: null },
         rechargeStatus: { in: ['FAILED', 'PENDING', 'NONE'] },
         OR: [
           { rechargeError: { contains: 'Auto-login' }, updatedAt: { gte: new Date(Date.now() - 300_000) } },
@@ -2438,18 +2438,37 @@ async function pollForTasks(): Promise<void> {
             const rechargeDetails = result.previousSpendCap !== undefined
               ? `Server recharge: previousCap=$${result.previousSpendCap}, newCap=$${result.newSpendCap}`
               : result.details || 'Server recharge completed'
-            await prisma.accountDeposit.update({
-              where: { id: deposit.id },
-              data: {
-                rechargeStatus: 'COMPLETED',
-                rechargeMethod: 'SERVER',
-                rechargedAt: new Date(),
-                rechargedBy: `server-worker-token`,
-                rechargeError: null,
-                adminRemarks: rechargeDetails,
-              },
+            // Set APPROVED + increment balance in transaction
+            await prisma.$transaction(async (tx) => {
+              const dep = await tx.accountDeposit.findUnique({
+                where: { id: deposit.id },
+                select: { status: true, amount: true, adAccountId: true }
+              })
+              if (!dep) return
+              await tx.accountDeposit.update({
+                where: { id: deposit.id },
+                data: {
+                  status: 'APPROVED',
+                  rechargeStatus: 'COMPLETED',
+                  rechargeMethod: 'SERVER',
+                  rechargedAt: new Date(),
+                  rechargedBy: `server-worker-token`,
+                  rechargeError: null,
+                  adminRemarks: rechargeDetails,
+                },
+              })
+              // Only increment balance if not already APPROVED
+              if (dep.status !== 'APPROVED') {
+                await tx.adAccount.update({
+                  where: { id: dep.adAccountId },
+                  data: {
+                    totalDeposit: { increment: dep.amount },
+                    balance: { increment: dep.amount }
+                  }
+                })
+              }
             })
-            console.log(`[AdsPower] Deposit ${deposit.id} RECHARGE COMPLETED via token! ${result.details}`)
+            console.log(`[AdsPower] Deposit ${deposit.id} RECHARGE COMPLETED + APPROVED via token! ${result.details}`)
           } else {
             await prisma.accountDeposit.update({
               where: { id: deposit.id },

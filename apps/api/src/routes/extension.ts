@@ -452,10 +452,10 @@ extension.get('/poll', async (c) => {
 
     const tasks: any[] = []
 
-    // Find pending recharges for managed accounts
+    // Find pending recharges — admin-approved (approvedAt set) deposits needing recharge
     const pendingRecharges = await prisma.accountDeposit.findMany({
       where: {
-        status: 'APPROVED',
+        approvedAt: { not: null },
         rechargeStatus: { in: ['PENDING', 'NONE'] },
         rechargeAttempts: { lt: 10 },
         adAccount: { accountId: { in: managedIds } },
@@ -527,10 +527,12 @@ extension.post('/task-result', async (c) => {
 
     if (type === 'RECHARGE' && depositId) {
       if (success) {
+        // Extension says recharge done — mark VERIFYING (don't trust blindly)
+        // Spend-cap-verifier cron will confirm the actual cap on Facebook
         await prisma.accountDeposit.update({
           where: { id: depositId },
           data: {
-            rechargeStatus: 'COMPLETED',
+            rechargeStatus: 'VERIFYING',
             rechargeMethod: 'EXTENSION',
             rechargedAt: new Date(),
             rechargeError: null,
@@ -539,12 +541,13 @@ extension.post('/task-result', async (c) => {
             newSpendCap: data?.newSpendCap ?? null,
           },
         })
-        console.log(`[Extension] Recharge SUCCESS by "${profile.label}": deposit ${depositId} ($${data?.newSpendCap || '?'})`)
+        // DO NOT set status='APPROVED' or increment balance — verifier will do that
+        console.log(`[Extension] Recharge reported SUCCESS by "${profile.label}": deposit ${depositId} ($${data?.newSpendCap || '?'}) — awaiting verification`)
       } else {
         await prisma.accountDeposit.update({
           where: { id: depositId },
           data: {
-            rechargeStatus: 'PENDING',
+            rechargeStatus: 'FAILED',
             rechargeAttempts: { increment: 1 },
             rechargeError: `Extension: ${error || 'Unknown error'}`,
           },

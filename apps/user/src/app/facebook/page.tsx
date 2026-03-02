@@ -255,7 +255,7 @@ export default function FacebookPage() {
   const searchParams = useSearchParams()
   const pageFromUrl = searchParams.get('page') as SubPage | null
   const [activeSubPage, setActiveSubPage] = useState<SubPage>(pageFromUrl && ['apply-ads-account', 'account-list', 'account-applied-records', 'bm-share-log', 'deposit', 'deposit-report', 'transfer-balance', 'refund', 'refund-report'].includes(pageFromUrl) ? pageFromUrl : 'account-list')
-  const [mobileView, setMobileView] = useState<'accounts' | 'recharge'>('accounts')
+  const [mobileView, setMobileView] = useState<'accounts' | 'recharge' | 'recharge-records'>('accounts')
   const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['account-manage', 'deposit-manage', 'after-sale'])
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
@@ -1297,8 +1297,24 @@ export default function FacebookPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, deposit?: any) => {
     const baseClasses = "inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium"
+    // Show detailed recharge status for deposits
+    if (deposit && status === 'PENDING' && deposit.approvedAt) {
+      if (deposit.rechargeStatus === 'VERIFY_FAILED') {
+        return <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700 animate-pulse`}><XCircle className="w-3 h-3" /> Verify Failed</span>
+      }
+      if (deposit.rechargeStatus === 'VERIFYING') {
+        return <span className={`${baseClasses} bg-purple-50 border border-purple-200 text-purple-700 animate-pulse`}><Clock className="w-3 h-3" /> Verifying</span>
+      }
+      if (deposit.rechargeStatus === 'FAILED') {
+        return <span className={`${baseClasses} bg-red-50 border border-red-200 text-red-700 animate-pulse`}><XCircle className="w-3 h-3" /> Failed</span>
+      }
+      if (deposit.rechargeStatus === 'IN_PROGRESS') {
+        return <span className={`${baseClasses} bg-blue-50 border border-blue-200 text-blue-700 animate-pulse`}><Clock className="w-3 h-3" /> Recharging</span>
+      }
+      return <span className={`${baseClasses} bg-blue-50 border border-blue-200 text-blue-700 animate-pulse`}><Clock className="w-3 h-3" /> Processing</span>
+    }
     switch (status) {
       case 'APPROVED':
       case 'COMPLETED':
@@ -1650,13 +1666,13 @@ export default function FacebookPage() {
                 <p className="text-sm font-bold text-[#1E293B] mt-0.5">{dashboardStats?.pendingShares || 0}</p>
               </div>
             </div>
-            <div className="flex-1 flex items-center gap-2">
+            <button onClick={() => setMobileView('recharge-records')} className="flex-1 flex items-center gap-2 text-left active:opacity-70 transition-opacity">
               <div className="w-1.5 h-1.5 rounded-full bg-[#52B788]" />
               <div>
                 <p className="text-[10px] text-gray-400 leading-none">Deposits</p>
                 <p className="text-sm font-bold text-[#1E293B] mt-0.5">{dashboardStats?.pendingDeposits || 0}</p>
               </div>
-            </div>
+            </button>
           </div>
         </div>
         </div>{/* end sticky wrapper */}
@@ -1667,7 +1683,18 @@ export default function FacebookPage() {
             {/* Account List Header */}
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-[#1E293B]">Your Accounts</h3>
-              <span className="px-2 py-0.5 bg-[#8B5CF6]/10 text-[#8B5CF6] rounded-full text-[11px] font-semibold">{userAccounts.length}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setMobileView('recharge-records')}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#52B788]/10 text-[#52B788] text-[11px] font-semibold active:bg-[#52B788]/20 transition-colors"
+                >
+                  <Wallet className="w-3 h-3" />
+                  Recharge History
+                  {accountDeposits.length > 0 && (
+                    <span className="min-w-[16px] h-4 flex items-center justify-center bg-[#52B788] text-white text-[9px] font-bold rounded-full px-1">{accountDeposits.length}</span>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Account Cards */}
@@ -1752,6 +1779,112 @@ export default function FacebookPage() {
                 })}
               </div>
             )}
+          </>
+        ) : mobileView === 'recharge-records' ? (
+          <>
+            {/* Recharge History & Status */}
+            <div style={{ animation: 'mFadeUp 0.3s cubic-bezier(0.25,0.1,0.25,1) forwards' }}>
+              <button
+                onClick={() => setMobileView('accounts')}
+                className="flex items-center gap-1 text-xs text-gray-500 mb-3"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back to Accounts
+              </button>
+
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-[#1E293B]">Recharge History & Status</h3>
+                <span className="px-2 py-0.5 bg-[#52B788]/10 text-[#52B788] rounded-full text-[11px] font-semibold">{accountDeposits.length}</span>
+              </div>
+
+              {accountDeposits.length === 0 ? (
+                <div className="text-center py-10 bg-white rounded-2xl border border-gray-100">
+                  <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-[#52B788]/10 flex items-center justify-center">
+                    <Wallet className="w-7 h-7 text-[#52B788]" />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-800 mb-1">No Recharge History</p>
+                  <p className="text-xs text-gray-500">Your recharge history & status will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {accountDeposits.map((dep: any, index: number) => {
+                    const depositAmount = parseFloat(dep.amount) || 0
+                    const fee = dep.commissionAmount || 0
+                    const total = depositAmount + fee
+
+                    // Detailed status
+                    const getDepositStatus = () => {
+                      if (dep.status === 'APPROVED') return { label: 'Approved', color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' }
+                      if (dep.status === 'REJECTED') return { label: 'Rejected', color: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' }
+                      if (dep.status === 'PENDING' && dep.approvedAt) {
+                        if (dep.rechargeStatus === 'VERIFY_FAILED') return { label: 'Verify Failed', color: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500 animate-pulse' }
+                        if (dep.rechargeStatus === 'VERIFYING') return { label: 'Verifying', color: 'bg-purple-50 text-purple-700 border-purple-200', dot: 'bg-purple-500 animate-pulse' }
+                        if (dep.rechargeStatus === 'FAILED') return { label: 'Failed', color: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500 animate-pulse' }
+                        if (dep.rechargeStatus === 'IN_PROGRESS') return { label: 'Recharging', color: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500 animate-pulse' }
+                        return { label: 'Processing', color: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500 animate-pulse' }
+                      }
+                      return { label: 'Pending', color: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' }
+                    }
+                    const status = getDepositStatus()
+
+                    return (
+                      <div
+                        key={dep.id}
+                        className="bg-white rounded-2xl border border-gray-100 overflow-hidden"
+                        style={{ animation: `mFadeUp 0.4s cubic-bezier(0.25,0.1,0.25,1) ${0.05 + index * 0.04}s both` }}
+                      >
+                        <div className="p-3.5">
+                          {/* Top: Account name + status */}
+                          <div className="flex items-center justify-between mb-2.5">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className="w-8 h-8 rounded-lg bg-[#EEF2FF] flex items-center justify-center flex-shrink-0">
+                                <span className="text-[11px] font-bold text-[#4F46E5]">
+                                  {(dep.adAccount?.accountName || 'A').charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[12px] font-semibold text-gray-800 truncate">{dep.adAccount?.accountName || 'Unknown'}</p>
+                                <p className="text-[9px] text-gray-400 font-mono">{dep.adAccount?.accountId || '-'}</p>
+                              </div>
+                            </div>
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border ${status.color} flex-shrink-0`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} />
+                              {status.label}
+                            </span>
+                          </div>
+
+                          {/* Amount row */}
+                          <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
+                            <div className="flex-1">
+                              <p className="text-[9px] text-gray-400">Amount</p>
+                              <p className="text-sm font-bold text-[#52B788]">${depositAmount.toLocaleString()}</p>
+                            </div>
+                            {fee > 0 && (
+                              <div className="flex-1">
+                                <p className="text-[9px] text-gray-400">Fee</p>
+                                <p className="text-sm font-semibold text-amber-600">${fee.toFixed(2)}</p>
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <p className="text-[9px] text-gray-400">Total</p>
+                              <p className="text-sm font-bold text-[#4F46E5]">${total.toFixed(2)}</p>
+                            </div>
+                          </div>
+
+                          {/* Bottom: Apply ID + Date */}
+                          <div className="flex items-center justify-between mt-2">
+                            <code className="text-[9px] font-mono text-[#8B5CF6] bg-[#8B5CF6]/8 px-1.5 py-0.5 rounded">{dep.applyId || '-'}</code>
+                            <span className="text-[9px] text-gray-400">
+                              {new Date(dep.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <>
@@ -2989,7 +3122,7 @@ export default function FacebookPage() {
                               })}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3">{getStatusBadge(item.status)}</td>
+                          <td className="py-2.5 px-3">{getStatusBadge(item.status, item)}</td>
                         </tr>
                         )
                       })}

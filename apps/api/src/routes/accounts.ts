@@ -1307,84 +1307,81 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
         console.log(`[Auto-Approve] Cheetah check error for act_${account.accountId}: ${err.message}`)
       }
 
-      // Non-Cheetah card account: auto-approve directly, stays PENDING for manual recharge by admin
+      // Non-Cheetah card account: mark as admin-approved but keep PENDING until recharge confirmed
       if (!isCheetahAccount) {
         rechargeMethod = 'MANUAL'
         rechargeStatus = 'PENDING'
         autoApproved = true
-        console.log(`[Auto-Approve] Card account act_${account.accountId}: auto-approved, pending manual recharge`)
+        console.log(`[Auto-Approve] Card account act_${account.accountId}: pending recharge confirmation`)
       }
 
       if (autoApproved) {
         try {
-          await prisma.$transaction(async (tx) => {
-            await tx.accountDeposit.update({
+          if (isCheetahAccount) {
+            // Cheetah: APPROVED + increment balance immediately
+            await prisma.$transaction(async (tx) => {
+              await tx.accountDeposit.update({
+                where: { id: accountDeposit.id },
+                data: {
+                  status: 'APPROVED',
+                  approvedAt: new Date(),
+                  rechargeMethod,
+                  rechargeStatus,
+                  rechargedAt: new Date(),
+                }
+              })
+              await tx.adAccount.update({
+                where: { id },
+                data: {
+                  totalDeposit: { increment: amount },
+                  balance: { increment: amount }
+                }
+              })
+            })
+
+            // Send approval email for Cheetah
+            const approvedDomain2 = account.user.agent?.customDomains?.[0]
+            const agent2 = account.user.agent
+            const agentLogo2 = approvedDomain2?.emailLogo || approvedDomain2?.brandLogo || agent2?.emailLogo || agent2?.brandLogo || null
+            const agentBrandName2 = account.user.agent?.username || null
+            const updatedAcc = await prisma.adAccount.findUnique({ where: { id }, select: { balance: true } })
+            const approvalEmail = getAccountRechargeApprovedTemplate({
+              username: account.user.username,
+              applyId,
+              amount,
+              commission: commissionAmount,
+              totalCost: totalAmount,
+              platform: account.platform,
+              accountId: account.accountId,
+              accountName: account.accountName || undefined,
+              newBalance: Number(updatedAcc?.balance) || 0,
+              agentLogo: agentLogo2,
+              agentBrandName: agentBrandName2
+            })
+            sendEmail({ to: account.user.email, ...approvalEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(account.user.agent) }).catch(console.error)
+
+            await createNotification({
+              userId: account.userId,
+              type: 'DEPOSIT_APPROVED',
+              title: 'Ad Account Deposit Approved',
+              message: `Your deposit of $${Number(amount).toLocaleString()} for account ${account.accountName || account.accountId} has been auto-approved.`,
+              link: '/facebook'
+            })
+            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} auto-approved (CHEETAH)`)
+            return c.json({ message: 'Deposit auto-approved', deposit: accountDeposit, autoApproved: true, rechargeMethod }, 201)
+          } else {
+            // Non-Cheetah: keep PENDING, set approvedAt, DON'T increment balance
+            await prisma.accountDeposit.update({
               where: { id: accountDeposit.id },
               data: {
-                status: 'APPROVED',
                 approvedAt: new Date(),
                 rechargeMethod,
                 rechargeStatus,
-                rechargedAt: rechargeMethod === 'CHEETAH' ? new Date() : undefined,
               }
             })
-            await tx.adAccount.update({
-              where: { id },
-              data: {
-                totalDeposit: { increment: amount },
-                balance: { increment: amount }
-              }
-            })
-          })
-
-          // Card wallet top-up tracking for non-Cheetah
-          if (!isCheetahAccount) {
-            try {
-              const existing = await prisma.setting.findUnique({ where: { key: 'card_wallet_pending_amount' } })
-              const currentPending = existing ? parseFloat(existing.value) : 0
-              const newPending = currentPending + amount
-              await prisma.setting.upsert({
-                where: { key: 'card_wallet_pending_amount' },
-                update: { value: newPending.toString() },
-                create: { key: 'card_wallet_pending_amount', value: newPending.toString(), description: 'Pending card account wallet top-up amount' }
-              })
-              console.log(`[Card Wallet] Added $${amount} to pending. New total: $${newPending}`)
-            } catch (err: any) {
-              console.error('[Card Wallet] Failed to update pending:', err.message)
-            }
+            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} accepted, pending recharge (MANUAL)`)
+            return c.json({ message: 'Deposit accepted, pending recharge confirmation', deposit: accountDeposit, autoApproved: false, rechargeMethod }, 201)
           }
-
-          // Send approval email
-          const approvedDomain2 = account.user.agent?.customDomains?.[0]
-          const agent2 = account.user.agent
-          const agentLogo2 = approvedDomain2?.emailLogo || approvedDomain2?.brandLogo || agent2?.emailLogo || agent2?.brandLogo || null
-          const agentBrandName2 = account.user.agent?.username || null
-          const updatedAcc = await prisma.adAccount.findUnique({ where: { id }, select: { balance: true } })
-          const approvalEmail = getAccountRechargeApprovedTemplate({
-            username: account.user.username,
-            applyId,
-            amount,
-            commission: commissionAmount,
-            totalCost: totalAmount,
-            platform: account.platform,
-            accountId: account.accountId,
-            accountName: account.accountName || undefined,
-            newBalance: Number(updatedAcc?.balance) || 0,
-            agentLogo: agentLogo2,
-            agentBrandName: agentBrandName2
-          })
-          sendEmail({ to: account.user.email, ...approvalEmail, senderName: account.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(account.user.agent) }).catch(console.error)
-
-          console.log(`[Auto-Approve] Deposit ${accountDeposit.id} auto-approved (${rechargeMethod})`)
-
-          await createNotification({
-            userId: account.userId,
-            type: 'DEPOSIT_APPROVED',
-            title: 'Ad Account Deposit Approved',
-            message: `Your deposit of $${Number(amount).toLocaleString()} for account ${account.accountName || account.accountId} has been auto-approved.`,
-            link: '/facebook'
-          })
-          return c.json({ message: 'Deposit auto-approved', deposit: accountDeposit, autoApproved: true, rechargeMethod }, 201)
         } catch (err: any) {
           console.error('[Auto-Approve] Failed to auto-approve:', err.message)
           // Fall through — deposit stays PENDING for admin
@@ -1501,44 +1498,59 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
     // STEP 2: Determine recharge method and status
     let rechargeMethod = 'NONE'
     let rechargeStatus = 'NONE'
+    let depositStatus = 'APPROVED' // Default for non-FB or Cheetah
 
     if (deposit.adAccount.platform === 'FACEBOOK') {
       if (isCheetahAccount && cheetahRechargeResult?.code === 0) {
         rechargeMethod = 'CHEETAH'
         rechargeStatus = 'COMPLETED'
+        depositStatus = 'APPROVED'
       } else if (!isCheetahAccount) {
-        // Not a Cheetah account — stays PENDING for manual recharge by admin
+        // Non-Cheetah: keep PENDING until spending cap confirmed
         rechargeMethod = 'MANUAL'
         rechargeStatus = 'PENDING'
+        depositStatus = 'PENDING' // DON'T approve yet — wait for recharge confirmation
       }
     }
 
-    // STEP 3: Approve in DB with recharge tracking
-    await prisma.$transaction(async (tx) => {
-      // Update deposit status
-      await tx.accountDeposit.update({
+    // STEP 3: Update DB
+    if (depositStatus === 'APPROVED') {
+      // Cheetah or non-FB: approve + increment balance immediately
+      await prisma.$transaction(async (tx) => {
+        await tx.accountDeposit.update({
+          where: { id },
+          data: {
+            status: 'APPROVED',
+            approvedAt: new Date(),
+            rechargeMethod,
+            rechargeStatus,
+            rechargedAt: rechargeMethod === 'CHEETAH' ? new Date() : undefined,
+          }
+        })
+        await tx.adAccount.update({
+          where: { id: deposit.adAccountId },
+          data: {
+            totalDeposit: { increment: deposit.amount },
+            balance: { increment: deposit.amount }
+          }
+        })
+      })
+    } else {
+      // Non-Cheetah FB: stay PENDING, set approvedAt to signal admin approved
+      // Balance NOT incremented — will be incremented when recharge confirmed
+      await prisma.accountDeposit.update({
         where: { id },
         data: {
-          status: 'APPROVED',
+          // status stays 'PENDING'
           approvedAt: new Date(),
           rechargeMethod,
           rechargeStatus,
-          rechargedAt: rechargeMethod === 'CHEETAH' ? new Date() : undefined,
         }
       })
+    }
 
-      // Update ad account balance (money was already deducted from wallet on submit)
-      await tx.adAccount.update({
-        where: { id: deposit.adAccountId },
-        data: {
-          totalDeposit: { increment: deposit.amount },
-          balance: { increment: deposit.amount }
-        }
-      })
-    })
-
-    // For card (non-Cheetah) Facebook accounts, accumulate wallet top-up amount
-    if (deposit.adAccount.platform === 'FACEBOOK' && !isCheetahAccount) {
+    // Card wallet tracking only for Cheetah-approved non-Cheetah FB
+    if (deposit.adAccount.platform === 'FACEBOOK' && !isCheetahAccount && depositStatus === 'APPROVED') {
       try {
         const existing = await prisma.setting.findUnique({ where: { key: 'card_wallet_pending_amount' } })
         const currentPending = existing ? parseFloat(existing.value) : 0
@@ -1548,53 +1560,62 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
           update: { value: newPending.toString() },
           create: { key: 'card_wallet_pending_amount', value: newPending.toString(), description: 'Pending card account wallet top-up amount' }
         })
-        console.log(`[Card Wallet] Added $${deposit.amount} to pending. New total: $${newPending}`)
       } catch (err: any) {
         console.error('[Card Wallet] Failed to update pending amount:', err.message)
       }
     }
 
-    // Get updated account balance
-    const updatedAccount = await prisma.adAccount.findUnique({
-      where: { id: deposit.adAccountId },
-      select: { balance: true }
-    })
+    // Send notification/email
+    if (depositStatus === 'APPROVED') {
+      const updatedAccount = await prisma.adAccount.findUnique({
+        where: { id: deposit.adAccountId },
+        select: { balance: true }
+      })
+      const approvedDomainDeposit = deposit.adAccount.user.agent?.customDomains?.[0]
+      const agentDeposit = deposit.adAccount.user.agent
+      const agentLogoDeposit = approvedDomainDeposit?.emailLogo || approvedDomainDeposit?.brandLogo || agentDeposit?.emailLogo || agentDeposit?.brandLogo || null
+      const agentBrandNameDeposit = deposit.adAccount.user.agent?.username || null
+      const userEmailTemplate = getAccountRechargeApprovedTemplate({
+        username: deposit.adAccount.user.username,
+        applyId: deposit.applyId,
+        amount: Number(deposit.amount),
+        commission: Number(deposit.commissionAmount) || 0,
+        totalCost: Number(deposit.amount) + (Number(deposit.commissionAmount) || 0),
+        platform: deposit.adAccount.platform,
+        accountId: deposit.adAccount.accountId,
+        accountName: deposit.adAccount.accountName || undefined,
+        newBalance: Number(updatedAccount?.balance) || 0,
+        agentLogo: agentLogoDeposit,
+        agentBrandName: agentBrandNameDeposit
+      })
+      sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate, senderName: deposit.adAccount.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(deposit.adAccount.user.agent) }).catch(console.error)
 
-    // Send approval email to user
-    const approvedDomainDeposit = deposit.adAccount.user.agent?.customDomains?.[0]
-    const agentDeposit = deposit.adAccount.user.agent
-    const agentLogoDeposit = approvedDomainDeposit?.emailLogo || approvedDomainDeposit?.brandLogo || agentDeposit?.emailLogo || agentDeposit?.brandLogo || null
-    const agentBrandNameDeposit = deposit.adAccount.user.agent?.username || null
-    const userEmailTemplate = getAccountRechargeApprovedTemplate({
-      username: deposit.adAccount.user.username,
-      applyId: deposit.applyId,
-      amount: Number(deposit.amount),
-      commission: Number(deposit.commissionAmount) || 0,
-      totalCost: Number(deposit.amount) + (Number(deposit.commissionAmount) || 0),
-      platform: deposit.adAccount.platform,
-      accountId: deposit.adAccount.accountId,
-      accountName: deposit.adAccount.accountName || undefined,
-      newBalance: Number(updatedAccount?.balance) || 0,
-      agentLogo: agentLogoDeposit,
-      agentBrandName: agentBrandNameDeposit
-    })
-    sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate, senderName: deposit.adAccount.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(deposit.adAccount.user.agent) }).catch(console.error)
-
-    await createNotification({
-      userId: deposit.adAccount.userId,
-      type: 'DEPOSIT_APPROVED',
-      title: 'Ad Account Deposit Approved',
-      message: `Your deposit of $${Number(deposit.amount).toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} has been approved.`,
-      link: '/facebook'
-    })
+      await createNotification({
+        userId: deposit.adAccount.userId,
+        type: 'DEPOSIT_APPROVED',
+        title: 'Ad Account Deposit Approved',
+        message: `Your deposit of $${Number(deposit.amount).toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} has been approved.`,
+        link: '/facebook'
+      })
+    } else {
+      // Non-Cheetah: notify user deposit is being processed
+      await createNotification({
+        userId: deposit.adAccount.userId,
+        type: 'DEPOSIT_APPROVED',
+        title: 'Deposit Processing',
+        message: `Your deposit of $${Number(deposit.amount).toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} is being processed.`,
+        link: '/facebook'
+      })
+    }
 
     return c.json({
-      message: 'Account deposit approved',
+      message: depositStatus === 'APPROVED' ? 'Account deposit approved' : 'Deposit accepted, pending recharge confirmation',
       cheetahRecharge: cheetahRechargeResult?.code === 0 ? 'success' : (isCheetahAccount ? 'skipped' : 'not-cheetah'),
       cheetahError: cheetahError,
       isCheetahAccount: deposit.adAccount.platform === 'FACEBOOK' ? isCheetahAccount : null,
       rechargeStatus,
       rechargeMethod,
+      depositStatus,
     })
   } catch (error) {
     console.error('Approve account deposit error:', error)
@@ -1624,33 +1645,75 @@ accounts.post('/deposits/:id/retry-recharge', requireAdmin, async (c) => {
   }
 })
 
-// POST /accounts/deposits/:id/force-approve - Force approve (skip recharge)
-accounts.post('/deposits/:id/force-approve', requireAdmin, async (c) => {
+// POST /accounts/deposits/:id/retry-verification - Retry spend cap verification (for VERIFY_FAILED deposits)
+accounts.post('/deposits/:id/retry-verification', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
-    const existing = await prisma.accountDeposit.findUnique({ where: { id }, select: { rechargeError: true, applyId: true } })
+    const existing = await prisma.accountDeposit.findUnique({ where: { id }, select: { rechargeStatus: true, rechargeError: true, applyId: true } })
     if (existing?.rechargeError) {
-      console.log(`[Force Approve] Deposit ${id} (${existing.applyId || 'N/A'}) — previous error: ${existing.rechargeError}`)
+      console.log(`[Verify Retry] Deposit ${id} (${existing.applyId || 'N/A'}) — previous error: ${existing.rechargeError}`)
     }
     await prisma.accountDeposit.update({
       where: { id },
       data: {
-        rechargeStatus: 'COMPLETED',
-        rechargeMethod: 'MANUAL',
-        rechargedAt: new Date(),
-        rechargedBy: 'admin-force',
+        rechargeStatus: 'VERIFYING',
+        verificationFailed: false,
         rechargeError: null,
       }
     })
-    return c.json({ message: 'Deposit force approved, recharge marked as completed' })
+    return c.json({ message: 'Verification queued for retry' })
+  } catch (error) {
+    console.error('Retry verification error:', error)
+    return c.json({ error: 'Failed to retry verification' }, 500)
+  }
+})
+
+// POST /accounts/deposits/:id/force-approve - Force approve (skip recharge, set APPROVED + increment balance)
+accounts.post('/deposits/:id/force-approve', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+    const existing = await prisma.accountDeposit.findUnique({
+      where: { id },
+      select: { amount: true, adAccountId: true, status: true, rechargeError: true, applyId: true }
+    })
+    if (!existing) return c.json({ error: 'Deposit not found' }, 404)
+
+    if (existing.rechargeError) {
+      console.log(`[Force Approve] Deposit ${id} (${existing.applyId || 'N/A'}) — previous error: ${existing.rechargeError}`)
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.accountDeposit.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          rechargeStatus: 'COMPLETED',
+          rechargeMethod: 'MANUAL',
+          rechargedAt: new Date(),
+          rechargedBy: 'admin-force',
+          rechargeError: null,
+        }
+      })
+      // Only increment balance if not already APPROVED (prevent double-increment)
+      if (existing.status !== 'APPROVED') {
+        await tx.adAccount.update({
+          where: { id: existing.adAccountId },
+          data: {
+            totalDeposit: { increment: existing.amount },
+            balance: { increment: existing.amount }
+          }
+        })
+      }
+    })
+
+    return c.json({ message: 'Deposit force approved, balance updated' })
   } catch (error) {
     console.error('Force approve error:', error)
     return c.json({ error: 'Failed to force approve' }, 500)
   }
 })
 
-// POST /accounts/deposits/:id/reject - Reject account deposit
-// Note: Since money was deducted on submit, we need to refund it back to user's wallet
+// POST /accounts/deposits/:id/reject - Reject account deposit (NO refund)
 accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
@@ -1669,19 +1732,20 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       return c.json({ error: 'Deposit not found' }, 404)
     }
 
-    if (deposit.status !== 'PENDING') {
-      return c.json({ error: 'Deposit already processed' }, 400)
+    if (deposit.status === 'APPROVED') {
+      return c.json({ error: 'Cannot reject an approved deposit' }, 400)
     }
 
     const depositAmount = Number(deposit.amount) || 0
     const commissionAmount = Number(deposit.commissionAmount) || 0
 
-    // Just reject — no refund to wallet
+    // Reject — NO refund to wallet
     await prisma.accountDeposit.update({
       where: { id },
       data: {
         status: 'REJECTED',
-        adminRemarks
+        adminRemarks,
+        rechargeStatus: 'NONE',
       }
     })
 
@@ -1721,6 +1785,96 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
   }
 })
 
+// POST /accounts/deposits/:id/reject-refund - Reject with wallet refund
+accounts.post('/deposits/:id/reject-refund', requireAdmin, async (c) => {
+  try {
+    const { id } = c.req.param()
+    const { adminRemarks } = await c.req.json()
+
+    const deposit = await prisma.accountDeposit.findUnique({
+      where: { id },
+      include: {
+        adAccount: {
+          include: { user: { include: { agent: { select: { brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true, customDomains: { where: { status: 'APPROVED' }, select: { brandLogo: true, emailLogo: true }, take: 1 } } } } } }
+        }
+      }
+    })
+
+    if (!deposit) return c.json({ error: 'Deposit not found' }, 404)
+    if (deposit.status === 'APPROVED') return c.json({ error: 'Cannot reject an approved deposit' }, 400)
+
+    const depositAmount = Number(deposit.amount) || 0
+    const commissionAmount = Number(deposit.commissionAmount) || 0
+    const refundAmount = depositAmount + commissionAmount
+
+    await prisma.$transaction(async (tx) => {
+      // Reject deposit
+      await tx.accountDeposit.update({
+        where: { id },
+        data: {
+          status: 'REJECTED',
+          adminRemarks: adminRemarks ? `[Refunded] ${adminRemarks}` : '[Refunded]',
+          rechargeStatus: 'NONE',
+        }
+      })
+
+      // Refund to user wallet
+      await tx.user.update({
+        where: { id: deposit.adAccount.userId },
+        data: { walletBalance: { increment: refundAmount } }
+      })
+
+      // Create wallet flow record
+      const balanceBefore = Number(deposit.adAccount.user.walletBalance)
+      await tx.walletFlow.create({
+        data: {
+          type: 'TRANSFER',
+          amount: refundAmount,
+          balanceBefore,
+          balanceAfter: balanceBefore + refundAmount,
+          referenceId: deposit.id,
+          referenceType: 'account_deposit_refund',
+          userId: deposit.adAccount.userId,
+          description: `Deposit rejected with refund for ${deposit.adAccount.platform} account ${deposit.adAccount.accountId}${adminRemarks ? '. Reason: ' + adminRemarks : ''}`
+        }
+      })
+    })
+
+    // Send rejection email
+    const approvedDomainReject = deposit.adAccount.user.agent?.customDomains?.[0]
+    const agentReject = deposit.adAccount.user.agent
+    const agentLogoReject = approvedDomainReject?.emailLogo || approvedDomainReject?.brandLogo || agentReject?.emailLogo || agentReject?.brandLogo || null
+    const agentBrandNameReject = deposit.adAccount.user.agent?.username || null
+    const userEmailTemplate = getAccountRechargeRejectedTemplate({
+      username: deposit.adAccount.user.username,
+      applyId: deposit.applyId,
+      amount: depositAmount,
+      commission: commissionAmount,
+      totalCost: refundAmount,
+      platform: deposit.adAccount.platform,
+      accountId: deposit.adAccount.accountId,
+      accountName: deposit.adAccount.accountName || undefined,
+      adminRemarks: adminRemarks ? `${adminRemarks} (Amount refunded to wallet)` : 'Amount refunded to wallet',
+      agentLogo: agentLogoReject,
+      agentBrandName: agentBrandNameReject
+    })
+    sendEmail({ to: deposit.adAccount.user.email, ...userEmailTemplate, senderName: deposit.adAccount.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(deposit.adAccount.user.agent) }).catch(console.error)
+
+    await createNotification({
+      userId: deposit.adAccount.userId,
+      type: 'DEPOSIT_REJECTED',
+      title: 'Deposit Rejected — Refunded',
+      message: `Your deposit of $${depositAmount.toLocaleString()} for account ${deposit.adAccount.accountName || deposit.adAccount.accountId} has been rejected and $${refundAmount.toLocaleString()} refunded to your wallet.${adminRemarks ? ' Reason: ' + adminRemarks : ''}`,
+      link: '/facebook'
+    })
+
+    return c.json({ message: 'Deposit rejected with refund' })
+  } catch (error) {
+    console.error('Reject with refund error:', error)
+    return c.json({ error: 'Failed to reject deposit' }, 500)
+  }
+})
+
 // PATCH /accounts/:id - Update account details
 accounts.patch('/:id', requireAdmin, async (c) => {
   try {
@@ -1733,6 +1887,53 @@ accounts.patch('/:id', requireAdmin, async (c) => {
     for (const key of allowedFields) {
       if (key in body) {
         data[key] = typeof body[key] === 'string' ? body[key].trim() : body[key]
+      }
+    }
+
+    // If extensionProfileId is changing, sync managedAdAccountIds
+    if ('extensionProfileId' in data) {
+      const existing = await prisma.adAccount.findUnique({
+        where: { id },
+        select: { accountId: true, extensionProfileId: true }
+      })
+
+      if (existing && existing.accountId) {
+        const oldProfileId = existing.extensionProfileId
+        const newProfileId = data.extensionProfileId || null
+
+        // Remove accountId from old profile's managedAdAccountIds
+        if (oldProfileId && oldProfileId !== newProfileId) {
+          const oldProfile = await prisma.extensionProfile.findUnique({
+            where: { id: oldProfileId },
+            select: { managedAdAccountIds: true }
+          })
+          if (oldProfile) {
+            await prisma.extensionProfile.update({
+              where: { id: oldProfileId },
+              data: {
+                managedAdAccountIds: oldProfile.managedAdAccountIds.filter(
+                  (aid: string) => aid !== existing.accountId
+                )
+              }
+            })
+          }
+        }
+
+        // Add accountId to new profile's managedAdAccountIds
+        if (newProfileId && newProfileId !== oldProfileId) {
+          const newProfile = await prisma.extensionProfile.findUnique({
+            where: { id: newProfileId },
+            select: { managedAdAccountIds: true }
+          })
+          if (newProfile && !newProfile.managedAdAccountIds.includes(existing.accountId)) {
+            await prisma.extensionProfile.update({
+              where: { id: newProfileId },
+              data: {
+                managedAdAccountIds: [...newProfile.managedAdAccountIds, existing.accountId]
+              }
+            })
+          }
+        }
       }
     }
 

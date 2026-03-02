@@ -66,6 +66,7 @@ export default function DepositsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(25)
   const [copiedId, setCopiedId] = useState<string | number | null>(null)
+  const [txnTooltip, setTxnTooltip] = useState<{ id: string; text: string; x: number; y: number } | null>(null)
 
   // Modal states
   const [showDepositModal, setShowDepositModal] = useState(false)
@@ -858,8 +859,14 @@ export default function DepositsPage() {
                     </div>
                   </div>
                   <div className="flex border-t border-gray-100 text-[10px] text-gray-400 divide-x divide-gray-100">
-                    <span className="flex-1 px-3.5 py-2 font-mono truncate">
+                    <span
+                      className="flex-1 px-3.5 py-2 font-mono truncate cursor-pointer active:bg-gray-50"
+                      onClick={() => d.transactionId && copyToClipboard(d.transactionId, `m-txn-${d.id}`)}
+                    >
                       {d.transactionId || '---'}
+                      {d.transactionId && (
+                        copiedId === `m-txn-${d.id}` ? <Check className="w-3 h-3 text-green-500 inline ml-1" /> : <Copy className="w-3 h-3 text-gray-300 inline ml-1" />
+                      )}
                     </span>
                     {d.paymentProof && (
                       <button onClick={() => setSelectedImage(d.paymentProof!)} className="px-3 py-2 text-[#52B788] font-semibold flex items-center gap-1">
@@ -1202,7 +1209,15 @@ export default function DepositsPage() {
                       <td className="py-2.5 px-3 max-w-[200px]">
                         {item.transactionId ? (
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] text-gray-600 font-mono truncate max-w-[130px]" title={item.transactionId}>
+                            <span
+                              className="text-[11px] text-gray-600 font-mono truncate max-w-[130px] cursor-pointer hover:text-gray-900 transition-colors"
+                              onMouseEnter={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setTxnTooltip({ id: item.id, text: item.transactionId!, x: rect.left, y: rect.top - 6 })
+                              }}
+                              onMouseLeave={() => setTxnTooltip(null)}
+                              onClick={() => copyToClipboard(item.transactionId!, `txn-${item.id}`)}
+                            >
                               {item.transactionId}
                             </span>
                             <button
@@ -2195,6 +2210,17 @@ export default function DepositsPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Transaction ID tooltip portal */}
+      {txnTooltip && (
+        <div
+          className="fixed z-[9999] px-3 py-2 text-xs font-mono bg-gray-900 text-white rounded-lg shadow-lg whitespace-nowrap pointer-events-none"
+          style={{ left: txnTooltip.x, top: txnTooltip.y, transform: 'translateY(-100%)' }}
+        >
+          {txnTooltip.text}
+          <div className="absolute left-4 bottom-0 w-2.5 h-2.5 bg-gray-900 rotate-45 translate-y-1/2"></div>
         </div>
       )}
 

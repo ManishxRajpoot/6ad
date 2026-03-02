@@ -20,6 +20,7 @@ const CONFIG = {
   POLL_INTERVAL_MS: 2 * 60 * 1000,         // Check every 2 minutes
   IN_PROGRESS_TIMEOUT_MS: 15 * 60 * 1000,  // IN_PROGRESS > 15 min → FAILED
   PENDING_TIMEOUT_MS: 30 * 60 * 1000,      // PENDING > 30 min (only if max retries hit)
+  VERIFYING_TIMEOUT_MS: 30 * 60 * 1000,    // VERIFYING > 30 min → VERIFY_FAILED
   MAX_RECHARGE_ATTEMPTS: 10,               // Matches recharge-cron MAX_ATTEMPTS
   MAX_SHARE_ATTEMPTS: 10,                  // Matches bm-share-cron MAX_ATTEMPTS
 }
@@ -79,6 +80,34 @@ async function timeoutStuckRecharges(): Promise<number> {
   }
 
   return count
+}
+
+// ─── Step A3: Timeout stuck VERIFYING deposits ─────────────────────
+async function timeoutStuckVerifications(): Promise<number> {
+  const stuckVerifying = await prisma.accountDeposit.findMany({
+    where: {
+      rechargeStatus: 'VERIFYING',
+      verificationFailed: false,
+      updatedAt: { lt: new Date(Date.now() - CONFIG.VERIFYING_TIMEOUT_MS) },
+    },
+    select: { id: true, applyId: true },
+  })
+
+  if (stuckVerifying.length > 0) {
+    await prisma.accountDeposit.updateMany({
+      where: { id: { in: stuckVerifying.map(d => d.id) } },
+      data: {
+        rechargeStatus: 'VERIFY_FAILED',
+        verificationFailed: true,
+        rechargeError: 'TIMEOUT: Spend cap verification stuck for >30 minutes',
+      },
+    })
+    for (const d of stuckVerifying) {
+      console.log(`[Watchdog] Timed out VERIFYING deposit: ${d.id} (${d.applyId || 'N/A'})`)
+    }
+  }
+
+  return stuckVerifying.length
 }
 
 // ─── Step B: Timeout stuck BM shares ───────────────────────────────
@@ -271,13 +300,14 @@ async function logTokenHealth(): Promise<void> {
 async function runWatchdogCycle(): Promise<void> {
   try {
     const timedOutRecharges = await timeoutStuckRecharges()
+    const timedOutVerifications = await timeoutStuckVerifications()
     const timedOutBmShares = await timeoutStuckBmShares()
     const refundedDeposits = await autoRefundFailedRecharges()
     await logTokenHealth()
 
     // Only log if something happened
-    if (timedOutRecharges > 0 || timedOutBmShares > 0 || refundedDeposits > 0) {
-      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutBmShares} BM shares, auto-refunded ${refundedDeposits} deposits`)
+    if (timedOutRecharges > 0 || timedOutVerifications > 0 || timedOutBmShares > 0 || refundedDeposits > 0) {
+      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutVerifications} verifications, ${timedOutBmShares} BM shares, auto-refunded ${refundedDeposits} deposits`)
     }
   } catch (error) {
     console.error('[Watchdog] Cycle error:', error)

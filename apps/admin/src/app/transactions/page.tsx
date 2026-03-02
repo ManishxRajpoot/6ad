@@ -181,6 +181,7 @@ export default function TransactionsPage() {
   // Tooltip state for transaction ID
   const [tooltipId, setTooltipId] = useState<string | null>(null)
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null)
+  const [tooltipText, setTooltipText] = useState<string>('')
 
   // Refs for custom dropdowns
   const userSearchRef = useRef<HTMLDivElement>(null)
@@ -1339,36 +1340,23 @@ export default function TransactionsPage() {
                       </td>
                       <td className="py-2 px-1.5 hidden 2xl:table-cell">
                         {transaction.transactionId ? (
-                          <div className="relative inline-block">
-                            <span
-                              className="text-[10px] text-gray-600 font-mono bg-gray-50 px-1.5 py-0.5 rounded truncate max-w-[100px] block cursor-pointer hover:bg-gray-100 transition-colors"
-                              onMouseEnter={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect()
-                                setTooltipId(transaction.id)
-                                setTooltipPosition({ x: rect.left, y: rect.bottom + 4 })
-                              }}
-                              onMouseLeave={() => {
-                                setTooltipId(null)
-                                setTooltipPosition(null)
-                              }}
-                            >
-                              {transaction.transactionId.length > 14
-                                ? `${transaction.transactionId.slice(0, 6)}...${transaction.transactionId.slice(-4)}`
-                                : transaction.transactionId}
-                            </span>
-                            {tooltipId === transaction.id && tooltipPosition && (
-                              <div
-                                className="fixed z-[200] px-3 py-2 text-xs font-mono bg-gray-900 text-white rounded-lg shadow-lg animate-tooltipFade whitespace-nowrap"
-                                style={{
-                                  left: tooltipPosition.x,
-                                  top: tooltipPosition.y,
-                                }}
-                              >
-                                <div className="absolute -top-1.5 left-4 w-3 h-3 bg-gray-900 rotate-45"></div>
-                                <span className="relative">{transaction.transactionId}</span>
-                              </div>
-                            )}
-                          </div>
+                          <span
+                            className="text-[10px] text-gray-600 font-mono bg-gray-50 px-1.5 py-0.5 rounded truncate max-w-[100px] block cursor-pointer hover:bg-gray-100 transition-colors"
+                            onMouseEnter={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              setTooltipId(transaction.id)
+                              setTooltipText(transaction.transactionId || '')
+                              setTooltipPosition({ x: rect.left, y: rect.bottom + 4 })
+                            }}
+                            onMouseLeave={() => {
+                              setTooltipId(null)
+                              setTooltipPosition(null)
+                            }}
+                          >
+                            {transaction.transactionId.length > 14
+                              ? `${transaction.transactionId.slice(0, 6)}...${transaction.transactionId.slice(-4)}`
+                              : transaction.transactionId}
+                          </span>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
@@ -1539,6 +1527,17 @@ export default function TransactionsPage() {
           </div>
         )}
       </Card>
+
+      {/* TXN ID tooltip portal — rendered outside table to avoid transform stacking context */}
+      {tooltipId && tooltipPosition && tooltipText && (
+        <div
+          className="fixed z-[9999] px-3 py-2 text-xs font-mono bg-gray-900 text-white rounded-lg shadow-lg animate-tooltipFade whitespace-nowrap pointer-events-none"
+          style={{ left: tooltipPosition.x, top: tooltipPosition.y }}
+        >
+          <div className="absolute -top-1.5 left-4 w-3 h-3 bg-gray-900 rotate-45"></div>
+          <span className="relative">{tooltipText}</span>
+        </div>
+      )}
 
       {/* Create Pay Link Modal */}
       <Modal

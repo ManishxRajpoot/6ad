@@ -130,6 +130,7 @@ users.get('/', requireAgent, async (c) => {
           agentId: true,
           twoFactorEnabled: true,
           twoFactorSecret: true,
+          plaintextPassword: true,
           createdAt: true,
           agent: {
             select: { id: true, username: true }

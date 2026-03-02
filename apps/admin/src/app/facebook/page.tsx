@@ -26,7 +26,8 @@ import {
   AlertTriangle,
   RefreshCw,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  MoreVertical
 } from 'lucide-react'
 
 type Application = {
@@ -161,6 +162,8 @@ export default function FacebookPage() {
   const [depositsLoading, setDepositsLoading] = useState(false)
   const [cheetahStatus, setCheetahStatus] = useState<Record<string, boolean>>({})
   const [approvingDepositId, setApprovingDepositId] = useState<string | null>(null)
+  const [depositActionDropdown, setDepositActionDropdown] = useState<string | null>(null)
+  const [depositDropdownPos, setDepositDropdownPos] = useState<{ top: number; left: number } | null>(null)
 
   // Card wallet top-up tracking
   const [cardWalletPending, setCardWalletPending] = useState(0)
@@ -263,6 +266,9 @@ export default function FacebookPage() {
       const target = e.target as HTMLElement
       if (!target.closest('.dropdown-container')) {
         setShowStatusDropdown(false)
+      }
+      if (!target.closest('.deposit-action-dropdown')) {
+        setDepositActionDropdown(null)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -454,11 +460,9 @@ export default function FacebookPage() {
       const result = await accountDepositsApi.approve(id)
 
       if (result.cheetahRecharge === 'success') {
-        toast.success('Deposit Approved', 'Deposit approved and ad account recharged automatically')
-      } else if (result.rechargeStatus === 'PENDING' && result.rechargeMethod === 'EXTENSION') {
-        toast.success('Deposit Approved', 'Deposit approved. Extension will auto-recharge the spending limit shortly.')
+        toast.success('Deposit Approved', 'Recharged via Cheetah — spending cap updated')
       } else if (result.cheetahRecharge === 'not-cheetah') {
-        toast.success('Deposit Approved', 'Deposit approved. Extension will handle the recharge.')
+        toast.success('Processing', 'Deposit accepted. Waiting for extension to update spending cap.')
       } else {
         toast.success('Deposit Approved', 'Deposit approved successfully')
       }
@@ -473,11 +477,23 @@ export default function FacebookPage() {
   }
 
   const handleDepositReject = async (id: string) => {
-    const confirmed = await confirm({ title: 'Reject Deposit', message: 'Are you sure you want to reject this deposit request?', variant: 'danger' })
-    if (!confirmed) return
+    const remarks = prompt('Reason for rejection (no refund):')
+    if (remarks === null) return
     try {
-      await accountDepositsApi.reject(id)
-      toast.success('Deposit Rejected', 'Deposit rejected and amount refunded to user wallet')
+      await accountDepositsApi.reject(id, remarks || undefined)
+      toast.success('Deposit Rejected', 'Deposit rejected — no refund issued')
+      fetchAccountDeposits()
+    } catch (error: any) {
+      toast.error('Failed to Reject', error.message || 'Failed to reject deposit')
+    }
+  }
+
+  const handleDepositRejectRefund = async (id: string) => {
+    const remarks = prompt('Reason for rejection (with refund):')
+    if (remarks === null) return
+    try {
+      await accountDepositsApi.rejectRefund(id, remarks || undefined)
+      toast.success('Deposit Rejected', 'Deposit rejected — amount refunded to user wallet')
       fetchAccountDeposits()
     } catch (error: any) {
       toast.error('Failed to Reject', error.message || 'Failed to reject deposit')
@@ -494,16 +510,37 @@ export default function FacebookPage() {
     }
   }
 
+  const handleRetryVerification = async (id: string) => {
+    try {
+      await accountDepositsApi.retryVerification(id)
+      toast.success('Verification Queued', 'Spend cap will be re-verified shortly')
+      fetchAccountDeposits()
+    } catch (error: any) {
+      toast.error('Retry Failed', error.message || 'Failed to retry verification')
+    }
+  }
+
   const handleForceApprove = async (id: string) => {
-    const confirmed = await confirm({ title: 'Force Approve', message: 'Force approve will mark recharge as completed WITHOUT updating the Facebook spending limit. Are you sure?', variant: 'danger' })
+    const confirmed = await confirm({ title: 'Force Approve', message: 'Force approve will mark deposit as APPROVED and increment balance WITHOUT updating the Facebook spending limit. Are you sure?', variant: 'danger' })
     if (!confirmed) return
     try {
       await accountDepositsApi.forceApprove(id)
-      toast.success('Force Approved', 'Deposit marked as completed. Update spending limit manually if needed.')
+      toast.success('Force Approved', 'Deposit approved + balance incremented. Update spending limit manually if needed.')
       fetchAccountDeposits()
     } catch (error: any) {
       toast.error('Force Approve Failed', error.message || 'Failed to force approve')
     }
+  }
+
+  const openDepositDropdown = (depId: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    if (depositActionDropdown === depId) {
+      setDepositActionDropdown(null)
+      setDepositDropdownPos(null)
+      return
+    }
+    const rect = e.currentTarget.getBoundingClientRect()
+    setDepositDropdownPos({ top: rect.bottom + 4, left: rect.right - 176 })
+    setDepositActionDropdown(depId)
   }
 
   // Handle Account Refund approve/reject
@@ -1388,7 +1425,7 @@ export default function FacebookPage() {
                     <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Remarks</th>
                     <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Date</th>
                     <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Status</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Recharge</th>
+                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Remark</th>
                     <th className="text-center py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Actions</th>
                   </tr>
                 </thead>
@@ -1430,55 +1467,100 @@ export default function FacebookPage() {
                         <td className="py-2.5 px-2 xl:px-3 text-gray-500 max-w-[150px] truncate">{dep.remarks || '---'}</td>
                         <td className="py-2.5 px-2 xl:px-3 text-gray-500 whitespace-nowrap">{formatDate(dep.createdAt)}</td>
                         <td className="py-2.5 px-2 xl:px-3">
-                          {dep.status === 'APPROVED' && dep.rechargeStatus === 'FAILED' ? (
+                          {dep.status === 'APPROVED' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Approved
+                            </span>
+                          ) : dep.status === 'REJECTED' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                              Rejected
+                            </span>
+                          ) : dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'VERIFY_FAILED' ? (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 cursor-help"
+                              title={dep.rechargeError || 'Spend cap verification failed'}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                              Verify Failed
+                            </span>
+                          ) : dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'VERIFYING' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                              Verifying
+                            </span>
+                          ) : dep.status === 'PENDING' && dep.approvedAt && (dep.rechargeStatus === 'FAILED') ? (
                             <span
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 cursor-help"
                               title={dep.rechargeError || 'Recharge failed'}
                             >
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                               Failed
                             </span>
+                          ) : dep.status === 'PENDING' && dep.approvedAt ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                              Processing
+                            </span>
                           ) : (
-                            getStatusBadge(dep.status)
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              Pending
+                            </span>
                           )}
                         </td>
-                        <td className="py-2.5 px-2 xl:px-3 whitespace-nowrap">
-                          {dep.status === 'APPROVED' && dep.rechargeMethod === 'EXTENSION' && (
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                dep.rechargeStatus === 'PENDING' ? 'bg-yellow-50 text-yellow-700' :
-                                dep.rechargeStatus === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 animate-pulse' :
-                                dep.rechargeStatus === 'COMPLETED' ? 'bg-green-50 text-green-700' :
-                                dep.rechargeStatus === 'FAILED' ? 'bg-red-50 text-red-700 cursor-help' :
-                                'bg-gray-50 text-gray-500'
-                              }`}
-                              title={dep.rechargeStatus === 'FAILED' && dep.rechargeError ? dep.rechargeError : undefined}
-                            >
-                              {dep.rechargeStatus === 'PENDING' && 'Queued'}
-                              {dep.rechargeStatus === 'IN_PROGRESS' && 'Working...'}
-                              {dep.rechargeStatus === 'COMPLETED' && 'Done'}
-                              {dep.rechargeStatus === 'FAILED' && 'Failed'}
-                            </span>
-                          )}
+                        <td className="py-2.5 px-2 xl:px-3 whitespace-nowrap max-w-[180px]">
+                          {/* APPROVED deposits — show method */}
                           {dep.status === 'APPROVED' && dep.rechargeMethod === 'CHEETAH' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
-                              Auto
-                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Cheetah Auto</span>
+                          )}
+                          {dep.status === 'APPROVED' && dep.rechargeMethod === 'EXTENSION' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Extension</span>
                           )}
                           {dep.status === 'APPROVED' && dep.rechargeMethod === 'MANUAL' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
-                              Done
-                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Admin Force</span>
+                          )}
+                          {dep.status === 'APPROVED' && dep.rechargeMethod === 'SERVER' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Server Auto</span>
                           )}
                           {dep.status === 'APPROVED' && (!dep.rechargeMethod || dep.rechargeMethod === 'NONE') && (
-                            <span className="text-xs text-gray-400">—</span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Approved</span>
                           )}
-                          {dep.status !== 'APPROVED' && (
+                          {/* REJECTED deposits — show adminRemarks */}
+                          {dep.status === 'REJECTED' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 truncate max-w-full" title={dep.adminRemarks || 'Rejected'}>
+                              {dep.adminRemarks || 'Rejected'}
+                            </span>
+                          )}
+                          {/* PENDING + approvedAt — processing states */}
+                          {dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'FAILED' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 cursor-help truncate max-w-full" title={dep.rechargeError || 'Recharge failed'}>
+                              Failed: {dep.rechargeError || 'Unknown error'}
+                            </span>
+                          )}
+                          {dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'VERIFYING' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 animate-pulse">Verifying spend cap...</span>
+                          )}
+                          {dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'VERIFY_FAILED' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 cursor-help truncate max-w-full" title={dep.rechargeError || 'Verification failed'}>
+                              Verify Failed: {dep.rechargeError || 'Mismatch'}
+                            </span>
+                          )}
+                          {dep.status === 'PENDING' && dep.approvedAt && dep.rechargeStatus === 'IN_PROGRESS' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 animate-pulse">Recharging...</span>
+                          )}
+                          {dep.status === 'PENDING' && dep.approvedAt && (dep.rechargeStatus === 'PENDING' || dep.rechargeStatus === 'NONE' || !dep.rechargeStatus) && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">Waiting for extension...</span>
+                          )}
+                          {/* PENDING + no approvedAt — not yet approved by admin */}
+                          {dep.status === 'PENDING' && !dep.approvedAt && (
                             <span className="text-xs text-gray-400">—</span>
                           )}
                         </td>
                         <td className="py-2.5 px-2 xl:px-3">
-                          {dep.status === 'PENDING' && (
+                          {/* PENDING — no approvedAt: Approve button + dropdown */}
+                          {dep.status === 'PENDING' && !dep.approvedAt && (
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 onClick={() => handleDepositApprove(dep.id)}
@@ -1492,16 +1574,32 @@ export default function FacebookPage() {
                                   <Check className="w-4 h-4" />
                                 )}
                               </button>
-                              <button
-                                onClick={() => handleDepositReject(dep.id)}
-                                disabled={approvingDepositId === dep.id}
-                                className="p-1.5 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
-                                title="Reject"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
+                              <div className="deposit-action-dropdown">
+                                <button
+                                  onClick={(e) => openDepositDropdown(dep.id, e)}
+                                  className="p-1.5 rounded bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors"
+                                  title="More actions"
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                           )}
+                          {/* PENDING + approvedAt: processing — show dropdown with Force Approve, Retry, Reject */}
+                          {dep.status === 'PENDING' && dep.approvedAt && (
+                            <div className="flex items-center justify-center gap-1">
+                              <div className="deposit-action-dropdown">
+                                <button
+                                  onClick={(e) => openDepositDropdown(dep.id, e)}
+                                  className="p-1.5 rounded bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors"
+                                  title="Actions"
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {/* APPROVED — no actions needed, but keep backward compat for FAILED recharge */}
                           {dep.status === 'APPROVED' && dep.rechargeStatus === 'FAILED' && (
                             <div className="flex items-center justify-center gap-1">
                               <button
@@ -1520,6 +1618,10 @@ export default function FacebookPage() {
                               </button>
                             </div>
                           )}
+                          {/* APPROVED + completed or REJECTED — dash */}
+                          {((dep.status === 'APPROVED' && dep.rechargeStatus !== 'FAILED') || dep.status === 'REJECTED') && (
+                            <span className="text-xs text-gray-400 flex justify-center">—</span>
+                          )}
                         </td>
                       </tr>
                     )
@@ -1528,6 +1630,33 @@ export default function FacebookPage() {
               </table>
             )
           )}
+
+          {/* Fixed-position deposit action dropdown portal */}
+          {depositActionDropdown && depositDropdownPos && (() => {
+            const dep = filteredDeposits.find(d => d.id === depositActionDropdown)
+            if (!dep) return null
+            const isProcessing = dep.status === 'PENDING' && !!dep.approvedAt
+            return (
+              <div
+                className="fixed w-44 bg-white border border-gray-200 rounded-lg shadow-lg py-1 deposit-action-dropdown"
+                style={{ top: depositDropdownPos.top, left: depositDropdownPos.left, zIndex: 9999 }}
+              >
+                {isProcessing && (
+                  <>
+                    <button onClick={() => { setDepositActionDropdown(null); handleForceApprove(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-violet-600 hover:bg-violet-50 transition-colors">Force Approve</button>
+                    {dep.rechargeStatus === 'VERIFY_FAILED' ? (
+                      <button onClick={() => { setDepositActionDropdown(null); handleRetryVerification(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-purple-600 hover:bg-purple-50 transition-colors">Retry Verification</button>
+                    ) : (
+                      <button onClick={() => { setDepositActionDropdown(null); handleRetryRecharge(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors">Retry Recharge</button>
+                    )}
+                    <div className="border-t border-gray-100 my-1" />
+                  </>
+                )}
+                <button onClick={() => { setDepositActionDropdown(null); handleDepositRejectRefund(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">Reject with Refund</button>
+                <button onClick={() => { setDepositActionDropdown(null); handleDepositReject(dep.id) }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">Reject (No Refund)</button>
+              </div>
+            )
+          })()}
 
           {/* ═══════════════════════════════════════════════════
               REFUND LIST TAB

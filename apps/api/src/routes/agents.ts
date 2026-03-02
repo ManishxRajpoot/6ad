@@ -92,6 +92,7 @@ agents.get('/', requireAdmin, async (c) => {
           bingCommission: true,
           twoFactorEnabled: true,
           twoFactorSecret: true,
+          plaintextPassword: true,
           showBalanceToAgent: true,
           createdAt: true,
           _count: {

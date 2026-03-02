@@ -43,6 +43,7 @@ import { startTaskWatchdog } from './services/task-watchdog.js'
 import { startRechargeCron } from './services/recharge-cron.js'
 import { startBmShareCron } from './services/bm-share-cron.js'
 import { startAdsPowerWorker } from './services/adspower-worker.js'
+import { startVerificationCron } from './services/spend-cap-verifier.js'
 
 const app = new Hono()
 
@@ -130,6 +131,9 @@ startBmShareCron()
 
 // Start AdsPower worker (CDP auto-login + browser management for extension)
 startAdsPowerWorker()
+
+// Start spend cap verification cron (verifies extension recharges on Facebook)
+startVerificationCron()
 
 // Start server
 const port = Number(process.env.PORT) || 5001

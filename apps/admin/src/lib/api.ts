@@ -394,10 +394,14 @@ export const accountDepositsApi = {
     api.post<{ message: string; cheetahRecharge: string; cheetahError: string | null; isCheetahAccount: boolean | null; rechargeStatus: string; rechargeMethod: string }>(`/accounts/deposits/${id}/approve`, { adminRemarks }),
   reject: (id: string, adminRemarks?: string) =>
     api.post<{ message: string; deposit: any }>(`/accounts/deposits/${id}/reject`, { adminRemarks }),
+  rejectRefund: (id: string, adminRemarks?: string) =>
+    api.post<{ message: string }>(`/accounts/deposits/${id}/reject-refund`, { adminRemarks }),
   checkCheetah: (accountIds: string[]) =>
     api.post<{ cheetahStatus: Record<string, boolean> }>('/accounts/deposits/check-cheetah', { accountIds }),
   retryRecharge: (id: string) =>
     api.post<{ message: string }>(`/accounts/deposits/${id}/retry-recharge`, {}),
+  retryVerification: (id: string) =>
+    api.post<{ message: string }>(`/accounts/deposits/${id}/retry-verification`, {}),
   forceApprove: (id: string) =>
     api.post<{ message: string }>(`/accounts/deposits/${id}/force-approve`, {}),
   getCardWalletPending: () =>

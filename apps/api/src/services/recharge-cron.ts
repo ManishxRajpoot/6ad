@@ -22,10 +22,10 @@ async function processRechargeCycle(): Promise<void> {
   isProcessing = true
 
   try {
-    // Find PENDING deposits
+    // Find deposits admin-approved (approvedAt set) needing recharge
     const deposits = await prisma.accountDeposit.findMany({
       where: {
-        status: 'APPROVED',
+        approvedAt: { not: null },
         rechargeStatus: { in: ['PENDING', 'NONE'] },
         rechargeAttempts: { lt: CONFIG.MAX_ATTEMPTS },
       },
@@ -97,15 +97,28 @@ async function processDeposit(deposit: any): Promise<void> {
         if (availableQuota >= amount) {
           const rechargeResult = await cheetahApi.rechargeAccount(accountId, newSpendCap)
           if (rechargeResult.code === 0) {
-            await prisma.accountDeposit.update({
-              where: { id: deposit.id },
-              data: {
-                rechargeStatus: 'COMPLETED',
-                rechargeMethod: 'CHEETAH',
-                rechargeAttempts: { increment: 1 },
-                rechargedAt: new Date(),
-                rechargeError: null,
-              },
+            await prisma.$transaction(async (tx) => {
+              await tx.accountDeposit.update({
+                where: { id: deposit.id },
+                data: {
+                  status: 'APPROVED',
+                  rechargeStatus: 'COMPLETED',
+                  rechargeMethod: 'CHEETAH',
+                  rechargeAttempts: { increment: 1 },
+                  rechargedAt: new Date(),
+                  rechargeError: null,
+                },
+              })
+              // Only increment balance if not already APPROVED
+              if (deposit.status !== 'APPROVED') {
+                await tx.adAccount.update({
+                  where: { id: deposit.adAccountId },
+                  data: {
+                    totalDeposit: { increment: deposit.amount },
+                    balance: { increment: deposit.amount }
+                  }
+                })
+              }
             })
             console.log(`[RechargeCron] Cheetah recharge SUCCESS: act_${accountId} +$${amount} (${deposit.applyId || deposit.id})`)
             cheetahHandled = true
