@@ -5,6 +5,7 @@
  * A) Timeout stuck recharges (IN_PROGRESS > 15 min, PENDING with max retries)
  * B) Timeout stuck BM shares (PENDING with max retries)
  * C) Auto-refund permanently failed recharges (FAILED + attempts >= 5)
+ * E) Auto-fix profile ↔ ad account mapping mismatches
  */
 
 import {
@@ -296,6 +297,68 @@ async function logTokenHealth(): Promise<void> {
   }
 }
 
+// ─── Step E: Auto-fix profile ↔ ad account mapping ─────────────────
+async function autoFixProfileMappings(): Promise<number> {
+  let fixCount = 0
+
+  // Get all ad accounts that have an extensionProfileId assigned
+  const accounts = await prisma.adAccount.findMany({
+    where: { extensionProfileId: { not: null } },
+    select: { id: true, accountId: true, extensionProfileId: true },
+  })
+
+  if (accounts.length === 0) return 0
+
+  // Get all enabled profiles with their managedAdAccountIds
+  const profiles = await prisma.facebookAutomationProfile.findMany({
+    where: { isEnabled: true },
+    select: { id: true, label: true, adsPowerSerialNumber: true, managedAdAccountIds: true },
+  })
+
+  // Build a map: accountId → profile (from managedAdAccountIds across ALL profiles)
+  const accountToProfile = new Map<string, { profileId: string, label: string }>()
+  for (const profile of profiles) {
+    const label = profile.label || profile.adsPowerSerialNumber || profile.id
+    for (const accId of profile.managedAdAccountIds) {
+      accountToProfile.set(accId, { profileId: profile.id, label })
+    }
+  }
+
+  for (const account of accounts) {
+    const assignedProfileId = account.extensionProfileId!
+    const assignedProfile = profiles.find(p => p.id === assignedProfileId)
+
+    // Check if account is already in assigned profile's managedAdAccountIds
+    const isInAssignedProfile = assignedProfile?.managedAdAccountIds.includes(account.accountId)
+    if (isInAssignedProfile) continue // All good
+
+    // Account NOT in assigned profile — check if it's in another profile
+    const correctMapping = accountToProfile.get(account.accountId)
+
+    if (correctMapping && correctMapping.profileId !== assignedProfileId) {
+      // Found in a DIFFERENT profile → fix extensionProfileId to the correct one
+      await prisma.adAccount.update({
+        where: { id: account.id },
+        data: { extensionProfileId: correctMapping.profileId },
+      })
+      const oldLabel = assignedProfile?.label || assignedProfile?.adsPowerSerialNumber || assignedProfileId
+      console.log(`[Watchdog] Fixed mapping: act_${account.accountId} → profile "${correctMapping.label}" (was "${oldLabel}")`)
+      fixCount++
+    } else if (!correctMapping && assignedProfile) {
+      // Not in ANY profile's managedAdAccountIds → add to the assigned profile
+      await prisma.facebookAutomationProfile.update({
+        where: { id: assignedProfileId },
+        data: { managedAdAccountIds: { push: account.accountId } },
+      })
+      const label = assignedProfile.label || assignedProfile.adsPowerSerialNumber || assignedProfileId
+      console.log(`[Watchdog] Added act_${account.accountId} to profile "${label}" managedAdAccountIds`)
+      fixCount++
+    }
+  }
+
+  return fixCount
+}
+
 // ─── Main watchdog cycle ───────────────────────────────────────────
 async function runWatchdogCycle(): Promise<void> {
   try {
@@ -303,11 +366,12 @@ async function runWatchdogCycle(): Promise<void> {
     const timedOutVerifications = await timeoutStuckVerifications()
     const timedOutBmShares = await timeoutStuckBmShares()
     const refundedDeposits = await autoRefundFailedRecharges()
+    const fixedMappings = await autoFixProfileMappings()
     await logTokenHealth()
 
     // Only log if something happened
-    if (timedOutRecharges > 0 || timedOutVerifications > 0 || timedOutBmShares > 0 || refundedDeposits > 0) {
-      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutVerifications} verifications, ${timedOutBmShares} BM shares, auto-refunded ${refundedDeposits} deposits`)
+    if (timedOutRecharges > 0 || timedOutVerifications > 0 || timedOutBmShares > 0 || refundedDeposits > 0 || fixedMappings > 0) {
+      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutVerifications} verifications, ${timedOutBmShares} BM shares, auto-refunded ${refundedDeposits} deposits, fixed ${fixedMappings} profile mappings`)
     }
   } catch (error) {
     console.error('[Watchdog] Cycle error:', error)
