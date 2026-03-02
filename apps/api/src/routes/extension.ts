@@ -452,10 +452,10 @@ extension.get('/poll', async (c) => {
 
     const tasks: any[] = []
 
-    // Find pending recharges — fully approved deposits (status=APPROVED + spending cap verified) needing recharge
+    // Find pending recharges — admin-approved deposits needing recharge. Status stays PENDING until spending cap verified post-recharge.
     const pendingRecharges = await prisma.accountDeposit.findMany({
       where: {
-        status: 'APPROVED',
+        approvedAt: { not: null },
         rechargeStatus: { in: ['PENDING', 'NONE'] },
         rechargeAttempts: { lt: 10 },
         adAccount: { accountId: { in: managedIds } },
