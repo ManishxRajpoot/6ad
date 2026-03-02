@@ -305,7 +305,19 @@ export async function cdpAutoLogin(serialNumber: string, profile: any): Promise<
       '    if (!emailInput && foundEmail) emailInput = foundEmail;',
       '    if (!passInput && foundPass) passInput = foundPass;',
       '  }',
-      '  if (!emailInput || !passInput) return { status: "no_form", url: url.substring(0, 150), title: document.title.substring(0, 80), inputCount: document.querySelectorAll("input").length };',
+      '  if (!emailInput || !passInput) {',
+      '    var btns = document.querySelectorAll(\'div[role="button"], a[role="button"], button, span[role="button"]\');',
+      '    var continueBtn = null;',
+      '    for (var cb = 0; cb < btns.length; cb++) {',
+      '      var btnTxt = (btns[cb].textContent || "").trim().toLowerCase();',
+      '      if (btnTxt === "continue" || btnTxt === "जारी रखें" || btnTxt === "continuar") {',
+      '        var btnRect = btns[cb].getBoundingClientRect();',
+      '        if (btnRect.width > 50 && btnRect.height > 20) { continueBtn = btns[cb]; break; }',
+      '      }',
+      '    }',
+      '    if (continueBtn) return { status: "continue_button_found", url: url.substring(0, 150), title: document.title.substring(0, 80) };',
+      '    return { status: "no_form", url: url.substring(0, 150), title: document.title.substring(0, 80), inputCount: document.querySelectorAll("input").length };',
+      '  }',
       '  return { status: "login_form_found", url: url.substring(0, 150) };',
       '})()',
     ].join('\n')
@@ -358,6 +370,24 @@ export async function cdpAutoLogin(serialNumber: string, profile: any): Promise<
       ].join('\n')
     }
 
+    // Script to click Facebook "Continue as [user]" button
+    const CLICK_CONTINUE_SCRIPT = [
+      '(function() {',
+      '  var btns = document.querySelectorAll(\'div[role="button"], a[role="button"], button, span[role="button"]\');',
+      '  for (var i = 0; i < btns.length; i++) {',
+      '    var btnTxt = (btns[i].textContent || "").trim().toLowerCase();',
+      '    if (btnTxt === "continue" || btnTxt === "जारी रखें" || btnTxt === "continuar") {',
+      '      var rect = btns[i].getBoundingClientRect();',
+      '      if (rect.width > 50 && rect.height > 20) {',
+      '        btns[i].click();',
+      '        return { status: "continue_clicked", text: btns[i].textContent.trim() };',
+      '      }',
+      '    }',
+      '  }',
+      '  return { status: "continue_not_found" };',
+      '})()',
+    ].join('\n')
+
     let loginResult: any = null
     for (let attempt = 1; attempt <= 5; attempt++) {
       console.log(`[AdsPower CDP] Checking for login form (attempt ${attempt}/5)...`)
@@ -369,6 +399,14 @@ export async function cdpAutoLogin(serialNumber: string, profile: any): Promise<
 
       // Already logged in or 2FA — break immediately
       if (loginResult?.status === 'already_logged_in' || loginResult?.status === '2fa_page') {
+        break
+      }
+
+      // "Continue as [user]" button found — click it directly (no credentials needed)
+      if (loginResult?.status === 'continue_button_found') {
+        console.log(`[AdsPower CDP] "Continue" button found! Clicking...`)
+        loginResult = await cdpEvaluate(wsUrl, CLICK_CONTINUE_SCRIPT)
+        console.log(`[AdsPower CDP] Continue click result:`, JSON.stringify(loginResult))
         break
       }
 
@@ -412,6 +450,45 @@ export async function cdpAutoLogin(serialNumber: string, profile: any): Promise<
         loginDone = true
       } else {
         console.error(`[ALERT] Profile "${profile.label}" 2FA detected but NOT handled: ${twoFaResult.message}`)
+      }
+    } else if (loginResult?.status === 'continue_clicked') {
+      console.log(`[AdsPower CDP] "Continue" button clicked — waiting 10s for FB to log in...`)
+      await sleep(10000)
+
+      // After clicking Continue, check if we're now logged in
+      try {
+        const freshTabsResp = await fetch(`http://127.0.0.1:${debugInfo.debugPort}/json`)
+        const freshTabs: any[] = await freshTabsResp.json()
+        const currentTab = freshTabs.find((t: any) => t.type === 'page' && /facebook\.com/.test(t.url))
+        if (currentTab?.webSocketDebuggerUrl) {
+          wsUrl = currentTab.webSocketDebuggerUrl
+        }
+      } catch {}
+      const postContinueCheck = await cdpEvaluate(wsUrl, DETECT_SCRIPT)
+      console.log(`[AdsPower CDP] Post-continue check:`, JSON.stringify(postContinueCheck))
+      if (postContinueCheck?.status === 'already_logged_in') {
+        console.log(`[AdsPower CDP] Continue login successful!`)
+        loginDone = true
+      } else if (postContinueCheck?.status === '2fa_page') {
+        console.log(`[AdsPower CDP] 2FA required after Continue`)
+        const twoFaResult = await cdpHandle2FA(wsUrl, profileData)
+        if (twoFaResult.handled) {
+          console.log(`[AdsPower CDP] 2FA handled successfully after Continue`)
+          loginDone = true
+        } else {
+          console.error(`[ALERT] Profile "${profile.label}" 2FA after Continue NOT handled: ${twoFaResult.message}`)
+        }
+      } else if (postContinueCheck?.status === 'login_form_found') {
+        // Continue didn't work, fell back to login form — fill credentials
+        console.log(`[AdsPower CDP] Continue led to login form — filling credentials...`)
+        const fillScript = buildFillAndClickScript(profileData.fbLoginEmail, profileData.fbLoginPassword)
+        const fillResult = await cdpEvaluate(wsUrl, fillScript)
+        console.log(`[AdsPower CDP] Fill+click result after Continue:`, JSON.stringify(fillResult))
+        await sleep(12000)
+        loginDone = true // Assume success after filling
+      } else {
+        console.log(`[AdsPower CDP] Post-continue state: ${postContinueCheck?.status} — assuming success`)
+        loginDone = true
       }
     } else if (loginResult?.status === 'login_clicked' || loginResult?.status === 'login_text_clicked' || loginResult?.status === 'form_submitted' || loginResult?.status === 'enter_pressed') {
       console.log(`[AdsPower CDP] Login submitted (${loginResult.status}) — waiting 12s for FB to process...`)
