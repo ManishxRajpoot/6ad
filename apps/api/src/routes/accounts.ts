@@ -311,6 +311,7 @@ accounts.get('/deposits/admin', requireAdmin, async (c) => {
               accountId: true,
               accountName: true,
               platform: true,
+              fundingSources: true,
               user: {
                 select: { id: true, username: true, email: true, uniqueId: true }
               }
@@ -1635,6 +1636,7 @@ accounts.post('/deposits/:id/retry-recharge', requireAdmin, async (c) => {
       where: { id },
       data: {
         rechargeStatus: 'PENDING',
+        rechargeAttempts: 0,
         rechargeError: null,
       }
     })
@@ -1882,7 +1884,7 @@ accounts.patch('/:id', requireAdmin, async (c) => {
     const body = await c.req.json()
 
     // Whitelist allowed fields to prevent arbitrary field injection
-    const allowedFields = ['accountId', 'accountName', 'platform', 'status', 'bmId', 'timezone', 'currency', 'dailyLimit', 'notes', 'threshold', 'rechargeAmount', 'autoRecharge', 'extensionProfileId', 'cheetahAccountId', 'topupMode']
+    const allowedFields = ['accountId', 'accountName', 'platform', 'status', 'bmId', 'timezone', 'currency', 'dailyLimit', 'notes', 'threshold', 'rechargeAmount', 'autoRecharge', 'extensionProfileId', 'cheetahAccountId', 'topupMode', 'fundingSources']
     const data: Record<string, any> = {}
     for (const key of allowedFields) {
       if (key in body) {

@@ -28,6 +28,8 @@ async function processBmShareCycle(): Promise<void> {
         status: 'PENDING',
         platform: 'FACEBOOK',
         shareAttempts: { lt: CONFIG.MAX_ATTEMPTS },
+        // Skip accounts already identified as non-Cheetah (waiting for extension)
+        shareMethod: { not: 'MANUAL' },
       },
       orderBy: { createdAt: 'asc' },
       take: CONFIG.BATCH_SIZE,
@@ -42,7 +44,7 @@ async function processBmShareCycle(): Promise<void> {
       try {
         await processBmShare(request)
       } catch (err: any) {
-        console.error(`[BmShareCron] Error processing ${request.id}: ${err.message}`)
+        console.error(`[BmShareCron] Error processing ${request.applyId || request.id}: ${err.message}`)
         await prisma.bmShareRequest.update({
           where: { id: request.id },
           data: {
@@ -126,11 +128,12 @@ async function processBmShare(request: any): Promise<void> {
   }
 
   // ─── Step 2: Leave as PENDING for extension worker (browser-side Graph API) ───
+  // Do NOT increment shareAttempts here — only the extension should increment when it actually tries
   if (!cheetahHandled) {
     await prisma.bmShareRequest.update({
       where: { id: request.id },
       data: {
-        shareAttempts: { increment: 1 },
+        shareMethod: 'MANUAL',
         shareError: 'Not a Cheetah account — waiting for extension worker',
       },
     })

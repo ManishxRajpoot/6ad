@@ -471,7 +471,8 @@ function getAntiSpamHeaders(fromEmail: string, senderDomain?: string): Record<st
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
-    const senderName = options.senderName || 'Six Media'
+    // When agent SMTP is used, never fall back to "Six Media" — use agent's own name
+    const senderName = options.senderName || (options.smtpConfig ? undefined : 'Six Media')
 
     // Convert inline base64 images to CID attachments (Gmail strips base64 images)
     const { html: processedHtml, attachments } = extractBase64Images(options.html)
@@ -483,7 +484,7 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     if (options.smtpConfig) {
       // Use cached pooled transporter — reuses warm connections (fast)
       const agentTransporter = getAgentTransporter(options.smtpConfig)
-      const fromName = options.smtpConfig.fromName || senderName
+      const fromName = options.smtpConfig.fromName || senderName || options.smtpConfig.fromEmail.split('@')[0]
       const fromEmail = options.smtpConfig.fromEmail
       const agentDomain = fromEmail.split('@')[1]
       const headers = getAntiSpamHeaders(fromEmail, agentDomain)
@@ -598,16 +599,25 @@ function getLogoHtml(agentLogo?: string | null, agentBrandName?: string | null):
   `
 }
 
+// Inline SVG icons for email templates (email-safe, no emoji)
+const SVG_ICONS = {
+  pending: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#B45309" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  approved: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"/></svg>`,
+  rejected: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#B91C1C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  info: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1E40AF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+  money: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#065f46" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+}
+
 // Status badge colors - Modern pill design
 const STATUS_COLORS = {
-  pending: { bg: '#FEF3C7', text: '#B45309', border: '#FCD34D', icon: '&#9679;' },
-  approved: { bg: '#DCFCE7', text: '#166534', border: '#86EFAC', icon: '&#10003;' },
-  rejected: { bg: '#FEE2E2', text: '#B91C1C', border: '#FECACA', icon: '&#10005;' },
-  info: { bg: '#DBEAFE', text: '#1E40AF', border: '#93C5FD', icon: '&#9432;' }
+  pending: { bg: '#FEF3C7', text: '#B45309', border: '#FCD34D', icon: SVG_ICONS.pending },
+  approved: { bg: '#DCFCE7', text: '#166534', border: '#86EFAC', icon: SVG_ICONS.approved },
+  rejected: { bg: '#FEE2E2', text: '#B91C1C', border: '#FECACA', icon: SVG_ICONS.rejected },
+  info: { bg: '#DBEAFE', text: '#1E40AF', border: '#93C5FD', icon: SVG_ICONS.info }
 }
 
 // Base email template wrapper - Professional design (no gradients)
-interface BaseTemplateOptions {
+export interface BaseTemplateOptions {
   title: string
   subtitle?: string
   headerColor?: 'purple' | 'green' | 'red' | 'amber'
@@ -617,7 +627,7 @@ interface BaseTemplateOptions {
   footerText?: string
 }
 
-function getBaseEmailTemplate(options: BaseTemplateOptions): string {
+export function getBaseEmailTemplate(options: BaseTemplateOptions): string {
   const { title, subtitle, headerColor = 'purple', agentLogo, agentBrandName, content, footerText } = options
 
   // Use agent brand name in footer if available
@@ -782,8 +792,7 @@ function createInfoRow(label: string, value: string, isCode = false): string {
 function createStatusBadge(status: 'pending' | 'approved' | 'rejected'): string {
   const colors = STATUS_COLORS[status]
   const labels = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }
-  const icons = { pending: '&#8987;', approved: '&#10003;', rejected: '&#10005;' }
-  return `<span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: ${colors.bg}; color: ${colors.text}; font-size: 12px; font-weight: 600; border-radius: 100px; border: 1px solid ${colors.border};"><span style="font-size: 11px;">${icons[status]}</span>${labels[status]}</span>`
+  return `<span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: ${colors.bg}; color: ${colors.text}; font-size: 12px; font-weight: 600; border-radius: 100px; border: 1px solid ${colors.border};">${SVG_ICONS[status]}${labels[status]}</span>`
 }
 
 // =====================================================
@@ -1862,7 +1871,7 @@ export function getAccountRefundApprovedTemplate(data: AccountRefundEmailData): 
     </div>
 
     <div style="background: #f0fdf4; border-left: 4px solid #10B981; padding: 12px 16px; margin-bottom: 24px; border-radius: 0 8px 8px 0;">
-      <p style="margin: 0; color: #065f46; font-size: 13px;"><strong>💰 $${data.amount.toLocaleString()}</strong> has been added to your dashboard wallet balance.</p>
+      <p style="margin: 0; color: #065f46; font-size: 13px;">${SVG_ICONS.money} <strong>$${data.amount.toLocaleString()}</strong> has been added to your dashboard wallet balance.</p>
     </div>
 
     ${data.adminRemarks ? `

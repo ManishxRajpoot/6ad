@@ -360,6 +360,639 @@ admin.post('/profiles/:id/cdp-login', async (c) => {
 
 extension.route('/admin', admin)
 
+// ==================== AUTH HELPER (accepts both X-Extension-Key and x-api-key) ====================
+
+async function getProfileByKey(c: any, selectFields?: any) {
+  const apiKey = c.req.header('x-extension-key') || c.req.header('X-Extension-Key') || c.req.header('x-api-key')
+  if (!apiKey) return null
+  return prisma.facebookAutomationProfile.findFirst({
+    where: { extensionApiKey: apiKey, isEnabled: true },
+    select: selectFields || { id: true, label: true, managedAdAccountIds: true, fbAccessToken: true, fbTokenCapturedAt: true },
+  })
+}
+
+// ==================== EXTENSION HEARTBEAT (v3 extension uses this) ====================
+
+/**
+ * POST /extension/heartbeat — Main polling endpoint for v3 extension
+ * Auth: X-Extension-Key header
+ * Body: { adAccountIds, fbUserId, fbUserName, fbAccessToken }
+ * Returns: { pendingCount, pendingBmShareCount, jobs, profileLabel, profileAdAccountIds, nextPollMs, tokenRefreshNeeded }
+ */
+extension.post('/heartbeat', async (c) => {
+  try {
+    const profile = await getProfileByKey(c, {
+      id: true, label: true, managedAdAccountIds: true,
+      fbAccessToken: true, fbTokenCapturedAt: true, fbTokenValidatedAt: true, fbUserName: true,
+    })
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const body = await c.req.json().catch(() => ({}))
+    const { adAccountIds, fbUserId, fbUserName, fbAccessToken } = body as any
+
+    // Update heartbeat + any provided data (token saved AFTER validation below)
+    const updateData: any = { lastHeartbeatAt: new Date(), status: 'IDLE' }
+    if (adAccountIds && Array.isArray(adAccountIds) && adAccountIds.length > 0) {
+      updateData.managedAdAccountIds = adAccountIds
+    }
+    if (fbUserId) updateData.fbUserId = fbUserId
+    if (fbUserName) updateData.fbUserName = fbUserName
+    // NOTE: fbAccessToken is NOT saved here — saved after validation to prevent re-saving invalid tokens
+
+    await prisma.facebookAutomationProfile.update({ where: { id: profile.id }, data: updateData })
+
+    // Get managed account IDs (prefer freshly sent ones, fallback to stored)
+    const managedIds = (adAccountIds && adAccountIds.length > 0) ? adAccountIds : (profile.managedAdAccountIds || [])
+
+    // Count linked ad accounts in DB
+    const linkedAdAccountCount = await prisma.adAccount.count({
+      where: { extensionProfileId: profile.id },
+    }).catch(() => 0)
+
+    // Build jobs array from pending tasks
+    const jobs: any[] = []
+    let pendingCount = 0
+    let pendingBmShareCount = 0
+
+    if (managedIds.length > 0) {
+      // Pending recharges (include FAILED so extension can retry server-side failures)
+      const pendingRecharges = await prisma.accountDeposit.findMany({
+        where: {
+          status: 'PENDING',
+          rechargeStatus: { in: ['PENDING', 'NONE', 'FAILED'] },
+          rechargeAttempts: { lt: 10 },
+          adAccount: { accountId: { in: managedIds } },
+        },
+        include: { adAccount: { select: { accountId: true, accountName: true } } },
+        orderBy: { createdAt: 'asc' },
+        take: 3,
+      })
+
+      pendingCount = pendingRecharges.length
+      for (const dep of pendingRecharges) {
+        jobs.push({
+          jobId: dep.id,
+          type: 'RECHARGE',
+          priority: 10,
+          payload: {
+            depositId: dep.id,
+            fbAdAccountId: dep.adAccount.accountId,
+            amount: Number(dep.amount).toString(),
+            accountName: dep.adAccount.accountName,
+          },
+        })
+      }
+    }
+
+    // Pending BM shares — only for ad accounts assigned to THIS profile (via extensionProfileId)
+    const assignedAccounts = await prisma.adAccount.findMany({
+      where: { extensionProfileId: profile.id },
+      select: { accountId: true },
+    })
+    const assignedAccountIds = assignedAccounts.map((a: any) => a.accountId)
+
+    if (assignedAccountIds.length > 0) {
+      const pendingBmShares = await prisma.bmShareRequest.findMany({
+        where: {
+          status: 'PENDING',
+          platform: 'FACEBOOK',
+          shareAttempts: { lt: 10 },
+          adAccountId: { in: assignedAccountIds },
+          NOT: { shareMethod: 'EXTENSION', shareError: null },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 3,
+      })
+
+      pendingBmShareCount = pendingBmShares.length
+      for (const req of pendingBmShares) {
+        jobs.push({
+          jobId: req.id,
+          type: 'BM_SHARE',
+          priority: 5,
+          payload: {
+            requestId: req.id,
+            adAccountId: req.adAccountId,
+            userBmId: req.bmId,
+            ownerBmId: null,
+            username: req.adAccountName || 'Unknown',
+          },
+        })
+      }
+    }
+
+    // Token handling: Extension validates tokens in-browser via /me/adaccounts before sending.
+    // Server TRUSTS extension's validation — server can't re-validate because tokens are session/IP-bound.
+    let tokenInvalid = false
+    let tokenRefreshNeeded = false
+
+    const incomingToken = fbAccessToken && typeof fbAccessToken === 'string' && fbAccessToken.startsWith('EAA') ? fbAccessToken : null
+    const isNewToken = incomingToken && incomingToken !== profile.fbAccessToken
+
+    // Save new incoming token (already validated by extension via /me/adaccounts)
+    if (isNewToken) {
+      console.log(`[Extension] New token from "${profile.label}" (len=${incomingToken!.length}) — saving (extension-validated)`)
+      await prisma.facebookAutomationProfile.update({
+        where: { id: profile.id },
+        data: { fbAccessToken: incomingToken, fbTokenCapturedAt: new Date(), fbTokenValidatedAt: new Date() },
+      }).catch(() => {})
+    }
+
+    const currentToken = isNewToken ? incomingToken : profile.fbAccessToken
+    if (!currentToken) {
+      tokenRefreshNeeded = true
+    }
+
+    // Adaptive polling: faster when tasks pending, slower when idle
+    const nextPollMs = (pendingCount > 0 || pendingBmShareCount > 0) ? 8000 : 15000
+
+    // Build profile-level ad account IDs (from DB linked accounts)
+    const linkedAccounts = await prisma.adAccount.findMany({
+      where: { extensionProfileId: profile.id },
+      select: { accountId: true },
+    }).catch(() => [] as any[])
+    const profileAdAccountIds = linkedAccounts.map((a: any) => a.accountId)
+
+    return c.json({
+      pendingCount: tokenInvalid ? 0 : pendingCount,
+      pendingBmShareCount: tokenInvalid ? 0 : pendingBmShareCount,
+      jobs,
+      profileLabel: profile.label,
+      profileAdAccountIds,
+      linkedAdAccountCount,
+      nextPollMs,
+      tokenRefreshNeeded,
+      tokenInvalid,
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ==================== FUNDING SOURCES (VCard detection) ====================
+
+/**
+ * POST /extension/funding-sources
+ * Auth: X-Extension-Key header
+ * Body: { fundingSources: { [accountId]: [{id, display}] } }
+ * Updates fundingSources JSON on each AdAccount
+ */
+extension.post('/funding-sources', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const { fundingSources } = await c.req.json()
+    if (!fundingSources || typeof fundingSources !== 'object') {
+      return c.json({ error: 'fundingSources object required' }, 400)
+    }
+
+    const entries = Object.entries(fundingSources)
+    let updated = 0
+
+    for (const [accountId, cards] of entries) {
+      try {
+        await prisma.adAccount.updateMany({
+          where: { accountId: String(accountId) },
+          data: {
+            fundingSources: JSON.stringify(cards),
+            fundingSourceUpdatedAt: new Date(),
+          },
+        })
+        updated++
+      } catch (err: any) {
+        // Individual account failure is non-fatal
+        console.log(`[Extension] Failed to update funding sources for ${accountId}:`, err.message)
+      }
+    }
+
+    console.log(`[Extension] Funding sources updated for ${updated}/${entries.length} accounts`)
+    return c.json({ updated, total: entries.length })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ==================== LEGACY RECHARGE ENDPOINTS (v3 extension uses these as fallback) ====================
+
+/**
+ * GET /extension/pending-recharges
+ */
+extension.get('/pending-recharges', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const managedIds = profile.managedAdAccountIds || []
+    if (managedIds.length === 0) return c.json({ recharges: [] })
+
+    const pendingRecharges = await prisma.accountDeposit.findMany({
+      where: {
+        status: 'PENDING',
+        rechargeStatus: { in: ['PENDING', 'NONE', 'FAILED'] },
+        rechargeAttempts: { lt: 10 },
+        adAccount: { accountId: { in: managedIds }, sourceBmId: { not: 'cheetah' } },
+      },
+      include: { adAccount: { select: { accountId: true, accountName: true } } },
+      orderBy: { createdAt: 'asc' },
+      take: 5,
+    })
+
+    return c.json({
+      recharges: pendingRecharges.map(dep => ({
+        depositId: dep.id,
+        adAccountId: dep.adAccount.accountId,
+        accountName: dep.adAccount.accountName,
+        amount: Number(dep.amount),
+      }))
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+/**
+ * POST /extension/recharge/:id/claim
+ */
+extension.post('/recharge/:id/claim', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const depositId = c.req.param('id')
+    await prisma.accountDeposit.update({
+      where: { id: depositId },
+      data: { rechargeStatus: 'IN_PROGRESS' },
+    })
+    console.log(`[Extension] Recharge claimed by "${profile.label}": ${depositId}`)
+    return c.json({ ok: true })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+/**
+ * POST /extension/recharge/:id/complete
+ */
+extension.post('/recharge/:id/complete', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const depositId = c.req.param('id')
+    const body = await c.req.json().catch(() => ({}))
+    const { previousSpendCap, newSpendCap, fbAccessToken: tokenUsed } = body as any
+
+    await prisma.accountDeposit.update({
+      where: { id: depositId },
+      data: {
+        rechargeStatus: 'VERIFYING',
+        rechargeMethod: 'EXTENSION',
+        rechargedAt: new Date(),
+        rechargeError: null,
+        rechargeAttempts: { increment: 1 },
+        previousSpendCap: previousSpendCap ?? null,
+        newSpendCap: newSpendCap ?? null,
+      },
+    })
+
+    // Update profile token if provided
+    if (tokenUsed && typeof tokenUsed === 'string' && tokenUsed.startsWith('EAA')) {
+      await prisma.facebookAutomationProfile.update({
+        where: { id: profile.id },
+        data: { fbAccessToken: tokenUsed, fbTokenCapturedAt: new Date() },
+      }).catch(() => {})
+    }
+
+    console.log(`[Extension] Recharge SUCCESS by "${profile.label}": ${depositId} (cap $${previousSpendCap} → $${newSpendCap}) — awaiting verification`)
+    return c.json({ ok: true })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+/**
+ * POST /extension/recharge/:id/failed
+ */
+extension.post('/recharge/:id/failed', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const depositId = c.req.param('id')
+    const body = await c.req.json().catch(() => ({}))
+    const { error: errorMsg } = body as any
+
+    await prisma.accountDeposit.update({
+      where: { id: depositId },
+      data: {
+        rechargeStatus: 'FAILED',
+        rechargeAttempts: { increment: 1 },
+        rechargeError: `Extension (${profile.label}): ${errorMsg || 'Unknown error'}`,
+      },
+    })
+    console.log(`[Extension] Recharge FAILED by "${profile.label}": ${depositId} — ${errorMsg}`)
+    return c.json({ ok: true })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ==================== LEGACY BM SHARE ENDPOINTS ====================
+
+/**
+ * GET /extension/pending-bm-shares
+ */
+extension.get('/pending-bm-shares', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const managedIds = profile.managedAdAccountIds || []
+    if (managedIds.length === 0) return c.json({ bmShares: [] })
+
+    const pendingBmShares = await prisma.bmShareRequest.findMany({
+      where: {
+        status: 'PENDING',
+        platform: 'FACEBOOK',
+        shareAttempts: { lt: 10 },
+        adAccountId: { in: managedIds },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 5,
+    })
+
+    return c.json({
+      bmShares: pendingBmShares.map(req => ({
+        requestId: req.id,
+        adAccountId: req.adAccountId,
+        userBmId: req.bmId,
+        ownerBmId: null,
+        username: req.adAccountName || 'Unknown',
+      }))
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+/**
+ * POST /extension/bm-share/:id/claim
+ */
+extension.post('/bm-share/:id/claim', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const requestId = c.req.param('id')
+    // TransactionStatus has no IN_PROGRESS — mark claimed via shareMethod
+    await prisma.bmShareRequest.update({
+      where: { id: requestId },
+      data: { shareMethod: 'EXTENSION', shareError: null },
+    }).catch(() => {})
+    console.log(`[Extension] BM Share claimed by "${profile.label}": ${requestId}`)
+    return c.json({ ok: true })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+/**
+ * POST /extension/bm-share/:id/complete
+ */
+extension.post('/bm-share/:id/complete', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const requestId = c.req.param('id')
+    await prisma.bmShareRequest.update({
+      where: { id: requestId },
+      data: {
+        status: 'APPROVED',
+        shareMethod: 'EXTENSION',
+        approvedAt: new Date(),
+        shareError: null,
+        shareAttempts: { increment: 1 },
+        adminRemarks: `BM share completed by extension "${profile.label}"`,
+      },
+    })
+    console.log(`[Extension] BM Share SUCCESS by "${profile.label}": ${requestId}`)
+    return c.json({ ok: true })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+/**
+ * POST /extension/bm-share/:id/failed
+ */
+extension.post('/bm-share/:id/failed', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const requestId = c.req.param('id')
+    const body = await c.req.json().catch(() => ({}))
+    const { error: errorMsg } = body as any
+
+    // Check if the error indicates the BM is already shared (duplicate)
+    const lower = (errorMsg || '').toLowerCase()
+    const isDuplicate = lower.includes('duplicate') ||
+      lower.includes('already claimed') ||
+      lower.includes('already has access') ||
+      lower.includes('already exists') ||
+      lower.includes('already been added') ||
+      lower.includes('already associated') ||
+      lower.includes('already shared') ||
+      lower.includes('already assigned') ||
+      lower.includes('already a member') ||
+      lower.includes('has already been') ||
+      lower.includes('relationship already exists')
+
+    if (isDuplicate) {
+      // Auto-approve — BM is already shared on Facebook's side
+      await prisma.bmShareRequest.update({
+        where: { id: requestId },
+        data: {
+          status: 'APPROVED',
+          shareMethod: 'EXTENSION',
+          approvedAt: new Date(),
+          adminRemarks: 'Auto-approved: BM already shared (duplicate detected from FB response).',
+          shareError: null,
+        },
+      })
+      console.log(`[Extension] BM Share auto-APPROVED (duplicate) by "${profile.label}": ${requestId} — ${errorMsg}`)
+      return c.json({ ok: true, autoApproved: true })
+    }
+
+    await prisma.bmShareRequest.update({
+      where: { id: requestId },
+      data: {
+        shareAttempts: { increment: 1 },
+        shareError: `Extension (${profile.label}): ${errorMsg || 'Unknown error'}`,
+      },
+    })
+    console.log(`[Extension] BM Share FAILED by "${profile.label}": ${requestId} — ${errorMsg}`)
+    return c.json({ ok: true })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ==================== JOB ENDPOINTS (unified job processing from heartbeat) ====================
+
+/**
+ * POST /extension/job/:id/claim — Claim a job (could be recharge or BM share)
+ */
+extension.post('/job/:id/claim', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const jobId = c.req.param('id')
+
+    // Try as deposit first
+    const deposit = await prisma.accountDeposit.findUnique({ where: { id: jobId } }).catch(() => null)
+    if (deposit) {
+      if (deposit.rechargeStatus === 'IN_PROGRESS') {
+        return c.json({ error: 'Already claimed' }, 409)
+      }
+      await prisma.accountDeposit.update({
+        where: { id: jobId },
+        data: { rechargeStatus: 'IN_PROGRESS' },
+      })
+      console.log(`[Extension] Job claimed (RECHARGE) by "${profile.label}": ${jobId}`)
+      return c.json({ ok: true })
+    }
+
+    // Try as BM share
+    const bmShare = await prisma.bmShareRequest.findUnique({ where: { id: jobId } }).catch(() => null)
+    if (bmShare) {
+      if (bmShare.shareMethod === 'EXTENSION' && bmShare.status === 'PENDING') {
+        return c.json({ error: 'Already claimed' }, 409)
+      }
+      await prisma.bmShareRequest.update({
+        where: { id: jobId },
+        data: { shareMethod: 'EXTENSION', shareError: null },
+      })
+      console.log(`[Extension] Job claimed (BM_SHARE) by "${profile.label}": ${jobId}`)
+      return c.json({ ok: true })
+    }
+
+    return c.json({ error: 'Job not found' }, 404)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+/**
+ * POST /extension/job/:id/complete — Complete a job
+ */
+extension.post('/job/:id/complete', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const jobId = c.req.param('id')
+    const body = await c.req.json().catch(() => ({}))
+    const { result } = body as any
+
+    // Try as deposit first
+    const deposit = await prisma.accountDeposit.findUnique({ where: { id: jobId } }).catch(() => null)
+    if (deposit) {
+      await prisma.accountDeposit.update({
+        where: { id: jobId },
+        data: {
+          rechargeStatus: 'VERIFYING',
+          rechargeMethod: 'EXTENSION',
+          rechargedAt: new Date(),
+          rechargeError: null,
+          rechargeAttempts: { increment: 1 },
+          previousSpendCap: result?.previousSpendCap ?? null,
+          newSpendCap: result?.newSpendCap ?? null,
+        },
+      })
+      console.log(`[Extension] Job complete (RECHARGE) by "${profile.label}": ${jobId} (cap → $${result?.newSpendCap}) — awaiting verification`)
+      return c.json({ ok: true })
+    }
+
+    // Try as BM share
+    const bmShare = await prisma.bmShareRequest.findUnique({ where: { id: jobId } }).catch(() => null)
+    if (bmShare) {
+      await prisma.bmShareRequest.update({
+        where: { id: jobId },
+        data: {
+          status: 'APPROVED',
+          shareMethod: 'EXTENSION',
+          approvedAt: new Date(),
+          shareError: null,
+          shareAttempts: { increment: 1 },
+          adminRemarks: result?.bmName
+            ? `Done — shared to ${result.bmName}`
+            : `BM share via ${result?.method || 'extension'} by "${profile.label}"`,
+        },
+      })
+      console.log(`[Extension] Job complete (BM_SHARE) by "${profile.label}": ${jobId}`)
+      return c.json({ ok: true })
+    }
+
+    return c.json({ error: 'Job not found' }, 404)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+/**
+ * POST /extension/job/:id/failed — Report job failure
+ */
+extension.post('/job/:id/failed', async (c) => {
+  try {
+    const profile = await getProfileByKey(c)
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    const jobId = c.req.param('id')
+    const body = await c.req.json().catch(() => ({}))
+    const { error: errorMsg, shouldRetry } = body as any
+
+    // Try as deposit first
+    const deposit = await prisma.accountDeposit.findUnique({ where: { id: jobId } }).catch(() => null)
+    if (deposit) {
+      await prisma.accountDeposit.update({
+        where: { id: jobId },
+        data: {
+          rechargeStatus: shouldRetry ? 'PENDING' : 'FAILED',
+          rechargeAttempts: { increment: 1 },
+          rechargeError: `Extension (${profile.label}): ${errorMsg || 'Unknown error'}`,
+        },
+      })
+      console.log(`[Extension] Job failed (RECHARGE) by "${profile.label}": ${jobId} — ${errorMsg}`)
+      return c.json({ ok: true })
+    }
+
+    // Try as BM share
+    const bmShare = await prisma.bmShareRequest.findUnique({ where: { id: jobId } }).catch(() => null)
+    if (bmShare) {
+      await prisma.bmShareRequest.update({
+        where: { id: jobId },
+        data: {
+          shareAttempts: { increment: 1 },
+          shareError: `Extension (${profile.label}): ${errorMsg || 'Unknown error'}`,
+          // Keep shareMethod as MANUAL so BmShareCron doesn't re-try Cheetah
+          // Heartbeat will still pick it up for extension retry
+          ...(shouldRetry ? { shareMethod: 'MANUAL' } : { status: 'REJECTED' }),
+        },
+      })
+      console.log(`[Extension] Job failed (BM_SHARE) by "${profile.label}": ${jobId} — ${errorMsg}`)
+      return c.json({ ok: true })
+    }
+
+    return c.json({ error: 'Job not found' }, 404)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 // ==================== EXTENSION TOKEN ENDPOINT (API key auth) ====================
 
 /**
@@ -368,13 +1001,7 @@ extension.route('/admin', admin)
  */
 extension.post('/token', async (c) => {
   try {
-    const apiKey = c.req.header('x-api-key')
-    if (!apiKey) return c.json({ error: 'Missing X-API-Key header' }, 401)
-
-    const profile = await prisma.facebookAutomationProfile.findFirst({
-      where: { extensionApiKey: apiKey, isEnabled: true },
-      select: { id: true, label: true, fbAccessToken: true },
-    })
+    const profile = await getProfileByKey(c, { id: true, label: true, fbAccessToken: true })
     if (!profile) return c.json({ error: 'Invalid API key' }, 401)
 
     const { token } = await c.req.json()
@@ -430,13 +1057,7 @@ extension.post('/token', async (c) => {
  */
 extension.get('/poll', async (c) => {
   try {
-    const apiKey = c.req.header('x-api-key')
-    if (!apiKey) return c.json({ error: 'Missing X-API-Key header' }, 401)
-
-    const profile = await prisma.facebookAutomationProfile.findFirst({
-      where: { extensionApiKey: apiKey, isEnabled: true },
-      select: { id: true, label: true, managedAdAccountIds: true },
-    })
+    const profile = await getProfileByKey(c, { id: true, label: true, managedAdAccountIds: true })
     if (!profile) return c.json({ error: 'Invalid API key' }, 401)
 
     // Update heartbeat
@@ -456,9 +1077,9 @@ extension.get('/poll', async (c) => {
     const pendingRecharges = await prisma.accountDeposit.findMany({
       where: {
         status: 'PENDING',
-        rechargeStatus: { in: ['PENDING', 'NONE'] },
+        rechargeStatus: { in: ['PENDING', 'NONE', 'FAILED'] },
         rechargeAttempts: { lt: 10 },
-        adAccount: { accountId: { in: managedIds } },
+        adAccount: { accountId: { in: managedIds }, sourceBmId: { not: 'cheetah' } },
       },
       include: {
         adAccount: { select: { accountId: true, accountName: true, platform: true } },
@@ -514,13 +1135,7 @@ extension.get('/poll', async (c) => {
  */
 extension.post('/task-result', async (c) => {
   try {
-    const apiKey = c.req.header('x-api-key')
-    if (!apiKey) return c.json({ error: 'Missing X-API-Key header' }, 401)
-
-    const profile = await prisma.facebookAutomationProfile.findFirst({
-      where: { extensionApiKey: apiKey, isEnabled: true },
-      select: { id: true, label: true },
-    })
+    const profile = await getProfileByKey(c, { id: true, label: true })
     if (!profile) return c.json({ error: 'Invalid API key' }, 401)
 
     const { type, depositId, requestId, success, error, data } = await c.req.json()
@@ -586,6 +1201,47 @@ extension.post('/task-result', async (c) => {
 
     return c.json({ error: 'Invalid task type or missing ID' }, 400)
   } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ==================== EXTENSION CDP LOGIN REQUEST (API key auth) ====================
+
+/**
+ * POST /extension/request-cdp-login — Extension requests CDP auto-login when it has no token
+ * Auth: X-Extension-Key header
+ * Flow: Extension tried opening adsmanager + waited 15s but still no token → calls this
+ * Server launches AdsPower browser + runs CDP auto-login to capture FB token
+ */
+extension.post('/request-cdp-login', async (c) => {
+  try {
+    const profile = await getProfileByKey(c, {
+      id: true, label: true, adsPowerSerialNumber: true, fbLoginEmail: true,
+    })
+    if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    if (!profile.adsPowerSerialNumber) {
+      return c.json({ error: 'No AdsPower serial number configured' }, 400)
+    }
+    if (!profile.fbLoginEmail) {
+      return c.json({ error: 'No FB login email configured — admin must set fbLoginEmail' }, 400)
+    }
+
+    console.log(`[CDP-Login] Extension "${profile.label}" requesting CDP auto-login (serial=${profile.adsPowerSerialNumber})`)
+
+    // Run CDP auto-login (non-blocking — don't make extension wait for full login)
+    ;(async () => {
+      try {
+        const result = await cdpAutoLogin(profile.adsPowerSerialNumber!, profile)
+        console.log(`[CDP-Login] CDP auto-login result for "${profile.label}": ${result}`)
+      } catch (err: any) {
+        console.error(`[CDP-Login] CDP auto-login failed for "${profile.label}":`, err.message)
+      }
+    })()
+
+    return c.json({ ok: true, message: 'CDP auto-login triggered' })
+  } catch (err: any) {
+    console.error(`[CDP-Login] Error:`, err.message)
     return c.json({ error: err.message }, 500)
   }
 })

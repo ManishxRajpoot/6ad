@@ -255,6 +255,13 @@ export default function FacebookPage() {
   const searchParams = useSearchParams()
   const pageFromUrl = searchParams.get('page') as SubPage | null
   const [activeSubPage, setActiveSubPage] = useState<SubPage>(pageFromUrl && ['apply-ads-account', 'account-list', 'account-applied-records', 'bm-share-log', 'deposit', 'deposit-report', 'transfer-balance', 'refund', 'refund-report'].includes(pageFromUrl) ? pageFromUrl : 'account-list')
+  // Sync activeSubPage to URL so refresh stays on the same tab
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('page', activeSubPage)
+    window.history.replaceState({}, '', url.toString())
+  }, [activeSubPage])
+
   const [mobileView, setMobileView] = useState<'accounts' | 'recharge' | 'recharge-records'>('accounts')
   const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['account-manage', 'deposit-manage', 'after-sale'])
   const [searchQuery, setSearchQuery] = useState('')
@@ -2831,9 +2838,10 @@ export default function FacebookPage() {
                           <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
                           <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ad Account</th>
                           <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">BM ID</th>
-                          <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason</th>
+
                           <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Request Time</th>
                           <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
@@ -2849,11 +2857,7 @@ export default function FacebookPage() {
                             <td className="py-2.5 px-3">
                               <span className="text-sm font-mono text-[#8B5CF6]">{item.bmId}</span>
                             </td>
-                            <td className="py-2.5 px-3 max-w-[280px]">
-                              <p className="text-sm text-gray-600 whitespace-normal leading-relaxed">
-                                {item.adminRemarks || '-'}
-                              </p>
-                            </td>
+
                             <td className="py-2.5 px-3">
                               <span className="text-sm text-gray-700">
                                 {new Date(item.createdAt).toLocaleDateString('en-US', {
@@ -2866,6 +2870,13 @@ export default function FacebookPage() {
                               </span>
                             </td>
                             <td className="py-2.5 px-3">{getStatusBadge(item.status)}</td>
+                            <td className="py-2.5 px-3">
+                              {item.status === 'REJECTED' && item.adminRemarks ? (
+                                <p className="text-xs text-red-500 max-w-[250px] leading-tight">{item.adminRemarks}</p>
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>

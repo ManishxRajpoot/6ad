@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=380">
+  <title>6AD Worker</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">6AD</div>
+      <span class="version">v3.2</span>
+    </div>
+    <div class="header-right">
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-label" id="statusLabel">Offline</span>
+    </div>
+  </div>
+
+  <!-- Status Cards -->
+  <div class="cards">
+    <div class="card" id="cardToken">
+      <div class="card-icon" id="tokenIcon">&#x1F511;</div>
+      <div class="card-label">Token</div>
+      <div class="card-value" id="tokenStatus">No Token</div>
+    </div>
+    <div class="card" id="cardPolling">
+      <div class="card-icon">&#x1F504;</div>
+      <div class="card-label">Polling</div>
+      <div class="card-value" id="pollStatus">--</div>
+    </div>
+    <div class="card" id="cardTasks">
+      <div class="card-icon">&#x2705;</div>
+      <div class="card-label">Completed</div>
+      <div class="card-value" id="tasksCompleted">0</div>
+    </div>
+    <div class="card" id="cardSync">
+      <div class="card-icon">&#x1F4E1;</div>
+      <div class="card-label">Last Sync</div>
+      <div class="card-value" id="lastSync">--</div>
+    </div>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat">
+      <span class="stat-num" id="statTokens">0</span>
+      <span class="stat-lbl">Tokens</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num" id="statReceived">0</span>
+      <span class="stat-lbl">Received</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num" id="statCompleted">0</span>
+      <span class="stat-lbl">Done</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num" id="statFailed">0</span>
+      <span class="stat-lbl">Failed</span>
+    </div>
+  </div>
+
+  <!-- Activity Log -->
+  <div class="section">
+    <div class="section-header">
+      <span>Activity</span>
+      <button class="btn-clear" id="clearActivity">Clear</button>
+    </div>
+    <div class="activity-list" id="activityList">
+      <div class="empty-state">No activity yet</div>
+    </div>
+  </div>
+
+  <!-- Settings (collapsible) -->
+  <div class="section">
+    <div class="section-header clickable" id="settingsToggle">
+      <span>Settings</span>
+      <span class="arrow" id="settingsArrow">&#x25BC;</span>
+    </div>
+    <div class="settings-body" id="settingsBody">
+      <label class="field-label">API Key</label>
+      <input type="text" class="input" id="apiKey" placeholder="Enter your API key">
+      <label class="field-label">Server URL</label>
+      <input type="text" class="input" id="serverUrl" placeholder="https://api.6ad.in">
+      <button class="btn-save" id="save">Save Settings</button>
+      <button class="btn-test" id="testConnection">Test Connection</button>
+      <div class="test-result hidden" id="testResult"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

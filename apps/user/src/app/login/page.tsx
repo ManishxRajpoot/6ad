@@ -542,6 +542,8 @@ export default function LoginPage() {
                           <input
                             key={index}
                             type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             maxLength={1}
                             value={emailCode[index] || ''}
                             onChange={(e) => {
@@ -683,6 +685,8 @@ export default function LoginPage() {
                       <input
                         key={index}
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         maxLength={1}
                         value={totpCode[index] || ''}
                         onChange={(e) => {
@@ -938,6 +942,8 @@ export default function LoginPage() {
                     <input
                       key={index}
                       type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       maxLength={1}
                       value={totpCode[index] || ''}
                       onChange={(e) => {

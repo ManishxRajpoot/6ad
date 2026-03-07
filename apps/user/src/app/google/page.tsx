@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
+  Minus,
   Download,
   Copy,
   Check,
@@ -21,8 +22,9 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Wallet,
 } from 'lucide-react'
-import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, applicationsApi, PlatformStatus } from '@/lib/api'
+import { authApi, accountsApi, transactionsApi, accountDepositsApi, balanceTransfersApi, accountRefundsApi, dashboardApi, settingsApi, applicationsApi, bmShareApi, PlatformStatus } from '@/lib/api'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon } from '@/components/icons/MenuIcons'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -63,6 +65,7 @@ function AnimatedCounter({ value, duration = 500 }: { value: number; duration?: 
 
 // Mock admin settings - In real app, these would come from API
 const ADMIN_SETTINGS = {
+  minimumDeposit: 50,
   platformsEnabled: {
     facebook: true,
     google: true,
@@ -70,6 +73,12 @@ const ADMIN_SETTINGS = {
     snapchat: true,
     bing: true,
   }
+}
+
+type DepositRow = {
+  id: number
+  accountId: string
+  amount: string
 }
 
 // Date filter options
@@ -90,9 +99,9 @@ const actionFilterOptions = [
 const exportOptions = [
   { id: 'account-list', label: 'Account List' },
   { id: 'account-applied-records', label: 'Account Applied Records' },
-  { id: 'bm-share-log', label: 'BM Share Log' },
+  { id: 'bm-share-log', label: 'Access Share Log' },
   { id: 'deposit', label: 'Deposit' },
-  { id: 'deposit-report', label: 'Deposit Report' },
+  { id: 'deposit-report', label: 'Deposit Records' },
   { id: 'transfer-balance', label: 'Transfer Balance' },
   { id: 'refund', label: 'Refund' },
   { id: 'refund-report', label: 'Refund Report' },
@@ -112,43 +121,213 @@ const accountListData = [
   { id: 8, license: 'ADM Marketing', adsAccountId: '7675646567785', adsAccountName: 'gyan creative' },
 ]
 
-// Account Applied Records data
-const appliedRecordsData = [
-  { id: 1, applyId: '17420455677Br3fgryyr', license: 'ADM Marketing', requestTime: '14/05/2024/06:04:24', totalCost: 270, status: 'APPROVED' },
-  { id: 2, applyId: '17420455677Br3fgryyr', license: 'ADM Marketing', requestTime: '14/05/2024/06:04:24', totalCost: 223, status: 'APPROVED' },
-  { id: 3, applyId: '17420455677Br3fgryyr', license: 'ADM Marketing', requestTime: '14/05/2024/06:04:24', totalCost: 232, status: 'PENDING' },
-  { id: 4, applyId: '17420455677Br3fgryyr', license: 'ADM Marketing', requestTime: '14/05/2024/06:04:24', totalCost: 1323, status: 'APPROVED' },
-  { id: 5, applyId: '17420455677Br3fgryyr', license: 'ADM Marketing', requestTime: '14/05/2024/06:04:24', totalCost: 4334, status: 'REJECTED' },
-  { id: 6, applyId: '17420455677Br3fgryyr', license: 'ADM Marketing', requestTime: '14/05/2024/06:04:24', totalCost: 222, status: 'APPROVED' },
-  { id: 7, applyId: '17420455677Br3fgryyr', license: 'ADM Marketing', requestTime: '14/05/2024/06:04:24', totalCost: 2342, status: 'APPROVED' },
-]
 
 // BM Share Log data
-const bmShareLogData = [
-  { id: 1, applyId: '17420455677Br3fgryyr', adsAccountName: 'gyan creative', adsAccountId: '4556676453347B7756', requestTime: '14/05/2024/06:04:24', status: 'APPROVED' },
-  { id: 2, applyId: '17420455677Br3fgryyr', adsAccountName: 'gyan creative', adsAccountId: '4556676453347B7756', requestTime: '14/05/2024/06:04:24', status: 'APPROVED' },
-  { id: 3, applyId: '17420455677Br3fgryyr', adsAccountName: 'gyan creative', adsAccountId: '4556676453347B7756', requestTime: '14/05/2024/06:04:24', status: 'PENDING' },
-  { id: 4, applyId: '17420455677Br3fgryyr', adsAccountName: 'gyan creative', adsAccountId: '4556676453347B7756', requestTime: '14/05/2024/06:04:24', status: 'APPROVED' },
-  { id: 5, applyId: '17420455677Br3fgryyr', adsAccountName: 'gyan creative', adsAccountId: '4556676453347B7756', requestTime: '14/05/2024/06:04:24', status: 'REJECTED' },
-  { id: 6, applyId: '17420455677Br3fgryyr', adsAccountName: 'gyan creative', adsAccountId: '4556676453347B7756', requestTime: '14/05/2024/06:04:24', status: 'APPROVED' },
-  { id: 7, applyId: '17420455677Br3fgryyr', adsAccountName: 'gyan creative', adsAccountId: '4556676453347B7756', requestTime: '14/05/2024/06:04:24', status: 'APPROVED' },
-]
-
-// Deposit Report data
-const depositReportData = [
-  { id: 1, applyId: '4564545321', transactionId: '7675644654', date: '14/05/2024' },
-  { id: 2, applyId: '4564545321', transactionId: '7675644654', date: '14/05/2024' },
-  { id: 3, applyId: '4564545321', transactionId: '7675644654', date: '14/05/2024' },
-  { id: 4, applyId: '4564545321', transactionId: '7675644654', date: '14/05/2024' },
-  { id: 5, applyId: '4564545321', transactionId: '7675644654', date: '14/05/2024' },
-  { id: 6, applyId: '4564545321', transactionId: '7675644654', date: '14/05/2024' },
-  { id: 7, applyId: '4564545321', transactionId: '7675644654', date: '14/05/2024' },
-  { id: 8, applyId: '4564545321', transactionId: '7675644654', date: '14/05/2024' },
-]
 
 type SubPage = 'apply-ads-account' | 'account-list' | 'account-applied-records' | 'bm-share-log' | 'deposit' | 'deposit-report' | 'transfer-balance' | 'refund' | 'refund-report'
 
 type MenuSection = 'account-manage' | 'deposit-manage' | 'after-sale'
+
+// Country options - full list for target market selection
+const countryOptions = [
+  { value: 'Afghanistan', label: '🇦🇫 Afghanistan' },
+  { value: 'Albania', label: '🇦🇱 Albania' },
+  { value: 'Algeria', label: '🇩🇿 Algeria' },
+  { value: 'Andorra', label: '🇦🇩 Andorra' },
+  { value: 'Angola', label: '🇦🇴 Angola' },
+  { value: 'Antigua and Barbuda', label: '🇦🇬 Antigua and Barbuda' },
+  { value: 'Argentina', label: '🇦🇷 Argentina' },
+  { value: 'Armenia', label: '🇦🇲 Armenia' },
+  { value: 'Australia', label: '🇦🇺 Australia' },
+  { value: 'Austria', label: '🇦🇹 Austria' },
+  { value: 'Azerbaijan', label: '🇦🇿 Azerbaijan' },
+  { value: 'Bahamas', label: '🇧🇸 Bahamas' },
+  { value: 'Bahrain', label: '🇧🇭 Bahrain' },
+  { value: 'Bangladesh', label: '🇧🇩 Bangladesh' },
+  { value: 'Barbados', label: '🇧🇧 Barbados' },
+  { value: 'Belarus', label: '🇧🇾 Belarus' },
+  { value: 'Belgium', label: '🇧🇪 Belgium' },
+  { value: 'Belize', label: '🇧🇿 Belize' },
+  { value: 'Benin', label: '🇧🇯 Benin' },
+  { value: 'Bhutan', label: '🇧🇹 Bhutan' },
+  { value: 'Bolivia', label: '🇧🇴 Bolivia' },
+  { value: 'Bosnia and Herzegovina', label: '🇧🇦 Bosnia and Herzegovina' },
+  { value: 'Botswana', label: '🇧🇼 Botswana' },
+  { value: 'Brazil', label: '🇧🇷 Brazil' },
+  { value: 'Brunei', label: '🇧🇳 Brunei' },
+  { value: 'Bulgaria', label: '🇧🇬 Bulgaria' },
+  { value: 'Burkina Faso', label: '🇧🇫 Burkina Faso' },
+  { value: 'Burundi', label: '🇧🇮 Burundi' },
+  { value: 'Cabo Verde', label: '🇨🇻 Cabo Verde' },
+  { value: 'Cambodia', label: '🇰🇭 Cambodia' },
+  { value: 'Cameroon', label: '🇨🇲 Cameroon' },
+  { value: 'Canada', label: '🇨🇦 Canada' },
+  { value: 'Central African Republic', label: '🇨🇫 Central African Republic' },
+  { value: 'Chad', label: '🇹🇩 Chad' },
+  { value: 'Chile', label: '🇨🇱 Chile' },
+  { value: 'China', label: '🇨🇳 China' },
+  { value: 'Colombia', label: '🇨🇴 Colombia' },
+  { value: 'Comoros', label: '🇰🇲 Comoros' },
+  { value: 'Congo (DRC)', label: '🇨🇩 Congo (DRC)' },
+  { value: 'Congo (Republic)', label: '🇨🇬 Congo (Republic)' },
+  { value: 'Costa Rica', label: '🇨🇷 Costa Rica' },
+  { value: "Côte d'Ivoire", label: "🇨🇮 Côte d'Ivoire" },
+  { value: 'Croatia', label: '🇭🇷 Croatia' },
+  { value: 'Cuba', label: '🇨🇺 Cuba' },
+  { value: 'Cyprus', label: '🇨🇾 Cyprus' },
+  { value: 'Czech Republic', label: '🇨🇿 Czech Republic' },
+  { value: 'Denmark', label: '🇩🇰 Denmark' },
+  { value: 'Djibouti', label: '🇩🇯 Djibouti' },
+  { value: 'Dominica', label: '🇩🇲 Dominica' },
+  { value: 'Dominican Republic', label: '🇩🇴 Dominican Republic' },
+  { value: 'Ecuador', label: '🇪🇨 Ecuador' },
+  { value: 'Egypt', label: '🇪🇬 Egypt' },
+  { value: 'El Salvador', label: '🇸🇻 El Salvador' },
+  { value: 'Equatorial Guinea', label: '🇬🇶 Equatorial Guinea' },
+  { value: 'Eritrea', label: '🇪🇷 Eritrea' },
+  { value: 'Estonia', label: '🇪🇪 Estonia' },
+  { value: 'Eswatini', label: '🇸🇿 Eswatini' },
+  { value: 'Ethiopia', label: '🇪🇹 Ethiopia' },
+  { value: 'Fiji', label: '🇫🇯 Fiji' },
+  { value: 'Finland', label: '🇫🇮 Finland' },
+  { value: 'France', label: '🇫🇷 France' },
+  { value: 'Gabon', label: '🇬🇦 Gabon' },
+  { value: 'Gambia', label: '🇬🇲 Gambia' },
+  { value: 'Georgia', label: '🇬🇪 Georgia' },
+  { value: 'Germany', label: '🇩🇪 Germany' },
+  { value: 'Ghana', label: '🇬🇭 Ghana' },
+  { value: 'Greece', label: '🇬🇷 Greece' },
+  { value: 'Grenada', label: '🇬🇩 Grenada' },
+  { value: 'Guatemala', label: '🇬🇹 Guatemala' },
+  { value: 'Guinea', label: '🇬🇳 Guinea' },
+  { value: 'Guinea-Bissau', label: '🇬🇼 Guinea-Bissau' },
+  { value: 'Guyana', label: '🇬🇾 Guyana' },
+  { value: 'Haiti', label: '🇭🇹 Haiti' },
+  { value: 'Honduras', label: '🇭🇳 Honduras' },
+  { value: 'Hungary', label: '🇭🇺 Hungary' },
+  { value: 'Iceland', label: '🇮🇸 Iceland' },
+  { value: 'India', label: '🇮🇳 India' },
+  { value: 'Indonesia', label: '🇮🇩 Indonesia' },
+  { value: 'Iran', label: '🇮🇷 Iran' },
+  { value: 'Iraq', label: '🇮🇶 Iraq' },
+  { value: 'Ireland', label: '🇮🇪 Ireland' },
+  { value: 'Israel', label: '🇮🇱 Israel' },
+  { value: 'Italy', label: '🇮🇹 Italy' },
+  { value: 'Jamaica', label: '🇯🇲 Jamaica' },
+  { value: 'Japan', label: '🇯🇵 Japan' },
+  { value: 'Jordan', label: '🇯🇴 Jordan' },
+  { value: 'Kazakhstan', label: '🇰🇿 Kazakhstan' },
+  { value: 'Kenya', label: '🇰🇪 Kenya' },
+  { value: 'Kiribati', label: '🇰🇮 Kiribati' },
+  { value: 'Kosovo', label: '🇽🇰 Kosovo' },
+  { value: 'Kuwait', label: '🇰🇼 Kuwait' },
+  { value: 'Kyrgyzstan', label: '🇰🇬 Kyrgyzstan' },
+  { value: 'Laos', label: '🇱🇦 Laos' },
+  { value: 'Latvia', label: '🇱🇻 Latvia' },
+  { value: 'Lebanon', label: '🇱🇧 Lebanon' },
+  { value: 'Lesotho', label: '🇱🇸 Lesotho' },
+  { value: 'Liberia', label: '🇱🇷 Liberia' },
+  { value: 'Libya', label: '🇱🇾 Libya' },
+  { value: 'Liechtenstein', label: '🇱🇮 Liechtenstein' },
+  { value: 'Lithuania', label: '🇱🇹 Lithuania' },
+  { value: 'Luxembourg', label: '🇱🇺 Luxembourg' },
+  { value: 'Madagascar', label: '🇲🇬 Madagascar' },
+  { value: 'Malawi', label: '🇲🇼 Malawi' },
+  { value: 'Malaysia', label: '🇲🇾 Malaysia' },
+  { value: 'Maldives', label: '🇲🇻 Maldives' },
+  { value: 'Mali', label: '🇲🇱 Mali' },
+  { value: 'Malta', label: '🇲🇹 Malta' },
+  { value: 'Marshall Islands', label: '🇲🇭 Marshall Islands' },
+  { value: 'Mauritania', label: '🇲🇷 Mauritania' },
+  { value: 'Mauritius', label: '🇲🇺 Mauritius' },
+  { value: 'Mexico', label: '🇲🇽 Mexico' },
+  { value: 'Micronesia', label: '🇫🇲 Micronesia' },
+  { value: 'Moldova', label: '🇲🇩 Moldova' },
+  { value: 'Monaco', label: '🇲🇨 Monaco' },
+  { value: 'Mongolia', label: '🇲🇳 Mongolia' },
+  { value: 'Montenegro', label: '🇲🇪 Montenegro' },
+  { value: 'Morocco', label: '🇲🇦 Morocco' },
+  { value: 'Mozambique', label: '🇲🇿 Mozambique' },
+  { value: 'Myanmar', label: '🇲🇲 Myanmar' },
+  { value: 'Namibia', label: '🇳🇦 Namibia' },
+  { value: 'Nauru', label: '🇳🇷 Nauru' },
+  { value: 'Nepal', label: '🇳🇵 Nepal' },
+  { value: 'Netherlands', label: '🇳🇱 Netherlands' },
+  { value: 'New Zealand', label: '🇳🇿 New Zealand' },
+  { value: 'Nicaragua', label: '🇳🇮 Nicaragua' },
+  { value: 'Niger', label: '🇳🇪 Niger' },
+  { value: 'Nigeria', label: '🇳🇬 Nigeria' },
+  { value: 'North Korea', label: '🇰🇵 North Korea' },
+  { value: 'North Macedonia', label: '🇲🇰 North Macedonia' },
+  { value: 'Norway', label: '🇳🇴 Norway' },
+  { value: 'Oman', label: '🇴🇲 Oman' },
+  { value: 'Pakistan', label: '🇵🇰 Pakistan' },
+  { value: 'Palau', label: '🇵🇼 Palau' },
+  { value: 'Palestine', label: '🇵🇸 Palestine' },
+  { value: 'Panama', label: '🇵🇦 Panama' },
+  { value: 'Papua New Guinea', label: '🇵🇬 Papua New Guinea' },
+  { value: 'Paraguay', label: '🇵🇾 Paraguay' },
+  { value: 'Peru', label: '🇵🇪 Peru' },
+  { value: 'Philippines', label: '🇵🇭 Philippines' },
+  { value: 'Poland', label: '🇵🇱 Poland' },
+  { value: 'Portugal', label: '🇵🇹 Portugal' },
+  { value: 'Qatar', label: '🇶🇦 Qatar' },
+  { value: 'Romania', label: '🇷🇴 Romania' },
+  { value: 'Russia', label: '🇷🇺 Russia' },
+  { value: 'Rwanda', label: '🇷🇼 Rwanda' },
+  { value: 'Saint Kitts and Nevis', label: '🇰🇳 Saint Kitts and Nevis' },
+  { value: 'Saint Lucia', label: '🇱🇨 Saint Lucia' },
+  { value: 'Saint Vincent and the Grenadines', label: '🇻🇨 Saint Vincent and the Grenadines' },
+  { value: 'Samoa', label: '🇼🇸 Samoa' },
+  { value: 'San Marino', label: '🇸🇲 San Marino' },
+  { value: 'São Tomé and Príncipe', label: '🇸🇹 São Tomé and Príncipe' },
+  { value: 'Saudi Arabia', label: '🇸🇦 Saudi Arabia' },
+  { value: 'Senegal', label: '🇸🇳 Senegal' },
+  { value: 'Serbia', label: '🇷🇸 Serbia' },
+  { value: 'Seychelles', label: '🇸🇨 Seychelles' },
+  { value: 'Sierra Leone', label: '🇸🇱 Sierra Leone' },
+  { value: 'Singapore', label: '🇸🇬 Singapore' },
+  { value: 'Slovakia', label: '🇸🇰 Slovakia' },
+  { value: 'Slovenia', label: '🇸🇮 Slovenia' },
+  { value: 'Solomon Islands', label: '🇸🇧 Solomon Islands' },
+  { value: 'Somalia', label: '🇸🇴 Somalia' },
+  { value: 'South Africa', label: '🇿🇦 South Africa' },
+  { value: 'South Korea', label: '🇰🇷 South Korea' },
+  { value: 'South Sudan', label: '🇸🇸 South Sudan' },
+  { value: 'Spain', label: '🇪🇸 Spain' },
+  { value: 'Sri Lanka', label: '🇱🇰 Sri Lanka' },
+  { value: 'Sudan', label: '🇸🇩 Sudan' },
+  { value: 'Suriname', label: '🇸🇷 Suriname' },
+  { value: 'Sweden', label: '🇸🇪 Sweden' },
+  { value: 'Switzerland', label: '🇨🇭 Switzerland' },
+  { value: 'Syria', label: '🇸🇾 Syria' },
+  { value: 'Taiwan', label: '🇹🇼 Taiwan' },
+  { value: 'Tajikistan', label: '🇹🇯 Tajikistan' },
+  { value: 'Tanzania', label: '🇹🇿 Tanzania' },
+  { value: 'Thailand', label: '🇹🇭 Thailand' },
+  { value: 'Timor-Leste', label: '🇹🇱 Timor-Leste' },
+  { value: 'Togo', label: '🇹🇬 Togo' },
+  { value: 'Tonga', label: '🇹🇴 Tonga' },
+  { value: 'Trinidad and Tobago', label: '🇹🇹 Trinidad and Tobago' },
+  { value: 'Tunisia', label: '🇹🇳 Tunisia' },
+  { value: 'Turkey', label: '🇹🇷 Turkey' },
+  { value: 'Turkmenistan', label: '🇹🇲 Turkmenistan' },
+  { value: 'Tuvalu', label: '🇹🇻 Tuvalu' },
+  { value: 'Uganda', label: '🇺🇬 Uganda' },
+  { value: 'Ukraine', label: '🇺🇦 Ukraine' },
+  { value: 'United Arab Emirates', label: '🇦🇪 United Arab Emirates' },
+  { value: 'United Kingdom', label: '🇬🇧 United Kingdom' },
+  { value: 'United States', label: '🇺🇸 United States' },
+  { value: 'Uruguay', label: '🇺🇾 Uruguay' },
+  { value: 'Uzbekistan', label: '🇺🇿 Uzbekistan' },
+  { value: 'Vanuatu', label: '🇻🇺 Vanuatu' },
+  { value: 'Vatican City', label: '🇻🇦 Vatican City' },
+  { value: 'Venezuela', label: '🇻🇪 Venezuela' },
+  { value: 'Vietnam', label: '🇻🇳 Vietnam' },
+  { value: 'Yemen', label: '🇾🇪 Yemen' },
+  { value: 'Zambia', label: '🇿🇲 Zambia' },
+  { value: 'Zimbabwe', label: '🇿🇼 Zimbabwe' },
+]
 
 // Timezone options - comprehensive list for search
 const timezoneOptions = [
@@ -205,12 +384,16 @@ export default function GooglePage() {
   // User state from API
   const [user, setUser] = useState<any>(null)
   const [userAccounts, setUserAccounts] = useState<any[]>([])
+  const [userApplications, setUserApplications] = useState<any[]>([])
+  const [accessRequests, setAccessRequests] = useState<any[]>([])
   const [userRefunds, setUserRefunds] = useState<any[]>([])
   const [userDeposits, setUserDeposits] = useState<any[]>([])
+  const [balanceTransfers, setBalanceTransfers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [dashboardStats, setDashboardStats] = useState<any>(null)
   const [previousStats, setPreviousStats] = useState<any>(null)
   const [platformStatus, setPlatformStatus] = useState<PlatformStatus>('active')
+  const [reportTab, setReportTab] = useState<'transfer' | 'refund'>('transfer')
 
   // Generate dynamic chart path based on count - creates wave peaks for each pending item
   const generateChartPath = (count: number, trend: 'up' | 'down') => {
@@ -339,11 +522,6 @@ export default function GooglePage() {
   // Handle Google ad account application submission
   const handleSubmitApplication = async () => {
     // Validation
-    if (!privacyAccepted) {
-      setSubmitError('Please accept the privacy policy')
-      return
-    }
-
     // Validate form fields
     for (let i = 0; i < adAccounts.length; i++) {
       const acc = adAccounts[i]
@@ -366,18 +544,13 @@ export default function GooglePage() {
     }
 
     // Check balance
-    const totalDeposit = adAccounts.reduce((sum, acc) => sum + parseFloat(acc.deposit || '0'), 0)
-    const openingFee = 30
-    const totalCost = totalDeposit + openingFee
-
-    if (userBalance < totalCost) {
-      setSubmitError(`Insufficient balance. You need $${totalCost} but have $${userBalance.toFixed(2)}`)
+    if (userBalance < costs.totalCost) {
+      setSubmitError(`Insufficient balance. You need $${costs.totalCost.toFixed(2)} but have $${userBalance.toFixed(2)}`)
       return
     }
 
     setIsSubmitting(true)
     setSubmitError(null)
-    setSubmitSuccess(false)
 
     try {
       // Prepare account details - include all Google-specific fields in the name/remarks
@@ -392,7 +565,7 @@ export default function GooglePage() {
         licenseType: 'NEW' as const,
         licenseNo: businessType === 'clean' ? 'Clean Business' : 'Black Hat',
         accountDetails,
-        depositAmount: totalDeposit,
+        depositAmount: costs.totalDeposits,
         remarks: `Business Type: ${businessType === 'clean' ? 'Clean (White Hat)' : 'Black Hat'}\n` +
           adAccounts.map((acc, i) =>
             `Account ${i + 1}: ${businessType === 'clean' ? `Domain: ${acc.domain}, ` : ''}Gmail: ${acc.gmail}, Timezone: ${acc.timezone}${businessType === 'clean' ? `, Target Market: ${acc.targetMarket}` : ''}, Deposit: $${acc.deposit}`
@@ -401,7 +574,7 @@ export default function GooglePage() {
 
       await applicationsApi.create(applicationData)
 
-      setSubmitSuccess(true)
+      showToast('success', 'Application Submitted', 'Your request is now pending review.')
       // Refresh stats immediately to update pending count
       refreshStats()
 
@@ -409,15 +582,15 @@ export default function GooglePage() {
       setBusinessType('clean')
       setAdAccountCount('1')
       setAdAccounts([{ domain: '', timezone: '', gmail: '', targetMarket: '', deposit: '50' }])
-      setPrivacyAccepted(false)
-
       // Refresh user data
-      const [userRes, accountsRes] = await Promise.all([
+      const [userRes, accountsRes, applicationsRes] = await Promise.all([
         authApi.me(),
-        accountsApi.getAll('GOOGLE')
+        accountsApi.getAll('GOOGLE'),
+        applicationsApi.getAll('GOOGLE').catch(() => ({ applications: [] }))
       ])
       setUser(userRes.user)
       setUserAccounts(accountsRes.accounts || [])
+      setUserApplications(applicationsRes.applications || [])
 
     } catch (error: any) {
       console.error('Submit error:', error)
@@ -433,18 +606,24 @@ export default function GooglePage() {
       try {
         setLoading(true)
         // Fetch each endpoint separately to handle individual failures gracefully
-        const [userRes, accountsRes, refundsRes, depositsRes, statsRes, platformRes] = await Promise.all([
+        const [userRes, accountsRes, applicationsRes, accessRes, refundsRes, depositsRes, transfersRes, statsRes, platformRes] = await Promise.all([
           authApi.me().catch(() => ({ user: null })),
           accountsApi.getAll('GOOGLE').catch(() => ({ accounts: [] })),
-          transactionsApi.refunds.getAll('GOOGLE').catch(() => ({ refunds: [] })),
+          applicationsApi.getAll('GOOGLE').catch(() => ({ applications: [] })),
+          bmShareApi.getAll('GOOGLE').catch(() => ({ bmShareRequests: [] })),
+          accountRefundsApi.getAll('GOOGLE').catch(() => ({ refunds: [] })),
           accountDepositsApi.getAll('GOOGLE').catch(() => ({ deposits: [] })),
+          balanceTransfersApi.getAll('GOOGLE').catch(() => ({ transfers: [] })),
           dashboardApi.getStats().catch(() => ({})),
           settingsApi.platforms.get().catch(() => ({ platforms: { facebook: 'active', google: 'active', tiktok: 'active', snapchat: 'active', bing: 'active' } }))
         ])
         setUser(userRes.user)
         setUserAccounts(accountsRes.accounts || [])
+        setUserApplications(applicationsRes.applications || [])
+        setAccessRequests(accessRes.bmShareRequests || [])
         setUserRefunds(refundsRes.refunds || [])
         setUserDeposits(depositsRes.deposits || [])
+        setBalanceTransfers(transfersRes.transfers || [])
         setDashboardStats(statsRes)
         setPlatformStatus((platformRes.platforms?.google || 'active') as PlatformStatus)
       } catch (error) {
@@ -575,8 +754,41 @@ export default function GooglePage() {
   const platformStopped = platformStatus === 'stop'
   const hasExistingAccounts = userAccounts.length > 0
 
+  // Pagination - get data for current tab
+  const ITEMS_PER_PAGE = 7
+  const getCurrentData = () => {
+    let data: any[] = []
+    if (activeSubPage === 'account-list') {
+      data = userAccounts
+    } else if (activeSubPage === 'account-applied-records') {
+      data = userApplications
+    } else if (activeSubPage === 'bm-share-log') {
+      data = accessRequests
+    } else if (activeSubPage === 'deposit-report') {
+      data = userDeposits
+    } else if (activeSubPage === 'refund-report') {
+      data = userRefunds
+    }
+    return data
+  }
+  const currentData = getCurrentData()
+  const totalPages = Math.ceil(currentData.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedData = currentData.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
+  const generatePageNumbers = () => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    if (currentPage <= 3) return [1, 2, 3, 4, '...', totalPages]
+    if (currentPage >= totalPages - 2) return [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+    return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages]
+  }
+  const pageNumbers = generatePageNumbers()
+
   // Modal states
   const [showBmShareModal, setShowBmShareModal] = useState(false)
+  const [showAccessModal, setShowAccessModal] = useState(false)
+  const [accessGmail, setAccessGmail] = useState('')
+  const [accessAccountId, setAccessAccountId] = useState<string | null>(null)
 
   // Form states
   const [businessType, setBusinessType] = useState<'clean' | 'blackhat'>('clean')
@@ -607,8 +819,239 @@ export default function GooglePage() {
   // Submission states
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submitSuccess, setSubmitSuccess] = useState(false)
-  const [privacyAccepted, setPrivacyAccepted] = useState(false)
+
+  // Deposit form states
+  const [depositRows, setDepositRows] = useState<DepositRow[]>([{ id: 1, accountId: '', amount: '' }])
+
+  // Generate ad account options for searchable dropdown (only APPROVED accounts)
+  const adAccountOptions = useMemo(() => {
+    return userAccounts
+      .filter(acc => acc.status === 'APPROVED')
+      .map(acc => ({
+        value: acc.id,
+        label: `${acc.accountName || 'Unknown'} (${acc.accountId || acc.id})`
+      }))
+  }, [userAccounts])
+
+  // Calculate deposit totals using user's actual commission rate
+  const depositTotals = useMemo(() => {
+    const totalCharge = depositRows.reduce((sum, row) => {
+      const amount = parseInt(row.amount) || 0
+      return sum + amount
+    }, 0)
+    const markupPercent = googleCommissionRate
+    const markupAmount = totalCharge * (markupPercent / 100)
+    const totalCost = totalCharge + markupAmount
+    return { totalCharge, markupPercent, markupAmount, totalCost }
+  }, [depositRows, googleCommissionRate])
+
+  // Add new deposit row
+  const addDepositRow = () => {
+    const newId = Math.max(...depositRows.map(r => r.id)) + 1
+    setDepositRows([...depositRows, { id: newId, accountId: '', amount: '' }])
+  }
+
+  // Remove deposit row
+  const removeDepositRow = (id: number) => {
+    if (depositRows.length > 1) {
+      setDepositRows(depositRows.filter(r => r.id !== id))
+    }
+  }
+
+  // Update deposit row
+  const updateDepositRow = (id: number, field: 'accountId' | 'amount', value: string) => {
+    setDepositRows(depositRows.map(row =>
+      row.id === id ? { ...row, [field]: value } : row
+    ))
+  }
+
+  // Check if deposit form is valid
+  const isDepositFormValid = depositRows.every(row =>
+    row.accountId &&
+    row.amount &&
+    parseFloat(row.amount) >= ADMIN_SETTINGS.minimumDeposit &&
+    parseFloat(row.amount) % 50 === 0
+  ) && depositTotals.totalCost <= userBalance
+
+  // Handle Deposit Submit
+  const handleDepositSubmit = async () => {
+    if (!isDepositFormValid) return
+
+    setIsSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      // Submit each deposit row
+      for (const row of depositRows) {
+        await accountDepositsApi.create(row.accountId, {
+          amount: parseFloat(row.amount),
+          remarks: `Deposit of $${row.amount}`
+        })
+      }
+
+      // Reset form
+      setDepositRows([{ id: 1, accountId: '', amount: '' }])
+
+      // Refresh user data to update balance and deposits list
+      const [userRes, depositsRes] = await Promise.all([
+        authApi.me(),
+        accountDepositsApi.getAll('GOOGLE')
+      ])
+      setUser(userRes.user)
+      setUserDeposits(depositsRes.deposits || [])
+      // Refresh stats immediately to update pending deposits count
+      refreshStats()
+
+      showToast('success', 'Deposit Submitted', 'Your deposit request is now pending review.')
+      setActiveSubPage('deposit-report')
+
+    } catch (error: any) {
+      console.error('Failed to submit deposit:', error)
+      setSubmitError(error.message || 'Failed to submit deposit. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Transfer balance form state
+  const [transferRows, setTransferRows] = useState<{ id: number; fromAccount: string; toAccount: string; amount: string }[]>([
+    { id: 1, fromAccount: '', toAccount: '', amount: '' }
+  ])
+
+  // Refund form state
+  const [refundRows, setRefundRows] = useState<{ id: number; accountId: string; amount: string }[]>([
+    { id: 1, accountId: '', amount: '' }
+  ])
+
+  // Transfer row functions
+  const addTransferRow = () => {
+    const newId = Math.max(...transferRows.map(r => r.id), 0) + 1
+    setTransferRows([...transferRows, { id: newId, fromAccount: '', toAccount: '', amount: '' }])
+  }
+
+  const removeTransferRow = (id: number) => {
+    if (transferRows.length > 1) {
+      setTransferRows(transferRows.filter(r => r.id !== id))
+    }
+  }
+
+  const updateTransferRow = (id: number, field: 'fromAccount' | 'toAccount' | 'amount', value: string) => {
+    setTransferRows(transferRows.map(row =>
+      row.id === id ? { ...row, [field]: value } : row
+    ))
+  }
+
+  // Calculate transfer totals
+  const transferTotals = useMemo(() => {
+    const totalAmount = transferRows.reduce((sum, row) => {
+      return sum + (row.amount ? parseFloat(row.amount) : 0)
+    }, 0)
+    return { totalAmount, totalCost: totalAmount }
+  }, [transferRows])
+
+  // Check if transfer form is valid
+  const isTransferFormValid = transferRows.every(row =>
+    row.fromAccount &&
+    row.toAccount &&
+    row.fromAccount !== row.toAccount &&
+    row.amount &&
+    parseFloat(row.amount) >= ADMIN_SETTINGS.minimumDeposit &&
+    parseFloat(row.amount) % 50 === 0
+  )
+
+  // Handle transfer balance submit
+  const handleTransferSubmit = async () => {
+    if (!isTransferFormValid || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      for (const row of transferRows) {
+        if (row.fromAccount && row.toAccount && row.amount) {
+          await balanceTransfersApi.create({
+            fromAccountId: row.fromAccount,
+            toAccountId: row.toAccount,
+            amount: parseFloat(row.amount)
+          })
+        }
+      }
+      setTransferRows([{ id: 1, fromAccount: '', toAccount: '', amount: '' }])
+      showToast('success', 'Transfer Submitted', 'Your transfer request is now pending review.')
+      refreshStats()
+    } catch (error: any) {
+      showToast('error', 'Error', error.message || 'Failed to submit transfer request')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Refund row functions
+  const addRefundRow = () => {
+    const newId = Math.max(...refundRows.map(r => r.id), 0) + 1
+    setRefundRows([...refundRows, { id: newId, accountId: '', amount: '' }])
+  }
+
+  const removeRefundRow = (id: number) => {
+    if (refundRows.length > 1) {
+      setRefundRows(refundRows.filter(r => r.id !== id))
+    }
+  }
+
+  const updateRefundRow = (id: number, field: 'accountId' | 'amount', value: string) => {
+    setRefundRows(refundRows.map(row =>
+      row.id === id ? { ...row, [field]: value } : row
+    ))
+  }
+
+  // Check if refund form is valid
+  const isRefundFormValid = refundRows.every(row =>
+    row.accountId &&
+    row.amount &&
+    parseFloat(row.amount) >= 1
+  )
+
+  // Handle refund submit
+  const handleRefundSubmit = async () => {
+    if (!isRefundFormValid || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      for (const row of refundRows) {
+        if (row.accountId && row.amount) {
+          await accountRefundsApi.create(row.accountId, {
+            amount: parseFloat(row.amount),
+            reason: 'Refund request'
+          })
+        }
+      }
+      setRefundRows([{ id: 1, accountId: '', amount: '' }])
+      showToast('success', 'Refund Submitted', 'Your refund request is now pending review.')
+      const refundsRes = await accountRefundsApi.getAll('GOOGLE').catch(() => ({ refunds: [] }))
+      setUserRefunds(refundsRes.refunds || [])
+      refreshStats()
+    } catch (error: any) {
+      showToast('error', 'Error', error.message || 'Failed to submit refund request')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Calculate costs using user's actual commission rate and opening fee
+  const costs = useMemo(() => {
+    const totalDeposits = adAccounts.reduce((sum, acc) => sum + parseFloat(acc.deposit || '0'), 0)
+    const depositMarkupAmount = totalDeposits * googleCommissionRate / 100
+    const depositWithMarkup = totalDeposits + depositMarkupAmount
+    const adAccountQty = adAccounts.length
+    const openingFeePerAccount = user?.googleFee ? parseFloat(user.googleFee) : 30
+    const openingFee = openingFeePerAccount * adAccountQty
+    const totalCost = openingFee + depositWithMarkup
+
+    return {
+      totalDeposits,
+      depositMarkupAmount,
+      depositWithMarkup,
+      totalCost,
+      openingFee,
+      commissionRate: googleCommissionRate
+    }
+  }, [adAccounts, googleCommissionRate, user])
 
   const toggleSection = (section: MenuSection) => {
     setExpandedSections(prev =>
@@ -647,7 +1090,7 @@ export default function GooglePage() {
         { id: 'apply-ads-account' as SubPage, label: 'Apply Ads Account' },
         { id: 'account-list' as SubPage, label: 'Account List' },
         { id: 'account-applied-records' as SubPage, label: 'Account Applied Records' },
-        { id: 'bm-share-log' as SubPage, label: 'MCC Share Log' },
+        { id: 'bm-share-log' as SubPage, label: 'Access Share Log' },
       ]
     },
     {
@@ -656,7 +1099,7 @@ export default function GooglePage() {
       icon: <DepositManageIcon />,
       items: [
         { id: 'deposit' as SubPage, label: 'Deposit' },
-        { id: 'deposit-report' as SubPage, label: 'Deposit Report' },
+        { id: 'deposit-report' as SubPage, label: 'Deposit Records' },
       ]
     },
     {
@@ -1097,16 +1540,16 @@ export default function GooglePage() {
                           {businessType === 'clean' && (
                             <div className="space-y-1">
                               <label className="block text-sm font-medium text-gray-700">{index + 1}.target market</label>
-                              <input
-                                type="text"
-                                placeholder="Please enter target market"
+                              <SearchableSelect
+                                options={countryOptions}
                                 value={account.targetMarket}
-                                onChange={(e) => {
+                                onChange={(value) => {
                                   const updated = [...adAccounts]
-                                  updated[index].targetMarket = e.target.value
+                                  updated[index].targetMarket = value
                                   setAdAccounts(updated)
                                 }}
-                                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4]/20 focus:border-[#4285F4] transition-all"
+                                placeholder="Select Country"
+                                searchPlaceholder="Type to search (e.g., United States)"
                               />
                             </div>
                           )}
@@ -1136,67 +1579,59 @@ export default function GooglePage() {
                     ))}
                   </div>
 
-                  {/* Privacy Policy */}
-                  <div className="flex items-center gap-2.5">
-                    <input
-                      type="checkbox"
-                      id="privacyPolicy"
-                      checked={privacyAccepted}
-                      onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-300 text-[#4285F4] focus:ring-[#4285F4]"
-                    />
-                    <label htmlFor="privacyPolicy" className="text-sm text-gray-600">
-                      You agree to our friendly <span className="text-[#4285F4] underline cursor-pointer hover:text-[#3367D6]">privacy policy</span>.
-                    </label>
+                  {/* Cost Summary - Compact (matches Facebook style) */}
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    {/* Cost Items - Inline */}
+                    <div className="px-3 py-2 bg-gray-50 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] lg:text-xs">
+                      <span className="text-gray-500">Fee: <span className="font-medium text-gray-700">${costs.openingFee.toFixed(2)}</span></span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-500">Deposit: <span className="font-medium text-gray-700">${costs.totalDeposits}</span></span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-500">{costs.commissionRate}%: <span className="font-medium text-[#F59E0B]">+${costs.depositMarkupAmount.toFixed(2)}</span></span>
+                    </div>
+                    {/* Total Row */}
+                    <div className="px-3 py-2 bg-white flex items-center justify-between border-t border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] lg:text-xs text-gray-500">Total:</span>
+                          <span className="text-sm lg:text-base font-bold text-[#52B788]">${costs.totalCost.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] lg:text-xs text-gray-500">Bal:</span>
+                          <span className="text-sm lg:text-base font-bold text-[#3B82F6]">${userBalance.toLocaleString()}</span>
+                        </div>
+                      </div>
+                      {userBalance < costs.totalCost && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-[#EF4444]/10 text-[#EF4444]">
+                          Insufficient
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Error/Success Messages */}
                   {submitError && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
-                      {submitError}
-                    </div>
-                  )}
-                  {submitSuccess && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-600">
-                      Application submitted successfully! Your request is now pending review.
-                    </div>
-                  )}
-
-                  {/* Summary Cards */}
-                  <div className="flex gap-3">
-                    <div className="flex-1 p-4 bg-gradient-to-br from-white to-[#4285F4]/5 border border-[#4285F4]/20 rounded-xl text-center">
-                      <p className="text-xs text-gray-500">Total Deposit</p>
-                      <p className="text-lg font-bold text-[#4285F4]">
-                        ${adAccounts.reduce((sum, acc) => sum + parseFloat(acc.deposit || '0'), 0).toLocaleString()}
+                    <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-[10px] lg:text-xs text-red-700 font-medium text-center">
+                        {submitError}
                       </p>
                     </div>
-                    <div className="flex-1 p-4 bg-gradient-to-br from-white to-[#52B788]/5 border border-[#52B788]/20 rounded-xl text-center">
-                      <p className="text-xs text-gray-500">Opening Fee</p>
-                      <p className="text-lg font-bold text-[#52B788]">$30</p>
-                    </div>
-                    <div className="flex-1 p-4 bg-gradient-to-br from-white to-[#3B82F6]/5 border border-[#3B82F6]/20 rounded-xl text-center">
-                      <p className="text-xs text-gray-500">Total Cost</p>
-                      <p className="text-lg font-bold text-[#3B82F6]">
-                        ${(adAccounts.reduce((sum, acc) => sum + parseFloat(acc.deposit || '0'), 0) + 30).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-
+                  )}
                   {/* Submit Button */}
                   <Button
+                    className={`w-full bg-gradient-to-r ${brandGradient} hover:from-[#3367D6] hover:to-[#2851A3] text-white rounded-lg py-2.5 text-xs lg:text-sm font-semibold shadow-md shadow-blue-500/20 transition-all hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    disabled={userBalance < costs.totalCost || isSubmitting}
                     onClick={handleSubmitApplication}
-                    disabled={isSubmitting || userBalance < (adAccounts.reduce((sum, acc) => sum + parseFloat(acc.deposit || '0'), 0) + 30)}
-                    className={`w-full bg-gradient-to-r ${brandGradient} hover:from-[#3367D6] hover:to-[#2851A3] text-white rounded-xl py-3.5 text-base font-semibold shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {isSubmitting ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Loader2 className="w-4 h-4 animate-spin" />
                         Submitting...
                       </span>
-                    ) : userBalance < (adAccounts.reduce((sum, acc) => sum + parseFloat(acc.deposit || '0'), 0) + 30) ? (
+                    ) : userBalance < costs.totalCost ? (
                       'Insufficient Balance'
                     ) : (
-                      `Pay $${(adAccounts.reduce((sum, acc) => sum + parseFloat(acc.deposit || '0'), 0) + 30).toLocaleString()} and Submit`
+                      `Pay $${costs.totalCost.toFixed(2)} & Submit`
                     )}
                   </Button>
                 </div>
@@ -1273,11 +1708,17 @@ export default function GooglePage() {
                           <div className="flex items-center gap-2 justify-end">
                             <button
                               className="px-4 py-2 bg-[#4285F4]/10 text-[#4285F4] rounded-lg text-sm font-medium hover:bg-[#4285F4] hover:text-white transition-all duration-200"
+                              onClick={() => {
+                                setAccessAccountId(item.id)
+                                setAccessGmail('')
+                                setShowAccessModal(true)
+                              }}
                             >
-                              MCC Share
+                              Access
                             </button>
                             <button
                               className="px-4 py-2 bg-[#52B788]/10 text-[#52B788] rounded-lg text-sm font-medium hover:bg-[#52B788] hover:text-white transition-all duration-200"
+                              onClick={() => setActiveSubPage('deposit')}
                             >
                               Deposit
                             </button>
@@ -1291,125 +1732,818 @@ export default function GooglePage() {
 
               {/* Account Applied Records Table */}
               {activeSubPage === 'account-applied-records' && (
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-[#4285F4]/5 to-gray-50">
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">License</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-[#4285F4] uppercase tracking-wider">Request Start Time</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Cost</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Account Details</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {appliedRecordsData.map((item) => (
-                      <tr key={item.id} className="table-row-animate hover:bg-[#4285F4]/5 transition-all duration-300" style={{ opacity: 0 }}>
-                        <td className="py-4 px-5 text-sm text-gray-700 font-mono">{item.applyId}</td>
-                        <td className="py-4 px-5 text-sm text-gray-700">{item.license}</td>
-                        <td className="py-4 px-5">
-                          <span className="text-sm">
-                            <span className="text-gray-700">14/05/2024/</span>
-                            <span className="text-[#4285F4] font-medium">06:04:24</span>
-                          </span>
-                        </td>
-                        <td className="py-4 px-5 text-sm text-gray-700 font-medium">{item.totalCost}</td>
-                        <td className="py-4 px-5">
-                          <button className="text-sm text-[#4285F4] hover:underline font-medium">View Details</button>
-                        </td>
-                        <td className="py-4 px-5">{getStatusBadge(item.status)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <>
+                  {loading ? (
+                    <div className="p-10 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-[#4285F4] mx-auto mb-4" />
+                      <p className="text-sm text-gray-500">Loading applications...</p>
+                    </div>
+                  ) : paginatedData.length === 0 ? (
+                    <div className="p-10 text-center">
+                      <p className="text-lg font-semibold text-gray-700">No Applications Yet</p>
+                      <p className="text-sm text-gray-500 mt-2">Submit your first ad account application to get started</p>
+                      <Button
+                        onClick={() => setActiveSubPage('apply-ads-account')}
+                        className={`mt-4 bg-gradient-to-r ${brandGradient} text-white`}
+                      >
+                        Apply for Ad Account
+                      </Button>
+                    </div>
+                  ) : (
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-gradient-to-r from-[#4285F4]/5 to-gray-50">
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">License</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-[#4285F4] uppercase tracking-wider">Time</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Cost</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Accounts</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {paginatedData.map((item: any) => {
+                          const createdDate = new Date(item.createdAt)
+                          const dateStr = createdDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/')
+                          const timeStr = createdDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                          return (
+                            <tr key={item.id} className="table-row-animate hover:bg-[#4285F4]/5 transition-all duration-300" style={{ opacity: 0 }}>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs text-gray-700 font-mono">{item.applyId}</td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4 hidden sm:table-cell">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`px-1.5 py-0.5 rounded text-[9px] lg:text-[10px] font-semibold ${
+                                    item.licenseType === 'NEW' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                                  }`}>
+                                    {item.licenseType}
+                                  </span>
+                                  <span className="text-[10px] lg:text-xs text-gray-700 truncate max-w-[80px]">{item.licenseNo || '-'}</span>
+                                </div>
+                              </td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4">
+                                <span className="text-[10px] lg:text-xs">
+                                  <span className="text-gray-700 hidden lg:inline">{dateStr}/</span>
+                                  <span className="text-[#4285F4] font-medium">{timeStr}</span>
+                                </span>
+                              </td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs text-gray-700 font-medium">${parseFloat(item.totalCost).toFixed(2)}</td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4 hidden md:table-cell">
+                                <span className="px-1.5 py-0.5 bg-[#4285F4]/10 text-[#4285F4] rounded text-[9px] lg:text-xs font-semibold">
+                                  {item.adAccountQty}
+                                </span>
+                              </td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4">{getStatusBadge(item.status)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </>
               )}
 
-              {/* MCC Share Log Table */}
+              {/* Access Share Log Table */}
               {activeSubPage === 'bm-share-log' && (
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-[#4285F4]/5 to-gray-50">
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ads Account Name</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-[#4285F4] uppercase tracking-wider">Ads Account ID</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Request Time</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {bmShareLogData.map((item) => (
-                      <tr key={item.id} className="table-row-animate hover:bg-[#4285F4]/5 transition-all duration-300" style={{ opacity: 0 }}>
-                        <td className="py-4 px-5 text-sm text-gray-700 font-mono">{item.applyId}</td>
-                        <td className="py-4 px-5 text-sm text-gray-700">{item.adsAccountName}</td>
-                        <td className="py-4 px-5">
-                          <span className="text-sm text-[#4285F4] font-medium font-mono">{item.adsAccountId}</span>
-                        </td>
-                        <td className="py-4 px-5">
-                          <span className="text-sm">
-                            <span className="text-gray-700">14/05/2024/</span>
-                            <span className="text-[#4285F4] font-medium">06:04:24</span>
-                          </span>
-                        </td>
-                        <td className="py-4 px-5">{getStatusBadge(item.status)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <>
+                  {loading ? (
+                    <div className="p-10 text-center">
+                      <Loader2 className="w-8 h-8 animate-spin text-[#4285F4] mx-auto mb-4" />
+                      <p className="text-sm text-gray-500">Loading access requests...</p>
+                    </div>
+                  ) : paginatedData.length === 0 ? (
+                    <div className="p-10 text-center">
+                      <p className="text-lg font-semibold text-gray-700">No Access Requests Yet</p>
+                      <p className="text-sm text-gray-500 mt-2">Use the Access button on your accounts to request Gmail access</p>
+                    </div>
+                  ) : (
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-gradient-to-r from-[#4285F4]/5 to-gray-50">
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Request ID</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Account</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-[#4285F4] uppercase tracking-wider">Gmail ID</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Request Time</th>
+                          <th className="text-left py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {paginatedData.map((item: any) => {
+                          const createdDate = new Date(item.createdAt)
+                          const dateStr = createdDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/')
+                          const timeStr = createdDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                          return (
+                            <tr key={item.id} className="table-row-animate hover:bg-[#4285F4]/5 transition-all duration-300" style={{ opacity: 0 }}>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs text-gray-700 font-mono">{item.applyId}</td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4 text-[10px] lg:text-xs text-gray-700">{item.adAccountName}</td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4">
+                                <span className="text-[10px] lg:text-xs text-[#4285F4] font-medium">{item.bmId}</span>
+                              </td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4">
+                                <span className="text-[10px] lg:text-xs">
+                                  <span className="text-gray-700 hidden lg:inline">{dateStr}/</span>
+                                  <span className="text-[#4285F4] font-medium">{timeStr}</span>
+                                </span>
+                              </td>
+                              <td className="py-2.5 lg:py-3 px-3 lg:px-4">{getStatusBadge(item.status)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </>
               )}
 
-              {/* Deposit Report Table */}
-              {(activeSubPage === 'deposit' || activeSubPage === 'deposit-report') && (
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-[#4285F4]/5 to-gray-50">
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Apply ID</th>
-                      <th className="text-left py-4 px-5 text-xs font-semibold text-[#4285F4] uppercase tracking-wider">Transaction ID</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {depositReportData.map((item) => (
-                      <tr key={item.id} className="table-row-animate hover:bg-[#4285F4]/5 transition-all duration-300" style={{ opacity: 0 }}>
-                        <td className="py-4 px-5">
-                          <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#4285F4]/10 to-[#4285F4]/5 flex items-center justify-center text-sm font-semibold text-[#4285F4]">
-                            {item.id}
-                          </span>
-                        </td>
-                        <td className="py-4 px-5 text-sm text-gray-700 font-mono">{item.applyId}</td>
-                        <td className="py-4 px-5">
-                          <span className="text-sm text-[#4285F4] font-medium font-mono">{item.transactionId}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-
-              {/* Transfer Balance / Refund / Refund Report - Placeholder */}
-              {(activeSubPage === 'transfer-balance' || activeSubPage === 'refund' || activeSubPage === 'refund-report') && (
-                <div className="p-16 text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-[#4285F4]/10 to-[#52B788]/10 flex items-center justify-center text-[#4285F4]">
-                    <ComingSoonIcon />
+              {/* Deposit Form */}
+              {activeSubPage === 'deposit' && (
+                <div className="p-4 space-y-4">
+                  {/* Section Header */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Deposit to Ad Account</h3>
+                      <p className="text-sm text-gray-500 mt-1">Add funds to your Google advertising accounts</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#4285F4]/10 to-[#4285F4]/5 rounded-xl border border-[#4285F4]/20">
+                        <Wallet className="w-4 h-4 text-[#4285F4]" />
+                        <span className="text-sm text-gray-600">Wallet Balance:</span>
+                        <span className="text-sm font-bold text-[#4285F4]">${userBalance.toLocaleString()}</span>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-lg font-semibold text-gray-700">Coming Soon</p>
-                  <p className="text-sm text-gray-500 mt-2">This section is under development</p>
+
+                  {/* Deposit Rows */}
+                  <div className="space-y-3">
+                    {depositRows.map((row, index) => (
+                      <div
+                        key={row.id}
+                        className="table-row-animate p-3.5 bg-white border border-gray-100 rounded-xl hover:border-[#4285F4]/30 hover:shadow-lg hover:shadow-[#4285F4]/5 transition-all duration-300 overflow-visible"
+                        style={{ opacity: 0, animationDelay: `${index * 0.05}s`, position: 'relative', zIndex: depositRows.length - index }}
+                      >
+                        <div className="flex items-center gap-4">
+                          {/* Row Number */}
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#4285F4]/10 to-[#4285F4]/5 flex items-center justify-center flex-shrink-0">
+                            <span className="text-sm font-bold text-[#4285F4]">{index + 1}</span>
+                          </div>
+
+                          {/* Ad Account Select */}
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-500 mb-1.5">Choose Ad Account</label>
+                            <SearchableSelect
+                              options={adAccountOptions.filter(opt =>
+                                !depositRows.some(r => r.id !== row.id && r.accountId === opt.value)
+                              )}
+                              value={row.accountId}
+                              onChange={(value) => updateDepositRow(row.id, 'accountId', value)}
+                              placeholder="Search ad account name or ID..."
+                              searchPlaceholder="Type to search..."
+                            />
+                          </div>
+
+                          {/* Amount Input */}
+                          <div className="w-48">
+                            <label className="block text-xs text-gray-500 mb-1.5">Deposit Amount</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                              <input
+                                type="number"
+                                min={ADMIN_SETTINGS.minimumDeposit}
+                                step="50"
+                                value={row.amount}
+                                onChange={(e) => updateDepositRow(row.id, 'amount', e.target.value)}
+                                placeholder={`Min $${ADMIN_SETTINGS.minimumDeposit} (50s)`}
+                                className="w-full pl-7 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4]/20 focus:border-[#4285F4] transition-all"
+                              />
+                            </div>
+                            {row.amount && parseFloat(row.amount) < ADMIN_SETTINGS.minimumDeposit && (
+                              <p className="text-xs text-red-500 mt-1">Minimum deposit is ${ADMIN_SETTINGS.minimumDeposit}</p>
+                            )}
+                            {row.amount && parseFloat(row.amount) % 50 !== 0 && (
+                              <p className="text-xs text-red-500 mt-1">Amount must be in $50 increments</p>
+                            )}
+                          </div>
+
+                          {/* Remove Button */}
+                          <div className="flex-shrink-0 pt-5">
+                            {depositRows.length > 1 && (
+                              <button
+                                onClick={() => removeDepositRow(row.id)}
+                                className="p-2 text-red-400 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
+                              >
+                                <Minus className="w-5 h-5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add Row Button */}
+                  <button
+                    onClick={addDepositRow}
+                    className="w-full p-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:border-[#4285F4]/50 hover:text-[#4285F4] hover:bg-[#4285F4]/5 transition-all duration-200 flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span className="font-medium">Add Another Ad Account</span>
+                  </button>
+
+                  {/* Cost Breakdown */}
+                  <div className="p-3.5 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100 space-y-2">
+                    <h4 className="text-sm font-semibold text-gray-700">Cost Breakdown</h4>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Total Deposit Amount</span>
+                        <span className="text-gray-700 font-medium">${depositTotals.totalCharge.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Service Fee ({depositTotals.markupPercent}%)</span>
+                        <span className="text-[#4285F4] font-medium">+${depositTotals.markupAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="border-t border-gray-200 pt-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm font-semibold text-gray-700">Total Cost</span>
+                          <span className="text-lg font-bold text-[#34A853]">${depositTotals.totalCost.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Balance Info */}
+                    <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-[#4285F4]/5 to-[#4285F4]/10 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Wallet className="w-4 h-4 text-[#4285F4]" />
+                        <span className="text-sm text-gray-600">Your Wallet Balance</span>
+                      </div>
+                      <span className="text-sm font-bold text-[#4285F4]">${userBalance.toLocaleString()}</span>
+                    </div>
+
+                    {depositTotals.totalCost > userBalance && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm text-red-600 font-medium">Insufficient balance. Please add funds to your wallet.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Submit Button */}
+                  <Button
+                    className={`w-full bg-gradient-to-r ${brandGradient} hover:from-[#3367D6] hover:to-[#2851A3] text-white rounded-xl py-3.5 text-base font-semibold shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    disabled={!isDepositFormValid || isSubmitting}
+                    onClick={handleDepositSubmit}
+                  >
+                    {isSubmitting ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing...
+                      </span>
+                    ) : depositTotals.totalCost > userBalance ? (
+                      'Insufficient Balance'
+                    ) : depositRows.some(r => !r.accountId || !r.amount) ? (
+                      'Select Ad Account & Amount'
+                    ) : (
+                      `Submit Deposit Request ($${depositTotals.totalCost.toFixed(2)})`
+                    )}
+                  </Button>
+
+                  {/* Error Message */}
+                  {submitError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-600 font-medium text-center">{submitError}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Deposit Records Table */}
+              {activeSubPage === 'deposit-report' && (
+                <div className="p-4">
+                  {/* Section Header */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Deposit Records</h3>
+                      <p className="text-sm text-gray-500 mt-0.5">View all your ad account deposit requests and their status</p>
+                    </div>
+                  </div>
+
+                  {paginatedData.length === 0 ? (
+                    <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#34A853]/10 flex items-center justify-center">
+                        <Wallet className="w-8 h-8 text-[#34A853]" />
+                      </div>
+                      <h4 className="text-lg font-semibold text-gray-800 mb-2">No Deposit Records</h4>
+                      <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">
+                        You haven't made any deposits to your ad accounts yet.
+                      </p>
+                      <button
+                        onClick={() => setActiveSubPage('deposit')}
+                        className="px-4 py-2 bg-[#34A853] text-white rounded-lg text-sm font-medium hover:bg-[#2d8f47] transition-colors"
+                      >
+                        Make a Deposit
+                      </button>
+                    </div>
+                  ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-[#4285F4]/5 to-gray-50">
+                        <th className="text-left py-2.5 px-3 text-xs font-semibold text-[#4285F4] uppercase tracking-wider">Apply ID</th>
+                        <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ads Account</th>
+                        <th className="text-left py-2.5 px-3 text-xs font-semibold text-[#34A853] uppercase tracking-wider">Deposit</th>
+                        <th className="text-left py-2.5 px-3 text-xs font-semibold text-[#FBBC04] uppercase tracking-wider">Fee</th>
+                        <th className="text-left py-2.5 px-3 text-xs font-semibold text-[#4285F4] uppercase tracking-wider">Total</th>
+                        <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Request Time</th>
+                        <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {paginatedData.map((item: any, index: number) => {
+                        const depositAmount = parseFloat(item.amount) || 0
+                        const commissionRate = item.commissionRate || 0
+                        const commissionAmount = item.commissionAmount || 0
+                        const totalDeducted = depositAmount + commissionAmount
+                        return (
+                        <tr key={item.id} className="table-row-animate hover:bg-[#4285F4]/5 transition-all duration-300" style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}>
+                          <td className="py-2.5 px-3">
+                            <code className="text-xs font-mono text-[#4285F4] bg-[#4285F4]/10 px-2 py-0.5 rounded font-semibold">
+                              {item.applyId || '-'}
+                            </code>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="space-y-0.5">
+                              <p className="text-sm text-gray-700 font-medium">{item.adAccount?.accountName || '-'}</p>
+                              <p className="text-xs text-gray-400 font-mono">{item.adAccount?.accountId || '-'}</p>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="text-sm font-semibold text-[#34A853]">${depositAmount.toLocaleString()}</span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="space-y-0.5">
+                              <span className="text-sm font-semibold text-[#FBBC04]">${commissionAmount.toFixed(2)}</span>
+                              {commissionRate > 0 && (
+                                <p className="text-xs text-gray-400">({commissionRate}%)</p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="text-sm font-bold text-[#4285F4]">${totalDeducted.toFixed(2)}</span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="text-sm text-gray-700">
+                              {new Date(item.createdAt).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">{getStatusBadge(item.status)}</td>
+                        </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                  )}
+                </div>
+              )}
+
+              {/* Transfer Balance Form */}
+              {activeSubPage === 'transfer-balance' && (
+                <div className="p-4 space-y-4">
+                  {/* Section Header */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Transfer Balance</h3>
+                      <p className="text-sm text-gray-500 mt-1">Transfer balance between your advertising accounts</p>
+                    </div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#4285F4]/10 to-[#4285F4]/5 rounded-xl border border-[#4285F4]/20">
+                      <Wallet className="w-4 h-4 text-[#4285F4]" />
+                      <span className="text-sm text-gray-600">Wallet Balance:</span>
+                      <span className="text-sm font-bold text-[#4285F4]">${userBalance.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  {/* Transfer Rows */}
+                  <div className="space-y-4">
+                    {transferRows.map((row, index) => (
+                      <div
+                        key={row.id}
+                        className="table-row-animate p-3.5 bg-white border border-gray-100 rounded-xl hover:border-[#4285F4]/30 hover:shadow-lg hover:shadow-[#4285F4]/5 transition-all duration-300 overflow-visible"
+                        style={{ opacity: 0, animationDelay: `${index * 0.05}s`, position: 'relative', zIndex: transferRows.length - index }}
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Row Number */}
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#4285F4]/10 to-[#4285F4]/5 flex items-center justify-center flex-shrink-0">
+                            <span className="text-sm font-bold text-[#4285F4]">{index + 1}</span>
+                          </div>
+
+                          {/* From Account */}
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-500 mb-1.5">From Account</label>
+                            <SearchableSelect
+                              options={adAccountOptions.filter(opt =>
+                                opt.value !== row.toAccount &&
+                                !transferRows.some(r => r.id !== row.id && r.fromAccount === opt.value)
+                              )}
+                              value={row.fromAccount}
+                              onChange={(value) => updateTransferRow(row.id, 'fromAccount', value)}
+                              placeholder="Search account..."
+                              searchPlaceholder="Type to search..."
+                            />
+                          </div>
+
+                          {/* Transfer Icon */}
+                          <div className="flex-shrink-0 pt-5">
+                            <svg className="w-5 h-5 text-[#4285F4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                            </svg>
+                          </div>
+
+                          {/* To Account */}
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-500 mb-1.5">To Account</label>
+                            <SearchableSelect
+                              options={adAccountOptions.filter(opt =>
+                                opt.value !== row.fromAccount &&
+                                !transferRows.some(r => r.id !== row.id && r.toAccount === opt.value)
+                              )}
+                              value={row.toAccount}
+                              onChange={(value) => updateTransferRow(row.id, 'toAccount', value)}
+                              placeholder="Search account..."
+                              searchPlaceholder="Type to search..."
+                            />
+                          </div>
+
+                          {/* Amount Input */}
+                          <div className="w-48">
+                            <label className="block text-xs text-gray-500 mb-1.5">Transfer Amount</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                              <input
+                                type="number"
+                                min={ADMIN_SETTINGS.minimumDeposit}
+                                step="50"
+                                value={row.amount}
+                                onChange={(e) => updateTransferRow(row.id, 'amount', e.target.value)}
+                                placeholder={`Min $${ADMIN_SETTINGS.minimumDeposit} (50s)`}
+                                className="w-full pl-7 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4]/20 focus:border-[#4285F4] transition-all"
+                              />
+                            </div>
+                            {row.amount && parseFloat(row.amount) < ADMIN_SETTINGS.minimumDeposit && (
+                              <p className="text-xs text-red-500 mt-1">Min ${ADMIN_SETTINGS.minimumDeposit}</p>
+                            )}
+                            {row.amount && parseFloat(row.amount) % 50 !== 0 && (
+                              <p className="text-xs text-red-500 mt-1">Must be $50 increments</p>
+                            )}
+                          </div>
+
+                          {/* Remove Button */}
+                          <div className="flex-shrink-0 pt-5">
+                            {transferRows.length > 1 && (
+                              <button
+                                onClick={() => removeTransferRow(row.id)}
+                                className="p-2 text-red-400 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
+                              >
+                                <Minus className="w-5 h-5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add Row Button */}
+                  <button
+                    onClick={addTransferRow}
+                    className="w-full p-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 hover:border-[#4285F4]/50 hover:text-[#4285F4] hover:bg-[#4285F4]/5 transition-all duration-200 flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span className="font-medium">Add Another Transfer</span>
+                  </button>
+
+                  {/* Transfer Summary */}
+                  <div className="p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-100">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-4">Transfer Summary</h4>
+                    <div className="space-y-3 mb-4">
+                      {transferRows.filter(row => row.fromAccount && row.toAccount && row.amount).map((row, index) => {
+                        const fromLabel = adAccountOptions.find(opt => opt.value === row.fromAccount)?.label || 'Unknown'
+                        const toLabel = adAccountOptions.find(opt => opt.value === row.toAccount)?.label || 'Unknown'
+                        return (
+                          <div key={row.id} className="flex items-center justify-between py-2 px-3 bg-white rounded-lg border border-gray-100">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="w-5 h-5 rounded-full bg-[#4285F4]/10 text-[#4285F4] text-xs font-bold flex items-center justify-center flex-shrink-0">
+                                {index + 1}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-xs text-gray-600 truncate">
+                                <span className="font-medium text-gray-700 truncate max-w-[120px]" title={fromLabel}>{fromLabel}</span>
+                                <svg className="w-3 h-3 text-[#4285F4] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                </svg>
+                                <span className="font-medium text-gray-700 truncate max-w-[120px]" title={toLabel}>{toLabel}</span>
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-[#4285F4] ml-3">${parseFloat(row.amount).toFixed(2)}</span>
+                          </div>
+                        )
+                      })}
+                      {transferRows.filter(row => row.fromAccount && row.toAccount && row.amount).length === 0 && (
+                        <p className="text-xs text-gray-400 text-center py-2">No transfers added yet</p>
+                      )}
+                    </div>
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                      <span className="text-sm font-semibold text-gray-700">Total Transfer Amount</span>
+                      <span className="text-lg font-bold text-[#4285F4]">${transferTotals.totalAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    onClick={handleTransferSubmit}
+                    disabled={!isTransferFormValid || isSubmitting}
+                    className={`w-full bg-gradient-to-r ${brandGradient} hover:from-[#3367D6] hover:to-[#2851A3] text-white rounded-xl py-3 text-base font-semibold shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Submit Transfers'}
+                  </button>
+                </div>
+              )}
+
+              {/* Refund Form */}
+              {activeSubPage === 'refund' && (
+                <div className="p-4 space-y-4">
+                  {/* Section Header */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Ads Refund Request</h3>
+                      <p className="text-sm text-gray-500 mt-1">Request a refund for your ad account balance</p>
+                    </div>
+                    <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#4285F4]/10 to-[#4285F4]/5 rounded-xl border border-[#4285F4]/20">
+                      <Wallet className="w-4 h-4 text-[#4285F4]" />
+                      <span className="text-sm text-gray-600">Wallet Balance:</span>
+                      <span className="text-sm font-bold text-[#4285F4]">${userBalance.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  {/* Refund Rows */}
+                  <div className="space-y-4">
+                    {refundRows.map((row, index) => (
+                      <div
+                        key={row.id}
+                        className="table-row-animate p-3.5 bg-white border border-gray-100 rounded-xl hover:border-[#4285F4]/30 hover:shadow-lg hover:shadow-[#4285F4]/5 transition-all duration-300 overflow-visible"
+                        style={{ opacity: 0, animationDelay: `${index * 0.05}s`, position: 'relative', zIndex: refundRows.length - index }}
+                      >
+                        <div className="flex items-center gap-4">
+                          {/* Row Number */}
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#4285F4]/10 to-[#4285F4]/5 flex items-center justify-center flex-shrink-0">
+                            <span className="text-sm font-bold text-[#4285F4]">{index + 1}</span>
+                          </div>
+
+                          {/* Ad Account Select */}
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-500 mb-1.5">Ad Account</label>
+                            <SearchableSelect
+                              options={adAccountOptions.filter(opt =>
+                                !refundRows.some(r => r.id !== row.id && r.accountId === opt.value)
+                              )}
+                              value={row.accountId}
+                              onChange={(value) => updateRefundRow(row.id, 'accountId', value)}
+                              placeholder="Select Ads Account"
+                              searchPlaceholder="Type to search..."
+                            />
+                          </div>
+
+                          {/* Amount Input */}
+                          <div className="w-48">
+                            <label className="block text-xs text-gray-500 mb-1.5">Money</label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                              <input
+                                type="number"
+                                min="1"
+                                step="1"
+                                value={row.amount}
+                                onChange={(e) => updateRefundRow(row.id, 'amount', e.target.value)}
+                                placeholder="Enter Amount"
+                                className="w-full pl-7 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4]/20 focus:border-[#4285F4] transition-all"
+                              />
+                            </div>
+                            {row.amount && parseFloat(row.amount) < 1 && (
+                              <p className="text-xs text-red-500 mt-1">Min $1</p>
+                            )}
+                          </div>
+
+                          {/* Add/Remove Buttons */}
+                          <div className="flex-shrink-0 pt-5 flex gap-2">
+                            <button
+                              onClick={addRefundRow}
+                              className="p-2 text-[#34A853] hover:text-white hover:bg-[#34A853] rounded-lg transition-all duration-200"
+                            >
+                              <Plus className="w-5 h-5" />
+                            </button>
+                            {refundRows.length > 1 && (
+                              <button
+                                onClick={() => removeRefundRow(row.id)}
+                                className="p-2 text-red-400 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
+                              >
+                                <Minus className="w-5 h-5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    onClick={handleRefundSubmit}
+                    disabled={!isRefundFormValid || isSubmitting}
+                    className={`w-full bg-gradient-to-r ${brandGradient} hover:from-[#3367D6] hover:to-[#2851A3] text-white rounded-xl py-3 text-base font-semibold shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Submit'}
+                  </button>
+                </div>
+              )}
+
+              {/* Refund Report - With tabs for Transfer and Refund History */}
+              {activeSubPage === 'refund-report' && (
+                <div className="p-4">
+                  {/* Header with Tabs */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">
+                        {reportTab === 'transfer' ? 'Balance Transfer History' : 'Refund Request History'}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {reportTab === 'transfer'
+                          ? 'View all your balance transfers between ad accounts'
+                          : 'View all your refund requests and their status'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
+                      <button
+                        onClick={() => setReportTab('transfer')}
+                        className={`px-4 py-2 text-xs font-medium rounded-md transition-all ${
+                          reportTab === 'transfer'
+                            ? 'bg-white text-[#4285F4] shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Transfer History
+                      </button>
+                      <button
+                        onClick={() => setReportTab('refund')}
+                        className={`px-4 py-2 text-xs font-medium rounded-md transition-all ${
+                          reportTab === 'refund'
+                            ? 'bg-white text-[#EA4335] shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        Refund History
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Transfer History */}
+                  {reportTab === 'transfer' && (
+                    <>
+                      {balanceTransfers.length === 0 ? (
+                        <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#4285F4]/10 flex items-center justify-center">
+                            <svg className="w-8 h-8 text-[#4285F4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                          </div>
+                          <h4 className="text-lg font-semibold text-gray-800 mb-2">No Transfer History</h4>
+                          <p className="text-sm text-gray-500 mb-4">You haven't made any balance transfers yet.</p>
+                          <button
+                            onClick={() => setActiveSubPage('transfer-balance')}
+                            className="px-4 py-2 bg-[#4285F4] text-white rounded-lg text-sm font-medium hover:bg-[#3367D6] transition-colors"
+                          >
+                            Transfer Balance
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border border-gray-100">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="bg-gradient-to-r from-[#4285F4]/5 to-gray-50">
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">From Account</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider"></th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">To Account</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-[#4285F4] uppercase tracking-wider">Amount</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {balanceTransfers.map((transfer: any, index: number) => (
+                                <tr key={transfer.id} className="table-row-animate hover:bg-[#4285F4]/5 transition-all duration-300" style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}>
+                                  <td className="py-2 px-3">
+                                    <div className="text-sm text-gray-700 font-medium">{transfer.fromAccount?.accountName || 'Unknown'}</div>
+                                    <div className="text-xs text-gray-400 font-mono">{transfer.fromAccount?.accountId || '-'}</div>
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <svg className="w-4 h-4 text-[#4285F4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                    </svg>
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <div className="text-sm text-gray-700 font-medium">{transfer.toAccount?.accountName || 'Unknown'}</div>
+                                    <div className="text-xs text-gray-400 font-mono">{transfer.toAccount?.accountId || '-'}</div>
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <span className="text-sm font-semibold text-[#4285F4]">${Number(transfer.amount).toFixed(2)}</span>
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <span className="text-xs text-gray-600">
+                                      {new Date(transfer.createdAt).toLocaleDateString()}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-3">{getStatusBadge(transfer.status)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Refund History */}
+                  {reportTab === 'refund' && (
+                    <>
+                      {userRefunds.length === 0 ? (
+                        <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#EA4335]/10 flex items-center justify-center">
+                            <span className="text-2xl">💸</span>
+                          </div>
+                          <h4 className="text-lg font-semibold text-gray-800 mb-2">No Refund Requests</h4>
+                          <p className="text-sm text-gray-500 mb-4">You haven't made any refund requests yet.</p>
+                          <button
+                            onClick={() => setActiveSubPage('refund')}
+                            className="px-4 py-2 bg-[#EA4335] text-white rounded-lg text-sm font-medium hover:bg-[#D32F2F] transition-colors"
+                          >
+                            Request a Refund
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border border-gray-100">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="bg-gradient-to-r from-[#EA4335]/5 to-gray-50">
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Account</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-[#EA4335] uppercase tracking-wider">Amount</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {userRefunds.map((item: any, index: number) => (
+                                <tr key={item.id} className="table-row-animate hover:bg-[#EA4335]/5 transition-all duration-300" style={{ opacity: 0, animationDelay: `${index * 0.05}s` }}>
+                                  <td className="py-2 px-3">
+                                    <div className="text-sm text-gray-700 font-medium">{item.adAccount?.accountName || 'Unknown'}</div>
+                                    <div className="text-xs text-gray-400 font-mono">{item.adAccount?.accountId || item.accountId || '-'}</div>
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <span className="text-sm font-semibold text-[#EA4335]">${Number(item.amount).toFixed(2)}</span>
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    <span className="text-xs text-gray-600">
+                                      {new Date(item.createdAt).toLocaleDateString()}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-3">{getStatusBadge(item.status)}</td>
+                                  <td className="py-2 px-3">
+                                    <span className="text-xs text-gray-600 line-clamp-2" title={item.reason}>{item.reason || '-'}</span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
           </div>
 
           {/* Pagination */}
-          {activeSubPage !== 'apply-ads-account' && activeSubPage !== 'transfer-balance' && activeSubPage !== 'refund' && activeSubPage !== 'refund-report' && (
+          {activeSubPage !== 'apply-ads-account' && activeSubPage !== 'deposit' && activeSubPage !== 'transfer-balance' && activeSubPage !== 'refund' && activeSubPage !== 'refund-report' && (
             <div className="p-3 border-t border-gray-100 flex items-center justify-between bg-white">
               <button
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 font-medium border border-gray-200 rounded-lg hover:bg-[#4285F4]/5 hover:border-[#4285F4]/30 hover:text-[#4285F4] transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 font-medium border border-gray-200 rounded-lg hover:bg-[#4285F4]/5 hover:border-[#4285F4]/30 hover:text-[#4285F4] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 Previous
               </button>
 
               <div className="flex items-center gap-1">
-                {[1, 2, 3, '...', 8, 9, 10].map((page, idx) => (
+                {pageNumbers.map((page, idx) => (
                   <button
                     key={idx}
                     onClick={() => typeof page === 'number' && setCurrentPage(page)}
@@ -1427,8 +2561,9 @@ export default function GooglePage() {
               </div>
 
               <button
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 font-medium border border-gray-200 rounded-lg hover:bg-[#4285F4]/5 hover:border-[#4285F4]/30 hover:text-[#4285F4] transition-all"
-                onClick={() => setCurrentPage(p => p + 1)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 font-medium border border-gray-200 rounded-lg hover:bg-[#4285F4]/5 hover:border-[#4285F4]/30 hover:text-[#4285F4] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
               >
                 Next
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -1438,39 +2573,27 @@ export default function GooglePage() {
         </Card>
       </div>
 
-      {/* MCC Share Ad Account Modal */}
+      {/* Access Ad Account Modal */}
       <Modal
-        isOpen={showBmShareModal}
-        onClose={() => setShowBmShareModal(false)}
-        title="MCC Share Ad Account"
+        isOpen={showAccessModal}
+        onClose={() => setShowAccessModal(false)}
+        title="Request Account Access"
         className="max-w-md"
       >
         <p className="text-sm text-gray-500 -mt-2 mb-5">
-          Share your MCC ID to connect accounts
+          Enter the Gmail ID to grant access to this ad account
         </p>
 
         <div className="space-y-5">
-          {/* MCC ID */}
+          {/* Gmail ID */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-gray-700">MCC Id</label>
+            <label className="block text-sm font-medium text-gray-700">Gmail ID</label>
             <input
-              type="text"
-              placeholder="MCC Id"
-              value={bmShareForm.bmId}
-              onChange={(e) => setBmShareForm({...bmShareForm, bmId: e.target.value})}
+              type="email"
+              placeholder="example@gmail.com"
+              value={accessGmail}
+              onChange={(e) => setAccessGmail(e.target.value)}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4]/20 focus:border-[#4285F4] focus:bg-white transition-all"
-            />
-          </div>
-
-          {/* Message */}
-          <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-gray-700">Message</label>
-            <textarea
-              placeholder="Enter your message"
-              value={bmShareForm.message}
-              onChange={(e) => setBmShareForm({...bmShareForm, message: e.target.value})}
-              rows={4}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#4285F4]/20 focus:border-[#4285F4] focus:bg-white resize-none transition-all"
             />
           </div>
 
@@ -1479,12 +2602,43 @@ export default function GooglePage() {
             <Button
               variant="outline"
               className="flex-1 border-gray-200 rounded-xl py-3 hover:bg-gray-50"
-              onClick={() => setShowBmShareModal(false)}
+              onClick={() => setShowAccessModal(false)}
             >
               Cancel
             </Button>
-            <Button className={`flex-1 bg-gradient-to-r ${brandGradient} hover:from-[#3367D6] hover:to-[#2851A3] rounded-xl py-3 shadow-md shadow-blue-500/25`}>
-              Submit
+            <Button
+              className={`flex-1 bg-gradient-to-r ${brandGradient} hover:from-[#3367D6] hover:to-[#2851A3] rounded-xl py-3 shadow-md shadow-blue-500/25`}
+              disabled={!accessGmail || isSubmitting}
+              onClick={async () => {
+                if (!accessGmail) return
+                setIsSubmitting(true)
+                try {
+                  const account = userAccounts.find((a: any) => a.id === accessAccountId)
+                  await bmShareApi.create({
+                    platform: 'GOOGLE',
+                    adAccountId: account?.accountId || '',
+                    adAccountName: account?.accountName || 'Google Ad Account',
+                    bmId: accessGmail,
+                  })
+                  showToast('success', 'Access Request Submitted', 'Your request is now pending admin review.')
+                  setShowAccessModal(false)
+                  setAccessGmail('')
+                  // Refresh access requests
+                  const res = await bmShareApi.getAll('GOOGLE').catch(() => ({ bmShareRequests: [] }))
+                  setAccessRequests(res.bmShareRequests || [])
+                } catch (error: any) {
+                  showToast('error', 'Failed', error.message || 'Failed to submit access request.')
+                } finally {
+                  setIsSubmitting(false)
+                }
+              }}
+            >
+              {isSubmitting ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Submitting...
+                </span>
+              ) : 'Submit'}
             </Button>
           </div>
         </div>

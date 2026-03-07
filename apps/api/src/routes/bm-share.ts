@@ -69,14 +69,24 @@ async function loadCheetahConfig() {
 
 bmShare.use('*', verifyToken)
 
-// Generate Apply ID: BM{YYYYMMDD}{7-digit random}
-function generateApplyId(): string {
+// Platform-specific prefixes for share apply IDs
+const SHARE_PREFIX: Record<string, string> = {
+  FACEBOOK: 'BM',
+  GOOGLE: 'GS',
+  TIKTOK: 'TS',
+  SNAPCHAT: 'SS',
+  BING: 'BS',
+}
+
+// Generate Apply ID: {PREFIX}{YYYYMMDD}{7-digit random}
+function generateApplyId(platform?: string): string {
   const now = new Date()
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
   const random = randomInt(1000000, 10000000)
-  return `BM${year}${month}${day}${random}`
+  const prefix = (platform && SHARE_PREFIX[platform]) || 'BM'
+  return `${prefix}${year}${month}${day}${random}`
 }
 
 const createBmShareSchema = z.object({
@@ -154,9 +164,10 @@ async function processBMShareInBackground(requestId: string, adAccountId: string
       console.log(`[BM Share Background] Cheetah failed, staying PENDING for manual handling (act_${adAccountId} → BM ${bmId})`)
     }
   } else {
-    // Non-Facebook - reject with message
-    status = 'REJECTED'
-    adminRemarks = 'BM share is only available for Facebook accounts.'
+    // Non-Facebook platforms (Google, TikTok, etc.) — stay PENDING for manual admin handling
+    status = 'PENDING'
+    adminRemarks = 'Pending manual processing by admin.'
+    shareMethod = 'MANUAL'
   }
 
   // Update the request with result
@@ -185,13 +196,13 @@ bmShare.post('/', requireUser, async (c) => {
     const body = await c.req.json()
     const data = createBmShareSchema.parse(body)
 
-    // Generate unique Apply ID
-    let applyId = generateApplyId()
+    // Generate unique Apply ID with platform prefix (BM, GS, TS, SS, BS)
+    let applyId = generateApplyId(data.platform)
     let attempts = 0
     while (attempts < 10) {
       const existing = await prisma.bmShareRequest.findUnique({ where: { applyId } })
       if (!existing) break
-      applyId = generateApplyId()
+      applyId = generateApplyId(data.platform)
       attempts++
     }
 
@@ -256,13 +267,16 @@ bmShare.post('/', requireUser, async (c) => {
       }
     }
 
-    // Process in background (don't await - respond immediately to user)
-    processBMShareInBackground(
-      bmShareRequest.id,
-      data.adAccountId,
-      data.bmId,
-      data.platform
-    ).catch(err => console.error('[BM Share Background] Unhandled error:', err))
+    // Only run background processing for Facebook (Cheetah API / Graph API)
+    // All other platforms stay PENDING for manual admin approval
+    if (data.platform === 'FACEBOOK') {
+      processBMShareInBackground(
+        bmShareRequest.id,
+        data.adAccountId,
+        data.bmId,
+        data.platform
+      ).catch(err => console.error('[BM Share Background] Unhandled error:', err))
+    }
 
     // Respond immediately to user
     return c.json({

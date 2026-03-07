@@ -3,8 +3,8 @@ module.exports = {
     {
       name: '6ad-api',
       cwd: './apps/api',
-      script: 'npm',
-      args: 'start',
+      script: 'dist/index.js',
+      node_args: '--experimental-specifier-resolution=node',
       env: {
         NODE_ENV: 'production',
         PORT: 5001
@@ -21,7 +21,6 @@ module.exports = {
       error_file: './logs/api-error.log',
       out_file: './logs/api-out.log',
       merge_logs: true,
-      log_type: 'json',
     },
     {
       name: '6ad-admin',

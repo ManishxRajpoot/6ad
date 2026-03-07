@@ -15,10 +15,12 @@ import { prisma } from '../lib/prisma.js'
 import { cheetahApi } from './cheetah-api.js'
 
 const FB_GRAPH = 'https://graph.facebook.com/v21.0'
-const POLL_INTERVAL_MS = 2 * 60 * 1000  // Every 2 minutes
-const TOLERANCE_DOLLARS = 0.01           // $0.01 tolerance for float comparison
+const FAST_POLL_MS = 15_000       // 15s when deposits are pending
+const IDLE_POLL_MS = 2 * 60_000  // 2 min when nothing to verify
+const TOLERANCE_DOLLARS = 0.01    // $0.01 tolerance for float comparison
 
-let pollInterval: NodeJS.Timeout | null = null
+let pollTimeout: NodeJS.Timeout | null = null
+let currentPollMs = IDLE_POLL_MS
 
 // ─── Get actual spend cap from Facebook ───────────────────────────────
 
@@ -224,7 +226,6 @@ export async function verifyDeposit(depositId: string): Promise<{
         status: 'REJECTED',
         rechargeStatus: 'VERIFY_FAILED',
         verificationFailed: true,
-        rejectedAt: new Date(),
         rechargeError: `Spending cap not increased (${result.source}): expected $${expectedCap}, actual $${actualCap}`,
       },
     })
@@ -248,7 +249,21 @@ async function runVerificationCycle(): Promise<void> {
       take: 20, // Process max 20 per cycle to avoid rate limits
     })
 
-    if (deposits.length === 0) return
+    if (deposits.length === 0) {
+      // Nothing to verify — slow poll
+      if (currentPollMs !== IDLE_POLL_MS) {
+        currentPollMs = IDLE_POLL_MS
+        console.log(`[SpendCapVerifier] No pending deposits — switching to idle (${IDLE_POLL_MS / 1000}s)`)
+      }
+      scheduleNext()
+      return
+    }
+
+    // Deposits found — fast poll
+    if (currentPollMs !== FAST_POLL_MS) {
+      currentPollMs = FAST_POLL_MS
+      console.log(`[SpendCapVerifier] ${deposits.length} deposits pending — switching to fast poll (${FAST_POLL_MS / 1000}s)`)
+    }
 
     console.log(`[SpendCapVerifier] Found ${deposits.length} deposits to verify`)
 
@@ -274,33 +289,39 @@ async function runVerificationCycle(): Promise<void> {
     if (verified > 0 || failed > 0) {
       console.log(`[SpendCapVerifier] Cycle complete — verified: ${verified}, failed: ${failed}, skipped: ${skipped}`)
     }
+
+    scheduleNext()
   } catch (err) {
     console.error('[SpendCapVerifier] Cycle error:', err)
+    scheduleNext()
   }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────
 
+function scheduleNext(): void {
+  if (pollTimeout) clearTimeout(pollTimeout)
+  pollTimeout = setTimeout(() => {
+    runVerificationCycle().catch(err => console.error('[SpendCapVerifier] Cycle error:', err))
+  }, currentPollMs)
+}
+
 export function startVerificationCron(): void {
   console.log('[SpendCapVerifier] Starting spend cap verification cron...')
-  console.log(`[SpendCapVerifier] Poll interval: ${POLL_INTERVAL_MS / 1000}s`)
+  console.log(`[SpendCapVerifier] Adaptive polling: ${FAST_POLL_MS / 1000}s (active) / ${IDLE_POLL_MS / 1000}s (idle)`)
 
-  // First run after 30 seconds (let server start)
-  setTimeout(() => {
+  // First run after 10 seconds (let server start)
+  pollTimeout = setTimeout(() => {
     runVerificationCycle().catch(err => console.error('[SpendCapVerifier] Initial cycle error:', err))
-  }, 30000)
+  }, 10000)
 
-  pollInterval = setInterval(() => {
-    runVerificationCycle().catch(err => console.error('[SpendCapVerifier] Cycle error:', err))
-  }, POLL_INTERVAL_MS)
-
-  console.log('[SpendCapVerifier] Started — checking every 2 minutes')
+  console.log('[SpendCapVerifier] Started — adaptive polling enabled')
 }
 
 export function stopVerificationCron(): void {
-  if (pollInterval) {
-    clearInterval(pollInterval)
-    pollInterval = null
+  if (pollTimeout) {
+    clearTimeout(pollTimeout)
+    pollTimeout = null
   }
   console.log('[SpendCapVerifier] Stopped')
 }

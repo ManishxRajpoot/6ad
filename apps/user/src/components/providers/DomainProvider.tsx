@@ -14,6 +14,11 @@ const DEFAULT_DOMAINS = [
   'ngrok.io',
 ]
 
+// Check if hostname is a private/local IP address
+function isPrivateIP(hostname: string) {
+  return /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|127\.)/.test(hostname)
+}
+
 export function DomainProvider({ children }: { children: React.ReactNode }) {
   const { setDomainInfo, setLoading, setChecked, isChecked, isLoading } = useDomainStore()
   const [isInvalidDomain, setIsInvalidDomain] = useState(false)
@@ -26,8 +31,8 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
     const checkCustomDomain = async () => {
       const hostname = typeof window !== 'undefined' ? window.location.hostname : ''
 
-      // Check if it's a default domain
-      const isDefaultDomain = DEFAULT_DOMAINS.some(d => hostname.includes(d))
+      // Check if it's a default domain or private IP
+      const isDefaultDomain = DEFAULT_DOMAINS.some(d => hostname.includes(d)) || isPrivateIP(hostname)
 
       if (isDefaultDomain) {
         setDomainInfo(false, null, null)
@@ -75,7 +80,14 @@ export function DomainProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error('Failed to check custom domain:', error)
         // Check if it's a network error
-        if (error instanceof TypeError && error.message.includes('fetch')) {
+        // Chrome: "Failed to fetch", Safari/WebKit: "Load failed", Firefox: "NetworkError"
+        const isNetworkError = error instanceof TypeError && (
+          error.message.includes('fetch') ||
+          error.message === 'Load failed' ||
+          error.message.includes('NetworkError') ||
+          error.message.includes('network')
+        )
+        if (isNetworkError) {
           setNetworkError(true)
           setErrorMessage('Unable to connect to server. Please check your internet connection.')
         } else {

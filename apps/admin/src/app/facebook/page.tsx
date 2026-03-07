@@ -104,6 +104,7 @@ type AccountDeposit = {
     accountId: string
     accountName: string
     platform: string
+    fundingSources?: string | null
     user: {
       id: string
       username: string
@@ -136,7 +137,7 @@ type AccountRefund = {
   }
 }
 
-type Tab = 'account-list' | 'bm-share' | 'deposit-list' | 'refund-list'
+type Tab = 'account-list' | 'bm-share' | 'deposit-list' | 'transfer-list' | 'refund-list'
 
 export default function FacebookPage() {
   const toast = useToast()
@@ -168,6 +169,12 @@ export default function FacebookPage() {
   // Card wallet top-up tracking
   const [cardWalletPending, setCardWalletPending] = useState(0)
   const [walletMarkingAdded, setWalletMarkingAdded] = useState(false)
+
+  // Balance Transfers state
+  const [balanceTransfers, setBalanceTransfers] = useState<any[]>([])
+  const [transfersLoading, setTransfersLoading] = useState(false)
+  const [editingTransferId, setEditingTransferId] = useState<string | null>(null)
+  const [editingTransferAmount, setEditingTransferAmount] = useState<string>('')
 
   // Account Refunds state
   const [accountRefunds, setAccountRefunds] = useState<AccountRefund[]>([])
@@ -207,11 +214,11 @@ export default function FacebookPage() {
   const [createForm, setCreateForm] = useState({
     userId: '',
     adAccountQty: 1,
-    accounts: [{ name: '', accountId: '' }]
+    accounts: [{ name: '', accountId: '', vcard: '' }]
   })
 
   // Approve Form
-  const [approveForm, setApproveForm] = useState<{ name: string; accountId: string }[]>([])
+  const [approveForm, setApproveForm] = useState<{ name: string; accountId: string; vcard: string }[]>([])
 
   // Bulk Approve Modal
   const [showBulkApproveModal, setShowBulkApproveModal] = useState(false)
@@ -232,6 +239,8 @@ export default function FacebookPage() {
   const [depositsPerPage, setDepositsPerPage] = useState(25)
   const [refundsPage, setRefundsPage] = useState(1)
   const [refundsPerPage, setRefundsPerPage] = useState(25)
+  const [transfersPage, setTransfersPage] = useState(1)
+  const [transfersPerPage, setTransfersPerPage] = useState(25)
 
   // Tab refs for dynamic indicator positioning
   const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({})
@@ -241,6 +250,7 @@ export default function FacebookPage() {
     { id: 'account-list', label: 'Account List' },
     { id: 'bm-share', label: 'BM Share' },
     { id: 'deposit-list', label: 'Deposit List' },
+    { id: 'transfer-list', label: 'Transfer List' },
     { id: 'refund-list', label: 'Refund List' },
   ]
 
@@ -401,12 +411,27 @@ export default function FacebookPage() {
     }
   }
 
+  // Fetch Balance Transfers
+  const fetchBalanceTransfers = async () => {
+    setTransfersLoading(true)
+    try {
+      const data = await balanceTransfersApi.getAll('FACEBOOK', statusFilter !== 'all' ? statusFilter : undefined)
+      setBalanceTransfers(data.transfers || [])
+    } catch (error) {
+      console.error('Failed to fetch balance transfers:', error)
+    } finally {
+      setTransfersLoading(false)
+    }
+  }
+
   // Fetch data based on active tab
   useEffect(() => {
     if (activeTab === 'bm-share') {
       fetchBmShareRequests()
     } else if (activeTab === 'deposit-list') {
       fetchAccountDeposits()
+    } else if (activeTab === 'transfer-list') {
+      fetchBalanceTransfers()
     } else if (activeTab === 'refund-list') {
       fetchAccountRefunds()
     }
@@ -564,6 +589,51 @@ export default function FacebookPage() {
     }
   }
 
+  // Handle Balance Transfer approve/reject
+  const handleTransferApprove = async (id: string) => {
+    try {
+      await balanceTransfersApi.approve(id)
+      toast.success('Transfer Approved', 'Balance transfer approved successfully')
+      fetchBalanceTransfers()
+    } catch (error: any) {
+      toast.error('Approve Failed', error.message || 'Failed to approve transfer')
+    }
+  }
+
+  const handleTransferReject = async (id: string) => {
+    const remarks = prompt('Reason for rejection:')
+    if (remarks === null) return
+    try {
+      await balanceTransfersApi.reject(id, remarks || undefined)
+      toast.success('Transfer Rejected', 'Balance transfer rejected')
+      fetchBalanceTransfers()
+    } catch (error: any) {
+      toast.error('Reject Failed', error.message || 'Failed to reject transfer')
+    }
+  }
+
+  // Handle transfer amount edit
+  const handleTransferAmountEdit = (t: any) => {
+    setEditingTransferId(t.id)
+    setEditingTransferAmount(parseFloat(t.amount || '0').toFixed(2))
+  }
+
+  const handleTransferAmountSave = async (id: string) => {
+    const amount = parseFloat(editingTransferAmount)
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Invalid Amount', 'Please enter a valid amount')
+      return
+    }
+    try {
+      await balanceTransfersApi.updateAmount(id, amount)
+      setEditingTransferId(null)
+      setEditingTransferAmount('')
+      fetchBalanceTransfers()
+    } catch (error: any) {
+      toast.error('Update Failed', error.message || 'Failed to update amount')
+    }
+  }
+
   // Handle refund amount edit
   const handleRefundAmountEdit = (refund: AccountRefund) => {
     setEditingRefundId(refund.id)
@@ -642,7 +712,7 @@ export default function FacebookPage() {
   const handleOpenApprove = (app: Application) => {
     setSelectedApplication(app)
     const accounts = parseAccountDetails(app.accountDetails)
-    setApproveForm(accounts.map(a => ({ name: a.name, accountId: a.accountId || '' })))
+    setApproveForm(accounts.map(a => ({ name: a.name, accountId: a.accountId || '', vcard: '' })))
     setSelectedProfileId('')
     setShowApproveModal(true)
   }
@@ -696,7 +766,7 @@ export default function FacebookPage() {
     try {
       await applicationsApi.createDirect(createForm.userId, 'FACEBOOK', validAccounts, selectedProfileId || undefined)
       setShowCreateModal(false)
-      setCreateForm({ userId: '', adAccountQty: 1, accounts: [{ name: '', accountId: '' }] })
+      setCreateForm({ userId: '', adAccountQty: 1, accounts: [{ name: '', accountId: '', vcard: '' }] })
       setSelectedProfileId('')
       fetchData()
     } catch (error: any) {
@@ -710,7 +780,7 @@ export default function FacebookPage() {
     const accounts = [...createForm.accounts]
 
     while (accounts.length < newQty) {
-      accounts.push({ name: '', accountId: '' })
+      accounts.push({ name: '', accountId: '', vcard: '' })
     }
     while (accounts.length > newQty) {
       accounts.pop()
@@ -881,6 +951,23 @@ export default function FacebookPage() {
   const totalRefundsPages = effectiveRefundsPerPage > 0 ? Math.ceil(filteredRefunds.length / effectiveRefundsPerPage) : 1
   const refundsStartIndex = (refundsPage - 1) * effectiveRefundsPerPage
   const paginatedRefunds = filteredRefunds.slice(refundsStartIndex, refundsStartIndex + effectiveRefundsPerPage)
+
+  // Transfers — client-side filter + pagination
+  const filteredTransfers = balanceTransfers.filter((t: any) => {
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    return (
+      (t.user?.username || '').toLowerCase().includes(q) ||
+      (t.fromAccount?.accountName || '').toLowerCase().includes(q) ||
+      (t.fromAccount?.accountId || '').toLowerCase().includes(q) ||
+      (t.toAccount?.accountName || '').toLowerCase().includes(q) ||
+      (t.toAccount?.accountId || '').toLowerCase().includes(q)
+    )
+  })
+  const effectiveTransfersPerPage = transfersPerPage === -1 ? filteredTransfers.length : transfersPerPage
+  const totalTransfersPages = effectiveTransfersPerPage > 0 ? Math.ceil(filteredTransfers.length / effectiveTransfersPerPage) : 1
+  const transfersStartIndex = (transfersPage - 1) * effectiveTransfersPerPage
+  const paginatedTransfers = filteredTransfers.slice(transfersStartIndex, transfersStartIndex + effectiveTransfersPerPage)
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -1188,7 +1275,7 @@ export default function FacebookPage() {
         </div>
 
         {/* Table — Scrollable area */}
-        <div className="overflow-auto flex-1 min-h-0" key={activeTab}>
+        <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0" key={activeTab}>
 
           {/* ═══════════════════════════════════════════════════
               ACCOUNT LIST TAB
@@ -1346,7 +1433,15 @@ export default function FacebookPage() {
                       <td className="py-2.5 px-2 xl:px-3 text-gray-600">{req.adAccountName}</td>
                       <td className="py-2.5 px-2 xl:px-3 text-emerald-600 font-mono">{req.adAccountId}</td>
                       <td className="py-2.5 px-2 xl:px-3 text-violet-600 font-mono">{req.bmId}</td>
-                      <td className="py-2.5 px-2 xl:px-3 text-gray-500 max-w-[150px] truncate">{req.message || '---'}</td>
+                      <td className="py-2.5 px-2 xl:px-3 max-w-[200px]">
+                        {req.status === 'APPROVED' ? (
+                          <span className="text-emerald-600 text-xs">{req.adminRemarks || 'Done — shared to BM ' + req.bmId}</span>
+                        ) : req.status === 'REJECTED' && req.adminRemarks ? (
+                          <span className="text-red-500 text-xs" title={req.adminRemarks}>{req.adminRemarks}</span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">{req.message || '---'}</span>
+                        )}
+                      </td>
                       <td className="py-2.5 px-2 xl:px-3 text-gray-500 whitespace-nowrap">{formatDate(req.createdAt)}</td>
                       <td className="py-2.5 px-2 xl:px-3">{getStatusBadge(req.status)}</td>
                       <td className="py-2.5 px-2 xl:px-3">
@@ -1415,18 +1510,17 @@ export default function FacebookPage() {
               <table className="w-full text-sm xl:text-[13px]">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">#</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Apply ID</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">User</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Account</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Account ID</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Amount</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Total</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Remarks</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Date</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Status</th>
-                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Remark</th>
-                    <th className="text-center py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Actions</th>
+                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">#</th>
+                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Apply ID</th>
+                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">User</th>
+                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Account</th>
+                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">VCC Card</th>
+                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Amount</th>
+                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Total</th>
+                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Date</th>
+                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Status</th>
+                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Remark</th>
+                    <th className="text-center py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1441,91 +1535,87 @@ export default function FacebookPage() {
                         className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate"
                         style={{ animationDelay: `${index * 20}ms` }}
                       >
-                        <td className="py-2.5 px-2 xl:px-3 text-gray-400 text-center">{depositsStartIndex + index + 1}</td>
-                        <td className="py-2.5 px-2 xl:px-3 text-gray-600 font-mono">{dep.applyId || '---'}</td>
-                        <td className="py-2.5 px-2 xl:px-3 text-gray-700 whitespace-nowrap">{dep.adAccount.user.username}</td>
-                        <td className="py-2.5 px-2 xl:px-3 text-gray-600">{dep.adAccount.accountName}</td>
-                        <td className="py-2.5 px-2 xl:px-3 font-mono whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-emerald-600">{dep.adAccount.accountId}</span>
+                        <td className="py-1.5 px-1.5 text-gray-400 text-center text-xs">{depositsStartIndex + index + 1}</td>
+                        <td className="py-1.5 px-1.5 text-gray-600 font-mono text-[11px]">{dep.applyId || '---'}</td>
+                        <td className="py-1.5 px-1.5 text-gray-700 text-xs whitespace-nowrap">{dep.adAccount.user.username}</td>
+                        <td className="py-1.5 px-1.5">
+                          <div className="text-gray-600 text-xs leading-tight">{dep.adAccount.accountName}</div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="text-emerald-600 font-mono text-[10px]">{dep.adAccount.accountId}</span>
                             {isNotCheetah && dep.status === 'PENDING' && (
                               <span title="Not a Cheetah account — manual recharge required" className="inline-flex items-center">
-                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                                <AlertTriangle className="w-3 h-3 text-amber-500" />
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="py-2.5 px-2 xl:px-3 font-semibold text-emerald-600">${depositAmount.toFixed(2)}</td>
-                        <td className="py-2.5 px-2 xl:px-3 font-semibold text-orange-600">
+                        <td className="py-1.5 px-1.5">
+                          {dep.adAccount.fundingSources ? (() => {
+                            try {
+                              const cards = JSON.parse(dep.adAccount.fundingSources)
+                              return Array.isArray(cards) && cards.length > 0
+                                ? <div className="flex flex-wrap gap-0.5">{cards.map((c: any, i: number) => (
+                                    <span key={i} className="px-1 py-0 bg-blue-50 text-blue-600 rounded text-[9px] font-medium">{c.display}</span>
+                                  ))}</div>
+                                : <span className="text-gray-300 text-[10px]">—</span>
+                            } catch { return <span className="text-gray-300 text-[10px]">—</span> }
+                          })() : <span className="text-gray-300 text-[10px]">—</span>}
+                        </td>
+                        <td className="py-1.5 px-1.5 font-semibold text-emerald-600 text-xs whitespace-nowrap">${depositAmount.toFixed(2)}</td>
+                        <td className="py-1.5 px-1.5 font-semibold text-orange-600 text-xs whitespace-nowrap" title={dep.remarks || ''}>
                           ${totalCost.toFixed(2)}
                           {commissionAmount > 0 && (
-                            <span className="text-xs font-normal text-gray-400 ml-1">
-                              (+${commissionAmount.toFixed(2)})
-                            </span>
+                            <span className="text-[10px] font-normal text-gray-400 ml-0.5">(+${commissionAmount.toFixed(2)})</span>
                           )}
                         </td>
-                        <td className="py-2.5 px-2 xl:px-3 text-gray-500 max-w-[150px] truncate">{dep.remarks || '---'}</td>
-                        <td className="py-2.5 px-2 xl:px-3 text-gray-500 whitespace-nowrap">{formatDate(dep.createdAt)}</td>
-                        <td className="py-2.5 px-2 xl:px-3">
+                        <td className="py-1.5 px-1.5 text-gray-500 text-[11px] whitespace-nowrap">{formatDate(dep.createdAt)}</td>
+                        <td className="py-1.5 px-1.5">
                           {dep.status === 'APPROVED' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              Approved
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700">
+                              <span className="w-1 h-1 rounded-full bg-emerald-500" />Approved
                             </span>
                           ) : dep.status === 'REJECTED' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                              Rejected
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700">
+                              <span className="w-1 h-1 rounded-full bg-red-500" />Rejected
                             </span>
                           ) : dep.status === 'PENDING' && dep.rechargeStatus === 'VERIFY_FAILED' ? (
-                            <span
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 cursor-help"
-                              title={dep.rechargeError || 'Spend cap verification failed'}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                              Verify Failed
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700 cursor-help" title={dep.rechargeError || 'Verification failed'}>
+                              <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />Verify Fail
                             </span>
                           ) : dep.status === 'PENDING' && dep.rechargeStatus === 'VERIFYING' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-                              Verifying
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">
+                              <span className="w-1 h-1 rounded-full bg-purple-500 animate-pulse" />Verifying
                             </span>
                           ) : dep.status === 'PENDING' && dep.rechargeStatus === 'FAILED' ? (
-                            <span
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-700 cursor-help"
-                              title={dep.rechargeError || 'Recharge failed'}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                              Failed
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700 cursor-help" title={dep.rechargeError || 'Recharge failed'}>
+                              <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />Failed
                             </span>
                           ) : dep.status === 'PENDING' && dep.rechargeStatus === 'IN_PROGRESS' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                              Processing
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700">
+                              <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />Processing
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                              Pending
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700">
+                              <span className="w-1 h-1 rounded-full bg-amber-500" />Pending
                             </span>
                           )}
                         </td>
-                        <td className="py-2.5 px-2 xl:px-3 whitespace-nowrap max-w-[180px]">
+                        <td className="py-1.5 px-1.5 whitespace-nowrap max-w-[120px]">
                           {/* APPROVED deposits — show method */}
                           {dep.status === 'APPROVED' && dep.rechargeMethod === 'CHEETAH' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Cheetah Auto</span>
+                            <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-green-50 text-green-700">Cheetah</span>
                           )}
                           {dep.status === 'APPROVED' && dep.rechargeMethod === 'EXTENSION' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Extension</span>
+                            <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-green-50 text-green-700">Extension</span>
                           )}
                           {dep.status === 'APPROVED' && dep.rechargeMethod === 'MANUAL' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Admin Force</span>
+                            <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-green-50 text-green-700">Admin</span>
                           )}
                           {dep.status === 'APPROVED' && dep.rechargeMethod === 'SERVER' && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Server Auto</span>
+                            <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-green-50 text-green-700">Server</span>
                           )}
                           {dep.status === 'APPROVED' && (!dep.rechargeMethod || dep.rechargeMethod === 'NONE') && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Approved</span>
+                            <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-green-50 text-green-700">Approved</span>
                           )}
                           {/* REJECTED deposits — show adminRemarks */}
                           {dep.status === 'REJECTED' && (
@@ -1622,6 +1712,130 @@ export default function FacebookPage() {
               </div>
             )
           })()}
+
+          {/* ═══════════════════════════════════════════════════
+              TRANSFER LIST TAB
+             ═══════════════════════════════════════════════════ */}
+          {activeTab === 'transfer-list' && (
+            transfersLoading ? (
+              <div className="flex h-64 items-center justify-center">
+                <div className="flex flex-col items-center">
+                  <Loader2 className="w-5 h-5 text-violet-600 animate-spin mb-1" />
+                  <span className="text-gray-500 text-sm">Loading...</span>
+                </div>
+              </div>
+            ) : filteredTransfers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Transfers</h3>
+                <p className="text-gray-500 text-sm">No balance transfer requests found matching your filters</p>
+              </div>
+            ) : (
+              <table className="w-full text-sm xl:text-[13px]">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">#</th>
+                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">User</th>
+                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">From Account</th>
+                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">To Account</th>
+                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Amount</th>
+                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Date</th>
+                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Status</th>
+                    <th className="text-center py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedTransfers.map((t: any, index: number) => (
+                    <tr
+                      key={t.id}
+                      className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate"
+                      style={{ animationDelay: `${index * 20}ms` }}
+                    >
+                      <td className="py-2.5 px-2 xl:px-3 text-gray-400 text-center">{transfersStartIndex + index + 1}</td>
+                      <td className="py-2.5 px-2 xl:px-3 text-gray-700 whitespace-nowrap">{t.user?.username || '---'}</td>
+                      <td className="py-2.5 px-2 xl:px-3">
+                        <div className="flex flex-col">
+                          <span className="text-gray-700 text-xs">{t.fromAccount?.accountName || '---'}</span>
+                          <span className="text-emerald-600 font-mono text-xs">{t.fromAccount?.accountId || '---'}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-2 xl:px-3">
+                        <div className="flex flex-col">
+                          <span className="text-gray-700 text-xs">{t.toAccount?.accountName || '---'}</span>
+                          <span className="text-emerald-600 font-mono text-xs">{t.toAccount?.accountId || '---'}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-2 xl:px-3">
+                        {editingTransferId === t.id ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-blue-600 font-bold">$</span>
+                            <input
+                              type="number"
+                              value={editingTransferAmount}
+                              onChange={(e) => setEditingTransferAmount(e.target.value)}
+                              className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-violet-500"
+                              min="0"
+                              step="0.01"
+                            />
+                            <button
+                              onClick={() => handleTransferAmountSave(t.id)}
+                              className="p-1 text-green-600 hover:bg-green-50 rounded"
+                              title="Save"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => { setEditingTransferId(null); setEditingTransferAmount('') }}
+                              className="p-1 text-red-600 hover:bg-red-50 rounded"
+                              title="Cancel"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="font-semibold text-blue-600">${parseFloat(t.amount || '0').toFixed(2)}</span>
+                            {t.status === 'PENDING' && (
+                              <button
+                                onClick={() => handleTransferAmountEdit(t)}
+                                className="p-1 text-gray-400 hover:text-violet-600 hover:bg-gray-100 rounded transition-colors"
+                                title="Edit amount"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-2 xl:px-3 text-gray-500 whitespace-nowrap">{formatDate(t.createdAt)}</td>
+                      <td className="py-2.5 px-2 xl:px-3">{getStatusBadge(t.status)}</td>
+                      <td className="py-2.5 px-2 xl:px-3">
+                        {t.status === 'PENDING' ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => handleTransferApprove(t.id)}
+                              className="p-1.5 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
+                              title="Approve"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleTransferReject(t.id)}
+                              className="p-1.5 rounded bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                              title="Reject"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 flex justify-center">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          )}
 
           {/* ═══════════════════════════════════════════════════
               REFUND LIST TAB
@@ -1782,6 +1996,19 @@ export default function FacebookPage() {
           </div>
         )}
 
+        {/* Transfers Pagination — Client-side */}
+        {activeTab === 'transfer-list' && !transfersLoading && filteredTransfers.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 flex-shrink-0 bg-white">
+            <div className="flex items-center gap-3">
+              <span className="text-[13px] text-gray-500">
+                {transfersStartIndex + 1}-{Math.min(transfersStartIndex + effectiveTransfersPerPage, filteredTransfers.length)} of {filteredTransfers.length}
+              </span>
+              <PaginationSelect value={transfersPerPage} onChange={(val) => { setTransfersPerPage(val); setTransfersPage(1) }} />
+            </div>
+            {renderPageButtons(transfersPage, totalTransfersPages, setTransfersPage)}
+          </div>
+        )}
+
         {/* Refunds Pagination — Client-side */}
         {activeTab === 'refund-list' && !refundsLoading && filteredRefunds.length > 0 && (
           <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 flex-shrink-0 bg-white">
@@ -1826,33 +2053,49 @@ export default function FacebookPage() {
           />
 
           {createForm.accounts.map((acc, index) => (
-            <div key={index} className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Ad Account Name</label>
-                <input
-                  type="text"
-                  value={acc.name}
-                  onChange={(e) => {
-                    const newAccounts = [...createForm.accounts]
-                    newAccounts[index].name = e.target.value
-                    setCreateForm({ ...createForm, accounts: newAccounts })
-                  }}
-                  placeholder="Enter Account Name"
-                  className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/20"
-                />
+            <div key={index} className="space-y-2 p-3 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Ad Account Name</label>
+                  <input
+                    type="text"
+                    value={acc.name}
+                    onChange={(e) => {
+                      const newAccounts = [...createForm.accounts]
+                      newAccounts[index].name = e.target.value
+                      setCreateForm({ ...createForm, accounts: newAccounts })
+                    }}
+                    placeholder="Enter Account Name"
+                    className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/20 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Ad Account ID</label>
+                  <input
+                    type="text"
+                    value={acc.accountId}
+                    onChange={(e) => {
+                      const newAccounts = [...createForm.accounts]
+                      newAccounts[index].accountId = e.target.value.replace(/\s/g, '')
+                      setCreateForm({ ...createForm, accounts: newAccounts })
+                    }}
+                    placeholder="Enter ID"
+                    className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/20 bg-white"
+                  />
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Ad Account ID</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">VCard <span className="text-gray-400">(empty = Cheetah)</span></label>
                 <input
                   type="text"
-                  value={acc.accountId}
+                  value={acc.vcard}
                   onChange={(e) => {
                     const newAccounts = [...createForm.accounts]
-                    newAccounts[index].accountId = e.target.value.replace(/\s/g, '')
+                    newAccounts[index].vcard = e.target.value
                     setCreateForm({ ...createForm, accounts: newAccounts })
                   }}
-                  placeholder="Enter ID"
-                  className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/20"
+                  placeholder="e.g. Visa *1234"
+                  className="w-full h-8 px-3 rounded-md border border-gray-200 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/20 bg-white"
                 />
               </div>
             </div>
@@ -2004,37 +2247,53 @@ export default function FacebookPage() {
             <p className="text-sm text-gray-500">Give an ID for the Approval process to user</p>
 
             {approveForm.map((acc, index) => (
-              <div key={index} className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">User Name</label>
-                  <input
-                    type="text"
-                    value={selectedApplication.user.username}
-                    disabled
-                    className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-md text-sm"
-                  />
+              <div key={index} className="space-y-2 p-3 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">User Name</label>
+                    <input
+                      type="text"
+                      value={selectedApplication.user.username}
+                      disabled
+                      className="w-full h-9 px-3 bg-white border border-gray-200 rounded-md text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Ad Account Name</label>
+                    <input
+                      type="text"
+                      value={acc.name}
+                      disabled
+                      className="w-full h-9 px-3 bg-white border border-gray-200 rounded-md text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Ad Account ID</label>
+                    <input
+                      type="text"
+                      value={acc.accountId}
+                      onChange={(e) => {
+                        const newForm = [...approveForm]
+                        newForm[index].accountId = e.target.value.replace(/\s/g, '')
+                        setApproveForm(newForm)
+                      }}
+                      placeholder="Add ID"
+                      className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/20 bg-white"
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Ad Account Name</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">VCard <span className="text-gray-400">(empty = Cheetah)</span></label>
                   <input
                     type="text"
-                    value={acc.name}
-                    disabled
-                    className="w-full h-9 px-3 bg-gray-50 border border-gray-200 rounded-md text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Ad Account ID</label>
-                  <input
-                    type="text"
-                    value={acc.accountId}
+                    value={acc.vcard}
                     onChange={(e) => {
                       const newForm = [...approveForm]
-                      newForm[index].accountId = e.target.value.replace(/\s/g, '')
+                      newForm[index].vcard = e.target.value
                       setApproveForm(newForm)
                     }}
-                    placeholder="Add ID"
-                    className="w-full h-9 px-3 rounded-md border border-gray-200 text-sm focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/20"
+                    placeholder="e.g. Visa *1234"
+                    className="w-full h-8 px-3 rounded-md border border-gray-200 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/20 bg-white"
                   />
                 </div>
               </div>

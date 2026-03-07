@@ -50,6 +50,7 @@ type User = {
   snapchatCommission?: number
   bingCommission?: number
   personalRemarks?: string
+  blockReason?: string | null
 }
 
 type Agent = {
@@ -97,6 +98,7 @@ export default function UsersPage() {
     website: '',
     agentId: '',
     status: 'ACTIVE',
+    blockReason: '',
     personalRemarks: '',
     platformFees: {
       facebook: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
@@ -172,6 +174,7 @@ export default function UsersPage() {
       website: '',
       agentId: '',
       status: 'ACTIVE',
+      blockReason: '',
       personalRemarks: '',
       platformFees: {
         facebook: { openingFee: '', depositFee: '', unlimitedDomainFee: '' },
@@ -198,6 +201,7 @@ export default function UsersPage() {
       website: user.website || '',
       agentId: user.agentId || '',
       status: user.status,
+      blockReason: user.blockReason || '',
       personalRemarks: user.personalRemarks || '',
       platformFees: {
         facebook: {
@@ -247,6 +251,7 @@ export default function UsersPage() {
         website: formData.website,
         agentId: formData.agentId || undefined,
         status: formData.status,
+        blockReason: formData.blockReason || undefined,
         personalRemarks: formData.personalRemarks,
         fbFee: Number(formData.platformFees.facebook.openingFee) || 0,
         fbCommission: Number(formData.platformFees.facebook.depositFee) || 0,
@@ -1270,6 +1275,17 @@ export default function UsersPage() {
                 </select>
               </div>
             </div>
+            {formData.status === 'BLOCKED' && (
+              <div>
+                <label className="text-sm font-medium text-red-500 mb-0.5 block">Block Reason *</label>
+                <input
+                  value={formData.blockReason}
+                  onChange={(e) => setFormData({ ...formData, blockReason: e.target.value })}
+                  placeholder="e.g. Stop cooperation, Policy violation..."
+                  className="w-full h-9 px-2 rounded-md border border-red-200 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500/20 bg-red-50"
+                />
+              </div>
+            )}
             <div>
               <label className="text-sm font-medium text-gray-500 mb-0.5 block">Personal Remarks</label>
               <textarea

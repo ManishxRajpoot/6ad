@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Search, ChevronDown, ChevronLeft, ChevronRight, X, Calendar, SlidersHorizontal, LayoutDashboard, Users, UserCog, CreditCard, FileText, ArrowUpRight, Settings, Megaphone, Globe, Ticket, Gift, Plug, Layers } from 'lucide-react'
+import { Bell, Search, ChevronDown, ChevronLeft, ChevronRight, X, Calendar, SlidersHorizontal, LayoutDashboard, Users, UserCog, CreditCard, FileText, ArrowUpRight, Settings, Megaphone, Globe, Ticket, Gift, Plug, Layers, Mail } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { useDateFilterStore } from '@/store/dateFilter'
 
@@ -21,6 +21,7 @@ const searchablePages = [
   { name: 'Bing', href: '/bing', icon: Globe },
   { name: 'Announcements', href: '/announcements', icon: Megaphone },
   { name: 'Notifications', href: '/notifications', icon: Bell },
+  { name: 'Email Sender', href: '/email', icon: Mail },
   { name: 'Coupons', href: '/coupons', icon: Ticket },
   { name: 'Referrals', href: '/referrals', icon: Gift },
   { name: 'Extension API', href: '/extension', icon: Plug },

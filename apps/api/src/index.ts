@@ -37,6 +37,7 @@ import versionRoutes from './routes/version.js'
 import eventRoutes from './routes/events.js'
 import extensionRoutes from './routes/extension.js'
 import reportRoutes from './routes/reports.js'
+import emailRoutes from './routes/emails.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
 import { startTaskWatchdog } from './services/task-watchdog.js'
@@ -115,6 +116,7 @@ app.route('/version', versionRoutes)
 app.route('/events', eventRoutes)
 app.route('/extension', extensionRoutes)
 app.route('/reports', reportRoutes)
+app.route('/emails', emailRoutes)
 
 // Start background crypto verification service
 startBackgroundVerifier().catch(console.error)
@@ -129,7 +131,7 @@ startTaskWatchdog()
 startRechargeCron()
 startBmShareCron()
 
-// Start AdsPower worker (CDP auto-login + browser management for extension)
+// AdsPower worker — manages browser lifecycle + CDP auto-login
 startAdsPowerWorker()
 
 // Start spend cap verification cron (verifies extension recharges on Facebook)

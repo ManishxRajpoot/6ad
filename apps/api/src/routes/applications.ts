@@ -13,17 +13,26 @@ applications.use('*', verifyToken)
 // Generate Apply ID
 // NEW license: AD{YYYYMMDD}{7-digit random}
 // OLD license: AD{YYYYDDMM}{7-digit random}
-function generateApplyId(licenseType: 'NEW' | 'OLD'): string {
+const PLATFORM_PREFIX: Record<string, string> = {
+  FACEBOOK: 'FB',
+  GOOGLE: 'GG',
+  TIKTOK: 'TT',
+  SNAPCHAT: 'SC',
+  BING: 'BG',
+}
+
+function generateApplyId(licenseType: 'NEW' | 'OLD', platform?: string): string {
   const now = new Date()
   const year = now.getFullYear()
   const month = String(now.getMonth() + 1).padStart(2, '0')
   const day = String(now.getDate()).padStart(2, '0')
   const random = randomInt(1000000, 10000000)
+  const prefix = (platform && PLATFORM_PREFIX[platform]) || 'AD'
 
   if (licenseType === 'NEW') {
-    return `AD${year}${month}${day}${random}`
+    return `${prefix}${year}${month}${day}${random}`
   } else {
-    return `AD${year}${day}${month}${random}`
+    return `${prefix}${year}${day}${month}${random}`
   }
 }
 
@@ -148,13 +157,13 @@ applications.post('/', requireUser, async (c) => {
       return c.json({ error: 'No coupons available' }, 400)
     }
 
-    // Generate unique Apply ID
-    let applyId = generateApplyId(data.licenseType)
+    // Generate unique Apply ID with platform prefix (FB, GG, TT, SC, BG)
+    let applyId = generateApplyId(data.licenseType, data.platform)
     let attempts = 0
     while (attempts < 10) {
       const existing = await prisma.adAccountApplication.findUnique({ where: { applyId } })
       if (!existing) break
-      applyId = generateApplyId(data.licenseType)
+      applyId = generateApplyId(data.licenseType, data.platform)
       attempts++
     }
 
@@ -527,7 +536,7 @@ applications.post('/:id/approve', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
     const { accountIds, adminRemarks, extensionProfileId } = await c.req.json()
-    // accountIds is an array of { name, accountId }
+    // accountIds is an array of { name, accountId, vcard? }
     // extensionProfileId: which AdsPower/extension profile manages these accounts
 
     const application = await prisma.adAccountApplication.findUnique({
@@ -552,6 +561,12 @@ applications.post('/:id/approve', requireAdmin, async (c) => {
       // Create ad accounts
       for (const acc of accountIds) {
         if (acc.accountId) {
+          // Convert per-account vcard string to JSON array: "Visa *1234" -> [{"id":null,"display":"Visa *1234"}]
+          const vcardStr = acc.vcard?.trim()
+          const fundingSourcesJson = vcardStr
+            ? JSON.stringify(vcardStr.split(',').map((s: string) => s.trim()).filter(Boolean).map((d: string) => ({ id: null, display: d })))
+            : null
+
           await tx.adAccount.create({
             data: {
               platform: application.platform,
@@ -562,6 +577,8 @@ applications.post('/:id/approve', requireAdmin, async (c) => {
               userId: application.userId,
               applicationId: application.id,
               extensionProfileId: extensionProfileId || null,
+              fundingSources: fundingSourcesJson,
+              fundingSourceUpdatedAt: fundingSourcesJson ? new Date() : undefined,
             }
           })
         }
@@ -879,7 +896,7 @@ applications.post('/bulk-reject', requireAdmin, async (c) => {
 applications.post('/create-direct', requireAdmin, async (c) => {
   try {
     const { userId, platform, accounts, extensionProfileId } = await c.req.json()
-    // accounts is array of { name, accountId }
+    // accounts is array of { name, accountId, vcard? }
 
     if (!userId || !platform || !accounts || !Array.isArray(accounts) || accounts.length === 0) {
       return c.json({ error: 'User ID, platform, and accounts are required' }, 400)
@@ -893,6 +910,12 @@ applications.post('/create-direct', requireAdmin, async (c) => {
     const createdAccounts = []
     for (const acc of accounts) {
       if (acc.name && acc.accountId) {
+        // Convert per-account vcard string to JSON array
+        const vcardStr = acc.vcard?.trim()
+        const fundingSourcesJson = vcardStr
+          ? JSON.stringify(vcardStr.split(',').map((s: string) => s.trim()).filter(Boolean).map((d: string) => ({ id: null, display: d })))
+          : null
+
         const account = await prisma.adAccount.create({
           data: {
             platform: platform.toUpperCase(),
@@ -902,6 +925,8 @@ applications.post('/create-direct', requireAdmin, async (c) => {
             status: 'APPROVED',
             userId,
             extensionProfileId: extensionProfileId || null,
+            fundingSources: fundingSourcesJson,
+            fundingSourceUpdatedAt: fundingSourcesJson ? new Date() : undefined,
           }
         })
         createdAccounts.push(account)

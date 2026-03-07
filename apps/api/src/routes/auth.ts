@@ -321,12 +321,12 @@ auth.post('/register', async (c) => {
     const passwordResetToken = generatePasswordResetToken()
 
     // Get agent info for branding and custom domain if user has an agent
-    let agentBrandInfo: { brandLogo?: string | null; emailLogo?: string | null; username?: string | null } = {}
+    let agentBrandInfo: { brandName?: string | null; brandLogo?: string | null; emailLogo?: string | null; username?: string | null; emailSenderNameApproved?: string | null; smtpEnabled?: boolean | null; smtpHost?: string | null; smtpPort?: number | null; smtpUsername?: string | null; smtpPassword?: string | null; smtpEncryption?: string | null; smtpFromEmail?: string | null } = {}
     let agentCustomDomain: string | null = null
     if (agentId) {
       const agentData = await prisma.user.findUnique({
         where: { id: agentId },
-        select: { brandLogo: true, emailLogo: true, username: true }
+        select: { brandName: true, brandLogo: true, emailLogo: true, username: true, emailSenderNameApproved: true, smtpEnabled: true, smtpHost: true, smtpPort: true, smtpUsername: true, smtpPassword: true, smtpEncryption: true, smtpFromEmail: true }
       })
       if (agentData) {
         agentBrandInfo = agentData
@@ -388,9 +388,11 @@ auth.post('/register', async (c) => {
       email: normalizedEmail,
       passwordResetLink,
       agentLogo: agentBrandInfo.emailLogo || agentBrandInfo.brandLogo,
-      agentBrandName: agentBrandInfo.username
+      agentBrandName: agentBrandInfo.brandName || agentBrandInfo.emailSenderNameApproved || agentBrandInfo.username
     })
-    sendEmail({ to: normalizedEmail, ...welcomeEmail }).catch(console.error)
+    const welcomeSenderName = agentBrandInfo.emailSenderNameApproved || agentBrandInfo.brandName || (agentBrandInfo.smtpEnabled ? agentBrandInfo.username : undefined) || undefined
+    const welcomeSmtpConfig = buildSmtpConfig(agentBrandInfo)
+    sendEmail({ to: normalizedEmail, ...welcomeEmail, senderName: welcomeSenderName, smtpConfig: welcomeSmtpConfig }).catch(console.error)
 
     // Generate token
     const token = generateToken({ id: user.id, email: user.email, role: user.role })
@@ -753,7 +755,7 @@ auth.post('/2fa/send-email-code', async (c) => {
     // Prepare everything for email BEFORE any DB/SMTP calls
     const agentLogo = user.agent?.emailLogo || user.agent?.brandLogo || null
     const agentBrandName = user.agent?.username || null
-    const senderName = user.agent?.emailSenderNameApproved || undefined
+    const senderName = user.agent?.emailSenderNameApproved || user.agent?.brandName || (user.agent?.smtpEnabled ? user.agent?.username : undefined) || undefined
     const smtpConfig = buildSmtpConfig(user.agent)
     const emailTemplate = get2FALoginEmailTemplate(code, user.username, agentLogo, agentBrandName)
     const maskedEmailResult = maskEmail(user.email)
@@ -872,7 +874,7 @@ auth.post('/email/send-code', verifyToken, async (c) => {
       to: user.email,
       subject: emailTemplate.subject,
       html: emailTemplate.html,
-      senderName: user.agent?.emailSenderNameApproved || undefined,
+      senderName: user.agent?.emailSenderNameApproved || user.agent?.brandName || (user.agent?.smtpEnabled ? user.agent?.username : undefined) || undefined,
       smtpConfig: buildSmtpConfig(user.agent)
     })
 
@@ -1030,7 +1032,7 @@ auth.post('/email/send-change-code', verifyToken, async (c) => {
       to: newEmail,
       subject: 'Verify Your New Email Address',
       html: emailTemplate.html,
-      senderName: user.agent?.emailSenderNameApproved || undefined,
+      senderName: user.agent?.emailSenderNameApproved || user.agent?.brandName || (user.agent?.smtpEnabled ? user.agent?.username : undefined) || undefined,
       smtpConfig: buildSmtpConfig(user.agent)
     })
 
@@ -1154,9 +1156,11 @@ auth.post('/password/forgot', async (c) => {
       username: user.username,
       passwordResetLink,
       agentLogo: user.agent?.emailLogo || user.agent?.brandLogo,
-      agentBrandName: user.agent?.username
+      agentBrandName: user.agent?.brandName || user.agent?.emailSenderNameApproved || user.agent?.username
     })
-    sendEmail({ to: user.email, ...resetEmail }).catch(console.error)
+    const resetSenderName = user.agent?.emailSenderNameApproved || user.agent?.brandName || (user.agent?.smtpEnabled ? user.agent?.username : undefined) || undefined
+    const resetSmtpConfig = buildSmtpConfig(user.agent)
+    sendEmail({ to: user.email, ...resetEmail, senderName: resetSenderName, smtpConfig: resetSmtpConfig }).catch(console.error)
 
     return c.json({ message: 'If this email exists, a password reset link has been sent' })
   } catch (error) {

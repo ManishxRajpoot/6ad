@@ -67,8 +67,13 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     return response.json()
   } catch (error) {
     // Handle network errors (server not running, CORS, etc.)
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      throw new Error('Unable to connect to server. Please check if the API is running.')
+    // Chrome: "Failed to fetch", Safari: "Load failed", Firefox: "NetworkError"
+    if (error instanceof TypeError && (
+      error.message === 'Failed to fetch' ||
+      error.message === 'Load failed' ||
+      error.message.includes('NetworkError')
+    )) {
+      throw new Error('Unable to connect to server. Please check your internet connection.')
     }
     throw error
   }
@@ -205,7 +210,7 @@ export const accountsApi = {
   },
   getById: (id: string) => api.get<{ account: any }>(`/accounts/${id}`),
   create: (data: any) => api.post<{ account: any }>('/accounts', data),
-  update: (id: string, data: any) => api.put<{ account: any }>(`/accounts/${id}`, data),
+  update: (id: string, data: any) => api.patch<{ account: any }>(`/accounts/${id}`, data),
   updateStatus: (id: string, status: string) => api.patch<{ account: any; message: string }>(`/accounts/${id}`, { status }),
   delete: (id: string) => api.delete<{ message: string }>(`/accounts/${id}`),
 }
@@ -342,7 +347,7 @@ export const applicationsApi = {
   update: (id: string, data: any) => api.put<{ application: any }>(`/applications/${id}`, data),
 
   // Approve application with account IDs
-  approve: (id: string, accountIds: { name: string; accountId: string }[], extensionProfileId?: string) =>
+  approve: (id: string, accountIds: { name: string; accountId: string; vcard?: string }[], extensionProfileId?: string) =>
     api.post<{ application: any; accounts: any[] }>(`/applications/${id}/approve`, { accountIds, extensionProfileId: extensionProfileId || null }),
 
   // Reject application
@@ -350,7 +355,7 @@ export const applicationsApi = {
     api.post<{ application: any }>(`/applications/${id}/reject`, { refund, adminRemarks }),
 
   // Create ad account directly (without application)
-  createDirect: (userId: string, platform: string, accounts: { name: string; accountId: string; bmId?: string; timezone?: string; currency?: string }[], extensionProfileId?: string) =>
+  createDirect: (userId: string, platform: string, accounts: { name: string; accountId: string; bmId?: string; timezone?: string; currency?: string; vcard?: string }[], extensionProfileId?: string) =>
     api.post<{ accounts: any[] }>('/applications/create-direct', { userId, platform, accounts, extensionProfileId: extensionProfileId || null }),
 
   // Bulk approve applications
@@ -504,6 +509,20 @@ export const notificationsApi = {
     api.post<{ notification: any }>('/notifications/admin/send', data),
   sendToAll: (data: { type: string; title: string; message: string; link?: string }) =>
     api.post<{ count: number }>('/notifications/admin/send-all', data),
+}
+
+// Email Sender API (Admin)
+export const emailApi = {
+  send: (data: { userIds: string[]; subject: string; body: string }) =>
+    api.post<{ sent: number; failed: number; total: number }>('/emails/send', data),
+  sendAll: (data: { subject: string; body: string }) =>
+    api.post<{ sent: number; failed: number; total: number }>('/emails/send-all', data),
+  sendToAgent: (data: { agentId: string; subject: string; body: string }) =>
+    api.post<{ sent: number; failed: number; total: number }>('/emails/send-agent', data),
+  getLogs: (page?: number, limit?: number) =>
+    api.get<{ logs: any[]; total: number; page: number; pages: number }>(
+      `/emails/logs?page=${page || 1}&limit=${limit || 50}`
+    ),
 }
 
 // Referrals API (Admin)

@@ -81,8 +81,14 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     return response.json()
   } catch (error) {
     // Handle network errors (server not running, CORS, etc.)
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      throw new Error('Unable to connect to server. Please check if the API is running.')
+    // Chrome: "Failed to fetch", Safari/WebKit: "Load failed", Firefox: "NetworkError"
+    if (error instanceof TypeError && (
+      error.message === 'Failed to fetch' ||
+      error.message === 'Load failed' ||
+      error.message === 'NetworkError when attempting to fetch resource.' ||
+      error.message.includes('network')
+    )) {
+      throw new Error('Server se connect nahi ho pa raha. Please check your internet connection and try again.')
     }
     throw error
   }

@@ -232,6 +232,10 @@ model AdAccount {
   timezone          String?
   currency          String        @default("USD")
 
+  // Payment methods (auto-populated by extension)
+  fundingSources         String?       // JSON array: [{"id":"123","display":"Visa *1234"}, ...]
+  fundingSourceUpdatedAt DateTime?
+
   // Status
   status            AccountStatus @default(PENDING)
 
@@ -1437,4 +1441,22 @@ model AuditLog {
   @@index([targetId])
 }
 
+model EmailLog {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  sentBy          String   @db.ObjectId
+  recipientEmail  String
+  recipientUserId String?  @db.ObjectId
+  recipientName   String?
+  agentId         String?  @db.ObjectId
+  agentName       String?
+  smtpUsed        String?
+  subject         String
+  body            String
+  status          String   @default("SENT")
+  error           String?
+  createdAt       DateTime @default(now())
 
+  @@index([sentBy])
+  @@index([recipientUserId])
+  @@index([createdAt])
+}

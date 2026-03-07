@@ -34,6 +34,7 @@ type AdAccount = {
   sourceBmId: string | null
   licenseName: string | null
   extensionProfileId: string | null
+  fundingSources: string | null
   createdAt: string
   user: {
     id: string
@@ -100,6 +101,33 @@ export default function AllAdAccountsPage() {
   // Copy & Action loading
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
+
+  // Inline Account ID editing
+  const [accIdEditId, setAccIdEditId] = useState<string | null>(null)
+  const [accIdEditValue, setAccIdEditValue] = useState<string>('')
+  const [accIdSaving, setAccIdSaving] = useState(false)
+
+  // VCard edit
+  const [vcardEditId, setVcardEditId] = useState<string | null>(null)
+  const [vcardEditValue, setVcardEditValue] = useState<string>('')
+  const [vcardSaving, setVcardSaving] = useState(false)
+
+  const handleVcardSave = async (accId: string) => {
+    setVcardSaving(true)
+    try {
+      const cards = vcardEditValue.trim()
+        ? vcardEditValue.split(',').map(s => s.trim()).filter(Boolean).map(display => ({ id: null, display }))
+        : []
+      const fundingSources = cards.length > 0 ? JSON.stringify(cards) : null
+      await accountsApi.update(accId, { fundingSources })
+      setAccounts(prev => prev.map(a => a.id === accId ? { ...a, fundingSources } : a))
+      toast.success('VCard updated')
+      setVcardEditId(null)
+    } catch {
+      toast.error('Failed to update VCard')
+    }
+    setVcardSaving(false)
+  }
 
   // Extension profile assignment
   const [extensionProfiles, setExtensionProfiles] = useState<any[]>([])
@@ -184,6 +212,22 @@ export default function AllAdAccountsPage() {
       toast.error('Failed to update profile')
     } finally {
       setProfileSaving(false)
+    }
+  }
+
+  const handleAccIdSave = async (id: string) => {
+    const trimmed = accIdEditValue.trim()
+    if (!trimmed) { toast.error('Account ID cannot be empty'); return }
+    setAccIdSaving(true)
+    try {
+      await accountsApi.update(id, { accountId: trimmed })
+      setAccounts(prev => prev.map(a => a.id === id ? { ...a, accountId: trimmed } : a))
+      toast.success('Account ID updated')
+      setAccIdEditId(null)
+    } catch {
+      toast.error('Failed to update Account ID')
+    } finally {
+      setAccIdSaving(false)
     }
   }
 
@@ -551,6 +595,7 @@ export default function AllAdAccountsPage() {
                   <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">User</th>
                   <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Agent</th>
                   <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Profile</th>
+                  <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">VCard</th>
                   <th className="text-right py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Deposit</th>
                   <th className="text-right py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Spend</th>
                   <th className="text-right py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Balance</th>
@@ -562,7 +607,7 @@ export default function AllAdAccountsPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={12} className="py-6 text-center">
+                    <td colSpan={13} className="py-6 text-center">
                       <div className="flex flex-col items-center">
                         <Loader2 className="w-5 h-5 text-violet-600 animate-spin mb-1" />
                         <span className="text-gray-500">Loading accounts...</span>
@@ -571,7 +616,7 @@ export default function AllAdAccountsPage() {
                   </tr>
                 ) : paginatedAccounts.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="py-6 text-center text-gray-500">
+                    <td colSpan={13} className="py-6 text-center text-gray-500">
                       {searchQuery || platformFilter !== 'all' ? 'No matching accounts found' : 'No ad accounts found'}
                     </td>
                   </tr>
@@ -592,20 +637,46 @@ export default function AllAdAccountsPage() {
 
                       {/* Account ID */}
                       <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-1">
-                          <code className="text-[11px] font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">{acc.accountId}</code>
-                          <button
-                            onClick={() => copyToClipboard(acc.accountId, acc.id)}
-                            className="p-0.5 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
-                            title="Copy Account ID"
-                          >
-                            {copiedId === acc.id ? (
-                              <span className="text-emerald-500 text-[10px] font-medium">✓</span>
-                            ) : (
-                              <Copy className="w-3 h-3 text-gray-400" />
-                            )}
-                          </button>
-                        </div>
+                        {accIdEditId === acc.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={accIdEditValue}
+                              onChange={e => setAccIdEditValue(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') handleAccIdSave(acc.id); if (e.key === 'Escape') setAccIdEditId(null) }}
+                              className="w-[160px] text-[11px] font-mono px-1.5 py-0.5 border border-violet-300 rounded focus:outline-none focus:ring-1 focus:ring-violet-500"
+                              autoFocus
+                            />
+                            <button onClick={() => handleAccIdSave(acc.id)} disabled={accIdSaving} className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded" title="Save">
+                              {accIdSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            </button>
+                            <button onClick={() => setAccIdEditId(null)} className="p-0.5 text-gray-400 hover:bg-gray-100 rounded" title="Cancel">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <code className="text-[11px] font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">{acc.accountId}</code>
+                            <button
+                              onClick={() => copyToClipboard(acc.accountId, acc.id)}
+                              className="p-0.5 hover:bg-gray-100 rounded transition-colors flex-shrink-0"
+                              title="Copy Account ID"
+                            >
+                              {copiedId === acc.id ? (
+                                <span className="text-emerald-500 text-[10px] font-medium">✓</span>
+                              ) : (
+                                <Copy className="w-3 h-3 text-gray-400" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => { setAccIdEditId(acc.id); setAccIdEditValue(acc.accountId) }}
+                              className="p-0.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded transition-colors flex-shrink-0"
+                              title="Edit Account ID"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
                       </td>
 
                       {/* Account Name */}
@@ -691,6 +762,56 @@ export default function AllAdAccountsPage() {
                               onClick={() => { setProfileEditId(acc.id); setProfileEditValue(acc.extensionProfileId || ''); setProfileDropdownOpen(false) }}
                               className="p-1 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors flex-shrink-0"
                               title="Edit profile"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* VCard */}
+                      <td className="py-2.5 px-3">
+                        {vcardEditId === acc.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={vcardEditValue}
+                              onChange={e => setVcardEditValue(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') handleVcardSave(acc.id); if (e.key === 'Escape') setVcardEditId(null) }}
+                              placeholder="Visa *1234, MC *5678"
+                              className="w-[140px] text-[10px] px-1.5 py-0.5 border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              autoFocus
+                              disabled={vcardSaving}
+                            />
+                            <button onClick={() => handleVcardSave(acc.id)} disabled={vcardSaving} className="p-0.5 text-blue-600 hover:bg-blue-50 rounded">
+                              {vcardSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            </button>
+                            <button onClick={() => setVcardEditId(null)} className="p-0.5 text-gray-400 hover:bg-gray-100 rounded">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            {acc.fundingSources ? (() => {
+                              try {
+                                const cards = JSON.parse(acc.fundingSources)
+                                return Array.isArray(cards) && cards.length > 0
+                                  ? <div className="flex flex-wrap gap-0.5">{cards.map((c: any, i: number) => (
+                                      <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-medium whitespace-nowrap">{c.display}</span>
+                                    ))}</div>
+                                  : <span className="text-gray-300 text-[10px]">—</span>
+                              } catch { return <span className="text-gray-300 text-[10px]">—</span> }
+                            })() : <span className="text-gray-300 text-[10px]">—</span>}
+                            <button
+                              onClick={() => {
+                                setVcardEditId(acc.id)
+                                try {
+                                  const cards = acc.fundingSources ? JSON.parse(acc.fundingSources) : []
+                                  setVcardEditValue(Array.isArray(cards) ? cards.map((c: any) => c.display).join(', ') : '')
+                                } catch { setVcardEditValue('') }
+                              }}
+                              className="p-0.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0"
+                              title="Edit VCard"
                             >
                               <Pencil className="w-3 h-3" />
                             </button>

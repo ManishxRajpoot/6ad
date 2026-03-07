@@ -24,7 +24,16 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { token, user } = await authApi.login({ ...formData, rememberMe })
+      // Admin panel always bypasses 2FA by forcing rememberMe=true
+      const response = await authApi.login({ ...formData, rememberMe: true })
+
+      const { token, user } = response
+
+      if (!user || !user.role) {
+        setError('Invalid login response. Please try again.')
+        setLoading(false)
+        return
+      }
 
       if (user.role !== 'ADMIN') {
         setError('Access denied. Admin only.')

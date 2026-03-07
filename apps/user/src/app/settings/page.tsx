@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { useAuthStore } from '@/store/auth'
@@ -25,13 +25,15 @@ import {
   Pencil,
   X,
   User,
+  LogOut,
 } from 'lucide-react'
 
 type TabType = 'profile' | 'security'
 
 function SettingsPageContent() {
-  const { user, updateUser } = useAuthStore()
+  const { user, updateUser, logout } = useAuthStore()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Tab state - read from URL query param
@@ -360,6 +362,11 @@ function SettingsPageContent() {
     setTimeout(() => setCopiedSecret(false), 2000)
   }
 
+  const handleLogout = () => {
+    logout()
+    router.push('/login')
+  }
+
   const getInitials = () => {
     const userData = user as any
     if (userData?.realName) {
@@ -489,7 +496,7 @@ function SettingsPageContent() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 h-auto lg:h-[calc(100vh-140px)] pb-24 lg:pb-0">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 h-auto lg:h-[calc(100vh-140px)] pb-4 lg:pb-0">
         {/* Left Sidebar Navigation - Desktop Only */}
         <div className="hidden lg:block w-72 flex-shrink-0">
           <Card className="p-4 h-full">
@@ -704,6 +711,8 @@ function SettingsPageContent() {
                               </p>
                               <input
                                 type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 value={emailChangeCode}
                                 onChange={(e) => setEmailChangeCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                 placeholder="000000"
@@ -916,6 +925,8 @@ function SettingsPageContent() {
                       </p>
                       <input
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={emailCode}
                         onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         placeholder="000000"
@@ -1073,6 +1084,8 @@ function SettingsPageContent() {
                             <label className="block text-sm text-gray-600 mb-1.5">Enter the 6-digit code from your app</label>
                             <input
                               type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={twoFactorCode}
                               onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                               placeholder="000000"
@@ -1123,6 +1136,17 @@ function SettingsPageContent() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Mobile Logout Button */}
+      <div className="lg:hidden mb-24 px-1">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 text-gray-500 rounded-xl text-sm font-medium hover:bg-gray-100 active:bg-gray-200 transition-all"
+        >
+          <LogOut className="w-4 h-4" />
+          Logout
+        </button>
       </div>
     </DashboardLayout>
   )

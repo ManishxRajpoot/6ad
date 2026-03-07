@@ -185,7 +185,6 @@ async function autoRejectFailedRecharges(): Promise<number> {
         where: { id: deposit.id },
         data: {
           status: 'REJECTED',
-          rejectedAt: new Date(),
           adminRemarks: `Auto-rejected: Recharge failed after ${deposit.rechargeAttempts} attempts. Error: ${deposit.rechargeError || 'unknown'}. Funds on hold — admin must review.`,
         },
       })
@@ -334,7 +333,7 @@ async function reviveStaleProfiles(): Promise<number> {
 
     const pendingCount = await prisma.accountDeposit.count({
       where: {
-        approvedAt: { not: null },
+        status: 'PENDING',
         rechargeStatus: { in: ['PENDING', 'NONE'] },
         adAccount: { accountId: { in: managedIds } },
       },
@@ -410,12 +409,12 @@ async function runWatchdogCycle(): Promise<void> {
     const timedOutBmShares = await timeoutStuckBmShares()
     const rejectedDeposits = await autoRejectFailedRecharges()
     const fixedMappings = await autoFixProfileMappings()
-    const revivedProfiles = await reviveStaleProfiles()
+    // NOTE: reviveStaleProfiles disabled — CDP auto-login only triggers manually via admin panel
     await logTokenHealth()
 
     // Only log if something happened
-    if (timedOutRecharges > 0 || timedOutVerifications > 0 || timedOutBmShares > 0 || rejectedDeposits > 0 || fixedMappings > 0 || revivedProfiles > 0) {
-      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutVerifications} verifications, ${timedOutBmShares} BM shares, rejected ${rejectedDeposits} deposits, fixed ${fixedMappings} mappings, revived ${revivedProfiles} profiles`)
+    if (timedOutRecharges > 0 || timedOutVerifications > 0 || timedOutBmShares > 0 || rejectedDeposits > 0 || fixedMappings > 0) {
+      console.log(`[Watchdog] Cycle complete — timed out ${timedOutRecharges} recharges, ${timedOutVerifications} verifications, ${timedOutBmShares} BM shares, rejected ${rejectedDeposits} deposits, fixed ${fixedMappings} mappings`)
     }
   } catch (error) {
     console.error('[Watchdog] Cycle error:', error)

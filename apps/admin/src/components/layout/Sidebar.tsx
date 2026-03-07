@@ -20,6 +20,7 @@ import {
   Plug,
   ChevronRight,
   Layers,
+  Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -118,6 +119,7 @@ const menuSections: MenuSection[] = [
     items: [
       { name: 'Announcements', href: '/announcements', icon: Megaphone },
       { name: 'Notifications', href: '/notifications', icon: Bell },
+      { name: 'Email Sender', href: '/email', icon: Mail },
       { name: 'Coupons', href: '/coupons', icon: Ticket },
       { name: 'Referrals', href: '/referrals', icon: Gift },
     ]

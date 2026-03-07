@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { useAuthStore } from '@/store/auth'
@@ -24,7 +24,8 @@ import {
   UserCircle,
   ChevronRight,
   Pencil,
-  X
+  X,
+  LogOut
 } from 'lucide-react'
 
 type TabType = 'profile' | 'security'
@@ -38,8 +39,9 @@ export default function SettingsPage() {
 }
 
 function SettingsContent() {
-  const { user, setUser } = useAuthStore()
+  const { user, setUser, logout } = useAuthStore()
   const toast = useToast()
+  const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Tab state
@@ -359,6 +361,11 @@ function SettingsContent() {
     return user?.username?.slice(0, 2).toUpperCase() || 'U'
   }
 
+  const handleLogout = () => {
+    logout()
+    router.push('/login')
+  }
+
   const menuItems = [
     { id: 'profile' as TabType, label: 'Profile Settings', icon: UserCircle, description: 'Personal info' },
     { id: 'security' as TabType, label: 'Security', icon: ShieldCheck, description: 'Password & 2FA' }
@@ -567,6 +574,8 @@ function SettingsContent() {
                               <p className="text-[11px] text-gray-500">Code sent to <span className="font-medium text-teal-600">{newEmail}</span></p>
                               <input
                                 type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
                                 value={emailChangeCode}
                                 onChange={(e) => setEmailChangeCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                 placeholder="000000"
@@ -747,6 +756,8 @@ function SettingsContent() {
                       <p className="text-[11px] text-gray-500">Code sent to <span className="font-medium text-teal-600">{user?.email}</span></p>
                       <input
                         type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={emailCode}
                         onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         placeholder="000000"
@@ -865,6 +876,8 @@ function SettingsContent() {
                             <label className="block text-[11px] text-gray-600 mb-1">Enter 6-digit code</label>
                             <input
                               type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={twoFactorCode}
                               onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                               placeholder="000000"
@@ -906,6 +919,17 @@ function SettingsContent() {
             )}
           </Card>
         </div>
+      </div>
+
+      {/* Mobile Logout Button */}
+      <div className="lg:hidden mt-4 mb-8">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-red-200 text-red-500 rounded-xl text-[13px] font-medium hover:bg-red-50 active:bg-red-100 transition-all"
+        >
+          <LogOut className="w-4 h-4" />
+          Logout
+        </button>
       </div>
     </DashboardLayout>
   )

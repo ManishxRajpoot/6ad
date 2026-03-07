@@ -2,16 +2,19 @@
  * Recharge Cron Service
  *
  * Polls every 30s for APPROVED deposits with PENDING recharge status.
- * Tries Cheetah API only. Graph API fallback handled by extension worker (browser-side).
+ * Cheetah accounts: auto-retry 2 times, then stop (admin manually retries).
+ * Non-Cheetah: left PENDING for extension worker (browser-side Graph API).
  */
 
 import { cheetahApi } from './cheetah-api.js'
+import { startBrowser } from './adspower-worker.js'
 import { prisma } from '../lib/prisma.js'
 
 const CONFIG = {
   POLL_INTERVAL_MS: 30 * 1000,   // 30 seconds
   BATCH_SIZE: 5,                  // Max deposits per cycle
-  MAX_ATTEMPTS: 10,               // Give up after 10 tries
+  MAX_ATTEMPTS: 10,               // Give up after 10 tries (non-cheetah / extension)
+  CHEETAH_MAX_ATTEMPTS: 2,        // Cheetah accounts: only try 2 times, then wait for admin retry
 }
 
 let pollInterval: NodeJS.Timeout | null = null
@@ -35,6 +38,7 @@ async function processRechargeCycle(): Promise<void> {
             accountId: true,
             extensionProfileId: true,
             accountName: true,
+            sourceBmId: true,
           },
         },
       },
@@ -74,7 +78,20 @@ async function processDeposit(deposit: any): Promise<void> {
 
   if (amount <= 0) return
 
-  // Mark as IN_PROGRESS
+  // ─── Check if this is a Cheetah account (sourceBmId) ───
+  const isCheetahAccount = deposit.adAccount.sourceBmId === 'cheetah'
+
+  // Cheetah accounts: skip if already tried 2 times (admin must manually retry)
+  if (isCheetahAccount && deposit.rechargeAttempts >= CONFIG.CHEETAH_MAX_ATTEMPTS) {
+    return // Don't process — waiting for admin manual retry
+  }
+
+  // Non-Cheetah accounts: skip entirely — extension worker handles these via /poll
+  if (!isCheetahAccount) {
+    return
+  }
+
+  // Mark as IN_PROGRESS (Cheetah accounts only)
   await prisma.accountDeposit.update({
     where: { id: deposit.id },
     data: { rechargeStatus: 'IN_PROGRESS' },
@@ -82,10 +99,12 @@ async function processDeposit(deposit: any): Promise<void> {
 
   // ─── Step 1: Try Cheetah API ───
   let cheetahHandled = false
+  let cheetahAccountFound = false
   try {
     const accountResult = await cheetahApi.getAccount(accountId)
 
     if (accountResult.code === 0 && accountResult.data?.length > 0) {
+      cheetahAccountFound = true
       const cheetahAccount = accountResult.data[0]
       const currentSpendCap = parseFloat(cheetahAccount.spend_cap) || 0
       const newSpendCap = currentSpendCap + amount
@@ -123,6 +142,8 @@ async function processDeposit(deposit: any): Promise<void> {
             console.log(`[RechargeCron] Cheetah recharge SUCCESS: act_${accountId} +$${amount} (${deposit.applyId || deposit.id})`)
             cheetahHandled = true
             return
+          } else {
+            console.log(`[RechargeCron] Cheetah recharge API error: code=${rechargeResult.code}, msg=${rechargeResult.msg}`)
           }
         } else {
           console.log(`[RechargeCron] Cheetah insufficient quota: need $${amount}, have $${availableQuota}`)
@@ -134,23 +155,65 @@ async function processDeposit(deposit: any): Promise<void> {
     console.log(`[RechargeCron] Cheetah error for act_${accountId}: ${err.message}`)
   }
 
-  // ─── Step 2: Leave as PENDING for extension worker (browser-side Graph API) ───
+  // ─── Step 2: Handle based on whether it's a Cheetah account ───
   if (!cheetahHandled) {
-    await prisma.accountDeposit.update({
-      where: { id: deposit.id },
-      data: {
-        rechargeStatus: 'PENDING',
-        rechargeAttempts: { increment: 1 },
-        rechargeError: 'Not a Cheetah account — waiting for extension worker',
-      },
-    })
-    console.log(`[RechargeCron] act_${accountId} not Cheetah — left PENDING for extension (${deposit.applyId || deposit.id})`)
+    if (isCheetahAccount || cheetahAccountFound) {
+      // This IS a Cheetah account — do NOT send to extension worker
+      const newAttempts = (deposit.rechargeAttempts || 0) + 1
+      const reachedLimit = newAttempts >= CONFIG.CHEETAH_MAX_ATTEMPTS
+
+      await prisma.accountDeposit.update({
+        where: { id: deposit.id },
+        data: {
+          rechargeStatus: 'PENDING',
+          rechargeMethod: 'CHEETAH',
+          rechargeAttempts: { increment: 1 },
+          rechargeError: reachedLimit
+            ? 'Cheetah recharge failed after 2 attempts — admin must click Retry when quota is available'
+            : 'Cheetah account — insufficient quota, retrying...',
+        },
+      })
+
+      if (reachedLimit) {
+        console.log(`[RechargeCron] act_${accountId} Cheetah STOPPED after ${newAttempts} attempts — waiting for admin retry (${deposit.applyId || deposit.id})`)
+      } else {
+        console.log(`[RechargeCron] act_${accountId} Cheetah attempt ${newAttempts}/${CONFIG.CHEETAH_MAX_ATTEMPTS} — will retry (${deposit.applyId || deposit.id})`)
+      }
+    } else {
+      // Not a Cheetah account — auto-launch assigned AdsPower browser so extension can process
+      const extensionProfileId = deposit.adAccount.extensionProfileId
+      if (extensionProfileId) {
+        const profile = await prisma.facebookAutomationProfile.findUnique({
+          where: { id: extensionProfileId },
+          select: { adsPowerSerialNumber: true, label: true, isOnline: true },
+        })
+        if (profile?.adsPowerSerialNumber && !profile.isOnline) {
+          try {
+            await startBrowser(profile.adsPowerSerialNumber)
+            console.log(`[RechargeCron] Auto-launched AdsPower "${profile.label}" (serial=${profile.adsPowerSerialNumber}) for act_${accountId}`)
+          } catch (e: any) {
+            console.log(`[RechargeCron] Failed to launch AdsPower: ${e.message}`)
+          }
+        }
+      }
+
+      await prisma.accountDeposit.update({
+        where: { id: deposit.id },
+        data: {
+          rechargeStatus: 'PENDING',
+          rechargeError: extensionProfileId
+            ? 'Not a Cheetah account — browser launched, waiting for extension'
+            : 'Not a Cheetah account — no browser profile assigned',
+        },
+      })
+      console.log(`[RechargeCron] act_${accountId} not Cheetah — left PENDING for extension (${deposit.applyId || deposit.id})`)
+    }
   }
 }
 
 // ─── Public API ───
 export function startRechargeCron(): void {
-  console.log(`[RechargeCron] Starting — poll every ${CONFIG.POLL_INTERVAL_MS / 1000}s, batch ${CONFIG.BATCH_SIZE}, max attempts ${CONFIG.MAX_ATTEMPTS}`)
+  console.log(`[RechargeCron] Starting — poll every ${CONFIG.POLL_INTERVAL_MS / 1000}s, batch ${CONFIG.BATCH_SIZE}, cheetah max ${CONFIG.CHEETAH_MAX_ATTEMPTS}, extension max ${CONFIG.MAX_ATTEMPTS}`)
 
   // First run after short delay
   setTimeout(() => {

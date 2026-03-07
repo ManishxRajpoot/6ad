@@ -224,6 +224,8 @@ export function Mandatory2FASetup() {
                         <input
                           key={index}
                           type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           maxLength={1}
                           value={emailCode[index] || ''}
                           onChange={(e) => {
@@ -384,6 +386,8 @@ export function Mandatory2FASetup() {
                     <input
                       key={index}
                       type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       maxLength={1}
                       value={twoFactorCode[index] || ''}
                       onChange={(e) => {

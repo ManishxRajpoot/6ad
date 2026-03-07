@@ -842,11 +842,11 @@ export async function cdpAutoLogin(serialNumber: string, profile: any): Promise<
       console.log(`[AdsPower CDP] No usable page tab found!`)
     }
 
-    // Validate and store captured token
+    // Validate and store captured token — use /me/adaccounts (same as extension)
     if (capturedToken) {
-      const meRes = await fetch(`https://graph.facebook.com/me?access_token=${encodeURIComponent(capturedToken)}`).then(r => r.json()).catch(() => null)
-      if (meRes?.id) {
-        console.log(`[AdsPower CDP] Token VALIDATED! User: ${meRes.name} (${meRes.id}), len=${capturedToken.length}`)
+      const valRes = await fetch(`https://graph.facebook.com/v21.0/me/adaccounts?limit=1&fields=id&access_token=${encodeURIComponent(capturedToken)}`).then(r => r.json()).catch(() => null)
+      if (valRes?.data && Array.isArray(valRes.data)) {
+        console.log(`[AdsPower CDP] Token VALIDATED! ${valRes.data.length} ad accounts, len=${capturedToken.length}`)
         await prisma.facebookAutomationProfile.update({
           where: { id: profile.id },
           data: {
@@ -859,7 +859,7 @@ export async function cdpAutoLogin(serialNumber: string, profile: any): Promise<
         console.log(`[AdsPower CDP] Token stored in DB!`)
         workerStats.loggedInExecutions++
       } else {
-        console.log(`[AdsPower CDP] Token failed /me validation:`, meRes?.error?.message || 'unknown')
+        console.log(`[AdsPower CDP] Token failed /me/adaccounts validation:`, valRes?.error?.message || 'unknown')
         capturedToken = null
       }
     }

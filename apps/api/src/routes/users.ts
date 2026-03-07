@@ -134,6 +134,18 @@ users.get('/', requireAgent, async (c) => {
           createdAt: true,
           agent: {
             select: { id: true, username: true }
+          },
+          blockHistory: {
+            orderBy: { blockedAt: 'desc' },
+            take: 5,
+            select: {
+              reason: true,
+              blockedAt: true,
+              unblockedAt: true,
+              blockedBy: {
+                select: { id: true, username: true, role: true }
+              }
+            }
           }
         },
         skip,
@@ -163,6 +175,15 @@ users.get('/', requireAgent, async (c) => {
       bingFee: Number(user.bingFee),
       bingCommission: Number(user.bingCommission),
       bingUnlimitedDomainFee: Number(user.bingUnlimitedDomainFee),
+      // Flatten active block info for frontend (find the active/unresolved block)
+      ...((() => {
+        const activeBlock = user.blockHistory?.find(bh => !bh.unblockedAt) || user.blockHistory?.[0]
+        return {
+          blockedByAdmin: activeBlock?.blockedBy?.role === 'ADMIN' || false,
+          blockReason: activeBlock?.reason || null,
+          blockedByUsername: activeBlock?.blockedBy?.username || null,
+        }
+      })()),
     }))
 
     return c.json({
@@ -536,13 +557,14 @@ users.post('/', requireAgent, async (c) => {
     // Send welcome email with password reset link
     try {
       // Get agent branding info and custom domain for whitelabel
-      let agentBrandInfo: { brandLogo?: string | null; emailLogo?: string | null; username?: string | null; emailSenderNameApproved?: string | null; smtpEnabled?: boolean | null; smtpHost?: string | null; smtpPort?: number | null; smtpUsername?: string | null; smtpPassword?: string | null; smtpEncryption?: string | null; smtpFromEmail?: string | null } = {}
+      let agentBrandInfo: { brandName?: string | null; brandLogo?: string | null; emailLogo?: string | null; username?: string | null; emailSenderNameApproved?: string | null; smtpEnabled?: boolean | null; smtpHost?: string | null; smtpPort?: number | null; smtpUsername?: string | null; smtpPassword?: string | null; smtpEncryption?: string | null; smtpFromEmail?: string | null } = {}
       let agentCustomDomain: string | null = null
 
       if (agentId) {
         const agentData = await prisma.user.findUnique({
           where: { id: agentId },
           select: {
+            brandName: true,
             brandLogo: true,
             emailLogo: true,
             username: true,
@@ -561,6 +583,7 @@ users.post('/', requireAgent, async (c) => {
           const approvedDomain = agentData.customDomains?.[0]
           agentCustomDomain = approvedDomain?.domain || null
           agentBrandInfo = {
+            brandName: agentData.brandName,
             brandLogo: approvedDomain?.brandLogo || agentData.brandLogo,
             emailLogo: approvedDomain?.emailLogo || agentData.emailLogo,
             username: agentData.username,
@@ -582,13 +605,13 @@ users.post('/', requireAgent, async (c) => {
         email: normalizedEmail,
         passwordResetLink,
         agentLogo: agentBrandInfo.emailLogo || agentBrandInfo.brandLogo || null,
-        agentBrandName: agentBrandInfo.username || null
+        agentBrandName: agentBrandInfo.brandName || agentBrandInfo.emailSenderNameApproved || agentBrandInfo.username || null
       })
 
       const emailResult = await sendEmail({
         to: normalizedEmail,
         ...welcomeEmail,
-        senderName: agentBrandInfo.emailSenderNameApproved || undefined,
+        senderName: agentBrandInfo.emailSenderNameApproved || agentBrandInfo.brandName || (agentBrandInfo.smtpEnabled ? agentBrandInfo.username : undefined) || undefined,
         smtpConfig: buildSmtpConfig(agentBrandInfo)
       })
 
@@ -789,6 +812,47 @@ users.patch('/:id', requireAgent, async (c) => {
       updateData.agentId = body.agentId || null
     }
 
+    // Handle blockHistory when status changes
+    if (body.status !== undefined && body.status !== existingUser.status) {
+      if (body.status === 'BLOCKED') {
+        // Close any existing open block records first
+        await prisma.blockHistory.updateMany({
+          where: { userId: id, unblockedAt: null },
+          data: { unblockedAt: new Date() }
+        })
+        // Create new block history record
+        await prisma.blockHistory.create({
+          data: {
+            userId: id,
+            blockedById: currentUserId,
+            reason: body.blockReason || 'Blocked by admin',
+          }
+        })
+        // Force-logout the blocked user via SSE
+        broadcastToUser(id, 'force-logout', { reason: 'Account has been blocked' })
+      } else if (body.status === 'ACTIVE' && existingUser.status === 'BLOCKED') {
+        // Close all open block records
+        await prisma.blockHistory.updateMany({
+          where: { userId: id, unblockedAt: null },
+          data: { unblockedAt: new Date() }
+        })
+      }
+    }
+
+    // If user is already blocked and blockReason is provided, update the active block record reason
+    if (body.blockReason !== undefined && existingUser.status === 'BLOCKED' && body.status !== 'ACTIVE') {
+      const activeBlock = await prisma.blockHistory.findFirst({
+        where: { userId: id, unblockedAt: null },
+        orderBy: { blockedAt: 'desc' }
+      })
+      if (activeBlock) {
+        await prisma.blockHistory.update({
+          where: { id: activeBlock.id },
+          data: { reason: body.blockReason }
+        })
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id },
       data: updateData,
@@ -947,6 +1011,18 @@ users.post('/:id/unblock', requireAgent, async (c) => {
 
     if (unblockerRole === 'AGENT' && user.agentId !== unblockerId) {
       return c.json({ error: 'Access denied' }, 403)
+    }
+
+    // Agents cannot unblock users that were blocked by admin
+    if (unblockerRole === 'AGENT') {
+      const activeBlock = await prisma.blockHistory.findFirst({
+        where: { userId: id, unblockedAt: null },
+        orderBy: { blockedAt: 'desc' },
+        include: { blockedBy: { select: { role: true } } }
+      })
+      if (activeBlock?.blockedBy?.role === 'ADMIN') {
+        return c.json({ error: 'This user was blocked by admin and can only be unblocked by admin' }, 403)
+      }
     }
 
     await prisma.user.update({

@@ -28,7 +28,10 @@ import {
   Ban,
   CheckCircle,
   ShieldOff,
-  XCircle
+  XCircle,
+  ShieldAlert,
+  Lock,
+  MessageSquare
 } from 'lucide-react'
 
 type User = {
@@ -58,6 +61,9 @@ type User = {
   bingCommission?: number
   fbUnlimitedDomainFee?: number
   personalRemarks?: string
+  blockedByAdmin?: boolean
+  blockReason?: string | null
+  blockedByUsername?: string | null
 }
 
 export default function UsersPage() {
@@ -713,13 +719,16 @@ export default function UsersPage() {
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[12%]">Coupons</th>
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[12%]">Join Date</th>
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[10%]">Status</th>
+                  {statusFilter === 'blocked' && (
+                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[15%]">Remarks</th>
+                  )}
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50 w-[20%]">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center">
+                    <td colSpan={statusFilter === 'blocked' ? 8 : 7} className="py-6 text-center">
                       <div className="flex flex-col items-center">
                         <Loader2 className="w-5 h-5 text-[#0D9488] animate-spin mb-1" />
                         <span className="text-gray-500">Loading...</span>
@@ -728,7 +737,7 @@ export default function UsersPage() {
                   </tr>
                 ) : paginatedUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-gray-500">
+                    <td colSpan={statusFilter === 'blocked' ? 8 : 7} className="py-6 text-center text-gray-500">
                       {searchQuery ? 'No matching users found' : 'No users found'}
                     </td>
                   </tr>
@@ -841,6 +850,29 @@ export default function UsersPage() {
                         {getStatusBadge(user.status)}
                       </td>
 
+                      {/* Remarks - only on blocked tab */}
+                      {statusFilter === 'blocked' && (
+                        <td className="py-2.5 px-3">
+                          {user.status === 'BLOCKED' && (user.blockReason || user.blockedByAdmin) ? (
+                            <div className="space-y-1">
+                              {user.blockedByAdmin && (
+                                <div className="flex items-center gap-1">
+                                  <ShieldAlert className="w-3 h-3 text-red-500 flex-shrink-0" />
+                                  <span className="text-[10px] font-semibold text-red-600">Blocked by Six Media</span>
+                                </div>
+                              )}
+                              {user.blockReason && (
+                                <p className="text-[11px] text-gray-600 leading-tight line-clamp-2" title={user.blockReason}>
+                                  {user.blockReason}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-gray-400">—</span>
+                          )}
+                        </td>
+                      )}
+
                       {/* Actions */}
                       <td className="py-2.5 px-3">
                         <div className="flex items-center justify-center gap-1">
@@ -852,13 +884,20 @@ export default function UsersPage() {
                             Edit
                           </button>
                           {user.status === 'BLOCKED' ? (
-                            <button
-                              onClick={() => handleUnblockUser(user)}
-                              className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-600 rounded font-medium hover:bg-green-200 transition-colors whitespace-nowrap"
-                            >
-                              <CheckCircle className="w-3 h-3" />
-                              Unblock
-                            </button>
+                            user.blockedByAdmin ? (
+                              <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-400 rounded font-medium whitespace-nowrap cursor-not-allowed" title="Blocked by Six Media — only Six Media can unblock">
+                                <Lock className="w-3 h-3" />
+                                Six Media Blocked
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleUnblockUser(user)}
+                                className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-600 rounded font-medium hover:bg-green-200 transition-colors whitespace-nowrap"
+                              >
+                                <CheckCircle className="w-3 h-3" />
+                                Unblock
+                              </button>
+                            )
                           ) : (
                             <button
                               onClick={() => handleBlockUser(user)}
