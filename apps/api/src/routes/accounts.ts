@@ -1271,56 +1271,63 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
     // ─── AUTO-APPROVE LOGIC FOR FACEBOOK ACCOUNTS ─────────────────
     if (account.platform === 'FACEBOOK') {
       let autoApproved = false
-      let isCheetahAccount = false
+      const isCheetahAccount = account.sourceBmId === 'cheetah'
       let rechargeMethod = 'NONE'
       let rechargeStatus = 'NONE'
 
-      try {
-        const configLoaded = await loadCheetahConfig()
-        if (configLoaded) {
-          const accountResult = await cheetahApi.getAccount(account.accountId)
-          if (accountResult.code === 0 && accountResult.data && accountResult.data.length > 0) {
-            isCheetahAccount = true
-            const cheetahAccount = accountResult.data[0]
-            const currentSpendCap = parseFloat(cheetahAccount.spend_cap) || 0
-            const newSpendCap = currentSpendCap + amount
+      if (isCheetahAccount) {
+        // Credit Line account — try recharge via Cheetah API immediately
+        try {
+          const configLoaded = await loadCheetahConfig()
+          if (configLoaded) {
+            const accountResult = await cheetahApi.getAccount(account.accountId)
+            if (accountResult.code === 0 && accountResult.data && accountResult.data.length > 0) {
+              const cheetahAccount = accountResult.data[0]
+              const currentSpendCap = parseFloat(cheetahAccount.spend_cap) || 0
+              const newSpendCap = currentSpendCap + amount
 
-            // Check quota
-            const quotaResult = await cheetahApi.getQuota()
-            if (quotaResult.code === 0) {
-              const availableQuota = parseFloat(quotaResult.data.available_quota) || 0
-              if (availableQuota >= amount) {
-                const rechargeResult = await cheetahApi.rechargeAccount(account.accountId, newSpendCap)
-                if (rechargeResult.code === 0) {
-                  rechargeMethod = 'CHEETAH'
-                  rechargeStatus = 'COMPLETED'
-                  autoApproved = true
-                  console.log(`[Auto-Approve] Cheetah recharge success for act_${account.accountId}: $${amount}`)
+              const quotaResult = await cheetahApi.getQuota()
+              if (quotaResult.code === 0) {
+                const availableQuota = parseFloat(quotaResult.data.available_quota) || 0
+                if (availableQuota >= amount) {
+                  const rechargeResult = await cheetahApi.rechargeAccount(account.accountId, newSpendCap)
+                  if (rechargeResult.code === 0) {
+                    rechargeMethod = 'CHEETAH'
+                    rechargeStatus = 'COMPLETED'
+                    autoApproved = true
+                    console.log(`[Auto-Approve] Credit Line recharge success for act_${account.accountId}: $${amount}`)
+                  } else {
+                    console.log(`[Auto-Approve] Credit Line recharge API failed for act_${account.accountId}: ${rechargeResult.msg}`)
+                  }
                 } else {
-                  console.log(`[Auto-Approve] Cheetah recharge failed for act_${account.accountId}: ${rechargeResult.msg}`)
+                  console.log(`[Auto-Approve] Credit Line insufficient quota for act_${account.accountId}: available $${availableQuota}, need $${amount}`)
                 }
-              } else {
-                console.log(`[Auto-Approve] Cheetah insufficient quota for act_${account.accountId}: available $${availableQuota}, need $${amount}`)
               }
             }
           }
+        } catch (err: any) {
+          console.log(`[Auto-Approve] Credit Line error for act_${account.accountId}: ${err.message}`)
         }
-      } catch (err: any) {
-        console.log(`[Auto-Approve] Cheetah check error for act_${account.accountId}: ${err.message}`)
-      }
 
-      // Non-Cheetah card account: mark as admin-approved but keep PENDING until recharge confirmed
-      if (!isCheetahAccount) {
+        // Even if recharge failed, still auto-approve Credit Line deposits — cron will retry
+        if (!autoApproved) {
+          rechargeMethod = 'CHEETAH'
+          rechargeStatus = 'PENDING'
+          autoApproved = true
+          console.log(`[Auto-Approve] Credit Line approved, recharge pending for cron — act_${account.accountId}`)
+        }
+      } else {
+        // Non-Credit-Line (extension) account: auto-approve, pending recharge via extension
         rechargeMethod = 'MANUAL'
         rechargeStatus = 'PENDING'
         autoApproved = true
-        console.log(`[Auto-Approve] Card account act_${account.accountId}: pending recharge confirmation`)
+        console.log(`[Auto-Approve] Extension account act_${account.accountId}: pending recharge confirmation`)
       }
 
       if (autoApproved) {
         try {
-          if (isCheetahAccount) {
-            // Cheetah: APPROVED + increment balance immediately
+          if (isCheetahAccount && rechargeStatus === 'COMPLETED') {
+            // Credit Line: recharge succeeded → APPROVED + increment balance
             await prisma.$transaction(async (tx) => {
               await tx.accountDeposit.update({
                 where: { id: accountDeposit.id },
@@ -1341,7 +1348,7 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
               })
             })
 
-            // Send approval email for Cheetah
+            // Send approval email
             const approvedDomain2 = account.user.agent?.customDomains?.[0]
             const agent2 = account.user.agent
             const agentLogo2 = approvedDomain2?.emailLogo || approvedDomain2?.brandLogo || agent2?.emailLogo || agent2?.brandLogo || null
@@ -1369,10 +1376,23 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
               message: `Your deposit of $${Number(amount).toLocaleString()} for account ${account.accountName || account.accountId} has been auto-approved.`,
               link: '/facebook'
             })
-            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} auto-approved (CHEETAH)`)
+            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} auto-approved + recharged (CREDIT LINE)`)
             return c.json({ message: 'Deposit auto-approved', deposit: accountDeposit, autoApproved: true, rechargeMethod }, 201)
+          } else if (isCheetahAccount && rechargeStatus === 'PENDING') {
+            // Credit Line: recharge failed/quota insufficient → APPROVED but recharge pending for cron
+            await prisma.accountDeposit.update({
+              where: { id: accountDeposit.id },
+              data: {
+                status: 'APPROVED',
+                approvedAt: new Date(),
+                rechargeMethod,
+                rechargeStatus,
+              }
+            })
+            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} approved, Credit Line recharge pending for cron`)
+            return c.json({ message: 'Deposit approved, recharge pending', deposit: accountDeposit, autoApproved: true, rechargeMethod }, 201)
           } else {
-            // Non-Cheetah: keep PENDING, set approvedAt, DON'T increment balance
+            // Extension account: APPROVED, pending recharge via extension
             await prisma.accountDeposit.update({
               where: { id: accountDeposit.id },
               data: {
@@ -1381,7 +1401,7 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
                 rechargeStatus,
               }
             })
-            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} accepted, pending recharge (MANUAL)`)
+            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} accepted, pending recharge (EXTENSION)`)
             return c.json({ message: 'Deposit accepted, pending recharge confirmation', deposit: accountDeposit, autoApproved: false, rechargeMethod }, 201)
           }
         } catch (err: any) {
