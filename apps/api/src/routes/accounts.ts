@@ -1884,12 +1884,21 @@ accounts.patch('/:id', requireAdmin, async (c) => {
     const body = await c.req.json()
 
     // Whitelist allowed fields to prevent arbitrary field injection
-    const allowedFields = ['accountId', 'accountName', 'platform', 'status', 'bmId', 'timezone', 'currency', 'dailyLimit', 'notes', 'threshold', 'rechargeAmount', 'autoRecharge', 'extensionProfileId', 'cheetahAccountId', 'topupMode', 'fundingSources']
+    const allowedFields = ['accountId', 'accountName', 'platform', 'status', 'bmId', 'sourceBmId', 'timezone', 'currency', 'dailyLimit', 'notes', 'threshold', 'rechargeAmount', 'autoRecharge', 'extensionProfileId', 'cheetahAccountId', 'topupMode', 'fundingSources']
     const data: Record<string, any> = {}
     for (const key of allowedFields) {
       if (key in body) {
         data[key] = typeof body[key] === 'string' ? body[key].trim() : body[key]
       }
+    }
+
+    // Handle 'cheetah' as special extensionProfileId value
+    if (data.extensionProfileId === 'cheetah') {
+      data.extensionProfileId = null
+      data.sourceBmId = 'cheetah'
+    } else if ('extensionProfileId' in data && data.extensionProfileId) {
+      // If switching away from cheetah to a real profile, clear sourceBmId
+      data.sourceBmId = null
     }
 
     // If extensionProfileId is changing, sync managedAdAccountIds
