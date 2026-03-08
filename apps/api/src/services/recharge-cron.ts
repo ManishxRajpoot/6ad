@@ -14,7 +14,7 @@ const CONFIG = {
   POLL_INTERVAL_MS: 30 * 1000,   // 30 seconds
   BATCH_SIZE: 5,                  // Max deposits per cycle
   MAX_ATTEMPTS: 10,               // Give up after 10 tries (non-cheetah / extension)
-  CHEETAH_MAX_ATTEMPTS: 2,        // Cheetah accounts: only try 2 times, then wait for admin retry
+  CHEETAH_MAX_ATTEMPTS: 1,        // Credit Line: try once, if quota insufficient leave PENDING for admin bulk retry
 }
 
 let pollInterval: NodeJS.Timeout | null = null
@@ -146,7 +146,18 @@ async function processDeposit(deposit: any): Promise<void> {
             console.log(`[RechargeCron] Cheetah recharge API error: code=${rechargeResult.code}, msg=${rechargeResult.msg}`)
           }
         } else {
-          console.log(`[RechargeCron] Cheetah insufficient quota: need $${amount}, have $${availableQuota}`)
+          // Insufficient quota — leave PENDING, stop retrying, admin will bulk retry
+          await prisma.accountDeposit.update({
+            where: { id: deposit.id },
+            data: {
+              rechargeStatus: 'PENDING',
+              rechargeMethod: 'CHEETAH',
+              rechargeAttempts: CONFIG.CHEETAH_MAX_ATTEMPTS, // Stop cron from retrying
+              rechargeError: `Insufficient Credit Line quota: need $${amount}, available $${availableQuota}`,
+            },
+          })
+          console.log(`[RechargeCron] act_${accountId} Credit Line insufficient quota: need $${amount}, have $${availableQuota} — left PENDING for admin retry (${deposit.applyId || deposit.id})`)
+          return
         }
       }
     }
@@ -158,27 +169,17 @@ async function processDeposit(deposit: any): Promise<void> {
   // ─── Step 2: Handle based on whether it's a Cheetah account ───
   if (!cheetahHandled) {
     if (isCheetahAccount || cheetahAccountFound) {
-      // This IS a Cheetah account — do NOT send to extension worker
-      const newAttempts = (deposit.rechargeAttempts || 0) + 1
-      const reachedLimit = newAttempts >= CONFIG.CHEETAH_MAX_ATTEMPTS
-
+      // Credit Line account — API call failed, stop and wait for admin retry
       await prisma.accountDeposit.update({
         where: { id: deposit.id },
         data: {
           rechargeStatus: 'PENDING',
           rechargeMethod: 'CHEETAH',
-          rechargeAttempts: { increment: 1 },
-          rechargeError: reachedLimit
-            ? 'Cheetah recharge failed after 2 attempts — admin must click Retry when quota is available'
-            : 'Cheetah account — insufficient quota, retrying...',
+          rechargeAttempts: CONFIG.CHEETAH_MAX_ATTEMPTS,
+          rechargeError: 'Credit Line recharge failed — admin must retry when ready',
         },
       })
-
-      if (reachedLimit) {
-        console.log(`[RechargeCron] act_${accountId} Cheetah STOPPED after ${newAttempts} attempts — waiting for admin retry (${deposit.applyId || deposit.id})`)
-      } else {
-        console.log(`[RechargeCron] act_${accountId} Cheetah attempt ${newAttempts}/${CONFIG.CHEETAH_MAX_ATTEMPTS} — will retry (${deposit.applyId || deposit.id})`)
-      }
+      console.log(`[RechargeCron] act_${accountId} Credit Line failed — left PENDING for admin retry (${deposit.applyId || deposit.id})`)
     } else {
       // Not a Cheetah account — auto-launch assigned AdsPower browser so extension can process
       const extensionProfileId = deposit.adAccount.extensionProfileId

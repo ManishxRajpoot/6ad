@@ -166,6 +166,12 @@ export default function FacebookPage() {
   const [depositActionDropdown, setDepositActionDropdown] = useState<string | null>(null)
   const [depositDropdownPos, setDepositDropdownPos] = useState<{ top: number; left: number } | null>(null)
 
+  // Selected deposits for bulk action
+  const [selectedDeposits, setSelectedDeposits] = useState<string[]>([])
+  const [selectMultipleDeposits, setSelectMultipleDeposits] = useState(false)
+  const [showBulkDepositDropdown, setShowBulkDepositDropdown] = useState(false)
+  const bulkDepositDropdownRef = useRef<HTMLDivElement>(null)
+
   // Card wallet top-up tracking
   const [cardWalletPending, setCardWalletPending] = useState(0)
   const [walletMarkingAdded, setWalletMarkingAdded] = useState(false)
@@ -279,6 +285,9 @@ export default function FacebookPage() {
       }
       if (!target.closest('.deposit-action-dropdown')) {
         setDepositActionDropdown(null)
+      }
+      if (bulkDepositDropdownRef.current && !bulkDepositDropdownRef.current.contains(target)) {
+        setShowBulkDepositDropdown(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -554,6 +563,92 @@ export default function FacebookPage() {
       fetchAccountDeposits()
     } catch (error: any) {
       toast.error('Force Approve Failed', error.message || 'Failed to force approve')
+    }
+  }
+
+  // Deposit selection helpers
+  const toggleDepositSelection = (id: string) => {
+    setSelectedDeposits(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    )
+  }
+
+  const toggleSelectAllDeposits = () => {
+    const eligible = filteredDeposits.filter(d => d.status === 'APPROVED' && d.rechargeStatus !== 'COMPLETED')
+    if (selectedDeposits.length === eligible.length) {
+      setSelectedDeposits([])
+    } else {
+      setSelectedDeposits(eligible.map(d => d.id))
+    }
+  }
+
+  // Bulk deposit actions
+  const handleBulkDepositAction = async (action: 'retry-recharge' | 'approve' | 'reject-refund' | 'reject') => {
+    if (selectedDeposits.length === 0) {
+      toast.error('No Selection', 'No deposits selected')
+      return
+    }
+
+    if (action === 'retry-recharge') {
+      const confirmed = await confirm({ title: 'Bulk Retry Recharge', message: `Retry recharge for ${selectedDeposits.length} deposit(s)?` })
+      if (!confirmed) return
+      try {
+        for (const id of selectedDeposits) {
+          await accountDepositsApi.retryRecharge(id)
+        }
+        toast.success('Bulk Retry Queued', `${selectedDeposits.length} deposit(s) queued for recharge retry`)
+        setSelectedDeposits([])
+        setSelectMultipleDeposits(false)
+        fetchAccountDeposits()
+      } catch (error: any) {
+        toast.error('Bulk Retry Failed', error.message || 'Failed to retry some deposits')
+        fetchAccountDeposits()
+      }
+    } else if (action === 'approve') {
+      const confirmed = await confirm({ title: 'Bulk Approve', message: `Approve ${selectedDeposits.length} deposit(s)?` })
+      if (!confirmed) return
+      try {
+        for (const id of selectedDeposits) {
+          await accountDepositsApi.approve(id)
+        }
+        toast.success('Bulk Approved', `${selectedDeposits.length} deposit(s) approved`)
+        setSelectedDeposits([])
+        setSelectMultipleDeposits(false)
+        fetchAccountDeposits()
+      } catch (error: any) {
+        toast.error('Bulk Approve Failed', error.message || 'Failed to approve some deposits')
+        fetchAccountDeposits()
+      }
+    } else if (action === 'reject-refund') {
+      const confirmed = await confirm({ title: 'Bulk Reject (with Refund)', message: `Reject ${selectedDeposits.length} deposit(s) with refund?`, variant: 'danger' })
+      if (!confirmed) return
+      try {
+        for (const id of selectedDeposits) {
+          await accountDepositsApi.rejectRefund(id, 'Bulk rejected with refund')
+        }
+        toast.success('Bulk Rejected', `${selectedDeposits.length} deposit(s) rejected — amounts refunded`)
+        setSelectedDeposits([])
+        setSelectMultipleDeposits(false)
+        fetchAccountDeposits()
+      } catch (error: any) {
+        toast.error('Bulk Reject Failed', error.message || 'Failed to reject some deposits')
+        fetchAccountDeposits()
+      }
+    } else {
+      const confirmed = await confirm({ title: 'Bulk Reject (No Refund)', message: `Reject ${selectedDeposits.length} deposit(s) without refund?`, variant: 'danger' })
+      if (!confirmed) return
+      try {
+        for (const id of selectedDeposits) {
+          await accountDepositsApi.reject(id, 'Bulk rejected')
+        }
+        toast.success('Bulk Rejected', `${selectedDeposits.length} deposit(s) rejected — no refund`)
+        setSelectedDeposits([])
+        setSelectMultipleDeposits(false)
+        fetchAccountDeposits()
+      } catch (error: any) {
+        toast.error('Bulk Reject Failed', error.message || 'Failed to reject some deposits')
+        fetchAccountDeposits()
+      }
     }
   }
 
@@ -1507,9 +1602,57 @@ export default function FacebookPage() {
                 <p className="text-gray-500 text-sm">No deposit requests found matching your filters</p>
               </div>
             ) : (
+              <>
+              {/* Select Multiple & Bulk Actions bar */}
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-100 bg-gray-50/50">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectMultipleDeposits}
+                    onChange={(e) => { setSelectMultipleDeposits(e.target.checked); if (!e.target.checked) setSelectedDeposits([]) }}
+                    className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                  />
+                  <span className="text-xs text-gray-500">Select Multiple</span>
+                </label>
+                {selectMultipleDeposits && selectedDeposits.length > 0 && (
+                  <div className="flex items-center gap-2" ref={bulkDepositDropdownRef}>
+                    <span className="text-xs text-violet-600 font-medium">{selectedDeposits.length} selected</span>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowBulkDepositDropdown(!showBulkDepositDropdown)}
+                        className="px-3 py-1 text-xs font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors"
+                      >
+                        Bulk Action ▾
+                      </button>
+                      {showBulkDepositDropdown && (
+                        <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+                          <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('retry-recharge') }} className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2 transition-colors">
+                            <RefreshCw className="w-3.5 h-3.5" /> Retry Recharge
+                          </button>
+                          <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('approve') }} className="w-full text-left px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 transition-colors">
+                            <Check className="w-3.5 h-3.5" /> Approve Selected
+                          </button>
+                          <div className="border-t border-gray-100 my-1" />
+                          <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('reject-refund') }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                            <X className="w-3.5 h-3.5" /> Reject with Refund
+                          </button>
+                          <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('reject') }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                            <X className="w-3.5 h-3.5" /> Reject (No Refund)
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
               <table className="w-full text-sm xl:text-[13px]">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+                    {selectMultipleDeposits && (
+                      <th className="py-2 px-1.5 bg-gray-50 w-8">
+                        <input type="checkbox" onChange={toggleSelectAllDeposits} checked={selectedDeposits.length === filteredDeposits.filter(d => d.status === 'APPROVED' && d.rechargeStatus !== 'COMPLETED').length && filteredDeposits.filter(d => d.status === 'APPROVED' && d.rechargeStatus !== 'COMPLETED').length > 0} className="rounded border-gray-300 text-violet-600 focus:ring-violet-500" />
+                      </th>
+                    )}
                     <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">#</th>
                     <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Apply ID</th>
                     <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">User</th>
@@ -1532,9 +1675,19 @@ export default function FacebookPage() {
                     return (
                       <tr
                         key={dep.id}
-                        className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate"
+                        className={`border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate ${selectMultipleDeposits && selectedDeposits.includes(dep.id) ? 'bg-violet-50/60' : ''}`}
                         style={{ animationDelay: `${index * 20}ms` }}
                       >
+                        {selectMultipleDeposits && (
+                          <td className="py-1.5 px-1.5 w-8">
+                            <input
+                              type="checkbox"
+                              checked={selectedDeposits.includes(dep.id)}
+                              onChange={() => toggleDepositSelection(dep.id)}
+                              className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                            />
+                          </td>
+                        )}
                         <td className="py-1.5 px-1.5 text-gray-400 text-center text-xs">{depositsStartIndex + index + 1}</td>
                         <td className="py-1.5 px-1.5 text-gray-600 font-mono text-[11px]">{dep.applyId || '---'}</td>
                         <td className="py-1.5 px-1.5 text-gray-700 text-xs whitespace-nowrap">{dep.adAccount.user.username}</td>
@@ -1688,6 +1841,7 @@ export default function FacebookPage() {
                   })}
                 </tbody>
               </table>
+              </>
             )
           )}
 

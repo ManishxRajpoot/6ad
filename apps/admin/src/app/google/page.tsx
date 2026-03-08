@@ -418,9 +418,33 @@ export default function GooglePage() {
   }
 
   // Bulk deposit actions
-  const handleBulkDepositAction = async (action: 'approve' | 'reject' | 'reject-refund') => {
+  const handleBulkDepositAction = async (action: 'approve' | 'reject' | 'reject-refund' | 'retry-recharge') => {
     if (selectedDeposits.length === 0) {
       toast.error('No Selection', 'No deposits selected')
+      return
+    }
+
+    if (action === 'retry-recharge') {
+      const confirmed = await confirm({ title: 'Retry Recharge', message: `Retry recharge for ${selectedDeposits.length} deposit(s)?` })
+      if (!confirmed) return
+      try {
+        let successCount = 0
+        for (const id of selectedDeposits) {
+          try {
+            await accountDepositsApi.retryRecharge(id)
+            successCount++
+          } catch (e: any) {
+            console.error(`Failed to retry recharge for ${id}:`, e.message)
+          }
+        }
+        toast.success('Retry Queued', `${successCount}/${selectedDeposits.length} deposit(s) queued for retry`)
+        setSelectedDeposits([])
+        setSelectMultipleDeposits(false)
+        fetchAccountDeposits()
+      } catch (error: any) {
+        toast.error('Retry Failed', error.message || 'Failed to retry some deposits')
+        fetchAccountDeposits()
+      }
       return
     }
 
@@ -1203,6 +1227,14 @@ export default function GooglePage() {
                     </button>
                     {showBulkDepositDropdown && (
                       <div className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                        <button
+                          onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('retry-recharge') }}
+                          className="w-full text-left px-4 py-2.5 text-sm font-medium text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2.5"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          Retry Recharge
+                        </button>
+                        <div className="border-t border-gray-100 my-1" />
                         <button
                           onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('approve') }}
                           className="w-full text-left px-4 py-2.5 text-sm font-medium text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center gap-2.5"
