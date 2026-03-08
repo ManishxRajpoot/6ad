@@ -485,7 +485,7 @@ export default function FacebookPage() {
       const result = await accountDepositsApi.approve(id)
 
       if (result.cheetahRecharge === 'success') {
-        toast.success('Deposit Approved', 'Recharged via Cheetah — spending cap updated')
+        toast.success('Deposit Approved', 'Recharged via Credit Line — spending cap updated')
       } else if (result.cheetahRecharge === 'not-cheetah') {
         toast.success('Processing', 'Deposit accepted. Waiting for extension to update spending cap.')
       } else {
@@ -494,7 +494,7 @@ export default function FacebookPage() {
 
       fetchAccountDeposits()
     } catch (error: any) {
-      toast.error('Recharge Failed', error.message || 'Cheetah recharge failed. Deposit kept pending.')
+      toast.error('Recharge Failed', error.message || 'Credit Line recharge failed. Deposit kept pending.')
       fetchAccountDeposits()
     } finally {
       setApprovingDepositId(null)
@@ -1543,7 +1543,7 @@ export default function FacebookPage() {
                           <div className="flex items-center gap-1 mt-0.5">
                             <span className="text-emerald-600 font-mono text-[10px]">{dep.adAccount.accountId}</span>
                             {isNotCheetah && dep.status === 'PENDING' && (
-                              <span title="Not a Cheetah account — manual recharge required" className="inline-flex items-center">
+                              <span title="Not a Credit Line account — manual recharge required" className="inline-flex items-center">
                                 <AlertTriangle className="w-3 h-3 text-amber-500" />
                               </span>
                             )}
@@ -1603,7 +1603,7 @@ export default function FacebookPage() {
                         <td className="py-1.5 px-1.5 whitespace-nowrap max-w-[120px]">
                           {/* APPROVED deposits — show method */}
                           {dep.status === 'APPROVED' && dep.rechargeMethod === 'CHEETAH' && (
-                            <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-green-50 text-green-700">Cheetah</span>
+                            <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-green-50 text-green-700">Credit Line</span>
                           )}
                           {dep.status === 'APPROVED' && dep.rechargeMethod === 'EXTENSION' && (
                             <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-green-50 text-green-700">Extension</span>
@@ -2085,7 +2085,7 @@ export default function FacebookPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">VCard <span className="text-gray-400">(empty = Cheetah)</span></label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">VCard <span className="text-gray-400">(empty = Credit Line)</span></label>
                 <input
                   type="text"
                   value={acc.vcard}
@@ -2106,7 +2106,7 @@ export default function FacebookPage() {
             label="AdsPower Profile"
             options={[
               { value: '', label: 'None (Card Account)' },
-              { value: 'cheetah', label: '🐆 Cheetah (Auto-Recharge)' },
+              { value: 'cheetah', label: 'Credit Line (Auto-Recharge)' },
               ...extensionProfiles.filter(p => p.isEnabled).map((p) => ({
                 value: p.id,
                 label: `${p.adsPowerSerialNumber ? `#${p.adsPowerSerialNumber}` : ''} ${p.label}`.trim()
@@ -2284,7 +2284,7 @@ export default function FacebookPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">VCard <span className="text-gray-400">(empty = Cheetah)</span></label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">VCard <span className="text-gray-400">(empty = Credit Line)</span></label>
                   <input
                     type="text"
                     value={acc.vcard}
@@ -2407,7 +2407,7 @@ export default function FacebookPage() {
             label="AdsPower Profile"
             options={[
               { value: '', label: 'None (Card Account)' },
-              { value: 'cheetah', label: '🐆 Cheetah (Auto-Recharge)' },
+              { value: 'cheetah', label: 'Credit Line (Auto-Recharge)' },
               ...extensionProfiles.filter(p => p.isEnabled).map((p) => ({
                 value: p.id,
                 label: `${p.adsPowerSerialNumber ? `#${p.adsPowerSerialNumber}` : ''} ${p.label}`.trim()

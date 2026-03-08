@@ -194,7 +194,7 @@ export default function AllAdAccountsPage() {
 
   // Profile helpers
   const getProfileLabel = (acc: any) => {
-    if (acc.sourceBmId === 'cheetah') return '🐆 Cheetah'
+    if (acc.sourceBmId === 'cheetah') return 'Credit Line'
     const profileId = acc.extensionProfileId
     if (!profileId) return null
     const p = extensionProfiles.find((pr: any) => pr.id === profileId)
@@ -738,7 +738,7 @@ export default function AllAdAccountsPage() {
                               >
                                 <span className="truncate text-gray-700">
                                   {profileEditValue === 'cheetah'
-                                    ? '🐆 Cheetah'
+                                    ? 'Credit Line'
                                     : profileEditValue
                                       ? (() => { const p = extensionProfiles.find((pr: any) => pr.id === profileEditValue); return p ? `${p.fbUserName || p.label}${p.adsPowerSerialNumber ? ` #${p.adsPowerSerialNumber}` : ''}` : 'Select...' })()
                                       : 'None'}
@@ -923,7 +923,7 @@ export default function AllAdAccountsPage() {
                 className={`w-full px-3 py-2 text-left text-[11px] flex items-center gap-2 hover:bg-gray-50 transition-colors ${profileEditValue === 'cheetah' ? 'bg-violet-50 text-violet-700 font-medium' : 'text-gray-700'}`}
               >
                 {profileEditValue === 'cheetah' ? <Check className="w-3 h-3 text-violet-600 flex-shrink-0" /> : <span className="w-3 flex-shrink-0" />}
-                <span>🐆 Cheetah</span>
+                <span>Credit Line</span>
               </button>
               {extensionProfiles.filter((p: any) => p.isEnabled).map((p: any) => (
                 <button
