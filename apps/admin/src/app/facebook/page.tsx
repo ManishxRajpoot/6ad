@@ -105,6 +105,7 @@ type AccountDeposit = {
     accountName: string
     platform: string
     fundingSources?: string | null
+    sourceBmId?: string | null
     user: {
       id: string
       username: string
@@ -1683,7 +1684,8 @@ export default function FacebookPage() {
                     const depositAmount = parseFloat(dep.amount) || 0
                     const commissionAmount = parseFloat(dep.commissionAmount || '0') || 0
                     const totalCost = depositAmount + commissionAmount
-                    const isNotCheetah = dep.adAccount.platform === 'FACEBOOK' && cheetahStatus[dep.adAccount.accountId] === false
+                    const isCreditLine = dep.adAccount.sourceBmId === 'cheetah'
+                    const isNotCheetah = dep.adAccount.platform === 'FACEBOOK' && !isCreditLine
                     return (
                       <tr
                         key={dep.id}
@@ -1812,7 +1814,9 @@ export default function FacebookPage() {
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 animate-pulse">Recharging...</span>
                           )}
                           {dep.status === 'PENDING' && (dep.rechargeStatus === 'PENDING' || dep.rechargeStatus === 'NONE' || !dep.rechargeStatus) && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">Waiting for extension...</span>
+                            dep.adAccount.sourceBmId === 'cheetah'
+                              ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-violet-50 text-violet-700">Credit Line</span>
+                              : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">Waiting for extension...</span>
                           )}
                         </td>
                         <td className="py-2.5 px-2 xl:px-3" onClick={(e) => e.stopPropagation()}>

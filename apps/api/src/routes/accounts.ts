@@ -312,6 +312,7 @@ accounts.get('/deposits/admin', requireAdmin, async (c) => {
               accountName: true,
               platform: true,
               fundingSources: true,
+              sourceBmId: true,
               user: {
                 select: { id: true, username: true, email: true, uniqueId: true }
               }
