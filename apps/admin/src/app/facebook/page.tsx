@@ -2106,6 +2106,7 @@ export default function FacebookPage() {
             label="AdsPower Profile"
             options={[
               { value: '', label: 'None (Card Account)' },
+              { value: 'cheetah', label: '🐆 Cheetah (Auto-Recharge)' },
               ...extensionProfiles.filter(p => p.isEnabled).map((p) => ({
                 value: p.id,
                 label: `${p.adsPowerSerialNumber ? `#${p.adsPowerSerialNumber}` : ''} ${p.label}`.trim()
@@ -2406,6 +2407,7 @@ export default function FacebookPage() {
             label="AdsPower Profile"
             options={[
               { value: '', label: 'None (Card Account)' },
+              { value: 'cheetah', label: '🐆 Cheetah (Auto-Recharge)' },
               ...extensionProfiles.filter(p => p.isEnabled).map((p) => ({
                 value: p.id,
                 label: `${p.adsPowerSerialNumber ? `#${p.adsPowerSerialNumber}` : ''} ${p.label}`.trim()

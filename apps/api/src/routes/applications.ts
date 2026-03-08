@@ -535,9 +535,12 @@ applications.put('/:id', requireAdmin, async (c) => {
 applications.post('/:id/approve', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
-    const { accountIds, adminRemarks, extensionProfileId } = await c.req.json()
+    const { accountIds, adminRemarks, extensionProfileId: rawProfileId } = await c.req.json()
     // accountIds is an array of { name, accountId, vcard? }
     // extensionProfileId: which AdsPower/extension profile manages these accounts
+    // Special value 'cheetah' means Cheetah auto-recharge (sets sourceBmId instead)
+    const isCheetah = rawProfileId === 'cheetah'
+    const extensionProfileId = isCheetah ? null : rawProfileId
 
     const application = await prisma.adAccountApplication.findUnique({
       where: { id },
@@ -577,6 +580,7 @@ applications.post('/:id/approve', requireAdmin, async (c) => {
               userId: application.userId,
               applicationId: application.id,
               extensionProfileId: extensionProfileId || null,
+              ...(isCheetah ? { sourceBmId: 'cheetah' } : {}),
               fundingSources: fundingSourcesJson,
               fundingSourceUpdatedAt: fundingSourcesJson ? new Date() : undefined,
             }
@@ -716,8 +720,10 @@ applications.post('/:id/reject', requireAdmin, async (c) => {
 // POST /applications/bulk-approve - Bulk approve applications (Admin)
 applications.post('/bulk-approve', requireAdmin, async (c) => {
   try {
-    const { applicationIds, accountData, extensionProfileId } = await c.req.json()
+    const { applicationIds, accountData, extensionProfileId: rawProfileId } = await c.req.json()
     // accountData is { [applicationId]: [{name, accountId}] }
+    const isCheetah = rawProfileId === 'cheetah'
+    const extensionProfileId = isCheetah ? null : rawProfileId
 
     if (!applicationIds || !Array.isArray(applicationIds) || applicationIds.length === 0) {
       return c.json({ error: 'Application IDs are required' }, 400)
@@ -751,6 +757,7 @@ applications.post('/bulk-approve', requireAdmin, async (c) => {
                   userId: application.userId,
                   applicationId: application.id,
                   extensionProfileId: extensionProfileId || null,
+                  ...(isCheetah ? { sourceBmId: 'cheetah' } : {}),
                 }
               })
             }
@@ -895,8 +902,10 @@ applications.post('/bulk-reject', requireAdmin, async (c) => {
 // POST /applications/create-direct - Admin creates account directly for user (without application)
 applications.post('/create-direct', requireAdmin, async (c) => {
   try {
-    const { userId, platform, accounts, extensionProfileId } = await c.req.json()
+    const { userId, platform, accounts, extensionProfileId: rawProfileId } = await c.req.json()
     // accounts is array of { name, accountId, vcard? }
+    const isCheetah = rawProfileId === 'cheetah'
+    const extensionProfileId = isCheetah ? null : rawProfileId
 
     if (!userId || !platform || !accounts || !Array.isArray(accounts) || accounts.length === 0) {
       return c.json({ error: 'User ID, platform, and accounts are required' }, 400)
@@ -925,6 +934,7 @@ applications.post('/create-direct', requireAdmin, async (c) => {
             status: 'APPROVED',
             userId,
             extensionProfileId: extensionProfileId || null,
+            ...(isCheetah ? { sourceBmId: 'cheetah' } : {}),
             fundingSources: fundingSourcesJson,
             fundingSourceUpdatedAt: fundingSourcesJson ? new Date() : undefined,
           }
