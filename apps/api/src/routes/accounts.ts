@@ -2687,33 +2687,41 @@ accounts.get('/cheetah-balances/batch', requireUser, async (c) => {
       return c.json({ error: 'Cheetah API not configured', balances: {} })
     }
 
-    // Fetch each account from Cheetah
+    // Fetch all accounts from Cheetah in parallel (not sequential)
     const balances: Record<string, any> = {}
 
-    for (const account of accounts) {
-      try {
-        const result = await cheetahApi.getAccount(account.accountId)
-
-        if (result.code === 0 && result.data && result.data.length > 0) {
-          const cheetahAccount = result.data[0]
-          const spendCap = parseFloat(cheetahAccount.spend_cap) || 0
-          const amountSpent = parseFloat(cheetahAccount.amount_spent) || 0
-
-          balances[account.accountId] = {
-            spendCap,
-            amountSpent,
-            balance: parseFloat(cheetahAccount.balance) || 0,
-            remainingBalance: spendCap - amountSpent,
-            currency: cheetahAccount.currency,
-            status: cheetahAccount.account_status,
-            statusText: cheetahAccount.account_status_text,
-            isCheetah: true
+    const results = await Promise.allSettled(
+      accounts.map(async (account) => {
+        try {
+          const result = await cheetahApi.getAccount(account.accountId)
+          if (result.code === 0 && result.data && result.data.length > 0) {
+            const cheetahAccount = result.data[0]
+            const spendCap = parseFloat(cheetahAccount.spend_cap) || 0
+            const amountSpent = parseFloat(cheetahAccount.amount_spent) || 0
+            return {
+              accountId: account.accountId,
+              data: {
+                spendCap,
+                amountSpent,
+                balance: parseFloat(cheetahAccount.balance) || 0,
+                remainingBalance: spendCap - amountSpent,
+                currency: cheetahAccount.currency,
+                status: cheetahAccount.account_status,
+                statusText: cheetahAccount.account_status_text,
+                isCheetah: true
+              }
+            }
           }
-        } else {
-          balances[account.accountId] = { isCheetah: false }
+          return { accountId: account.accountId, data: { isCheetah: false } }
+        } catch (err) {
+          return { accountId: account.accountId, data: { isCheetah: false, error: true } }
         }
-      } catch (err) {
-        balances[account.accountId] = { isCheetah: false, error: true }
+      })
+    )
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        balances[result.value.accountId] = result.value.data
       }
     }
 
