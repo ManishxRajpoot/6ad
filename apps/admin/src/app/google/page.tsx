@@ -7,7 +7,7 @@ import { Select } from '@/components/ui/Select'
 import { Card } from '@/components/ui/Card'
 import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
-import { applicationsApi, usersApi, bmShareApi, accountDepositsApi, accountRefundsApi, balanceTransfersApi } from '@/lib/api'
+import { applicationsApi, usersApi, bmShareApi, accountDepositsApi, accountRefundsApi, balanceTransfersApi, getCached, setCache } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { useConfirm } from '@/contexts/ConfirmContext'
 import {
@@ -260,28 +260,24 @@ export default function GooglePage() {
   }, [])
 
   const fetchData = async () => {
-    setLoading(true)
+    const cacheKey = `ggl-main-${statusFilter}-${currentPage}`
+    const cached = getCached<any>(cacheKey)
+    if (cached) {
+      setApplications(cached.apps); setTotalPages(cached.totalPages); setUsers(cached.users); setStats(cached.stats); setLoading(false)
+    } else { setLoading(true) }
     try {
       const [appsData, usersData, statsData] = await Promise.all([
         applicationsApi.getAll('GOOGLE', statusFilter !== 'all' ? statusFilter : undefined, currentPage),
         usersApi.getAll(),
         applicationsApi.getStats('GOOGLE')
       ])
-
-      setApplications(appsData.applications || [])
-      setTotalPages(appsData.totalPages || 1)
-      setUsers(usersData.users || [])
-      setStats({
-        totalBalance: parseFloat(String(statsData.totalBalance || 0)),
-        totalApproved: statsData.approved || 0,
-        totalPending: statsData.pending || 0,
-        totalRejected: statsData.rejected || 0
-      })
-    } catch (error) {
-      console.error('Failed to fetch data:', error)
-    } finally {
-      setLoading(false)
-    }
+      const apps = appsData.applications || []
+      const users = usersData.users || []
+      const stats = { totalBalance: parseFloat(String(statsData.totalBalance || 0)), totalApproved: statsData.approved || 0, totalPending: statsData.pending || 0, totalRejected: statsData.rejected || 0 }
+      setApplications(apps); setTotalPages(appsData.totalPages || 1); setUsers(users); setStats(stats)
+      setCache(cacheKey, { apps, totalPages: appsData.totalPages || 1, users, stats })
+    } catch (error) { console.error('Failed to fetch data:', error) }
+    finally { setLoading(false) }
   }
 
   useEffect(() => {
@@ -290,54 +286,54 @@ export default function GooglePage() {
 
   // Fetch Access Share requests
   const fetchAccessRequests = async () => {
-    setAccessLoading(true)
+    const cacheKey = `ggl-access-${statusFilter}`
+    const cached = getCached<any[]>(cacheKey)
+    if (cached) { setAccessRequests(cached); setAccessLoading(false) } else { setAccessLoading(true) }
     try {
       const data = await bmShareApi.getAll('GOOGLE', statusFilter !== 'all' ? statusFilter : undefined)
-      setAccessRequests(data.bmShareRequests || [])
-    } catch (error) {
-      console.error('Failed to fetch access requests:', error)
-    } finally {
-      setAccessLoading(false)
-    }
+      const items = data.bmShareRequests || []
+      setAccessRequests(items); setCache(cacheKey, items)
+    } catch (error) { console.error('Failed to fetch access requests:', error) }
+    finally { setAccessLoading(false) }
   }
 
   // Fetch Account Deposits
   const fetchAccountDeposits = async () => {
-    setDepositsLoading(true)
+    const cacheKey = `ggl-deposits-${statusFilter}`
+    const cached = getCached<any[]>(cacheKey)
+    if (cached) { setAccountDeposits(cached); setDepositsLoading(false) } else { setDepositsLoading(true) }
     try {
       const data = await accountDepositsApi.getAll('GOOGLE', statusFilter !== 'all' ? statusFilter : undefined)
-      setAccountDeposits(data.deposits || [])
-    } catch (error) {
-      console.error('Failed to fetch account deposits:', error)
-    } finally {
-      setDepositsLoading(false)
-    }
+      const items = data.deposits || []
+      setAccountDeposits(items); setCache(cacheKey, items)
+    } catch (error) { console.error('Failed to fetch account deposits:', error) }
+    finally { setDepositsLoading(false) }
   }
 
   // Fetch Account Refunds
   const fetchAccountRefunds = async () => {
-    setRefundsLoading(true)
+    const cacheKey = `ggl-refunds-${statusFilter}`
+    const cached = getCached<any[]>(cacheKey)
+    if (cached) { setAccountRefunds(cached); setRefundsLoading(false) } else { setRefundsLoading(true) }
     try {
       const data = await accountRefundsApi.getAll('GOOGLE', statusFilter !== 'all' ? statusFilter : undefined)
-      setAccountRefunds(data.refunds || [])
-    } catch (error) {
-      console.error('Failed to fetch account refunds:', error)
-    } finally {
-      setRefundsLoading(false)
-    }
+      const items = data.refunds || []
+      setAccountRefunds(items); setCache(cacheKey, items)
+    } catch (error) { console.error('Failed to fetch account refunds:', error) }
+    finally { setRefundsLoading(false) }
   }
 
   // Fetch Balance Transfers
   const fetchBalanceTransfers = async () => {
-    setTransfersLoading(true)
+    const cacheKey = `ggl-transfers-${statusFilter}`
+    const cached = getCached<any[]>(cacheKey)
+    if (cached) { setBalanceTransfers(cached); setTransfersLoading(false) } else { setTransfersLoading(true) }
     try {
       const data = await balanceTransfersApi.getAll('GOOGLE', statusFilter !== 'all' ? statusFilter : undefined)
-      setBalanceTransfers(data.transfers || [])
-    } catch (error) {
-      console.error('Failed to fetch balance transfers:', error)
-    } finally {
-      setTransfersLoading(false)
-    }
+      const items = data.transfers || []
+      setBalanceTransfers(items); setCache(cacheKey, items)
+    } catch (error) { console.error('Failed to fetch balance transfers:', error) }
+    finally { setTransfersLoading(false) }
   }
 
   // Fetch data based on active tab

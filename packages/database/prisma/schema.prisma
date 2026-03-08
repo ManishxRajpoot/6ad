@@ -454,6 +454,8 @@ model AccountDeposit {
 
   @@index([adAccountId])
   @@index([status, rechargeStatus])
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 model AccountRefund {

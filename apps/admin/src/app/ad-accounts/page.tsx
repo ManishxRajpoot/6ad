@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
-import { accountsApi, extensionApi } from '@/lib/api'
+import { accountsApi, extensionApi, getCached, setCache } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { useConfirm } from '@/contexts/ConfirmContext'
 import { useDateFilterStore } from '@/store/dateFilter'
@@ -177,9 +177,13 @@ export default function AllAdAccountsPage() {
 
   // Fetch data
   const fetchData = async () => {
+    const cached = getCached<any[]>('all-accounts')
+    if (cached) { setAccounts(cached); setLoading(false) }
     try {
       const data = await accountsApi.getAllAdmin()
-      setAccounts(data.accounts || [])
+      const items = data.accounts || []
+      setAccounts(items)
+      setCache('all-accounts', items)
     } catch (error) {
       console.error('Failed to fetch accounts:', error)
     } finally {
