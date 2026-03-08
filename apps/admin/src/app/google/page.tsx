@@ -409,11 +409,12 @@ export default function GooglePage() {
   }
 
   const toggleSelectAllDeposits = () => {
-    const pendingDeposits = filteredDeposits.filter(d => d.status === 'PENDING')
-    if (selectedDeposits.length === pendingDeposits.length) {
-      setSelectedDeposits([])
+    const pageIds = paginatedDeposits.map(d => d.id)
+    const allSelected = pageIds.every(id => selectedDeposits.includes(id))
+    if (allSelected) {
+      setSelectedDeposits(prev => prev.filter(id => !pageIds.includes(id)))
     } else {
-      setSelectedDeposits(pendingDeposits.map(d => d.id))
+      setSelectedDeposits(prev => [...new Set([...prev, ...pageIds])])
     }
   }
 
@@ -1262,16 +1263,11 @@ export default function GooglePage() {
                   </div>
                 </div>
               )}
-              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectMultipleDeposits}
-                  onChange={(e) => {
-                    setSelectMultipleDeposits(e.target.checked)
-                    if (!e.target.checked) { setSelectedDeposits([]); setShowBulkDepositDropdown(false) }
-                  }}
-                  className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
-                />
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <div className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${selectMultipleDeposits ? 'bg-violet-600' : 'bg-gray-300'}`}
+                  onClick={() => { setSelectMultipleDeposits(!selectMultipleDeposits); if (selectMultipleDeposits) { setSelectedDeposits([]); setShowBulkDepositDropdown(false) } }}>
+                  <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform duration-200 ${selectMultipleDeposits ? 'translate-x-[16px]' : 'translate-x-[2px]'}`} />
+                </div>
                 Select Multiple
               </label>
             </div>
@@ -1482,13 +1478,21 @@ export default function GooglePage() {
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
                     {selectMultipleDeposits && (
-                      <th className="py-2 px-1.5 bg-gray-50 w-8">
-                        <input
-                          type="checkbox"
-                          checked={selectedDeposits.length === filteredDeposits.filter(d => d.status === 'PENDING').length && filteredDeposits.filter(d => d.status === 'PENDING').length > 0}
-                          onChange={toggleSelectAllDeposits}
-                          className="w-3.5 h-3.5 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
-                        />
+                      <th className="py-2 px-1.5 bg-gray-50 w-10">
+                        <div
+                          onClick={toggleSelectAllDeposits}
+                          className={`w-[18px] h-[18px] rounded border-2 flex items-center justify-center cursor-pointer transition-all duration-150 mx-auto ${
+                            paginatedDeposits.length > 0 && paginatedDeposits.every(d => selectedDeposits.includes(d.id))
+                              ? 'bg-violet-600 border-violet-600'
+                              : paginatedDeposits.some(d => selectedDeposits.includes(d.id))
+                                ? 'bg-violet-300 border-violet-400'
+                                : 'bg-white border-gray-300 hover:border-violet-400'
+                          }`}
+                        >
+                          {paginatedDeposits.length > 0 && paginatedDeposits.some(d => selectedDeposits.includes(d.id)) && (
+                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                          )}
+                        </div>
                       </th>
                     )}
                     <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">#</th>
@@ -1511,21 +1515,23 @@ export default function GooglePage() {
                     return (
                       <tr
                         key={dep.id}
-                        className={`border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate ${selectedDeposits.includes(dep.id) ? 'bg-violet-50/50' : ''}`}
+                        className={`border-b border-gray-100 align-middle tab-row-animate ${selectMultipleDeposits ? 'cursor-pointer' : ''} ${selectMultipleDeposits && selectedDeposits.includes(dep.id) ? 'bg-violet-50/70 hover:bg-violet-50' : 'hover:bg-gray-50/50'}`}
                         style={{ animationDelay: `${index * 20}ms` }}
+                        onClick={() => { if (selectMultipleDeposits) toggleDepositSelection(dep.id) }}
                       >
                         {selectMultipleDeposits && (
-                          <td className="py-1.5 px-1.5 text-center">
-                            {dep.status === 'PENDING' ? (
-                              <input
-                                type="checkbox"
-                                checked={selectedDeposits.includes(dep.id)}
-                                onChange={() => toggleDepositSelection(dep.id)}
-                                className="w-3.5 h-3.5 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
-                              />
-                            ) : (
-                              <span className="w-3.5 h-3.5 block" />
-                            )}
+                          <td className="py-1.5 px-1.5 w-10">
+                            <div
+                              className={`w-[18px] h-[18px] rounded border-2 flex items-center justify-center transition-all duration-150 mx-auto ${
+                                selectedDeposits.includes(dep.id)
+                                  ? 'bg-violet-600 border-violet-600'
+                                  : 'bg-white border-gray-300'
+                              }`}
+                            >
+                              {selectedDeposits.includes(dep.id) && (
+                                <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                              )}
+                            </div>
                           </td>
                         )}
                         <td className="py-1.5 px-1.5 text-gray-400 text-center text-xs">{depositsStartIndex + index + 1}</td>
@@ -1573,7 +1579,7 @@ export default function GooglePage() {
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">Awaiting approval</span>
                           )}
                         </td>
-                        <td className="py-1.5 px-1.5">
+                        <td className="py-1.5 px-1.5" onClick={(e) => e.stopPropagation()}>
                           {dep.status === 'PENDING' ? (
                             <div className="flex items-center justify-center gap-1">
                               {/* Quick Approve Button */}
