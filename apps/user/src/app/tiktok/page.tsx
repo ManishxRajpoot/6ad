@@ -23,7 +23,7 @@ import {
   XCircle,
   Clock,
 } from 'lucide-react'
-import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, PlatformStatus } from '@/lib/api'
+import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, PlatformStatus, getCached, setCache } from '@/lib/api'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon } from '@/components/icons/MenuIcons'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -344,15 +344,17 @@ export default function TikTokPage() {
   const exportDropdownRef = useRef<HTMLDivElement>(null)
 
   // User state from API
-  const [user, setUser] = useState<any>(null)
-  const [userAccounts, setUserAccounts] = useState<any[]>([])
-  const [userRefunds, setUserRefunds] = useState<any[]>([])
-  const [userDeposits, setUserDeposits] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [dashboardStats, setDashboardStats] = useState<any>(null)
+  // SWR: show cached data instantly
+  const cachedTT = getCached<any>('tiktok-page-data')
+  const [user, setUser] = useState<any>(cachedTT?.user || null)
+  const [userAccounts, setUserAccounts] = useState<any[]>(cachedTT?.userAccounts || [])
+  const [userRefunds, setUserRefunds] = useState<any[]>(cachedTT?.userRefunds || [])
+  const [userDeposits, setUserDeposits] = useState<any[]>(cachedTT?.userDeposits || [])
+  const [loading, setLoading] = useState(!cachedTT)
+  const [dashboardStats, setDashboardStats] = useState<any>(cachedTT?.dashboardStats || null)
   const [previousStats, setPreviousStats] = useState<any>(null)
-  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>('active')
-  const [profileShareLink, setProfileShareLink] = useState<string>('https://business.tiktok.com/share/6adplatform')
+  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>(cachedTT?.platformStatus || 'active')
+  const [profileShareLink, setProfileShareLink] = useState<string>(cachedTT?.profileShareLink || 'https://business.tiktok.com/share/6adplatform')
 
   // Generate dynamic chart path based on count
   const generateChartPath = (count: number, trend: 'up' | 'down') => {
@@ -447,8 +449,15 @@ export default function TikTokPage() {
         setUserRefunds(refundsRes.refunds || [])
         setUserDeposits(depositsRes.deposits || [])
         setDashboardStats(statsRes)
-        setPlatformStatus((platformRes.platforms?.tiktok || 'active') as PlatformStatus)
-        setProfileShareLink(profileLinksRes.profileShareLinks?.tiktok || 'https://business.tiktok.com/share/6adplatform')
+        const pStatus = (platformRes.platforms?.tiktok || 'active') as PlatformStatus
+        setPlatformStatus(pStatus)
+        const shareLink = profileLinksRes.profileShareLinks?.tiktok || 'https://business.tiktok.com/share/6adplatform'
+        setProfileShareLink(shareLink)
+        setCache('tiktok-page-data', {
+          user: userRes.user, userAccounts: accountsRes.accounts || [],
+          userRefunds: refundsRes.refunds || [], userDeposits: depositsRes.deposits || [],
+          dashboardStats: statsRes, platformStatus: pStatus, profileShareLink: shareLink,
+        })
       } catch (error) {
         // Silently handle errors
       } finally {

@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
 import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
-import { usersApi, authApi } from '@/lib/api'
+import { usersApi, authApi, getCached, setCache } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { useToast } from '@/contexts/ToastContext'
 import {
@@ -69,8 +69,9 @@ type User = {
 export default function UsersPage() {
   const { user: agentUser, updateUser } = useAuthStore()
   const toast = useToast()
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
+  const cachedUsers = getCached<{ users: User[] }>('/users')
+  const [users, setUsers] = useState<User[]>(cachedUsers?.users || [])
+  const [loading, setLoading] = useState(!cachedUsers)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<string>('newest')
@@ -170,12 +171,13 @@ export default function UsersPage() {
 
   const fetchData = async () => {
     try {
-      setLoading(true)
+      if (!cachedUsers) setLoading(true)
       const [usersData, meData] = await Promise.all([
         usersApi.getAll(),
         authApi.me()
       ])
       setUsers(usersData.users || [])
+      setCache('/users', usersData)
       if (meData?.user) {
         // Update all relevant user data including fees
         const userData = meData.user

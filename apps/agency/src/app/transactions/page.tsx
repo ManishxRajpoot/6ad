@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
 import { Loader2, Search, ChevronLeft, ChevronRight, Download, X, Eye, ChevronDown, Calendar, Wallet, CreditCard, FileText, Copy, ImageIcon, CheckCircle, XCircle, Clock } from 'lucide-react'
-import { transactionsApi, applicationsApi, usersApi } from '@/lib/api'
+import { transactionsApi, applicationsApi, usersApi, getCached, setCache } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import * as XLSX from 'xlsx'
 
@@ -86,7 +86,8 @@ export default function TransactionsPage() {
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('wallet')
-  const [loading, setLoading] = useState(true)
+  const cachedTxns = getCached<any>('agency-transactions')
+  const [loading, setLoading] = useState(!cachedTxns)
 
   // Tab refs for dynamic indicator positioning
   const walletTabRef = useRef<HTMLButtonElement>(null)
@@ -94,14 +95,14 @@ export default function TransactionsPage() {
   const adOpeningTabRef = useRef<HTMLButtonElement>(null)
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 })
 
-  // Wallet deposits state
-  const [deposits, setDeposits] = useState<Deposit[]>([])
+  // Wallet deposits state — SWR
+  const [deposits, setDeposits] = useState<Deposit[]>(cachedTxns?.deposits || [])
 
   // Ad account deposits state
-  const [accountDeposits, setAccountDeposits] = useState<AccountDeposit[]>([])
+  const [accountDeposits, setAccountDeposits] = useState<AccountDeposit[]>(cachedTxns?.accountDeposits || [])
 
   // Ad account applications state
-  const [applications, setApplications] = useState<Application[]>([])
+  const [applications, setApplications] = useState<Application[]>(cachedTxns?.applications || [])
 
   // Common state
   const [searchQuery, setSearchQuery] = useState('')
@@ -222,6 +223,9 @@ export default function TransactionsPage() {
     try {
       const response = await transactionsApi.deposits.getAll()
       setDeposits(response.deposits || [])
+      // Update cache
+      const prev = getCached<any>('agency-transactions') || {}
+      setCache('agency-transactions', { ...prev, deposits: response.deposits || [] })
     } catch (error) {
       console.error('Failed to fetch deposits:', error)
     }
@@ -231,6 +235,8 @@ export default function TransactionsPage() {
     try {
       const response = await transactionsApi.accountDeposits.getAll()
       setAccountDeposits(response.deposits || [])
+      const prev = getCached<any>('agency-transactions') || {}
+      setCache('agency-transactions', { ...prev, accountDeposits: response.deposits || [] })
     } catch (error) {
       console.error('Failed to fetch account deposits:', error)
     }
@@ -240,6 +246,8 @@ export default function TransactionsPage() {
     try {
       const response = await applicationsApi.getAll()
       setApplications(response.applications || [])
+      const prev = getCached<any>('agency-transactions') || {}
+      setCache('agency-transactions', { ...prev, applications: response.applications || [] })
     } catch (error) {
       console.error('Failed to fetch applications:', error)
     }
@@ -256,7 +264,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true)
+      if (!cachedTxns) setLoading(true)
       await Promise.all([fetchDeposits(), fetchAccountDeposits(), fetchApplications(), fetchAllUsers()])
       setLoading(false)
     }

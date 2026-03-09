@@ -10,7 +10,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
-import { paymentMethodsApi, transactionsApi, authApi } from '@/lib/api'
+import { paymentMethodsApi, transactionsApi, authApi, getCached, setCache, invalidateCache } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { useToast } from '@/contexts/ToastContext'
 import { useSSEEvent } from '@/hooks/useSSEEvent'
@@ -109,9 +109,10 @@ export default function DepositsPage() {
   const [paymentMethods, setPaymentMethods] = useState<{ id: string; name: string; description: string; icon: string }[]>([])
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false)
 
-  // Deposits from API
-  const [deposits, setDeposits] = useState<Deposit[]>([])
-  const [loadingDeposits, setLoadingDeposits] = useState(true)
+  // Deposits from API — SWR: show cached instantly
+  const cachedDeposits = getCached<{ deposits: Deposit[] }>('/transactions/deposits')
+  const [deposits, setDeposits] = useState<Deposit[]>(cachedDeposits?.deposits || [])
+  const [loadingDeposits, setLoadingDeposits] = useState(!cachedDeposits)
   const [submittingDeposit, setSubmittingDeposit] = useState(false)
 
   // File upload state
@@ -124,9 +125,10 @@ export default function DepositsPage() {
 
   // Real-time update: refetch payment methods when admin changes them
   useSSEEvent('payment-methods-updated', () => {
-    // Clear cached payment methods so they get refetched
+    invalidateCache('/payment-methods')
     paymentMethodsApi.getAll().then(data => {
       setPaymentMethods(data.paymentMethods || [])
+      setCache('/payment-methods', data)
     }).catch(() => {})
   })
 
@@ -204,10 +206,11 @@ export default function DepositsPage() {
     if (!isHydrated || !isAuthenticated) return
 
     const fetchDeposits = async () => {
-      setLoadingDeposits(true)
+      if (!cachedDeposits) setLoadingDeposits(true)
       try {
         const data = await transactionsApi.deposits.getAll()
         setDeposits(data.deposits || [])
+        setCache('/transactions/deposits', data)
 
         // Also refresh user data to get updated balance
         const userData = await authApi.me()

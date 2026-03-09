@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { StatsChart } from '@/components/ui/StatsChart'
 import { Loader2, Search, ChevronLeft, ChevronRight, Download, X, Eye, ChevronDown, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react'
-import { bmAdRequestApi, usersApi } from '@/lib/api'
+import { bmAdRequestApi, usersApi, getCached, setCache } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import * as XLSX from 'xlsx'
 
@@ -110,10 +110,11 @@ interface BMShare {
 
 export default function BMAdRequestPage() {
   const toast = useToast()
-  const [loading, setLoading] = useState(true)
+  const cachedBmAd = getCached<any>('agency-bm-ad-request')
+  const [loading, setLoading] = useState(!cachedBmAd)
   const [activeTab, setActiveTab] = useState<'account' | 'bm'>('account')
-  const [applications, setApplications] = useState<Application[]>([])
-  const [bmShares, setBmShares] = useState<BMShare[]>([])
+  const [applications, setApplications] = useState<Application[]>(cachedBmAd?.applications || [])
+  const [bmShares, setBmShares] = useState<BMShare[]>(cachedBmAd?.bmShares || [])
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -223,7 +224,7 @@ export default function BMAdRequestPage() {
 
   const fetchData = async () => {
     try {
-      setLoading(true)
+      if (!cachedBmAd) setLoading(true)
 
       // Fetch stats
       const statsRes = await bmAdRequestApi.getStats()
@@ -265,6 +266,10 @@ export default function BMAdRequestPage() {
         if (!searchQuery.trim()) {
           setTotalPages(res.pagination.pages)
         }
+      }
+      // Cache initial view (no search, page 1)
+      if (!searchQuery.trim() && currentPage === 1 && !statusFilter && platformFilter === 'all') {
+        setCache('agency-bm-ad-request', { applications, bmShares })
       }
     } catch (err) {
       console.error('Failed to fetch data:', err)

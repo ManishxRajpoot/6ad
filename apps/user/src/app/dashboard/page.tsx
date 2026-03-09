@@ -8,7 +8,7 @@ import { Plus, ChevronLeft, ChevronRight, Play, Loader2, Calendar, Wallet, Uploa
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { dashboardApi, accountsApi } from '@/lib/api'
+import { dashboardApi, accountsApi, getCached, setCache } from '@/lib/api'
 
 // Platform color and icon mapping
 const platformConfig: Record<string, { color: string; textColor?: string; icon: string; chartColor: string }> = {
@@ -62,9 +62,12 @@ const BingLogo = () => (
 export default function DashboardPage() {
   const router = useRouter()
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
-  const [loading, setLoading] = useState(true)
-  const [dashboardData, setDashboardData] = useState<any>(null)
-  const [adAccounts, setAdAccounts] = useState<any[]>([])
+  // SWR: show cached data instantly, refresh in background
+  const cachedDash = getCached<any>('user-dashboard')
+  const cachedAccounts = getCached<{ accounts: any[] }>('/accounts?platform=FACEBOOK')
+  const [loading, setLoading] = useState(!cachedDash)
+  const [dashboardData, setDashboardData] = useState<any>(cachedDash)
+  const [adAccounts, setAdAccounts] = useState<any[]>(cachedAccounts?.accounts || [])
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all')
   const [accountInsights, setAccountInsights] = useState<any[]>([])
   const [insightsTotals, setInsightsTotals] = useState<{
@@ -94,8 +97,10 @@ export default function DashboardPage() {
           accountsApi.getAll('FACEBOOK')
         ])
         setDashboardData(data)
+        setCache('user-dashboard', data)
         const accounts = accountsRes.accounts || []
         setAdAccounts(accounts)
+        setCache('/accounts?platform=FACEBOOK', accountsRes)
 
         // Fetch Cheetah balances for all accounts
         if (accounts.length > 0) {

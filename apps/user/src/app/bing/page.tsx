@@ -20,7 +20,7 @@ import {
   XCircle,
   Clock,
 } from 'lucide-react'
-import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, PlatformStatus } from '@/lib/api'
+import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, PlatformStatus, getCached, setCache } from '@/lib/api'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon } from '@/components/icons/MenuIcons'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -146,14 +146,15 @@ export default function BingPage() {
   const exportDropdownRef = useRef<HTMLDivElement>(null)
 
   // User state from API
-  const [user, setUser] = useState<any>(null)
-  const [userAccounts, setUserAccounts] = useState<any[]>([])
-  const [userRefunds, setUserRefunds] = useState<any[]>([])
-  const [userDeposits, setUserDeposits] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [dashboardStats, setDashboardStats] = useState<any>(null)
+  const cachedBing = getCached<any>('bing-page-data')
+  const [user, setUser] = useState<any>(cachedBing?.user || null)
+  const [userAccounts, setUserAccounts] = useState<any[]>(cachedBing?.userAccounts || [])
+  const [userRefunds, setUserRefunds] = useState<any[]>(cachedBing?.userRefunds || [])
+  const [userDeposits, setUserDeposits] = useState<any[]>(cachedBing?.userDeposits || [])
+  const [loading, setLoading] = useState(!cachedBing)
+  const [dashboardStats, setDashboardStats] = useState<any>(cachedBing?.dashboardStats || null)
   const [previousStats, setPreviousStats] = useState<any>(null)
-  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>('active')
+  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>(cachedBing?.platformStatus || 'active')
 
   // Generate dynamic chart path based on count
   const generateChartPath = (count: number, trend: 'up' | 'down') => {
@@ -247,7 +248,13 @@ export default function BingPage() {
         setUserRefunds(refundsRes.refunds || [])
         setUserDeposits(depositsRes.deposits || [])
         setDashboardStats(statsRes)
-        setPlatformStatus((platformRes.platforms?.bing || 'active') as PlatformStatus)
+        const pStatus = (platformRes.platforms?.bing || 'active') as PlatformStatus
+        setPlatformStatus(pStatus)
+        setCache('bing-page-data', {
+          user: userRes.user, userAccounts: accountsRes.accounts || [],
+          userRefunds: refundsRes.refunds || [], userDeposits: depositsRes.deposits || [],
+          dashboardStats: statsRes, platformStatus: pStatus,
+        })
       } catch (error) {
         // Silently handle errors
       } finally {

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { referralsApi, settingsApi, domainsApi } from '@/lib/api'
+import { referralsApi, settingsApi, domainsApi, getCached, setCache } from '@/lib/api'
 import {
   Gift,
   Copy,
@@ -19,16 +19,17 @@ import {
 } from 'lucide-react'
 
 export default function ReferralsPage() {
-  const [referralCode, setReferralCode] = useState('')
-  const [referralDomain, setReferralDomain] = useState('https://ads.sixad.io')
-  const [stats, setStats] = useState({
+  const cachedRef = getCached<any>('referrals-page-data')
+  const [referralCode, setReferralCode] = useState(cachedRef?.referralCode || '')
+  const [referralDomain, setReferralDomain] = useState(cachedRef?.referralDomain || 'https://ads.sixad.io')
+  const [stats, setStats] = useState(cachedRef?.stats || {
     totalReferrals: 0,
     qualifiedReferrals: 0,
     pendingRewards: 0,
     totalEarned: 0
   })
-  const [referrals, setReferrals] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [referrals, setReferrals] = useState<any[]>(cachedRef?.referrals || [])
+  const [isLoading, setIsLoading] = useState(!cachedRef)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -65,6 +66,13 @@ export default function ReferralsPage() {
         setReferralCode(res.referralCode || '')
         setStats(res.stats)
         setReferrals(res.referrals || [])
+        // Cache for instant load
+        setCache('referrals-page-data', {
+          referralCode: res.referralCode || '',
+          referralDomain: referralDomain,
+          stats: res.stats,
+          referrals: res.referrals || [],
+        })
       } catch (error) {
         // Try to get just the code
         try {

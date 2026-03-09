@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { Input } from '@/components/ui/Input'
-import { applicationsApi, authApi, accountsApi, transactionsApi, accountDepositsApi, bmShareApi, balanceTransfersApi, accountRefundsApi, dashboardApi, settingsApi, PlatformStatus } from '@/lib/api'
+import { applicationsApi, authApi, accountsApi, transactionsApi, accountDepositsApi, bmShareApi, balanceTransfersApi, accountRefundsApi, dashboardApi, settingsApi, PlatformStatus, getCached, setCache } from '@/lib/api'
 import { Confetti, useConfetti } from '@/components/ui/Confetti'
 import { useSSEEvent } from '@/hooks/useSSEEvent'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon, EmptyStateIcon } from '@/components/icons/MenuIcons'
@@ -324,24 +324,25 @@ export default function FacebookPage() {
   ])
   const [refundToastSuccess, setRefundToastSuccess] = useState(false)
 
-  // API states
+  // API states — SWR: show cached data instantly
+  const cachedFb = getCached<any>('fb-page-data')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState(false)
-  const [user, setUser] = useState<any>(null)
-  const [userAccounts, setUserAccounts] = useState<any[]>([])
-  const [userApplications, setUserApplications] = useState<any[]>([])
-  const [userRefunds, setUserRefunds] = useState<any[]>([])
-  const [balanceTransfers, setBalanceTransfers] = useState<any[]>([])
-  const [bmShareHistory, setBmShareHistory] = useState<any[]>([])
-  const [accountDeposits, setAccountDeposits] = useState<any[]>([])
-  const [cheetahBalances, setCheetahBalances] = useState<Record<string, any>>({})
-  const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<any>(cachedFb?.user || null)
+  const [userAccounts, setUserAccounts] = useState<any[]>(cachedFb?.userAccounts || [])
+  const [userApplications, setUserApplications] = useState<any[]>(cachedFb?.userApplications || [])
+  const [userRefunds, setUserRefunds] = useState<any[]>(cachedFb?.userRefunds || [])
+  const [balanceTransfers, setBalanceTransfers] = useState<any[]>(cachedFb?.balanceTransfers || [])
+  const [bmShareHistory, setBmShareHistory] = useState<any[]>(cachedFb?.bmShareHistory || [])
+  const [accountDeposits, setAccountDeposits] = useState<any[]>(cachedFb?.accountDeposits || [])
+  const [cheetahBalances, setCheetahBalances] = useState<Record<string, any>>(cachedFb?.cheetahBalances || {})
+  const [isLoading, setIsLoading] = useState(!cachedFb)
   const [reportTab, setReportTab] = useState<'transfer' | 'refund'>('transfer')
-  const [dashboardStats, setDashboardStats] = useState<any>(null)
+  const [dashboardStats, setDashboardStats] = useState<any>(cachedFb?.dashboardStats || null)
   const [previousStats, setPreviousStats] = useState<any>(null)
-  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>('active')
-  const [profileShareLink, setProfileShareLink] = useState<string>('https://www.facebook.com/profile/6adplatform')
+  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>(cachedFb?.platformStatus || 'active')
+  const [profileShareLink, setProfileShareLink] = useState<string>(cachedFb?.profileShareLink || 'https://www.facebook.com/profile/6adplatform')
   const [seenApprovals, setSeenApprovals] = useState<Set<string>>(new Set())
   const prevAccountCountRef = useRef<number | null>(null)
 
@@ -538,19 +539,36 @@ export default function FacebookPage() {
       setProfileShareLink(profileLinksRes.profileShareLinks?.facebook || 'https://www.facebook.com/profile/6adplatform')
 
       // Fetch Cheetah balances for Facebook accounts
+      let balances: Record<string, any> = {}
       if (accounts.length > 0) {
         const fbAccountIds = accounts.map((acc: any) => acc.accountId).filter(Boolean)
         if (fbAccountIds.length > 0) {
           try {
             const balancesRes = await accountsApi.getCheetahBalancesBatch(fbAccountIds)
             if (balancesRes.balances) {
-              setCheetahBalances(balancesRes.balances)
+              balances = balancesRes.balances
+              setCheetahBalances(balances)
             }
           } catch (err) {
             // Silently handle - Cheetah balance is optional
           }
         }
       }
+
+      // Cache all data for instant load on next visit
+      setCache('fb-page-data', {
+        user: userRes.user,
+        userAccounts: accounts,
+        userApplications: applicationsRes.applications || [],
+        userRefunds: refundsRes.refunds || [],
+        balanceTransfers: transfersRes.transfers || [],
+        bmShareHistory: bmShareRes.bmShareRequests || [],
+        accountDeposits: depositsRes.deposits || [],
+        dashboardStats: statsRes,
+        platformStatus: platformRes.platforms?.facebook || 'active',
+        profileShareLink: profileLinksRes.profileShareLinks?.facebook || 'https://www.facebook.com/profile/6adplatform',
+        cheetahBalances: balances,
+      })
     } catch (error) {
       // Silently handle errors
     }

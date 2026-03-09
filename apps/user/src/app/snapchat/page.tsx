@@ -20,7 +20,7 @@ import {
   XCircle,
   Clock,
 } from 'lucide-react'
-import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, PlatformStatus } from '@/lib/api'
+import { authApi, accountsApi, transactionsApi, accountDepositsApi, dashboardApi, settingsApi, PlatformStatus, getCached, setCache } from '@/lib/api'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon } from '@/components/icons/MenuIcons'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -152,14 +152,15 @@ export default function SnapchatPage() {
   const exportDropdownRef = useRef<HTMLDivElement>(null)
 
   // User state from API
-  const [user, setUser] = useState<any>(null)
-  const [userAccounts, setUserAccounts] = useState<any[]>([])
-  const [userRefunds, setUserRefunds] = useState<any[]>([])
-  const [userDeposits, setUserDeposits] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [dashboardStats, setDashboardStats] = useState<any>(null)
+  const cachedSnap = getCached<any>('snapchat-page-data')
+  const [user, setUser] = useState<any>(cachedSnap?.user || null)
+  const [userAccounts, setUserAccounts] = useState<any[]>(cachedSnap?.userAccounts || [])
+  const [userRefunds, setUserRefunds] = useState<any[]>(cachedSnap?.userRefunds || [])
+  const [userDeposits, setUserDeposits] = useState<any[]>(cachedSnap?.userDeposits || [])
+  const [loading, setLoading] = useState(!cachedSnap)
+  const [dashboardStats, setDashboardStats] = useState<any>(cachedSnap?.dashboardStats || null)
   const [previousStats, setPreviousStats] = useState<any>(null)
-  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>('active')
+  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>(cachedSnap?.platformStatus || 'active')
 
   // Generate dynamic chart path based on count
   const generateChartPath = (count: number, trend: 'up' | 'down') => {
@@ -253,7 +254,13 @@ export default function SnapchatPage() {
         setUserRefunds(refundsRes.refunds || [])
         setUserDeposits(depositsRes.deposits || [])
         setDashboardStats(statsRes)
-        setPlatformStatus((platformRes.platforms?.snapchat || 'active') as PlatformStatus)
+        const pStatus = (platformRes.platforms?.snapchat || 'active') as PlatformStatus
+        setPlatformStatus(pStatus)
+        setCache('snapchat-page-data', {
+          user: userRes.user, userAccounts: accountsRes.accounts || [],
+          userRefunds: refundsRes.refunds || [], userDeposits: depositsRes.deposits || [],
+          dashboardStats: statsRes, platformStatus: pStatus,
+        })
       } catch (error) {
         // Silently handle errors
       } finally {

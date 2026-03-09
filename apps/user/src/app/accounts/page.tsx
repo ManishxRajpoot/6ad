@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
-import { accountsApi } from '@/lib/api'
+import { accountsApi, getCached, setCache } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { Search, CheckCircle, Clock, XCircle, Loader2 } from 'lucide-react'
 
@@ -18,8 +18,10 @@ interface AdAccount {
 
 export default function AccountsPage() {
   const { isHydrated, isAuthenticated } = useAuthStore()
-  const [accounts, setAccounts] = useState<AdAccount[]>([])
-  const [loading, setLoading] = useState(true)
+  // SWR: show cached data instantly
+  const cached = getCached<{ accounts: any[] }>('/accounts')
+  const [accounts, setAccounts] = useState<AdAccount[]>((cached?.accounts as AdAccount[]) || [])
+  const [loading, setLoading] = useState(!cached)
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export default function AccountsPage() {
     try {
       const data = await accountsApi.getAll()
       setAccounts(data.accounts || [])
+      setCache('/accounts', data)
     } catch {
       // Show empty state
     } finally {

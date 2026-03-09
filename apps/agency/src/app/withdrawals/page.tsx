@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { agentWithdrawalsApi } from '@/lib/api'
+import { agentWithdrawalsApi, getCached, setCache } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { DollarSign, Users, Wallet, Loader2, CheckCircle, X } from 'lucide-react'
 
@@ -37,9 +37,10 @@ interface Withdrawal {
 
 export default function WithdrawalsPage() {
   const refreshUser = useAuthStore((state) => state.refreshUser)
-  const [stats, setStats] = useState<WithdrawalStats | null>(null)
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
-  const [loading, setLoading] = useState(true)
+  const cachedWd = getCached<any>('agency-withdrawals')
+  const [stats, setStats] = useState<WithdrawalStats | null>(cachedWd?.stats || null)
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>(cachedWd?.withdrawals || [])
+  const [loading, setLoading] = useState(!cachedWd)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -51,13 +52,14 @@ export default function WithdrawalsPage() {
 
   const fetchData = async () => {
     try {
-      setLoading(true)
+      if (!cachedWd) setLoading(true)
       const [statsRes, withdrawalsRes] = await Promise.all([
         agentWithdrawalsApi.getStats(),
         agentWithdrawalsApi.getAll({ limit: 50 })
       ])
       setStats(statsRes)
       setWithdrawals(withdrawalsRes.withdrawals)
+      setCache('agency-withdrawals', { stats: statsRes, withdrawals: withdrawalsRes.withdrawals })
       // Refresh user data to sync wallet balance from database
       await refreshUser()
     } catch (err: any) {

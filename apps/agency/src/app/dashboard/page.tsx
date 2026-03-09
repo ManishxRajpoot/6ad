@@ -4,13 +4,15 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Users, UserX, CheckCircle, Clock, Briefcase, Ticket, TrendingUp, FileText, CreditCard, Wallet, Activity } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
-import { dashboardApi, settingsApi } from '@/lib/api'
+import { dashboardApi, settingsApi, getCached, setCache } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 
 export default function DashboardPage() {
   const updateUser = useAuthStore((state) => state.updateUser)
-  const [loading, setLoading] = useState(true)
-  const [dashboardData, setDashboardData] = useState<any>(null)
+  // SWR: show cached data instantly
+  const cachedDash = getCached<any>('agency-dashboard')
+  const [loading, setLoading] = useState(!cachedDash)
+  const [dashboardData, setDashboardData] = useState<any>(cachedDash)
   const [chartPeriod, setChartPeriod] = useState<'today' | '7d' | '1m' | '6m' | '1y'>('today')
   const [platformChartPeriod, setPlatformChartPeriod] = useState<'today' | 'yesterday' | '7d' | '1m' | '6m' | '1y'>('1m')
   const [platformChartLoading, setPlatformChartLoading] = useState(false)
@@ -34,6 +36,7 @@ export default function DashboardPage() {
         const data = await dashboardApi.getStats(chartPeriod)
         if (!isMounted) return
         setDashboardData(data)
+        if (chartPeriod === 'today') setCache('agency-dashboard', data)
         // Sync coupon balance to auth store so other pages can use it
         if (data?.stats?.availableCoupons !== undefined) {
           updateUserRef.current({ couponBalance: data.stats.availableCoupons })

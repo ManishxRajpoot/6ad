@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { notificationsApi } from '@/lib/api'
+import { notificationsApi, getCached, setCache } from '@/lib/api'
 import { formatDistanceToNow } from 'date-fns'
 import {
   Bell,
@@ -35,14 +35,15 @@ interface Notification {
 }
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const cachedNotif = getCached<any>('notifications-all')
+  const [notifications, setNotifications] = useState<Notification[]>(cachedNotif?.notifications || [])
+  const [isLoading, setIsLoading] = useState(!cachedNotif)
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
-  const [total, setTotal] = useState(0)
-  const [unreadCount, setUnreadCount] = useState(0)
+  const [total, setTotal] = useState<number>(cachedNotif?.total || 0)
+  const [unreadCount, setUnreadCount] = useState<number>(cachedNotif?.unreadCount || 0)
 
   const fetchNotifications = async () => {
-    setIsLoading(true)
+    if (!cachedNotif) setIsLoading(true)
     try {
       const res = await notificationsApi.getAll({
         limit: 50,
@@ -51,6 +52,7 @@ export default function NotificationsPage() {
       setNotifications(res.notifications)
       setTotal(res.total)
       setUnreadCount(res.unreadCount)
+      if (filter === 'all') setCache('notifications-all', res)
     } catch (error) {
       // Silently fail
     } finally {

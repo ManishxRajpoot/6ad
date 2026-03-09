@@ -24,7 +24,7 @@ import {
   Clock,
   Wallet,
 } from 'lucide-react'
-import { authApi, accountsApi, transactionsApi, accountDepositsApi, balanceTransfersApi, accountRefundsApi, dashboardApi, settingsApi, applicationsApi, bmShareApi, PlatformStatus } from '@/lib/api'
+import { authApi, accountsApi, transactionsApi, accountDepositsApi, balanceTransfersApi, accountRefundsApi, dashboardApi, settingsApi, applicationsApi, bmShareApi, PlatformStatus, getCached, setCache } from '@/lib/api'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon, ComingSoonIcon } from '@/components/icons/MenuIcons'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -381,18 +381,19 @@ export default function GooglePage() {
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const exportDropdownRef = useRef<HTMLDivElement>(null)
 
-  // User state from API
-  const [user, setUser] = useState<any>(null)
-  const [userAccounts, setUserAccounts] = useState<any[]>([])
-  const [userApplications, setUserApplications] = useState<any[]>([])
-  const [accessRequests, setAccessRequests] = useState<any[]>([])
-  const [userRefunds, setUserRefunds] = useState<any[]>([])
-  const [userDeposits, setUserDeposits] = useState<any[]>([])
-  const [balanceTransfers, setBalanceTransfers] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [dashboardStats, setDashboardStats] = useState<any>(null)
+  // User state from API — SWR: show cached data instantly
+  const cachedG = getCached<any>('google-page-data')
+  const [user, setUser] = useState<any>(cachedG?.user || null)
+  const [userAccounts, setUserAccounts] = useState<any[]>(cachedG?.userAccounts || [])
+  const [userApplications, setUserApplications] = useState<any[]>(cachedG?.userApplications || [])
+  const [accessRequests, setAccessRequests] = useState<any[]>(cachedG?.accessRequests || [])
+  const [userRefunds, setUserRefunds] = useState<any[]>(cachedG?.userRefunds || [])
+  const [userDeposits, setUserDeposits] = useState<any[]>(cachedG?.userDeposits || [])
+  const [balanceTransfers, setBalanceTransfers] = useState<any[]>(cachedG?.balanceTransfers || [])
+  const [loading, setLoading] = useState(!cachedG)
+  const [dashboardStats, setDashboardStats] = useState<any>(cachedG?.dashboardStats || null)
   const [previousStats, setPreviousStats] = useState<any>(null)
-  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>('active')
+  const [platformStatus, setPlatformStatus] = useState<PlatformStatus>(cachedG?.platformStatus || 'active')
   const [reportTab, setReportTab] = useState<'transfer' | 'refund'>('transfer')
 
   // Generate dynamic chart path based on count - creates wave peaks for each pending item
@@ -625,7 +626,20 @@ export default function GooglePage() {
         setUserDeposits(depositsRes.deposits || [])
         setBalanceTransfers(transfersRes.transfers || [])
         setDashboardStats(statsRes)
-        setPlatformStatus((platformRes.platforms?.google || 'active') as PlatformStatus)
+        const pStatus = (platformRes.platforms?.google || 'active') as PlatformStatus
+        setPlatformStatus(pStatus)
+        // Cache for instant load on next visit
+        setCache('google-page-data', {
+          user: userRes.user,
+          userAccounts: accountsRes.accounts || [],
+          userApplications: applicationsRes.applications || [],
+          accessRequests: accessRes.bmShareRequests || [],
+          userRefunds: refundsRes.refunds || [],
+          userDeposits: depositsRes.deposits || [],
+          balanceTransfers: transfersRes.transfers || [],
+          dashboardStats: statsRes,
+          platformStatus: pStatus,
+        })
       } catch (error) {
         // Silently handle errors - user will see empty data
       } finally {

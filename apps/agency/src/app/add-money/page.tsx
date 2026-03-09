@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
-import { paymentMethodsApi, transactionsApi, authApi, usersApi } from '@/lib/api'
+import { paymentMethodsApi, transactionsApi, authApi, usersApi, getCached, setCache } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { useSSEEvent } from '@/hooks/useSSEEvent'
 import {
@@ -120,8 +120,9 @@ export default function AddMoneyPage() {
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false)
 
   // Deposits from API
-  const [deposits, setDeposits] = useState<Deposit[]>([])
-  const [loadingDeposits, setLoadingDeposits] = useState(true)
+  const cachedAddMoney = getCached<{ deposits: Deposit[] }>('/transactions/agent-deposits')
+  const [deposits, setDeposits] = useState<Deposit[]>(cachedAddMoney?.deposits || [])
+  const [loadingDeposits, setLoadingDeposits] = useState(!cachedAddMoney)
   const [submittingDeposit, setSubmittingDeposit] = useState(false)
 
   // File upload state
@@ -163,10 +164,11 @@ export default function AddMoneyPage() {
   // Fetch agent's own deposits from API and refresh user balance
   useEffect(() => {
     const fetchDeposits = async () => {
-      setLoadingDeposits(true)
+      if (!cachedAddMoney) setLoadingDeposits(true)
       try {
         const data = await transactionsApi.agentDeposits.getAll()
         setDeposits(data.deposits || [])
+        setCache('/transactions/agent-deposits', data)
 
         // Also refresh user data to get updated balance
         const userData = await authApi.me()

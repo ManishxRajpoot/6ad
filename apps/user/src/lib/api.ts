@@ -1,5 +1,32 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
 
+// ─── SWR-style Global Cache ─────────────────────────────────────
+// Cached GET responses persist across page navigations & tab switches.
+// On cache hit: return stale data instantly → refresh in background.
+const _cache = new Map<string, { data: any; ts: number }>()
+const _inflight = new Map<string, Promise<any>>()
+const CACHE_TTL = 60_000 // 60s — stale data shown for max 60s
+
+export function getCached<T = any>(key: string): T | null {
+  const entry = _cache.get(key)
+  if (entry) return entry.data as T
+  return null
+}
+
+export function setCache(key: string, data: any) {
+  _cache.set(key, { data, ts: Date.now() })
+}
+
+export function invalidateCache(prefix?: string) {
+  if (prefix) {
+    for (const key of _cache.keys()) {
+      if (key.startsWith(prefix)) _cache.delete(key)
+    }
+  } else {
+    _cache.clear()
+  }
+}
+
 type RequestOptions = {
   method?: string
   body?: any
@@ -96,6 +123,25 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
 export const api = {
   get: <T>(endpoint: string) => request<T>(endpoint),
+  /** SWR-style cached GET: returns { cached, fresh } where cached is instant (or null) */
+  swr: <T>(endpoint: string, onUpdate?: (data: T) => void): { cached: T | null; fresh: Promise<T> } => {
+    const cached = getCached<T>(endpoint)
+    // Deduplicate in-flight requests to same endpoint
+    let freshPromise = _inflight.get(endpoint) as Promise<T> | undefined
+    if (!freshPromise) {
+      freshPromise = request<T>(endpoint).then(data => {
+        setCache(endpoint, data)
+        _inflight.delete(endpoint)
+        if (onUpdate) onUpdate(data)
+        return data
+      }).catch(err => {
+        _inflight.delete(endpoint)
+        throw err
+      })
+      _inflight.set(endpoint, freshPromise)
+    }
+    return { cached, fresh: freshPromise }
+  },
   post: <T>(endpoint: string, body: any) => request<T>(endpoint, { method: 'POST', body }),
   put: <T>(endpoint: string, body: any) => request<T>(endpoint, { method: 'PUT', body }),
   patch: <T>(endpoint: string, body: any) => request<T>(endpoint, { method: 'PATCH', body }),

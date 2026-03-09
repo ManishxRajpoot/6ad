@@ -5,7 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card } from '@/components/ui/Card'
 import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
-import { accountsApi } from '@/lib/api'
+import { accountsApi, getCached, setCache } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import {
   Search,
@@ -51,8 +51,9 @@ type AdAccount = {
 
 export default function AdAccountsPage() {
   const toast = useToast()
-  const [accounts, setAccounts] = useState<AdAccount[]>([])
-  const [loading, setLoading] = useState(true)
+  const cachedAccounts = getCached<any>('agency-ad-accounts')
+  const [accounts, setAccounts] = useState<AdAccount[]>(cachedAccounts?.accounts || [])
+  const [loading, setLoading] = useState(!cachedAccounts)
   const [refreshing, setRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [platformFilter, setPlatformFilter] = useState<string>('all')
@@ -121,6 +122,10 @@ export default function AdAccountsPage() {
       // Update balance visibility from admin setting
       if (response.showBalanceToAgents !== undefined) {
         setShowBalance(response.showBalanceToAgents)
+      }
+      // Cache first page for instant load
+      if (currentPage === 1 && platformFilter === 'all' && !searchQuery) {
+        setCache('agency-ad-accounts', response)
       }
     } catch (error: any) {
       console.error('Failed to fetch accounts:', error)
