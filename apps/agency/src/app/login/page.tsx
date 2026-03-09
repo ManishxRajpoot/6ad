@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { api, authApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import { Shield, ArrowRight, Loader2, Mail, Lock, Eye, EyeOff, Building2, TrendingUp, Users, BarChart3, CheckCircle2, Ban, Briefcase, Zap, Check, Copy, Smartphone, KeyRound, Camera, User } from 'lucide-react'
 
 type SecurityStep = 'login' | 'email' | '2fa-setup' | '2fa-verify' | '2fa-login' | 'profile-picture' | 'blocked'
 
@@ -381,7 +380,10 @@ export default function LoginPage() {
           <div className="bg-white border border-gray-200 rounded-3xl shadow-xl shadow-gray-200/50 overflow-hidden">
             <div className="p-8 text-center">
               <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-6">
-                <Ban className="w-10 h-10 text-red-500" />
+                <svg className="w-10 h-10 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                </svg>
               </div>
 
               <h2 className="text-2xl font-bold text-gray-900 mb-3">Account Blocked</h2>
@@ -409,7 +411,10 @@ export default function LoginPage() {
                 }}
                 className="w-full py-3.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-all flex items-center justify-center gap-2"
               >
-                <ArrowRight className="w-4 h-4 rotate-180" />
+                <svg className="w-4 h-4 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
                 Back to Login
               </button>
             </div>
@@ -432,7 +437,9 @@ export default function LoginPage() {
             <div className="bg-gradient-to-r from-teal-600 to-cyan-600 px-6 py-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                  <Shield className="w-5 h-5 text-white" />
+                  <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
                 </div>
                 <div>
                   <h1 className="text-lg font-bold text-white">Security Setup Required</h1>
@@ -453,7 +460,7 @@ export default function LoginPage() {
                         ? 'bg-teal-600 text-white'
                         : 'bg-gray-200 text-gray-500'
                   }`}>
-                    {tempUser?.emailVerified ? <Check className="w-3.5 h-3.5" /> : '1'}
+                    {tempUser?.emailVerified ? <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg> : '1'}
                   </div>
                   <span className={`text-xs font-medium hidden sm:block ${displayStep === 'email' || tempUser?.emailVerified ? 'text-gray-900' : 'text-gray-400'}`}>
                     Email
@@ -471,7 +478,7 @@ export default function LoginPage() {
                         ? 'bg-teal-600 text-white'
                         : 'bg-gray-200 text-gray-500'
                   }`}>
-                    {tempUser?.twoFactorEnabled ? <Check className="w-3.5 h-3.5" /> : '2'}
+                    {tempUser?.twoFactorEnabled ? <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg> : '2'}
                   </div>
                   <span className={`text-xs font-medium hidden sm:block ${displayStep === '2fa-setup' || displayStep === '2fa-verify' || tempUser?.twoFactorEnabled ? 'text-gray-900' : 'text-gray-400'}`}>
                     2FA
@@ -508,7 +515,7 @@ export default function LoginPage() {
               {displayStep === 'email' && (
                 <div className="text-center">
                   <div className="w-16 h-16 rounded-2xl bg-teal-100 flex items-center justify-center mx-auto mb-4">
-                    <Mail className="w-8 h-8 text-teal-600" />
+                    <svg className="w-8 h-8 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 4L12 13L2 4" /></svg>
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-2">Verify Your Email</h2>
                   <p className="text-gray-500 text-sm mb-6">
@@ -523,12 +530,12 @@ export default function LoginPage() {
                     >
                       {sendingCode ? (
                         <>
-                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>
                           Sending...
                         </>
                       ) : (
                         <>
-                          <Mail className="w-5 h-5" />
+                          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 4L12 13L2 4" /></svg>
                           Send Verification Code
                         </>
                       )}
@@ -591,7 +598,7 @@ export default function LoginPage() {
 
                       {loading && (
                         <div className="flex items-center justify-center gap-2 text-teal-600">
-                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>
                           <span className="text-sm font-medium">Verifying...</span>
                         </div>
                       )}
@@ -616,7 +623,7 @@ export default function LoginPage() {
               {displayStep === '2fa-setup' && (
                 <div className="text-center">
                   <div className="w-16 h-16 rounded-2xl bg-teal-100 flex items-center justify-center mx-auto mb-4">
-                    <Smartphone className="w-8 h-8 text-teal-600" />
+                    <svg className="w-8 h-8 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></svg>
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-2">Setup Two-Factor Authentication</h2>
                   <p className="text-gray-500 text-sm mb-6">
@@ -636,12 +643,12 @@ export default function LoginPage() {
                   >
                     {loading ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>
                         Generating...
                       </>
                     ) : (
                       <>
-                        <KeyRound className="w-5 h-5" />
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 10-4-4L2 18z" /><circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></svg>
                         Generate QR Code
                       </>
                     )}
@@ -681,9 +688,9 @@ export default function LoginPage() {
                           className="p-1.5 hover:bg-gray-200 rounded-md transition-colors"
                         >
                           {copiedSecret ? (
-                            <Check className="w-4 h-4 text-emerald-500" />
+                            <svg className="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                           ) : (
-                            <Copy className="w-4 h-4 text-gray-400" />
+                            <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
                           )}
                         </button>
                       </div>
@@ -746,7 +753,7 @@ export default function LoginPage() {
 
                   {loading && (
                     <div className="flex items-center justify-center gap-2 text-teal-600">
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>
                       <span className="text-sm font-medium">Verifying...</span>
                     </div>
                   )}
@@ -760,7 +767,7 @@ export default function LoginPage() {
                     {profileImage ? (
                       <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
-                      <User className="w-12 h-12 text-teal-600" />
+                      <svg className="w-12 h-12 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                     )}
                   </div>
                   <h2 className="text-xl font-bold text-gray-900 mb-2">Set Display Picture</h2>
@@ -781,7 +788,7 @@ export default function LoginPage() {
                       onClick={() => fileInputRef.current?.click()}
                       className="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-teal-500 hover:text-teal-600 transition-colors"
                     >
-                      <Camera className="w-5 h-5" />
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" /><circle cx="12" cy="13" r="4" /></svg>
                       {profileImage ? 'Change DP' : 'Upload DP'}
                     </button>
 
@@ -793,12 +800,12 @@ export default function LoginPage() {
                       >
                         {uploadingImage ? (
                           <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>
                             Uploading...
                           </>
                         ) : (
                           <>
-                            <Check className="w-5 h-5" />
+                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                             Save & Continue
                           </>
                         )}
@@ -838,7 +845,7 @@ export default function LoginPage() {
                 onClick={handleBack}
                 className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
               >
-                <ArrowRight className="w-4 h-4 rotate-180" />
+                <svg className="w-4 h-4 rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
                 {emailOtpMode ? 'Use authenticator instead' : 'Back to login'}
               </button>
             </div>
@@ -846,7 +853,7 @@ export default function LoginPage() {
             <div className="p-6 pt-4">
               <div className="text-center">
                 <div className="w-16 h-16 rounded-2xl bg-teal-100 flex items-center justify-center mx-auto mb-4">
-                  {emailOtpMode ? <Mail className="w-8 h-8 text-teal-600" /> : <Shield className="w-8 h-8 text-teal-600" />}
+                  {emailOtpMode ? <svg className="w-8 h-8 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 4L12 13L2 4" /></svg> : <svg className="w-8 h-8 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>}
                 </div>
                 <h2 className="text-xl font-bold text-gray-900 mb-2">
                   {emailOtpMode ? 'Email Verification' : 'Two-Factor Authentication'}
@@ -927,7 +934,7 @@ export default function LoginPage() {
 
                 {loading && (
                   <div className="flex items-center justify-center gap-2 text-teal-600 mb-4">
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>
                     <span className="text-sm font-medium">Verifying...</span>
                   </div>
                 )}
@@ -964,12 +971,12 @@ export default function LoginPage() {
                       >
                         {sendingEmailOtp ? (
                           <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 11-6.219-8.56" /></svg>
                             Sending code...
                           </>
                         ) : (
                           <>
-                            <Mail className="w-3.5 h-3.5" />
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M22 4L12 13L2 4" /></svg>
                             Get code via email
                           </>
                         )}
@@ -1017,7 +1024,10 @@ export default function LoginPage() {
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
+                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="M22 4L12 13L2 4" />
+                  </svg>
                 </div>
                 <input
                   type="text"
@@ -1036,7 +1046,10 @@ export default function LoginPage() {
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
+                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                    <path d="M7 11V7a5 5 0 0110 0v4" />
+                  </svg>
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -1051,7 +1064,19 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  {showPassword ? (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" />
+                      <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                      <path d="M14.12 14.12a3 3 0 11-4.24-4.24" />
+                    </svg>
+                  ) : (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
                 </button>
               </div>
             </div>
@@ -1082,11 +1107,16 @@ export default function LoginPage() {
               className="w-full py-4 px-4 bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-teal-500/25 hover:shadow-teal-500/40 group"
             >
               {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 11-6.219-8.56" />
+                </svg>
               ) : (
                 <>
                   Sign In
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
                 </>
               )}
             </button>
@@ -1105,11 +1135,15 @@ export default function LoginPage() {
           {/* Security badges */}
           <div className="flex items-center justify-center gap-4 sm:gap-6">
             <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
-              <Shield className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-teal-500" />
+              <svg className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-teal-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
               <span className="text-[10px] sm:text-xs">SSL Encrypted</span>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 text-gray-500">
-              <Zap className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-500" />
+              <svg className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
               <span className="text-[10px] sm:text-xs">2FA Protected</span>
             </div>
           </div>
@@ -1154,7 +1188,7 @@ export default function LoginPage() {
             <div className="max-w-xl">
               {/* Badge */}
               <div className="inline-flex items-center gap-1.5 xl:gap-2 bg-teal-100 border border-teal-200 rounded-full px-2.5 xl:px-4 py-1 xl:py-2 mb-4 xl:mb-6">
-                <Briefcase className="w-3 xl:w-4 h-3 xl:h-4 text-teal-600" />
+                <svg className="w-3 xl:w-4 h-3 xl:h-4 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" /></svg>
                 <span className="text-teal-700 text-[11px] xl:text-sm font-medium">Agency Management Portal</span>
               </div>
 
@@ -1177,7 +1211,7 @@ export default function LoginPage() {
               <div className="grid grid-cols-3 gap-2 xl:gap-4 mb-6 xl:mb-10">
                 <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl xl:rounded-2xl p-3 xl:p-5 hover:shadow-lg hover:border-teal-200 transition-all group">
                   <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-teal-100 flex items-center justify-center mb-2 xl:mb-3 group-hover:scale-110 transition-transform">
-                    <Users className="w-4 h-4 xl:w-5 xl:h-5 text-teal-600" />
+                    <svg className="w-4 h-4 xl:w-5 xl:h-5 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" /></svg>
                   </div>
                   <p className="text-lg xl:text-2xl font-bold text-gray-900">500+</p>
                   <p className="text-gray-500 text-[10px] xl:text-sm">Active Users</p>
@@ -1185,7 +1219,7 @@ export default function LoginPage() {
 
                 <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl xl:rounded-2xl p-3 xl:p-5 hover:shadow-lg hover:border-cyan-200 transition-all group">
                   <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-cyan-100 flex items-center justify-center mb-2 xl:mb-3 group-hover:scale-110 transition-transform">
-                    <TrendingUp className="w-4 h-4 xl:w-5 xl:h-5 text-cyan-600" />
+                    <svg className="w-4 h-4 xl:w-5 xl:h-5 text-cyan-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" /></svg>
                   </div>
                   <p className="text-lg xl:text-2xl font-bold text-gray-900">$1.2M+</p>
                   <p className="text-gray-500 text-[10px] xl:text-sm">Monthly Vol</p>
@@ -1193,7 +1227,7 @@ export default function LoginPage() {
 
                 <div className="bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl xl:rounded-2xl p-3 xl:p-5 hover:shadow-lg hover:border-emerald-200 transition-all group">
                   <div className="w-8 h-8 xl:w-10 xl:h-10 rounded-lg xl:rounded-xl bg-emerald-100 flex items-center justify-center mb-2 xl:mb-3 group-hover:scale-110 transition-transform">
-                    <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 text-emerald-600" />
+                    <svg className="w-4 h-4 xl:w-5 xl:h-5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="M18 17V9" /><path d="M13 17V5" /><path d="M8 17v-3" /></svg>
                   </div>
                   <p className="text-lg xl:text-2xl font-bold text-gray-900">99.9%</p>
                   <p className="text-gray-500 text-[10px] xl:text-sm">Uptime</p>
@@ -1203,15 +1237,15 @@ export default function LoginPage() {
               {/* Features */}
               <div className="flex flex-wrap gap-2 xl:gap-4">
                 <div className="flex items-center gap-1.5 xl:gap-2 text-gray-600">
-                  <CheckCircle2 className="w-4 h-4 xl:w-5 xl:h-5 text-teal-500" />
+                  <svg className="w-4 h-4 xl:w-5 xl:h-5 text-teal-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
                   <span className="text-[11px] xl:text-sm">User Management</span>
                 </div>
                 <div className="flex items-center gap-1.5 xl:gap-2 text-gray-600">
-                  <CheckCircle2 className="w-4 h-4 xl:w-5 xl:h-5 text-teal-500" />
+                  <svg className="w-4 h-4 xl:w-5 xl:h-5 text-teal-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
                   <span className="text-[11px] xl:text-sm">Real-time Analytics</span>
                 </div>
                 <div className="flex items-center gap-1.5 xl:gap-2 text-gray-600">
-                  <CheckCircle2 className="w-4 h-4 xl:w-5 xl:h-5 text-teal-500" />
+                  <svg className="w-4 h-4 xl:w-5 xl:h-5 text-teal-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
                   <span className="text-[11px] xl:text-sm">Secure Platform</span>
                 </div>
               </div>
