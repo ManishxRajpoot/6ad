@@ -137,7 +137,6 @@ dashboard.get('/agent', requireAgent, async (c) => {
   try {
     const agentId = c.get('userId')
     const { period = 'today' } = c.req.query()
-    console.log('Agent dashboard - agentId:', agentId, 'period:', period)
 
     // Get agent's coupon balance
     const agent = await prisma.user.findUnique({
@@ -151,14 +150,12 @@ dashboard.get('/agent', requireAgent, async (c) => {
       where: { agentId, role: 'USER' },
       select: { id: true, walletBalance: true, status: true }
     })
-    console.log('Agent dashboard - found users:', agentUsers.length, agentUsers)
 
     // Calculate totals from users
     const totalUsers = agentUsers.length
     const activeUsers = agentUsers.filter(u => u.status === 'ACTIVE').length
     const blockedUsers = agentUsers.filter(u => u.status === 'BLOCKED').length
     const totalWalletBalance = agentUsers.reduce((sum, u) => sum + Number(u.walletBalance || 0), 0)
-    console.log('Agent dashboard - totalWalletBalance:', totalWalletBalance)
 
     // Get counts for accounts (all ad accounts of agent's users)
     const [
@@ -795,23 +792,23 @@ dashboard.get('/reports/platform', requireAdmin, async (c) => {
 // GET /dashboard/reports/income - Income management report
 dashboard.get('/reports/income', requireAdmin, async (c) => {
   try {
-    const deposits = await prisma.deposit.aggregate({
-      where: { status: 'APPROVED' },
-      _sum: { amount: true },
-      _count: true
-    })
-
-    const withdrawals = await prisma.withdrawal.aggregate({
-      where: { status: 'APPROVED' },
-      _sum: { amount: true },
-      _count: true
-    })
-
-    const refunds = await prisma.refund.aggregate({
-      where: { status: 'APPROVED' },
-      _sum: { amount: true },
-      _count: true
-    })
+    const [deposits, withdrawals, refunds] = await Promise.all([
+      prisma.deposit.aggregate({
+        where: { status: 'APPROVED' },
+        _sum: { amount: true },
+        _count: true
+      }),
+      prisma.withdrawal.aggregate({
+        where: { status: 'APPROVED' },
+        _sum: { amount: true },
+        _count: true
+      }),
+      prisma.refund.aggregate({
+        where: { status: 'APPROVED' },
+        _sum: { amount: true },
+        _count: true
+      })
+    ])
 
     // Get by agent
     const byAgent = await prisma.user.findMany({

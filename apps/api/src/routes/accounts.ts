@@ -128,7 +128,7 @@ accounts.get('/', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { platform, status, targetUserId, page = '1', limit = '5000' } = c.req.query()
+    const { platform, status, targetUserId, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {}
 
@@ -237,7 +237,7 @@ accounts.get('/stats', requireAdmin, async (c) => {
 accounts.get('/deposits', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
-    const { platform, status, page = '1', limit = '5000' } = c.req.query()
+    const { platform, status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {
       adAccount: { userId }
@@ -289,7 +289,7 @@ accounts.get('/deposits', requireUser, async (c) => {
 // GET /accounts/deposits/admin - Get all account deposits for admin
 accounts.get('/deposits/admin', requireAdmin, async (c) => {
   try {
-    const { platform, status, page = '1', limit = '5000' } = c.req.query()
+    const { platform, status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {}
     if (platform) {
@@ -355,14 +355,20 @@ accounts.post('/deposits/check-cheetah', requireAdmin, async (c) => {
       return c.json({ cheetahStatus: {} })
     }
 
-    const cheetahStatus: Record<string, boolean> = {}
-
-    for (const accountId of accountIds) {
-      try {
+    // Parallelize all Cheetah API calls instead of sequential
+    const results = await Promise.allSettled(
+      accountIds.map(async (accountId: string) => {
         const result = await cheetahApi.getAccount(accountId)
-        cheetahStatus[accountId] = result.code === 0 && result.data && result.data.length > 0
-      } catch {
-        cheetahStatus[accountId] = false
+        return { accountId, isCheetah: result.code === 0 && result.data && result.data.length > 0 }
+      })
+    )
+
+    const cheetahStatus: Record<string, boolean> = {}
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        cheetahStatus[r.value.accountId] = r.value.isCheetah
+      } else {
+        // Failed API call — mark as not Cheetah
       }
     }
 
@@ -380,7 +386,7 @@ accounts.post('/deposits/check-cheetah', requireAdmin, async (c) => {
 accounts.get('/refunds', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
-    const { platform, status, page = '1', limit = '5000' } = c.req.query()
+    const { platform, status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {
       adAccount: { userId }
@@ -433,7 +439,7 @@ accounts.get('/refunds', requireUser, async (c) => {
 // GET /accounts/refunds/admin - Get all account refunds for admin
 accounts.get('/refunds/admin', requireAdmin, async (c) => {
   try {
-    const { platform, status, page = '1', limit = '5000' } = c.req.query()
+    const { platform, status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {}
     if (platform) {
@@ -491,7 +497,7 @@ accounts.get('/refunds/admin', requireAdmin, async (c) => {
 accounts.get('/transfers', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
-    const { platform, status, page = '1', limit = '5000' } = c.req.query()
+    const { platform, status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = { userId }
     if (platform) {
@@ -551,7 +557,7 @@ accounts.get('/transfers', requireUser, async (c) => {
 // GET /accounts/transfers/admin - Get all balance transfers for admin
 accounts.get('/transfers/admin', requireAdmin, async (c) => {
   try {
-    const { platform, status, page = '1', limit = '5000' } = c.req.query()
+    const { platform, status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {}
     if (platform) {
@@ -699,9 +705,16 @@ accounts.get('/agent-all', async (c) => {
     if (fbAccountIds.length > 0) {
       const configLoaded = await loadCheetahConfig()
       if (configLoaded) {
-        for (const accountId of fbAccountIds) {
-          try {
+        // Parallelize all Cheetah API calls
+        const results = await Promise.allSettled(
+          fbAccountIds.map(async (accountId: string) => {
             const result = await cheetahApi.getAccount(accountId)
+            return { accountId, result }
+          })
+        )
+        for (const r of results) {
+          if (r.status === 'fulfilled') {
+            const { accountId, result } = r.value
             if (result.code === 0 && result.data && result.data.length > 0) {
               const cheetahAccount = result.data[0]
               const spendCap = parseFloat(cheetahAccount.spend_cap) || 0
@@ -721,8 +734,8 @@ accounts.get('/agent-all', async (c) => {
             } else {
               cheetahStatuses[accountId] = { isCheetah: false }
             }
-          } catch (err) {
-            cheetahStatuses[accountId] = { isCheetah: false, error: true }
+          } else {
+            // Failed — mark as not cheetah
           }
         }
       }
@@ -799,7 +812,7 @@ accounts.get('/:platform', requireUser, async (c) => {
     const { platform } = c.req.param()
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, page = '1', limit = '5000' } = c.req.query()
+    const { status, page = '1', limit = '100' } = c.req.query()
 
     const platformUpper = platform.toUpperCase() as Platform
     if (!['FACEBOOK', 'GOOGLE', 'TIKTOK', 'SNAPCHAT', 'BING'].includes(platformUpper)) {

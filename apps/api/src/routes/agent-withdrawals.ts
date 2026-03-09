@@ -44,100 +44,51 @@ agentWithdrawals.get('/stats', requireAgent, async (c) => {
     })
     const userIds = agentUsers.map(u => u.id)
 
-    // ============= LIFETIME EARNINGS =============
-    // Get total commission earned from account deposits (lifetime)
-    const lifetimeDepositsCommission = await prisma.accountDeposit.aggregate({
-      where: {
-        adAccount: {
-          userId: { in: userIds }
-        },
-        status: 'APPROVED'
-      },
-      _sum: {
-        commissionAmount: true
-      }
-    })
-
-    // Get total opening fees from approved applications (lifetime)
-    const lifetimeOpeningFees = await prisma.adAccountApplication.aggregate({
-      where: {
-        userId: { in: userIds },
-        status: 'APPROVED'
-      },
-      _sum: {
-        openingFee: true
-      }
-    })
-
-    // ============= TODAY'S REVENUE =============
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    // Today's commission from account deposits
-    const todayDepositsCommission = await prisma.accountDeposit.aggregate({
-      where: {
-        adAccount: {
-          userId: { in: userIds }
-        },
-        status: 'APPROVED',
-        approvedAt: { gte: today }
-      },
-      _sum: {
-        commissionAmount: true
-      }
-    })
-
-    // Today's opening fees from approved applications
-    const todayOpeningFees = await prisma.adAccountApplication.aggregate({
-      where: {
-        userId: { in: userIds },
-        status: 'APPROVED',
-        approvedAt: { gte: today }
-      },
-      _sum: {
-        openingFee: true
-      }
-    })
-
-    // ============= WITHDRAWAL DATA =============
-    // Get total withdrawn amount
-    const withdrawnAmount = await prisma.agentWithdrawal.aggregate({
-      where: {
-        agentId,
-        status: 'APPROVED'
-      },
-      _sum: {
-        amount: true
-      }
-    })
-
-    // Get pending withdrawals
-    const pendingWithdrawals = await prisma.agentWithdrawal.aggregate({
-      where: {
-        agentId,
-        status: 'PENDING'
-      },
-      _sum: {
-        amount: true
-      }
-    })
-
-    // ============= AD ACCOUNTS =============
-    // Get total active ad accounts count (all users under agent)
-    const totalAdAccounts = await prisma.adAccount.count({
-      where: {
-        userId: { in: userIds },
-        status: 'APPROVED'
-      }
-    })
-
-    // Get pending accounts count
-    const pendingAccounts = await prisma.adAccountApplication.count({
-      where: {
-        userId: { in: userIds },
-        status: 'PENDING'
-      }
-    })
+    // Run ALL aggregations in parallel — 8 independent queries
+    const [
+      lifetimeDepositsCommission,
+      lifetimeOpeningFees,
+      todayDepositsCommission,
+      todayOpeningFees,
+      withdrawnAmount,
+      pendingWithdrawals,
+      totalAdAccounts,
+      pendingAccounts
+    ] = await Promise.all([
+      prisma.accountDeposit.aggregate({
+        where: { adAccount: { userId: { in: userIds } }, status: 'APPROVED' },
+        _sum: { commissionAmount: true }
+      }),
+      prisma.adAccountApplication.aggregate({
+        where: { userId: { in: userIds }, status: 'APPROVED' },
+        _sum: { openingFee: true }
+      }),
+      prisma.accountDeposit.aggregate({
+        where: { adAccount: { userId: { in: userIds } }, status: 'APPROVED', approvedAt: { gte: today } },
+        _sum: { commissionAmount: true }
+      }),
+      prisma.adAccountApplication.aggregate({
+        where: { userId: { in: userIds }, status: 'APPROVED', approvedAt: { gte: today } },
+        _sum: { openingFee: true }
+      }),
+      prisma.agentWithdrawal.aggregate({
+        where: { agentId, status: 'APPROVED' },
+        _sum: { amount: true }
+      }),
+      prisma.agentWithdrawal.aggregate({
+        where: { agentId, status: 'PENDING' },
+        _sum: { amount: true }
+      }),
+      prisma.adAccount.count({
+        where: { userId: { in: userIds }, status: 'APPROVED' }
+      }),
+      prisma.adAccountApplication.count({
+        where: { userId: { in: userIds }, status: 'PENDING' }
+      })
+    ])
 
     // ============= CALCULATIONS =============
     // Total lifetime earned = commission from deposits + opening fees
@@ -178,7 +129,7 @@ agentWithdrawals.get('/stats', requireAgent, async (c) => {
 agentWithdrawals.get('/', requireAgent, async (c) => {
   try {
     const agentId = c.get('userId')
-    const { page = '1', limit = '5000', status } = c.req.query()
+    const { page = '1', limit = '100', status } = c.req.query()
 
     const where: any = { agentId }
     if (status) where.status = status.toUpperCase()
@@ -234,31 +185,24 @@ agentWithdrawals.post('/', requireAgent, async (c) => {
     })
     const userIds = agentUsers.map(u => u.id)
 
-    const depositsCommission = await prisma.accountDeposit.aggregate({
-      where: {
-        adAccount: { userId: { in: userIds } },
-        status: 'APPROVED'
-      },
-      _sum: { commissionAmount: true }
-    })
-
-    const openingFees = await prisma.adAccountApplication.aggregate({
-      where: {
-        userId: { in: userIds },
-        status: 'APPROVED'
-      },
-      _sum: { openingFee: true }
-    })
-
-    const withdrawnAmount = await prisma.agentWithdrawal.aggregate({
-      where: { agentId, status: 'APPROVED' },
-      _sum: { amount: true }
-    })
-
-    const pendingWithdrawals = await prisma.agentWithdrawal.aggregate({
-      where: { agentId, status: 'PENDING' },
-      _sum: { amount: true }
-    })
+    const [depositsCommission, openingFees, withdrawnAmount, pendingWithdrawals] = await Promise.all([
+      prisma.accountDeposit.aggregate({
+        where: { adAccount: { userId: { in: userIds } }, status: 'APPROVED' },
+        _sum: { commissionAmount: true }
+      }),
+      prisma.adAccountApplication.aggregate({
+        where: { userId: { in: userIds }, status: 'APPROVED' },
+        _sum: { openingFee: true }
+      }),
+      prisma.agentWithdrawal.aggregate({
+        where: { agentId, status: 'APPROVED' },
+        _sum: { amount: true }
+      }),
+      prisma.agentWithdrawal.aggregate({
+        where: { agentId, status: 'PENDING' },
+        _sum: { amount: true }
+      })
+    ])
 
     const totalEarned =
       (depositsCommission._sum.commissionAmount || 0) +
@@ -322,7 +266,7 @@ agentWithdrawals.post('/', requireAgent, async (c) => {
 // GET /agent-withdrawals/admin - Get all agent withdrawals (Admin)
 agentWithdrawals.get('/admin', requireAdmin, async (c) => {
   try {
-    const { page = '1', limit = '5000', status, search } = c.req.query()
+    const { page = '1', limit = '100', status, search } = c.req.query()
 
     const where: any = {}
     if (status) where.status = status.toUpperCase()
@@ -372,14 +316,11 @@ agentWithdrawals.get('/admin', requireAdmin, async (c) => {
 agentWithdrawals.post('/:id/approve', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
-    console.log('Approve withdrawal request for ID:', id)
 
     const body = await c.req.json()
-    console.log('Request body:', body)
     const { adminRemarks, approvedAmount } = body
 
     const withdrawal = await prisma.agentWithdrawal.findUnique({ where: { id } })
-    console.log('Found withdrawal:', withdrawal)
 
     if (!withdrawal) {
       return c.json({ error: 'Withdrawal not found' }, 404)
@@ -394,7 +335,6 @@ agentWithdrawals.post('/:id/approve', requireAdmin, async (c) => {
       ? parseFloat(approvedAmount)
       : withdrawal.amount
 
-    console.log('Final approved amount:', finalApprovedAmount)
 
     if (isNaN(finalApprovedAmount) || finalApprovedAmount < 0) {
       return c.json({ error: 'Invalid approved amount' }, 400)
@@ -404,15 +344,12 @@ agentWithdrawals.post('/:id/approve', requireAdmin, async (c) => {
       return c.json({ error: 'Approved amount cannot exceed requested amount' }, 400)
     }
 
-    console.log('Updating withdrawal...')
-    console.log('Agent ID:', withdrawal.agentId)
 
     // Get agent's current wallet balance before update
     const agentBefore = await prisma.user.findUnique({
       where: { id: withdrawal.agentId },
       select: { walletBalance: true, username: true }
     })
-    console.log('Agent before update:', agentBefore)
 
     // Use transaction to update both withdrawal and agent's wallet
     const result = await prisma.$transaction(async (tx) => {
@@ -427,10 +364,8 @@ agentWithdrawals.post('/:id/approve', requireAdmin, async (c) => {
           clearedAt: new Date(),
         }
       })
-      console.log('Withdrawal updated in transaction')
 
       // Add the approved amount to agent's wallet balance
-      console.log('Updating agent wallet with increment:', finalApprovedAmount)
       const updatedAgent = await tx.user.update({
         where: { id: withdrawal.agentId },
         data: {
@@ -439,14 +374,10 @@ agentWithdrawals.post('/:id/approve', requireAdmin, async (c) => {
           }
         }
       })
-      console.log('Agent updated in transaction, new balance:', updatedAgent.walletBalance)
 
       return { updatedWithdrawal, updatedAgent }
     })
 
-    console.log('Transaction completed successfully')
-    console.log('Updated withdrawal:', result.updatedWithdrawal)
-    console.log('Updated agent wallet:', result.updatedAgent.walletBalance)
 
     return c.json({
       message: 'Withdrawal approved',

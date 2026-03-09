@@ -216,6 +216,11 @@ model User {
 
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
+
+  @@index([agentId])
+  @@index([role, status])
+  @@index([status])
+  @@index([username])
 }
 
 model AdAccount {
@@ -272,6 +277,8 @@ model AdAccount {
   @@index([accountId])
   @@index([status])
   @@index([extensionProfileId])
+  @@index([platform, status])
+  @@index([userId, platform])
 }
 
 // Ad Account Application - User submits this to request new ad accounts
@@ -316,6 +323,11 @@ model AdAccountApplication {
   approvedAt        DateTime?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([platform, status])
+  @@index([userId, status])
 }
 
 model Deposit {

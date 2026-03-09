@@ -166,24 +166,11 @@ notifications.get('/admin/logs', verifyToken, verifyAdmin, async (c) => {
   try {
     const notificationsList = await prisma.notification.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 100
+      take: 100,
+      include: { user: { select: { username: true, email: true } } }
     })
 
-    // Get user info for each notification
-    const notificationsWithUsers = await Promise.all(
-      notificationsList.map(async (notification) => {
-        const user = await prisma.user.findUnique({
-          where: { id: notification.userId },
-          select: { username: true, email: true }
-        })
-        return {
-          ...notification,
-          user: user || { username: 'Unknown', email: 'unknown' }
-        }
-      })
-    )
-
-    return c.json({ notifications: notificationsWithUsers })
+    return c.json({ notifications: notificationsList })
   } catch (error) {
     console.error('Get admin logs error:', error)
     return c.json({ error: 'Failed to get notifications' }, 500)

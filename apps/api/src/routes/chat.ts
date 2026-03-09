@@ -234,39 +234,33 @@ chat.get('/admin/rooms', verifyToken, verifyAdmin, async (c) => {
       where,
       orderBy: { lastMessageAt: 'desc' },
       include: {
+        user: { select: { id: true, username: true, email: true, profileImage: true } },
         messages: {
           orderBy: { createdAt: 'desc' },
-          take: 1  // Just the last message
+          take: 1
         }
       }
     })
 
-    // Get user info for each room
-    const roomsWithUsers = await Promise.all(
-      rooms.map(async (room) => {
-        const user = await prisma.user.findUnique({
-          where: { id: room.userId },
-          select: { id: true, username: true, email: true, profileImage: true }
-        })
+    // Single grouped query for all unread counts instead of N queries
+    const unreadCounts = await prisma.chatMessage.groupBy({
+      by: ['roomId'],
+      where: {
+        roomId: { in: rooms.map(r => r.id) },
+        senderRole: 'USER',
+        isRead: false
+      },
+      _count: true
+    })
+    const unreadMap = new Map(unreadCounts.map(u => [u.roomId, u._count]))
 
-        const unreadCount = await prisma.chatMessage.count({
-          where: {
-            roomId: room.id,
-            senderRole: 'USER',
-            isRead: false
-          }
-        })
+    const roomsWithData = rooms.map(room => ({
+      ...room,
+      unreadCount: unreadMap.get(room.id) || 0,
+      lastMessage: room.messages[0] || null
+    }))
 
-        return {
-          ...room,
-          user,
-          unreadCount,
-          lastMessage: room.messages[0] || null
-        }
-      })
-    )
-
-    return c.json({ rooms: roomsWithUsers })
+    return c.json({ rooms: roomsWithData })
   } catch (error) {
     console.error('Get admin rooms error:', error)
     return c.json({ error: 'Failed to get rooms' }, 500)

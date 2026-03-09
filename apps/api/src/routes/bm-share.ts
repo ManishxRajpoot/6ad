@@ -299,7 +299,7 @@ bmShare.get('/', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { platform, status, page = '1', limit = '5000' } = c.req.query()
+    const { platform, status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {}
 
@@ -346,7 +346,7 @@ bmShare.get('/', requireUser, async (c) => {
 // GET /bm-share/admin - Get all BM share requests (Admin)
 bmShare.get('/admin', requireAdmin, async (c) => {
   try {
-    const { platform, status, page = '1', limit = '5000', search } = c.req.query()
+    const { platform, status, page = '1', limit = '100', search } = c.req.query()
 
     const where: any = {}
 

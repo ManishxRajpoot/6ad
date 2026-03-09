@@ -46,7 +46,7 @@ const createAgentSchema = z.object({
 // GET /agents - List all agents (Admin only)
 agents.get('/', requireAdmin, async (c) => {
   try {
-    const { search, status, page = '1', limit = '5000' } = c.req.query()
+    const { search, status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = { role: 'AGENT' }
 

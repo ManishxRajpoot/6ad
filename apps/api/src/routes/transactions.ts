@@ -57,7 +57,7 @@ transactions.get('/deposits', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, page = '1', limit = '5000' } = c.req.query()
+    const { status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {}
 
@@ -570,7 +570,7 @@ transactions.post('/deposits/bulk-approve', requireAdmin, async (c) => {
 
     const deposits = await prisma.deposit.findMany({
       where: { id: { in: ids }, status: 'PENDING' },
-      include: { user: true }
+      include: { user: { select: { id: true, walletBalance: true, email: true, username: true, agentId: true } } }
     })
 
     if (deposits.length === 0) {
@@ -924,7 +924,7 @@ transactions.get('/agent-wallet-flow', requireAgent, async (c) => {
 transactions.get('/agent-pay-link-requests', requireAgent, async (c) => {
   try {
     const agentId = c.get('userId')
-    const { status, page = '1', limit = '5000' } = c.req.query()
+    const { status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {
       userId: agentId // Only agent's own pay link requests
@@ -1019,7 +1019,7 @@ transactions.get('/account-deposits', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, platform, page = '1', limit = '5000' } = c.req.query()
+    const { status, platform, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {}
 
@@ -1108,7 +1108,7 @@ transactions.get('/withdrawals', requireAgent, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, page = '1', limit = '5000' } = c.req.query()
+    const { status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {}
 
@@ -1297,7 +1297,7 @@ transactions.get('/refunds', requireAgent, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, platform, page = '1', limit = '5000' } = c.req.query()
+    const { status, platform, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {}
 
@@ -1635,7 +1635,7 @@ transactions.get('/pay-link-requests', requireUser, async (c) => {
   try {
     const userId = c.get('userId')
     const userRole = c.get('userRole')
-    const { status, page = '1', limit = '5000' } = c.req.query()
+    const { status, page = '1', limit = '100' } = c.req.query()
 
     const where: any = {}
 
