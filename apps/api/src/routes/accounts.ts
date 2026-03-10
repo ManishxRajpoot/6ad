@@ -1322,12 +1322,14 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
           console.log(`[Auto-Approve] Credit Line error for act_${account.accountId}: ${err.message}`)
         }
 
-        // Even if recharge failed, still auto-approve Credit Line deposits — cron will retry
+        // If recharge failed, keep deposit PENDING — don't show "Approved" to user
+        // Cron will retry once admin adds funds to Credit Line API
         if (!autoApproved) {
           rechargeMethod = 'CHEETAH'
           rechargeStatus = 'PENDING'
+          // Mark approvedAt so cron picks it up, but keep status PENDING
           autoApproved = true
-          console.log(`[Auto-Approve] Credit Line approved, recharge pending for cron — act_${account.accountId}`)
+          console.log(`[Auto-Approve] Credit Line recharge failed, keeping PENDING for retry — act_${account.accountId}`)
         }
       } else {
         // Non-Credit-Line (extension) account: auto-approve, pending recharge via extension
@@ -1392,18 +1394,18 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
             console.log(`[Auto-Approve] Deposit ${accountDeposit.id} auto-approved + recharged (CREDIT LINE)`)
             return c.json({ message: 'Deposit auto-approved', deposit: accountDeposit, autoApproved: true, rechargeMethod }, 201)
           } else if (isCheetahAccount && rechargeStatus === 'PENDING') {
-            // Credit Line: recharge failed/quota insufficient → APPROVED but recharge pending for cron
+            // Credit Line: recharge failed/quota insufficient → keep PENDING, set approvedAt so cron retries
             await prisma.accountDeposit.update({
               where: { id: accountDeposit.id },
               data: {
-                status: 'APPROVED',
+                status: 'PENDING',
                 approvedAt: new Date(),
                 rechargeMethod,
                 rechargeStatus,
               }
             })
-            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} approved, Credit Line recharge pending for cron`)
-            return c.json({ message: 'Deposit approved, recharge pending', deposit: accountDeposit, autoApproved: true, rechargeMethod }, 201)
+            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} kept PENDING, Credit Line recharge will retry — act_${account.accountId}`)
+            return c.json({ message: 'Deposit pending — recharge will be retried when funds available', deposit: accountDeposit, autoApproved: false, rechargeMethod }, 201)
           } else {
             // Extension account: APPROVED, pending recharge via extension
             await prisma.accountDeposit.update({
