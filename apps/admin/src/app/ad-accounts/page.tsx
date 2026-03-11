@@ -198,13 +198,9 @@ export default function AllAdAccountsPage() {
     setVccSyncing(true)
     try {
       const result = await extensionApi.syncFundingSources()
-      if (result.totalUpdated > 0) {
-        toast.success(`VCC synced: ${result.totalUpdated} accounts updated (${result.totalFbAccounts || 0} FB accounts checked)`)
-        fetchData()
-      } else {
-        const profileInfo = result.profiles?.map((p: any) => `${p.label}: ${p.error || `${p.fbAccounts} accounts, ${p.withCards} with cards`}`).join(', ')
-        toast.error(`No accounts updated. ${profileInfo || 'Check if AdsPower browsers are online.'}`)
-      }
+      toast.success(result.message || `VCC sync requested! ${result.onlineProfiles} browser(s) will sync within ~15s.`)
+      // Refresh after delay to show updated cards
+      setTimeout(() => fetchData(), 20000)
     } catch (err: any) {
       toast.error(err.message || 'VCC sync failed — make sure AdsPower browsers are online')
     }

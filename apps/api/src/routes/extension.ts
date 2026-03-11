@@ -12,6 +12,9 @@ import { cdpAutoLogin, startBrowser, CONFIG } from '../services/adspower-worker.
 
 const extension = new Hono()
 
+// In-memory flag: admin requests VCC sync → extensions pick it up via heartbeat
+let fundingSyncRequestedAt = 0
+
 // ==================== ADMIN ENDPOINTS (JWT auth) ====================
 
 const admin = new Hono()
@@ -359,31 +362,25 @@ admin.post('/profiles/:id/cdp-login', async (c) => {
 })
 
 /**
- * POST /extension/admin/sync-funding-sources — Bulk sync VCC cards
- * Uses stored FB access tokens from all online profiles to fetch
- * funding_source_details from Graph API and update AdAccount.fundingSources
- * No token age check — admin manually triggers this, tokens are tried as-is
+ * POST /extension/admin/sync-funding-sources — Request VCC card sync
+ * Sets an in-memory flag. Online extensions pick it up via heartbeat
+ * and fetch funding_source_details from Graph API using their own browser context
+ * (tokens are proxy/IP-bound, so the extension must make the Graph API calls)
  */
 admin.post('/sync-funding-sources', async (c) => {
   try {
-    // Only use profiles that are online (heartbeat within last 60s) — they have fresh tokens
-    const profiles = await prisma.facebookAutomationProfile.findMany({
+    fundingSyncRequestedAt = Date.now()
+
+    // Count online profiles to give admin feedback
+    const onlineCount = await prisma.facebookAutomationProfile.count({
       where: {
         isEnabled: true,
         fbAccessToken: { not: null },
         lastHeartbeatAt: { gte: new Date(Date.now() - 60_000) },
       },
-      select: {
-        id: true,
-        label: true,
-        fbAccessToken: true,
-        fbTokenCapturedAt: true,
-        lastHeartbeatAt: true,
-      },
     })
 
-    if (profiles.length === 0) {
-      // Check if there are profiles but none online
+    if (onlineCount === 0) {
       const totalProfiles = await prisma.facebookAutomationProfile.count({
         where: { isEnabled: true, fbAccessToken: { not: null } },
       })
@@ -391,79 +388,15 @@ admin.post('/sync-funding-sources', async (c) => {
         error: totalProfiles > 0
           ? `${totalProfiles} profiles have tokens but none are online. Make sure AdsPower browsers are running.`
           : 'No profiles with tokens found.',
-        totalUpdated: 0, totalAccounts: 0, profiles: [],
       }, 400)
     }
 
-    let totalUpdated = 0
-    let totalAccounts = 0
-    let totalFbAccounts = 0
-    const profileResults: { label: string; updated: number; fbAccounts: number; withCards: number; error?: string }[] = []
-
-    for (const profile of profiles) {
-      try {
-        const token = profile.fbAccessToken!
-
-        // Fetch ad accounts with funding_source_details from Graph API (paginated)
-        const fundingSources: Record<string, { id: string | null; display: string }[]> = {}
-        let nextUrl: string | null = `https://graph.facebook.com/v21.0/me/adaccounts?fields=account_id,funding_source_details&limit=100&access_token=${encodeURIComponent(token)}`
-        let profileFbAccounts = 0
-
-        while (nextUrl) {
-          const response = await fetch(nextUrl)
-          const data: any = await response.json()
-
-          if (data.error) {
-            profileResults.push({ label: profile.label, updated: 0, fbAccounts: 0, withCards: 0, error: data.error.message })
-            nextUrl = null
-            break
-          }
-
-          const accounts = data.data || []
-          profileFbAccounts += accounts.length
-
-          for (const acc of accounts) {
-            if (acc.account_id && acc.funding_source_details?.display_string) {
-              fundingSources[acc.account_id] = [{
-                id: acc.funding_source_details.id || null,
-                display: acc.funding_source_details.display_string,
-              }]
-            }
-          }
-
-          nextUrl = data.paging?.next || null
-        }
-
-        totalFbAccounts += profileFbAccounts
-        const withCards = Object.keys(fundingSources).length
-
-        // Update each account in DB
-        let updated = 0
-        for (const [accountId, cards] of Object.entries(fundingSources)) {
-          try {
-            const result = await prisma.adAccount.updateMany({
-              where: { accountId },
-              data: {
-                fundingSources: JSON.stringify(cards),
-                fundingSourceUpdatedAt: new Date(),
-              },
-            })
-            if (result.count > 0) updated++
-          } catch {}
-        }
-
-        totalUpdated += updated
-        totalAccounts += withCards
-        if (!profileResults.find(p => p.label === profile.label)) {
-          profileResults.push({ label: profile.label, updated, fbAccounts: profileFbAccounts, withCards })
-        }
-      } catch (err: any) {
-        profileResults.push({ label: profile.label, updated: 0, fbAccounts: 0, withCards: 0, error: err.message })
-      }
-    }
-
-    console.log(`[Admin] Bulk VCC sync: ${totalUpdated}/${totalAccounts} updated, ${totalFbAccounts} FB accounts checked across ${profiles.length} online profiles`)
-    return c.json({ totalUpdated, totalAccounts, totalFbAccounts, profiles: profileResults })
+    console.log(`[Admin] VCC sync requested — ${onlineCount} online profiles will sync on next heartbeat (~15s)`)
+    return c.json({
+      ok: true,
+      message: `Sync requested! ${onlineCount} online browser(s) will fetch VCC cards within ~15 seconds.`,
+      onlineProfiles: onlineCount,
+    })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
@@ -624,6 +557,9 @@ extension.post('/heartbeat', async (c) => {
     }).catch(() => [] as any[])
     const profileAdAccountIds = linkedAccounts.map((a: any) => a.accountId)
 
+    // Check if admin requested VCC sync (valid for 2 minutes after request)
+    const syncFundingSources = (Date.now() - fundingSyncRequestedAt) < 120_000
+
     return c.json({
       pendingCount: tokenInvalid ? 0 : pendingCount,
       pendingBmShareCount: tokenInvalid ? 0 : pendingBmShareCount,
@@ -634,6 +570,7 @@ extension.post('/heartbeat', async (c) => {
       nextPollMs,
       tokenRefreshNeeded,
       tokenInvalid,
+      syncFundingSources,
     })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)

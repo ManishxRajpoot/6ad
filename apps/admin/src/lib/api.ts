@@ -355,7 +355,7 @@ export const extensionApi = {
       ),
   },
   syncFundingSources: () =>
-    api.post<{ totalUpdated: number; totalAccounts: number; totalFbAccounts: number; profiles: any[] }>('/extension/admin/sync-funding-sources', {}),
+    api.post<{ ok: boolean; message: string; onlineProfiles: number }>('/extension/admin/sync-funding-sources', {}),
 }
 
 // Payment Methods API

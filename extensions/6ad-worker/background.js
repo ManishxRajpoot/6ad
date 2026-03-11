@@ -201,6 +201,91 @@ function getValidatedToken() {
   })
 }
 
+// ─── Funding Source Sync (VCC Cards — triggered by admin via heartbeat) ──
+
+function syncFundingSources(apiKey, serverUrl) {
+  console.log('[6AD] Starting funding source sync (admin requested)...')
+  addActivity('funding', 'VCC sync started (admin request)', 'info')
+
+  getLocalToken().then(function (local) {
+    if (!local.valid) {
+      console.log('[6AD] Funding sync skipped — no valid token')
+      addActivity('funding', 'VCC sync skipped — no token', 'error')
+      return
+    }
+
+    var token = local.token
+    fetchAllAdAccountsFunding(token, null, {}).then(function (fundingSources) {
+      var accountIds = Object.keys(fundingSources)
+      if (accountIds.length === 0) {
+        console.log('[6AD] Funding sync — no accounts with card info found')
+        addActivity('funding', 'VCC sync — no cards found', 'info')
+        return
+      }
+
+      console.log('[6AD] Funding sync — found ' + accountIds.length + ' accounts with cards, posting to server')
+
+      var url = serverUrl.replace(/\/+$/, '') + '/extension/funding-sources'
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey
+        },
+        body: JSON.stringify({ fundingSources: fundingSources })
+      })
+        .then(function (r) { return r.json() })
+        .then(function (data) {
+          console.log('[6AD] Funding sync OK — updated ' + (data.updated || 0) + '/' + (data.total || 0))
+          addActivity('funding', 'VCC synced: ' + (data.updated || 0) + ' accounts updated', 'success')
+        })
+        .catch(function (err) {
+          console.error('[6AD] Funding sync error:', err.message)
+          addActivity('funding', 'VCC sync error: ' + err.message, 'error')
+        })
+    })
+  })
+}
+
+function fetchAllAdAccountsFunding(token, afterCursor, accumulated) {
+  var url = GRAPH_API + '/me/adaccounts?fields=account_id,funding_source_details&limit=100&access_token=' + encodeURIComponent(token)
+  if (afterCursor) {
+    url += '&after=' + encodeURIComponent(afterCursor)
+  }
+
+  return fetch(url)
+    .then(function (r) { return r.json() })
+    .then(function (data) {
+      if (data.error) {
+        console.error('[6AD] Graph API funding fetch error:', data.error.message)
+        return accumulated
+      }
+
+      var accounts = data.data || []
+      for (var i = 0; i < accounts.length; i++) {
+        var acc = accounts[i]
+        var accountId = acc.account_id
+        if (!accountId) continue
+
+        var fsd = acc.funding_source_details
+        if (fsd && fsd.display_string) {
+          accumulated[accountId] = [{ id: fsd.id || null, display: fsd.display_string }]
+        }
+      }
+
+      var paging = data.paging
+      if (paging && paging.cursors && paging.cursors.after && accounts.length === 100) {
+        return fetchAllAdAccountsFunding(token, paging.cursors.after, accumulated)
+      }
+
+      return accumulated
+    })
+    .catch(function (err) {
+      console.error('[6AD] Funding fetch error:', err.message)
+      return accumulated
+    })
+}
+
 // Handle incoming token from content script
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   // Handle status request from popup
@@ -380,6 +465,11 @@ function doHeartbeat() {
               processJobs(data.jobs, cfg.apiKey, cfg.serverUrl)
             }
           })
+        }
+
+        // Admin requested VCC card sync — run it from this browser context
+        if (data.syncFundingSources) {
+          syncFundingSources(cfg.apiKey, cfg.serverUrl)
         }
       })
       .catch(function (err) {
