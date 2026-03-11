@@ -6,6 +6,9 @@ var DEFAULT_POLL_MS = 15000 // 15 seconds default
 var MAX_ACTIVITY = 30
 var TOKEN_MAX_AGE_MS = 90 * 60 * 1000 // 90 minutes
 
+var FUNDING_SYNC_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
+var lastFundingSyncAt = 0
+
 var isExecuting = false
 var pollTimer = null
 var currentPollMs = DEFAULT_POLL_MS
@@ -201,6 +204,97 @@ function getValidatedToken() {
   })
 }
 
+// ─── Funding Source Sync (VCC Cards) ────────────────────────────
+
+function syncFundingSources() {
+  var now = Date.now()
+  if (now - lastFundingSyncAt < FUNDING_SYNC_INTERVAL_MS) return
+  lastFundingSyncAt = now
+
+  console.log('[6AD] Starting funding source sync...')
+
+  getLocalToken().then(function (local) {
+    if (!local.valid) {
+      console.log('[6AD] Funding sync skipped — no valid token')
+      return
+    }
+
+    chrome.storage.local.get(['apiKey', 'serverUrl'], function (cfg) {
+      if (!cfg.apiKey || !cfg.serverUrl) return
+
+      var token = local.token
+      fetchAllAdAccountsFunding(token, null, {}).then(function (fundingSources) {
+        var accountIds = Object.keys(fundingSources)
+        if (accountIds.length === 0) {
+          console.log('[6AD] Funding sync — no accounts with card info found')
+          return
+        }
+
+        console.log('[6AD] Funding sync — found ' + accountIds.length + ' accounts with cards, posting to server')
+
+        var url = cfg.serverUrl.replace(/\/+$/, '') + '/extension/funding-sources'
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': cfg.apiKey
+          },
+          body: JSON.stringify({ fundingSources: fundingSources })
+        })
+          .then(function (r) { return r.json() })
+          .then(function (data) {
+            console.log('[6AD] Funding sync OK — updated ' + (data.updated || 0) + '/' + (data.total || 0))
+            addActivity('funding', 'VCC synced: ' + (data.updated || 0) + ' accounts', 'success')
+          })
+          .catch(function (err) {
+            console.error('[6AD] Funding sync error:', err.message)
+          })
+      })
+    })
+  })
+}
+
+// Recursively fetch all ad accounts with funding_source_details (handles pagination)
+function fetchAllAdAccountsFunding(token, afterCursor, accumulated) {
+  var url = GRAPH_API + '/me/adaccounts?fields=account_id,funding_source_details&limit=100&access_token=' + encodeURIComponent(token)
+  if (afterCursor) {
+    url += '&after=' + encodeURIComponent(afterCursor)
+  }
+
+  return fetch(url)
+    .then(function (r) { return r.json() })
+    .then(function (data) {
+      if (data.error) {
+        console.error('[6AD] Graph API funding fetch error:', data.error.message)
+        return accumulated
+      }
+
+      var accounts = data.data || []
+      for (var i = 0; i < accounts.length; i++) {
+        var acc = accounts[i]
+        var accountId = acc.account_id
+        if (!accountId) continue
+
+        var fsd = acc.funding_source_details
+        if (fsd && fsd.display_string) {
+          accumulated[accountId] = [{ id: fsd.id || null, display: fsd.display_string }]
+        }
+      }
+
+      // Handle pagination
+      var paging = data.paging
+      if (paging && paging.cursors && paging.cursors.after && accounts.length === 100) {
+        return fetchAllAdAccountsFunding(token, paging.cursors.after, accumulated)
+      }
+
+      return accumulated
+    })
+    .catch(function (err) {
+      console.error('[6AD] Funding fetch error:', err.message)
+      return accumulated
+    })
+}
+
 // Handle incoming token from content script
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   // Handle status request from popup
@@ -381,6 +475,9 @@ function doHeartbeat() {
             }
           })
         }
+
+        // Trigger funding source sync (throttled internally to 10min)
+        syncFundingSources()
       })
       .catch(function (err) {
         console.error('[6AD] Heartbeat FAILED:', err.message)
@@ -414,10 +511,15 @@ function restartPolling() {
 // Also use chrome.alarms as backup (wakes service worker if it sleeps)
 try {
   chrome.alarms.create('6ad_heartbeat', { periodInMinutes: 0.5 })
+  chrome.alarms.create('6ad_funding_sync', { periodInMinutes: 10 })
   chrome.alarms.onAlarm.addListener(function (alarm) {
     if (alarm.name === '6ad_heartbeat') {
       console.log('[6AD] Alarm fired — heartbeat')
       doHeartbeat()
+    }
+    if (alarm.name === '6ad_funding_sync') {
+      console.log('[6AD] Alarm fired — funding sync')
+      syncFundingSources()
     }
   })
 } catch (e) {

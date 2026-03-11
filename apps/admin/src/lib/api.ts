@@ -354,6 +354,8 @@ export const extensionApi = {
         `/extension/admin/profiles/${sourceId}/reassign`, { targetProfileId }
       ),
   },
+  syncFundingSources: () =>
+    api.post<{ totalUpdated: number; totalAccounts: number; profiles: any[] }>('/extension/admin/sync-funding-sources', {}),
 }
 
 // Payment Methods API

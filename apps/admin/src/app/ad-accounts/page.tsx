@@ -112,6 +112,9 @@ export default function AllAdAccountsPage() {
   const [vcardEditValue, setVcardEditValue] = useState<string>('')
   const [vcardSaving, setVcardSaving] = useState(false)
 
+  // VCC bulk sync
+  const [vccSyncing, setVccSyncing] = useState(false)
+
   const handleVcardSave = async (accId: string) => {
     setVcardSaving(true)
     try {
@@ -189,6 +192,18 @@ export default function AllAdAccountsPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleVccSync = async () => {
+    setVccSyncing(true)
+    try {
+      const result = await extensionApi.syncFundingSources()
+      toast.success(`VCC synced: ${result.totalUpdated} accounts updated`)
+      fetchData()
+    } catch (err: any) {
+      toast.error(err.message || 'VCC sync failed')
+    }
+    setVccSyncing(false)
   }
 
   useEffect(() => {
@@ -505,9 +520,19 @@ export default function AllAdAccountsPage() {
             </div>
           </div>
 
-          {/* Count badge */}
-          <div className="text-[12px] text-gray-500">
-            {filteredAccounts.length} account{filteredAccounts.length !== 1 ? 's' : ''}
+          {/* Count badge + VCC Sync */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleVccSync}
+              disabled={vccSyncing}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-[11px] font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {vccSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Monitor className="w-3.5 h-3.5" />}
+              Sync VCC
+            </button>
+            <span className="text-[12px] text-gray-500">
+              {filteredAccounts.length} account{filteredAccounts.length !== 1 ? 's' : ''}
+            </span>
           </div>
         </div>
 

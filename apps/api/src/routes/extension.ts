@@ -358,6 +358,105 @@ admin.post('/profiles/:id/cdp-login', async (c) => {
   }
 })
 
+/**
+ * POST /extension/admin/sync-funding-sources — Bulk sync VCC cards
+ * Uses stored FB access tokens from all enabled profiles to fetch
+ * funding_source_details from Graph API and update AdAccount.fundingSources
+ */
+admin.post('/sync-funding-sources', async (c) => {
+  try {
+    const TOKEN_MAX_AGE = 90 * 60 * 1000 // 90 minutes
+
+    const profiles = await prisma.facebookAutomationProfile.findMany({
+      where: {
+        isEnabled: true,
+        fbAccessToken: { not: null },
+      },
+      select: {
+        id: true,
+        label: true,
+        fbAccessToken: true,
+        fbTokenCapturedAt: true,
+      },
+    })
+
+    if (profiles.length === 0) {
+      return c.json({ error: 'No profiles with valid tokens found' }, 400)
+    }
+
+    let totalUpdated = 0
+    let totalAccounts = 0
+    const profileResults: { label: string; updated: number; error?: string }[] = []
+
+    for (const profile of profiles) {
+      try {
+        const token = profile.fbAccessToken!
+        const tokenAge = profile.fbTokenCapturedAt
+          ? Date.now() - profile.fbTokenCapturedAt.getTime()
+          : Infinity
+        if (tokenAge > TOKEN_MAX_AGE) {
+          profileResults.push({ label: profile.label, updated: 0, error: 'Token expired' })
+          continue
+        }
+
+        // Fetch ad accounts with funding_source_details from Graph API (paginated)
+        const fundingSources: Record<string, { id: string | null; display: string }[]> = {}
+        let nextUrl: string | null = `https://graph.facebook.com/v21.0/me/adaccounts?fields=account_id,funding_source_details&limit=100&access_token=${encodeURIComponent(token)}`
+
+        while (nextUrl) {
+          const response = await fetch(nextUrl)
+          const data: any = await response.json()
+
+          if (data.error) {
+            profileResults.push({ label: profile.label, updated: 0, error: data.error.message })
+            nextUrl = null
+            break
+          }
+
+          for (const acc of (data.data || [])) {
+            if (acc.account_id && acc.funding_source_details?.display_string) {
+              fundingSources[acc.account_id] = [{
+                id: acc.funding_source_details.id || null,
+                display: acc.funding_source_details.display_string,
+              }]
+            }
+          }
+
+          nextUrl = data.paging?.next || null
+        }
+
+        // Update each account in DB
+        let updated = 0
+        for (const [accountId, cards] of Object.entries(fundingSources)) {
+          try {
+            const result = await prisma.adAccount.updateMany({
+              where: { accountId },
+              data: {
+                fundingSources: JSON.stringify(cards),
+                fundingSourceUpdatedAt: new Date(),
+              },
+            })
+            if (result.count > 0) updated++
+          } catch {}
+        }
+
+        totalUpdated += updated
+        totalAccounts += Object.keys(fundingSources).length
+        if (!profileResults.find(p => p.label === profile.label)) {
+          profileResults.push({ label: profile.label, updated })
+        }
+      } catch (err: any) {
+        profileResults.push({ label: profile.label, updated: 0, error: err.message })
+      }
+    }
+
+    console.log(`[Admin] Bulk VCC sync: ${totalUpdated}/${totalAccounts} accounts updated across ${profiles.length} profiles`)
+    return c.json({ totalUpdated, totalAccounts, profiles: profileResults })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 extension.route('/admin', admin)
 
 // ==================== AUTH HELPER (accepts both X-Extension-Key and x-api-key) ====================
