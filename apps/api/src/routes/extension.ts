@@ -360,60 +360,69 @@ admin.post('/profiles/:id/cdp-login', async (c) => {
 
 /**
  * POST /extension/admin/sync-funding-sources — Bulk sync VCC cards
- * Uses stored FB access tokens from all enabled profiles to fetch
+ * Uses stored FB access tokens from all online profiles to fetch
  * funding_source_details from Graph API and update AdAccount.fundingSources
+ * No token age check — admin manually triggers this, tokens are tried as-is
  */
 admin.post('/sync-funding-sources', async (c) => {
   try {
-    const TOKEN_MAX_AGE = 90 * 60 * 1000 // 90 minutes
-
+    // Only use profiles that are online (heartbeat within last 60s) — they have fresh tokens
     const profiles = await prisma.facebookAutomationProfile.findMany({
       where: {
         isEnabled: true,
         fbAccessToken: { not: null },
+        lastHeartbeatAt: { gte: new Date(Date.now() - 60_000) },
       },
       select: {
         id: true,
         label: true,
         fbAccessToken: true,
         fbTokenCapturedAt: true,
+        lastHeartbeatAt: true,
       },
     })
 
     if (profiles.length === 0) {
-      return c.json({ error: 'No profiles with valid tokens found' }, 400)
+      // Check if there are profiles but none online
+      const totalProfiles = await prisma.facebookAutomationProfile.count({
+        where: { isEnabled: true, fbAccessToken: { not: null } },
+      })
+      return c.json({
+        error: totalProfiles > 0
+          ? `${totalProfiles} profiles have tokens but none are online. Make sure AdsPower browsers are running.`
+          : 'No profiles with tokens found.',
+        totalUpdated: 0, totalAccounts: 0, profiles: [],
+      }, 400)
     }
 
     let totalUpdated = 0
     let totalAccounts = 0
-    const profileResults: { label: string; updated: number; error?: string }[] = []
+    let totalFbAccounts = 0
+    const profileResults: { label: string; updated: number; fbAccounts: number; withCards: number; error?: string }[] = []
 
     for (const profile of profiles) {
       try {
         const token = profile.fbAccessToken!
-        const tokenAge = profile.fbTokenCapturedAt
-          ? Date.now() - profile.fbTokenCapturedAt.getTime()
-          : Infinity
-        if (tokenAge > TOKEN_MAX_AGE) {
-          profileResults.push({ label: profile.label, updated: 0, error: 'Token expired' })
-          continue
-        }
 
         // Fetch ad accounts with funding_source_details from Graph API (paginated)
         const fundingSources: Record<string, { id: string | null; display: string }[]> = {}
         let nextUrl: string | null = `https://graph.facebook.com/v21.0/me/adaccounts?fields=account_id,funding_source_details&limit=100&access_token=${encodeURIComponent(token)}`
+        let profileFbAccounts = 0
 
         while (nextUrl) {
           const response = await fetch(nextUrl)
           const data: any = await response.json()
 
           if (data.error) {
-            profileResults.push({ label: profile.label, updated: 0, error: data.error.message })
+            profileResults.push({ label: profile.label, updated: 0, fbAccounts: 0, withCards: 0, error: data.error.message })
             nextUrl = null
             break
           }
 
-          for (const acc of (data.data || [])) {
+          const accounts = data.data || []
+          profileFbAccounts += accounts.length
+
+          for (const acc of accounts) {
             if (acc.account_id && acc.funding_source_details?.display_string) {
               fundingSources[acc.account_id] = [{
                 id: acc.funding_source_details.id || null,
@@ -424,6 +433,9 @@ admin.post('/sync-funding-sources', async (c) => {
 
           nextUrl = data.paging?.next || null
         }
+
+        totalFbAccounts += profileFbAccounts
+        const withCards = Object.keys(fundingSources).length
 
         // Update each account in DB
         let updated = 0
@@ -441,17 +453,17 @@ admin.post('/sync-funding-sources', async (c) => {
         }
 
         totalUpdated += updated
-        totalAccounts += Object.keys(fundingSources).length
+        totalAccounts += withCards
         if (!profileResults.find(p => p.label === profile.label)) {
-          profileResults.push({ label: profile.label, updated })
+          profileResults.push({ label: profile.label, updated, fbAccounts: profileFbAccounts, withCards })
         }
       } catch (err: any) {
-        profileResults.push({ label: profile.label, updated: 0, error: err.message })
+        profileResults.push({ label: profile.label, updated: 0, fbAccounts: 0, withCards: 0, error: err.message })
       }
     }
 
-    console.log(`[Admin] Bulk VCC sync: ${totalUpdated}/${totalAccounts} accounts updated across ${profiles.length} profiles`)
-    return c.json({ totalUpdated, totalAccounts, profiles: profileResults })
+    console.log(`[Admin] Bulk VCC sync: ${totalUpdated}/${totalAccounts} updated, ${totalFbAccounts} FB accounts checked across ${profiles.length} online profiles`)
+    return c.json({ totalUpdated, totalAccounts, totalFbAccounts, profiles: profileResults })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
