@@ -38,6 +38,8 @@ import eventRoutes from './routes/events.js'
 import extensionRoutes from './routes/extension.js'
 import reportRoutes from './routes/reports.js'
 import emailRoutes from './routes/emails.js'
+import airwallexRoutes from './routes/airwallex.js'
+import cmsRoutes from './routes/cms.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
 import { startTaskWatchdog } from './services/task-watchdog.js'
@@ -67,7 +69,9 @@ app.use('*', cors({
       'http://super.6ad.in',
       'http://partner.6ad.in',
       'http://ads.6ad.in',
-      'http://api.6ad.in'
+      'http://api.6ad.in',
+      'https://ads360.ai',
+      'https://cms.ads360.ai'
     ]
     if (allowedOrigins.includes(origin)) {
       return origin
@@ -87,6 +91,18 @@ app.use('*', cors({
   },
   credentials: true,
 }))
+
+// Serve uploaded files
+app.get('/uploads/:filename', async (c) => {
+  const filename = c.req.param('filename')
+  const filePath = `${process.cwd()}/public/uploads/${filename}`
+  const fs = await import('fs')
+  if (!fs.existsSync(filePath)) return c.json({ error: 'Not found' }, 404)
+  const buffer = fs.readFileSync(filePath)
+  const ext = filename.split('.').pop()?.toLowerCase()
+  const mimeTypes: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' }
+  return new Response(buffer, { headers: { 'Content-Type': mimeTypes[ext || ''] || 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000' } })
+})
 
 // Health check
 app.get('/', (c) => c.json({ message: '6AD API is running', version: '1.0.0' }))
@@ -117,6 +133,8 @@ app.route('/events', eventRoutes)
 app.route('/extension', extensionRoutes)
 app.route('/reports', reportRoutes)
 app.route('/emails', emailRoutes)
+app.route('/airwallex', airwallexRoutes)
+app.route('/cms', cmsRoutes)
 
 // Start background crypto verification service
 startBackgroundVerifier().catch(console.error)

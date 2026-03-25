@@ -35,6 +35,7 @@ type AdAccount = {
   licenseName: string | null
   extensionProfileId: string | null
   fundingSources: string | null
+  adminRemarks: string | null
   createdAt: string
   user: {
     id: string
@@ -638,13 +639,14 @@ export default function AllAdAccountsPage() {
                   <th className="text-right py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Balance</th>
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Status</th>
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Created</th>
+                  <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50" style={{minWidth: '140px'}}>Remarks</th>
                   <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={13} className="py-6 text-center">
+                    <td colSpan={14} className="py-6 text-center">
                       <div className="flex flex-col items-center">
                         <Loader2 className="w-5 h-5 text-violet-600 animate-spin mb-1" />
                         <span className="text-gray-500">Loading accounts...</span>
@@ -653,7 +655,7 @@ export default function AllAdAccountsPage() {
                   </tr>
                 ) : paginatedAccounts.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="py-6 text-center text-gray-500">
+                    <td colSpan={14} className="py-6 text-center text-gray-500">
                       {searchQuery || platformFilter !== 'all' ? 'No matching accounts found' : 'No ad accounts found'}
                     </td>
                   </tr>
@@ -886,6 +888,26 @@ export default function AllAdAccountsPage() {
                       {/* Created */}
                       <td className="py-2.5 px-3 text-gray-500 whitespace-nowrap text-center">
                         {formatDate(acc.createdAt)}
+                      </td>
+
+                      {/* Remarks */}
+                      <td className="py-2.5 px-3">
+                        <input
+                          type="text"
+                          defaultValue={acc.adminRemarks || ''}
+                          placeholder="Add remark..."
+                          className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 focus:border-violet-400 bg-white"
+                          onBlur={async (e) => {
+                            const val = e.target.value.trim()
+                            if (val !== (acc.adminRemarks || '')) {
+                              try {
+                                await accountsApi.update(acc.id, { adminRemarks: val || null })
+                                acc.adminRemarks = val || null
+                              } catch {}
+                            }
+                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                        />
                       </td>
 
                       {/* Actions */}

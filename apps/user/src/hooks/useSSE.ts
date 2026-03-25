@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+// Runtime detection: if browser is on production domain, always use production API
+const API_URL = typeof window !== 'undefined' && window.location.hostname.endsWith('6ad.in')
+  ? 'https://api.6ad.in'
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001')
 
 export type SSEEventType =
   | 'payment-methods-updated'

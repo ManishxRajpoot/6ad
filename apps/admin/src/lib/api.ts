@@ -1,4 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+// Runtime detection: if browser is on production domain, always use production API
+// This prevents localhost from leaking into production when .next is built locally
+const API_URL = typeof window !== 'undefined' && window.location.hostname.endsWith('6ad.in')
+  ? 'https://api.6ad.in'
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001')
 
 // ─── SWR-style Global Cache ─────────────────────────────────────
 // Cached GET responses persist across page navigations & tab switches.
@@ -436,10 +440,11 @@ export const bmShareApi = {
 
 // Account Deposits API (Admin)
 export const accountDepositsApi = {
-  getAll: (platform?: string, status?: string) => {
+  getAll: (platform?: string, status?: string, limit?: number) => {
     const params = new URLSearchParams()
     if (platform) params.append('platform', platform)
     if (status) params.append('status', status)
+    if (limit) params.append('limit', limit.toString())
     const queryString = params.toString()
     return api.get<{ deposits: any[]; pagination: any }>(`/accounts/deposits/admin${queryString ? `?${queryString}` : ''}`)
   },
@@ -458,9 +463,13 @@ export const accountDepositsApi = {
   forceApprove: (id: string) =>
     api.post<{ message: string }>(`/accounts/deposits/${id}/force-approve`, {}),
   getCardWalletPending: () =>
-    api.get<{ pendingAmount: number }>('/accounts/card-wallet-pending'),
+    api.get<{ pendingAmount: number; pendingCount: number }>('/accounts/card-wallet-pending'),
   markCardWalletAdded: () =>
     api.post<{ message: string; pendingAmount: number }>('/accounts/card-wallet-mark-added', {}),
+  markCardDone: (depositIds: string[]) =>
+    api.post<{ message: string; updated: number }>('/accounts/deposits/mark-card-done', { depositIds }),
+  getCardPendingCount: () =>
+    api.get<{ count: number }>('/accounts/deposits/card-pending-count'),
 }
 
 // Account Refunds API (Admin)
@@ -689,6 +698,61 @@ export const cheetahApi = {
     getPayments: (page?: number, pageSize?: number) =>
       api.get<{ list: any[]; pager: any }>(`/cheetah/payments?page=${page || 1}&page_size=${pageSize || 10}`),
   },
+}
+
+// Airwallex API
+export const airwallexApi = {
+  // Auth test
+  testAuth: () => api.get<{ success: boolean; message: string }>('/airwallex/auth/test'),
+
+  // Balances
+  getBalances: () => api.get<any>('/airwallex/balances'),
+
+  // Cards
+  cards: {
+    getAll: (params?: { page_num?: number; page_size?: number; status?: string }) => {
+      const query = new URLSearchParams()
+      if (params?.page_num !== undefined) query.append('page_num', params.page_num.toString())
+      if (params?.page_size) query.append('page_size', params.page_size.toString())
+      if (params?.status) query.append('status', params.status)
+      return api.get<any>(`/airwallex/cards?${query.toString()}`)
+    },
+    getById: (id: string) => api.get<any>(`/airwallex/cards/${id}`),
+    getDetails: (id: string) => api.get<any>(`/airwallex/cards/${id}/details`),
+    create: (data: any) => api.post<any>('/airwallex/cards', data),
+    update: (id: string, data: any) => api.post<any>(`/airwallex/cards/${id}/update`, data),
+    activate: (id: string) => api.post<any>(`/airwallex/cards/${id}/activate`, {}),
+    deactivate: (id: string) => api.post<any>(`/airwallex/cards/${id}/deactivate`, {}),
+    cancel: (id: string, reason?: string) => api.post<any>(`/airwallex/cards/${id}/cancel`, { reason }),
+    fund: (id: string, data: { amount: number; currency: string }) => api.post<any>(`/airwallex/cards/${id}/fund`, data),
+    withdraw: (id: string, data: { amount: number; currency: string }) => api.post<any>(`/airwallex/cards/${id}/withdraw`, data),
+  },
+
+  // Cardholders
+  cardholders: {
+    getAll: (params?: { page_num?: number; page_size?: number }) => {
+      const query = new URLSearchParams()
+      if (params?.page_num !== undefined) query.append('page_num', params.page_num.toString())
+      if (params?.page_size) query.append('page_size', params.page_size.toString())
+      return api.get<any>(`/airwallex/cardholders?${query.toString()}`)
+    },
+    getById: (id: string) => api.get<any>(`/airwallex/cardholders/${id}`),
+    create: (data: any) => api.post<any>('/airwallex/cardholders', data),
+  },
+
+  // Transactions
+  transactions: {
+    getAll: (params?: { page_num?: number; page_size?: number; card_id?: string }) => {
+      const query = new URLSearchParams()
+      if (params?.page_num !== undefined) query.append('page_num', params.page_num.toString())
+      if (params?.page_size) query.append('page_size', params.page_size.toString())
+      if (params?.card_id) query.append('card_id', params.card_id)
+      return api.get<any>(`/airwallex/transactions?${query.toString()}`)
+    },
+  },
+
+  // Config
+  getConfig: () => api.get<any>('/airwallex/config'),
 }
 
 // Crypto Wallet Configuration API

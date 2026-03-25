@@ -11,6 +11,7 @@
 import { createNotification } from '../routes/notifications.js'
 import { prisma } from '../lib/prisma.js'
 import { cdpAutoLogin, startBrowser, stopBrowser, isBrowserActive } from './adspower-worker.js'
+import { getActualSpendCap } from './spend-cap-verifier.js'
 
 // ─── Configuration ─────────────────────────────────────────────────
 const CONFIG = {
@@ -30,28 +31,74 @@ let pollInterval: NodeJS.Timeout | null = null
 async function timeoutStuckRecharges(): Promise<number> {
   let count = 0
 
-  // A1: IN_PROGRESS for too long → FAILED (TIMEOUT)
+  // A1: IN_PROGRESS for too long — check if Facebook was actually recharged before resetting
   const stuckInProgress = await prisma.accountDeposit.findMany({
     where: {
-      status: 'APPROVED',
       rechargeStatus: 'IN_PROGRESS',
       updatedAt: { lt: new Date(Date.now() - CONFIG.IN_PROGRESS_TIMEOUT_MS) },
     },
-    select: { id: true, applyId: true },
+    select: {
+      id: true, applyId: true, targetSpendCap: true, amount: true,
+      adAccount: { select: { accountId: true, extensionProfileId: true } },
+    },
   })
 
-  if (stuckInProgress.length > 0) {
-    await prisma.accountDeposit.updateMany({
-      where: { id: { in: stuckInProgress.map(d => d.id) } },
+  for (const d of stuckInProgress) {
+    // If targetSpendCap is set, check if Facebook already has the expected cap
+    if (d.targetSpendCap && d.adAccount) {
+      try {
+        // Get FB token from the extension profile
+        let fbToken: string | null = null
+        if (d.adAccount.extensionProfileId) {
+          const profile = await prisma.facebookAutomationProfile.findUnique({
+            where: { id: d.adAccount.extensionProfileId },
+            select: { fbAccessToken: true },
+          })
+          fbToken = profile?.fbAccessToken || null
+        }
+
+        const capResult = await getActualSpendCap(d.adAccount.accountId, fbToken)
+        if (capResult.success && capResult.spendCapDollars != null && capResult.spendCapDollars >= d.targetSpendCap - 0.01) {
+          // Recharge actually succeeded on Facebook — move to VERIFYING, not FAILED
+          await prisma.accountDeposit.update({
+            where: { id: d.id },
+            data: {
+              rechargeStatus: 'VERIFYING',
+              rechargeError: null,
+              newSpendCap: capResult.spendCapDollars,
+            },
+          })
+          console.log(`[Watchdog] Stuck IN_PROGRESS but FB cap=$${capResult.spendCapDollars} >= target=$${d.targetSpendCap} — moved to VERIFYING: ${d.id} (${d.applyId || 'N/A'})`)
+
+          // Audit log
+          await prisma.rechargeAuditLog.create({
+            data: { depositId: d.id, adAccountId: d.adAccount.accountId, action: 'WATCHDOG_VERIFIED', actor: 'watchdog', actualCap: capResult.spendCapDollars, targetCap: d.targetSpendCap, amount: Number(d.amount) }
+          }).catch(() => {})
+
+          count++
+          continue
+        }
+      } catch (err: any) {
+        console.log(`[Watchdog] Failed to check FB cap for ${d.id}: ${err.message} — marking FAILED`)
+      }
+    }
+
+    // Facebook cap NOT at target (or couldn't check) — mark FAILED
+    await prisma.accountDeposit.update({
+      where: { id: d.id },
       data: {
         rechargeStatus: 'FAILED',
         rechargeError: 'TIMEOUT: Task stuck IN_PROGRESS for >15 minutes',
       },
     })
-    for (const d of stuckInProgress) {
-      console.log(`[Watchdog] Timed out IN_PROGRESS recharge: ${d.id} (${d.applyId || 'N/A'})`)
-    }
-    count += stuckInProgress.length
+    console.log(`[Watchdog] Timed out IN_PROGRESS recharge: ${d.id} (${d.applyId || 'N/A'})`)
+
+    // Audit log
+    await prisma.rechargeAuditLog.create({
+      data: { depositId: d.id, adAccountId: d.adAccount?.accountId || 'unknown', action: 'WATCHDOG_RESET', actor: 'watchdog', targetCap: d.targetSpendCap ?? undefined, amount: Number(d.amount) }
+    }).catch(() => {})
+
+    count++
   }
 
   // A2: PENDING/NONE with max retries exhausted → FAILED (MAX_RETRIES_EXCEEDED)

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Service | Six Media Technology Limited</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230a0f1c'/><text x='3' y='23' font-family='Arial,sans-serif' font-weight='800' font-size='16' fill='%23818cf8'>SM</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #0a0f1c;
+      --primary-light: #141b2d;
+      --accent: #6366f1;
+      --accent-light: #818cf8;
+      --accent-glow: rgba(99, 102, 241, 0.3);
+      --light: #f8fafc;
+      --text: #1e293b;
+      --text-light: #64748b;
+      --white: #ffffff;
+      --border: #e2e8f0;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, sans-serif; color: var(--text); line-height: 1.7; background: var(--white); }
+
+    nav { position: fixed; top: 0; width: 100%; z-index: 1000; padding: 0 2rem; background: rgba(10, 15, 28, 0.95); backdrop-filter: blur(20px); box-shadow: 0 4px 30px rgba(0,0,0,0.2); }
+    .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; height: 72px; }
+    .logo { font-size: 1.6rem; font-weight: 800; color: var(--white); text-decoration: none; letter-spacing: 0.5px; }
+    .logo span { color: var(--accent-light); }
+    .nav-links { display: flex; gap: 2.5rem; list-style: none; align-items: center; }
+    .nav-links a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.3s; }
+    .nav-links a:hover { color: var(--white); }
+    .nav-cta { background: var(--accent) !important; color: var(--white) !important; padding: 8px 20px; border-radius: 8px; font-weight: 600 !important; }
+    .nav-cta:hover { background: var(--accent-light) !important; }
+
+    .legal-hero { background: var(--primary); padding: 8rem 2rem 3rem; text-align: center; }
+    .legal-hero h1 { color: var(--white); font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; }
+    .legal-hero .breadcrumb { color: rgba(255,255,255,0.5); font-size: 0.9rem; }
+    .legal-hero .breadcrumb a { color: var(--accent-light); text-decoration: none; }
+    .legal-hero .breadcrumb a:hover { color: var(--white); }
+    .legal-hero .updated { color: rgba(255,255,255,0.4); font-size: 0.8rem; margin-top: 0.75rem; }
+
+    .legal-content { max-width: 800px; margin: 0 auto; padding: 3rem 2rem 5rem; }
+    .legal-content h2 { font-size: 1.4rem; font-weight: 700; color: var(--accent); margin: 2.5rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); }
+    .legal-content h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+    .legal-content p { margin-bottom: 1rem; color: var(--text-light); }
+    .legal-content ul, .legal-content ol { margin: 0.5rem 0 1rem 1.5rem; color: var(--text-light); }
+    .legal-content li { margin-bottom: 0.4rem; }
+    .legal-content strong { color: var(--text); }
+    .legal-content a { color: var(--accent); text-decoration: none; }
+    .legal-content a:hover { text-decoration: underline; }
+    .legal-content .highlight-box { background: var(--light); border-left: 4px solid var(--accent); padding: 1rem 1.5rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }
+
+    footer { background: #060a14; padding: 2rem; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; color: rgba(255,255,255,0.4); font-size: 0.85rem; }
+    footer a { color: var(--accent-light); text-decoration: none; font-size: 0.8rem; }
+    footer a:hover { color: var(--white); }
+    .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .legal-hero h1 { font-size: 1.8rem; }
+      .footer-inner { flex-direction: column; text-align: center; }
+      .footer-links { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-inner">
+      <a href="index.html" class="logo">SIX<span>MEDIA</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="index.html#services">Services</a></li>
+        <li><a href="index.html#about">About</a></li>
+        <li><a href="index.html#contact" class="nav-cta">Contact Us</a></li>
+        <li><a href="zh-terms-of-service.html" class="lang-switch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> 中文</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <section class="legal-hero">
+    <div class="breadcrumb"><a href="index.html">Home</a> &rarr; Terms of Service</div>
+    <h1>Terms of Service</h1>
+    <p class="updated">Last updated: March 2026</p>
+  </section>
+
+  <div class="legal-content">
+
+    <h2>1. Acceptance of Terms</h2>
+    <p>By accessing or using the services provided by Six Media Technology Limited ("Company", "we", "us"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree, please do not use our services. These Terms constitute a legally binding agreement between you and the Company.</p>
+
+    <h2>2. Services Description</h2>
+    <p>Six Media Technology Limited provides digital marketing and advertising technology services including:</p>
+    <ul>
+      <li>Managed advertising account solutions across major platforms (Meta, Google, TikTok, Snapchat)</li>
+      <li>Media buying and campaign management</li>
+      <li>Performance marketing consulting</li>
+      <li>Ad account provisioning and management</li>
+      <li>Advertising spend management and optimization</li>
+    </ul>
+
+    <h2>3. Account Registration & Eligibility</h2>
+    <p>To use our services, you must:</p>
+    <ul>
+      <li>Be at least 18 years old and have legal capacity to enter contracts</li>
+      <li>Provide accurate, complete, and current registration information</li>
+      <li>Maintain the security and confidentiality of your account credentials</li>
+      <li>Comply with all applicable advertising platform policies</li>
+      <li>Have a legitimate business purpose for the services</li>
+    </ul>
+    <p>You are responsible for all activities under your account. Notify us immediately of any unauthorized access.</p>
+
+    <h2>4. Payment Terms & Fees</h2>
+    <ul>
+      <li>Service fees are outlined in your service agreement or as displayed on our platform</li>
+      <li>Payments are due upon invoice unless otherwise agreed in writing</li>
+      <li>We accept wire transfer, credit card, and other approved payment methods</li>
+      <li>All fees are non-refundable unless otherwise stated in your service agreement</li>
+      <li>Late payments may incur interest at 1.5% per month or the maximum rate permitted by law</li>
+      <li>We reserve the right to suspend services for overdue accounts</li>
+    </ul>
+
+    <h2>5. User Obligations</h2>
+    <p>You agree to:</p>
+    <ul>
+      <li>Use services only for lawful purposes and in compliance with all applicable laws</li>
+      <li>Not engage in fraudulent, deceptive, or misleading advertising</li>
+      <li>Comply with all advertising platform policies (Meta, Google, TikTok, Snapchat)</li>
+      <li>Not use services to promote prohibited products or services</li>
+      <li>Provide accurate business and billing information</li>
+      <li>Cooperate with our compliance and verification procedures</li>
+    </ul>
+
+    <h2>6. Intellectual Property</h2>
+    <p>All content, trademarks, logos, and software on our platform are the property of Six Media Technology Limited or its licensors. You may not reproduce, distribute, modify, or create derivative works without prior written consent. Client-provided content remains the property of the respective client.</p>
+
+    <h2>7. Limitation of Liability</h2>
+    <p>To the maximum extent permitted by law:</p>
+    <ul>
+      <li>Our total liability for any claim shall not exceed the fees paid by you in the 12 months preceding the claim</li>
+      <li>We are not liable for indirect, incidental, special, consequential, or punitive damages</li>
+      <li>We are not responsible for third-party platform changes, policy updates, or account suspensions imposed by advertising platforms</li>
+      <li>We do not guarantee specific advertising results, returns, or performance metrics</li>
+    </ul>
+
+    <h2>8. Indemnification</h2>
+    <p>You agree to indemnify, defend, and hold harmless Six Media Technology Limited, its officers, directors, employees, and agents from any claims, damages, losses, or expenses arising from your breach of these Terms, misuse of services, or violation of applicable laws.</p>
+
+    <h2>9. Service Suspension & Termination</h2>
+    <ul>
+      <li>Either party may terminate with 30 days written notice</li>
+      <li>We may immediately suspend or terminate accounts for Terms violations</li>
+      <li>Upon termination, outstanding fees remain payable</li>
+      <li>We will provide reasonable assistance in transitioning your advertising accounts</li>
+    </ul>
+
+    <h2>10. Dispute Resolution</h2>
+    <p>Any disputes shall first be attempted to resolve through good faith negotiation. If unresolved within 30 days, disputes shall be submitted to arbitration in Hong Kong under the rules of the Hong Kong International Arbitration Centre (HKIAC).</p>
+
+    <h2>11. Governing Law</h2>
+    <p>These Terms are governed by and construed in accordance with the laws of the Hong Kong Special Administrative Region. The courts of Hong Kong shall have exclusive jurisdiction over any disputes arising under these Terms.</p>
+
+    <h2>12. Modifications</h2>
+    <p>We reserve the right to modify these Terms at any time. Material changes will be communicated via email or platform notification at least 14 days prior to taking effect. Continued use of services constitutes acceptance.</p>
+
+    <h2>13. Contact</h2>
+    <div class="highlight-box">
+      <strong>Six Media Technology Limited</strong><br>
+      FLAT 2304, 23/F, Ho King Comm Centre<br>
+      2-16 Fa Yuen Street, Mong Kok, Hong Kong<br><br>
+      Email: <a href="mailto:info@sixmedia.hk">info@sixmedia.hk</a><br>
+      Email: <a href="mailto:mavrickmanixh@gmail.com">mavrickmanixh@gmail.com</a>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <span>&copy; 2026 Six Media Technology Limited. All rights reserved.</span>
+      <div class="footer-links">
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="terms-of-service.html">Terms of Service</a>
+      <a href="aml-policy.html">AML Policy</a>
+      <a href="acceptable-use.html">Acceptable Use</a>
+      <a href="data-security.html">Data Security</a>
+      <a href="complaints.html">Complaints</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

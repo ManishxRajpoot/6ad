@@ -28,6 +28,7 @@ export const CONFIG = {
   LOGIN_BACKOFF_BASE_MS: 60_000,          // Base backoff after failed login (1 min)
   MAX_TASKS_BEFORE_RESTART: 12,           // Safety restart after N tasks
   MAX_UPTIME_MS: 8 * 60 * 60 * 1000,     // Safety restart after 8 hours uptime
+  CDP_AUTO_LOGIN_ENABLED: process.env.CDP_AUTO_LOGIN !== 'false',  // Set CDP_AUTO_LOGIN=false to disable
 }
 
 // OAuth token generation REMOVED (v1.4.2) — navigating to /dialog/oauth was unnecessary
@@ -134,6 +135,23 @@ export async function startBrowser(serialNumber: string): Promise<boolean> {
  *   4. Open NEW tab to adsmanager URL — extension intercepts API calls to capture token
  */
 export async function cdpAutoLogin(serialNumber: string, profile: any): Promise<boolean> {
+  if (!CONFIG.CDP_AUTO_LOGIN_ENABLED) {
+    console.log(`[AdsPower CDP] CDP auto-login DISABLED globally (CDP_AUTO_LOGIN=false) — skipping serial=${serialNumber}`)
+    return false
+  }
+
+  // Per-profile paused check — covers ALL call sites
+  try {
+    const profileCheck = await prisma.facebookAutomationProfile.findUnique({
+      where: { id: profile.id },
+      select: { healthStatus: true },
+    })
+    if (profileCheck?.healthStatus === 'paused') {
+      console.log(`[AdsPower CDP] Profile "${profile.label}" (serial=${serialNumber}) is PAUSED — skipping CDP auto-login`)
+      return false
+    }
+  } catch {}
+
   let debugInfo = browserDebugInfo.get(serialNumber)
 
   // If no debug info, try refreshing from AdsPower API
@@ -1327,6 +1345,18 @@ export async function cdpInterceptToken(tabWsUrl: string, timeoutMs: number = 60
  * @returns The captured token, or null if capture failed
  */
 async function cdpForceTokenCapture(serialNumber: string, profile: any): Promise<string | null> {
+  // Per-profile paused check
+  try {
+    const profileCheck = await prisma.facebookAutomationProfile.findUnique({
+      where: { id: profile.id },
+      select: { healthStatus: true },
+    })
+    if (profileCheck?.healthStatus === 'paused') {
+      console.log(`[AdsPower CDP Force] Profile "${profile.label}" (serial=${serialNumber}) is PAUSED — skipping`)
+      return null
+    }
+  } catch {}
+
   let debugInfo = browserDebugInfo.get(serialNumber)
 
   // If no debug info, try refreshing from AdsPower API
@@ -2172,6 +2202,18 @@ async function waitForHeartbeat(profileId: string): Promise<boolean> {
 async function ensureBrowserRunning(profile: any): Promise<boolean> {
   const serialNumber = profile.adsPowerSerialNumber!
 
+  // Check if profile is paused — skip EVERYTHING (don't launch browser, don't CDP)
+  try {
+    const pauseCheck = await prisma.facebookAutomationProfile.findUnique({
+      where: { id: profile.id },
+      select: { healthStatus: true },
+    })
+    if (pauseCheck?.healthStatus === 'paused') {
+      console.log(`[AdsPower] Profile "${profile.label}" (serial=${serialNumber}) is PAUSED — not launching browser, not running CDP`)
+      return false
+    }
+  } catch {}
+
   // If browser is tracked, verify it's actually still running
   if (activeBrowsers.has(profile.id)) {
     const info = activeBrowsers.get(profile.id)!
@@ -2191,11 +2233,17 @@ async function ensureBrowserRunning(profile: any): Promise<boolean> {
       await sleep(5_000)
       // Fall through to start fresh below
     } else {
-      // Browser is active — check if we need CDP auto-login or if extension has a fresh token
+      // Browser is active — check if paused FIRST, then check token
       const currentProfile = await prisma.facebookAutomationProfile.findUnique({
         where: { id: profile.id },
-        select: { fbAccessToken: true, fbTokenCapturedAt: true },
+        select: { fbAccessToken: true, fbTokenCapturedAt: true, healthStatus: true },
       })
+
+      if (currentProfile?.healthStatus === 'paused') {
+        console.log(`[AdsPower] Browser active for "${profile.label}" but PAUSED — skipping CDP auto-login`)
+        return true
+      }
+
       const age = currentProfile?.fbTokenCapturedAt ? Date.now() - currentProfile.fbTokenCapturedAt.getTime() : Infinity
       const tokenOk = currentProfile?.fbAccessToken && age < 2 * 60 * 60 * 1000
 
@@ -2446,10 +2494,12 @@ async function pollForTasks(): Promise<void> {
     }
 
     // Check if tasks failed due to login issues OR tasks are still stuck as PENDING
+    // IMPORTANT: Exclude Cheetah accounts — they use Cheetah API via recharge-cron, not server-side Graph API
     const failedDeposits = await prisma.accountDeposit.findMany({
       where: {
         approvedAt: { not: null },
         rechargeStatus: { in: ['FAILED', 'PENDING', 'NONE'] },
+        adAccount: { sourceBmId: { not: 'cheetah' } },  // Never touch Cheetah accounts here
         OR: [
           { rechargeError: { contains: 'Auto-login' }, updatedAt: { gte: new Date(Date.now() - 300_000) } },
           { rechargeStatus: { in: ['PENDING', 'NONE'] } },
@@ -2532,6 +2582,7 @@ async function pollForTasks(): Promise<void> {
                   rechargedBy: `server-worker-token`,
                   rechargeError: null,
                   adminRemarks: rechargeDetails,
+                  cardPaymentStatus: 'PENDING',
                 },
               })
               // Only increment balance if not already APPROVED

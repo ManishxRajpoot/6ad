@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown, Check, Search } from 'lucide-react'
+import { ChevronDown, Check, Search, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SelectOption {
   value: string
   label: string
+  badge?: string
+  badgeColor?: string
 }
 
 interface SearchableSelectProps {
@@ -179,9 +181,22 @@ export function SearchableSelect({
                     animation: `dropdownItemIn 0.15s ease-out ${index * 0.03}s both`
                   }}
                 >
-                  <span>{option.label}</span>
+                  <span className="flex items-center gap-2">
+                    {option.label}
+                    {option.badge && (
+                      <span className={cn(
+                        'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded whitespace-nowrap border',
+                        option.badgeColor === 'red' ? 'bg-red-50 text-red-600 border-red-200' :
+                        option.badgeColor === 'orange' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                        'bg-gray-50 text-gray-500 border-gray-200'
+                      )}>
+                        <Clock className="w-3 h-3" />
+                        {option.badge}
+                      </span>
+                    )}
+                  </span>
                   {value === option.value && (
-                    <Check className="w-4 h-4 text-[#8B5CF6]" />
+                    <Check className="w-4 h-4 text-[#8B5CF6] flex-shrink-0" />
                   )}
                 </button>
               ))

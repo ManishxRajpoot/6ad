@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Security & Protection | Six Media Technology Limited</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230a0f1c'/><text x='3' y='23' font-family='Arial,sans-serif' font-weight='800' font-size='16' fill='%23818cf8'>SM</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #0a0f1c;
+      --primary-light: #141b2d;
+      --accent: #6366f1;
+      --accent-light: #818cf8;
+      --accent-glow: rgba(99, 102, 241, 0.3);
+      --light: #f8fafc;
+      --text: #1e293b;
+      --text-light: #64748b;
+      --white: #ffffff;
+      --border: #e2e8f0;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, sans-serif; color: var(--text); line-height: 1.7; background: var(--white); }
+
+    nav { position: fixed; top: 0; width: 100%; z-index: 1000; padding: 0 2rem; background: rgba(10, 15, 28, 0.95); backdrop-filter: blur(20px); box-shadow: 0 4px 30px rgba(0,0,0,0.2); }
+    .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; height: 72px; }
+    .logo { font-size: 1.6rem; font-weight: 800; color: var(--white); text-decoration: none; letter-spacing: 0.5px; }
+    .logo span { color: var(--accent-light); }
+    .nav-links { display: flex; gap: 2.5rem; list-style: none; align-items: center; }
+    .nav-links a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.3s; }
+    .nav-links a:hover { color: var(--white); }
+    .nav-cta { background: var(--accent) !important; color: var(--white) !important; padding: 8px 20px; border-radius: 8px; font-weight: 600 !important; }
+    .nav-cta:hover { background: var(--accent-light) !important; }
+
+    .legal-hero { background: var(--primary); padding: 8rem 2rem 3rem; text-align: center; }
+    .legal-hero h1 { color: var(--white); font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; }
+    .legal-hero .breadcrumb { color: rgba(255,255,255,0.5); font-size: 0.9rem; }
+    .legal-hero .breadcrumb a { color: var(--accent-light); text-decoration: none; }
+    .legal-hero .breadcrumb a:hover { color: var(--white); }
+    .legal-hero .updated { color: rgba(255,255,255,0.4); font-size: 0.8rem; margin-top: 0.75rem; }
+
+    .legal-content { max-width: 800px; margin: 0 auto; padding: 3rem 2rem 5rem; }
+    .legal-content h2 { font-size: 1.4rem; font-weight: 700; color: var(--accent); margin: 2.5rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); }
+    .legal-content h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+    .legal-content p { margin-bottom: 1rem; color: var(--text-light); }
+    .legal-content ul, .legal-content ol { margin: 0.5rem 0 1rem 1.5rem; color: var(--text-light); }
+    .legal-content li { margin-bottom: 0.4rem; }
+    .legal-content strong { color: var(--text); }
+    .legal-content a { color: var(--accent); text-decoration: none; }
+    .legal-content a:hover { text-decoration: underline; }
+    .legal-content .highlight-box { background: var(--light); border-left: 4px solid var(--accent); padding: 1rem 1.5rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }
+
+    footer { background: #060a14; padding: 2rem; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; color: rgba(255,255,255,0.4); font-size: 0.85rem; }
+    footer a { color: var(--accent-light); text-decoration: none; font-size: 0.8rem; }
+    footer a:hover { color: var(--white); }
+    .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .legal-hero h1 { font-size: 1.8rem; }
+      .footer-inner { flex-direction: column; text-align: center; }
+      .footer-links { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-inner">
+      <a href="index.html" class="logo">SIX<span>MEDIA</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="index.html#services">Services</a></li>
+        <li><a href="index.html#about">About</a></li>
+        <li><a href="index.html#contact" class="nav-cta">Contact Us</a></li>
+        <li><a href="zh-data-security.html" class="lang-switch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> 中文</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <section class="legal-hero">
+    <div class="breadcrumb"><a href="index.html">Home</a> &rarr; Data Security & Protection</div>
+    <h1>Data Security & Protection</h1>
+    <p class="updated">Last updated: March 2026</p>
+  </section>
+
+  <div class="legal-content">
+
+    <h2>1. Overview</h2>
+    <p>Six Media Technology Limited is committed to maintaining the highest standards of data security. This policy outlines the technical and organizational measures we implement to protect client data, financial information, and personal data from unauthorized access, loss, or misuse.</p>
+
+    <h2>2. Encryption & Data Protection</h2>
+    <ul>
+      <li><strong>In Transit:</strong> All data transmitted between clients and our systems is encrypted using TLS 1.2/1.3</li>
+      <li><strong>At Rest:</strong> Sensitive data is encrypted using AES-256 encryption</li>
+      <li><strong>Payment Data:</strong> Credit card information is processed through PCI-DSS Level 1 compliant payment processors and is never stored on our servers</li>
+      <li><strong>API Communications:</strong> All API endpoints use HTTPS with certificate pinning</li>
+    </ul>
+
+    <h2>3. PCI-DSS Compliance</h2>
+    <p>We maintain compliance with the Payment Card Industry Data Security Standard (PCI-DSS):</p>
+    <ul>
+      <li>Payment card data is handled exclusively by certified PCI-DSS Level 1 service providers</li>
+      <li>Card numbers are tokenized and never stored in our systems</li>
+      <li>Regular PCI compliance assessments are conducted</li>
+      <li>Strict access controls for any payment-related systems</li>
+    </ul>
+
+    <h2>4. Access Controls</h2>
+    <ul>
+      <li><strong>Authentication:</strong> Multi-factor authentication (MFA) required for all administrative access</li>
+      <li><strong>Role-Based Access:</strong> Employees only access data necessary for their role (principle of least privilege)</li>
+      <li><strong>Session Management:</strong> Automatic session expiry and re-authentication for sensitive operations</li>
+      <li><strong>Password Policy:</strong> Strong password requirements with regular rotation</li>
+      <li><strong>Audit Trails:</strong> Comprehensive logging of all system access and data modifications</li>
+    </ul>
+
+    <h2>5. Infrastructure Security</h2>
+    <ul>
+      <li><strong>Cloud Security:</strong> Hosted on enterprise-grade cloud infrastructure with SOC 2 Type II certification</li>
+      <li><strong>Firewalls:</strong> Multi-layered firewall protection with intrusion detection/prevention systems</li>
+      <li><strong>DDoS Protection:</strong> Enterprise DDoS mitigation services</li>
+      <li><strong>Vulnerability Management:</strong> Regular vulnerability scanning and penetration testing</li>
+      <li><strong>Patch Management:</strong> Timely application of security patches and updates</li>
+    </ul>
+
+    <h2>6. Monitoring & Detection</h2>
+    <ul>
+      <li>24/7 security monitoring and alerting</li>
+      <li>Real-time threat detection and response</li>
+      <li>Automated anomaly detection for unusual access patterns</li>
+      <li>Regular review of security logs and audit trails</li>
+    </ul>
+
+    <h2>7. Data Breach Response</h2>
+    <p>In the event of a data breach, we follow a structured incident response plan:</p>
+    <ol>
+      <li><strong>Detection & Containment:</strong> Immediate identification and isolation of the affected systems</li>
+      <li><strong>Assessment:</strong> Evaluation of the scope, nature, and impact of the breach</li>
+      <li><strong>Notification:</strong> Affected individuals and relevant regulatory authorities (including the Privacy Commissioner for Personal Data, Hong Kong) are notified within 72 hours</li>
+      <li><strong>Remediation:</strong> Implementation of measures to prevent recurrence</li>
+      <li><strong>Post-Incident Review:</strong> Comprehensive analysis and documentation of the incident</li>
+    </ol>
+
+    <h2>8. Employee Security</h2>
+    <ul>
+      <li>Background checks for all employees handling sensitive data</li>
+      <li>Mandatory security awareness training upon hire and annually</li>
+      <li>Confidentiality agreements and non-disclosure obligations</li>
+      <li>Clean desk policy and secure workstation practices</li>
+      <li>Immediate access revocation upon employment termination</li>
+    </ul>
+
+    <h2>9. Third-Party Security</h2>
+    <p>All third-party service providers undergo security assessment including:</p>
+    <ul>
+      <li>Due diligence review before engagement</li>
+      <li>Data processing agreements with security requirements</li>
+      <li>Regular compliance verification</li>
+      <li>SOC 2 or equivalent certification requirements for critical vendors</li>
+    </ul>
+
+    <h2>10. Business Continuity</h2>
+    <ul>
+      <li>Regular data backups with geographically distributed redundancy</li>
+      <li>Disaster recovery plan with defined RPO and RTO objectives</li>
+      <li>Annual business continuity testing and drills</li>
+    </ul>
+
+    <h2>11. Contact</h2>
+    <div class="highlight-box">
+      For security concerns or to report a vulnerability:<br><br>
+      <strong>Security Team</strong><br>
+      Email: <a href="mailto:info@sixmedia.hk">info@sixmedia.hk</a>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <span>&copy; 2026 Six Media Technology Limited. All rights reserved.</span>
+      <div class="footer-links">
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="terms-of-service.html">Terms of Service</a>
+      <a href="aml-policy.html">AML Policy</a>
+      <a href="acceptable-use.html">Acceptable Use</a>
+      <a href="data-security.html">Data Security</a>
+      <a href="complaints.html">Complaints</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

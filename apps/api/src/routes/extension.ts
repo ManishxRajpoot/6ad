@@ -428,8 +428,15 @@ extension.post('/heartbeat', async (c) => {
     const profile = await getProfileByKey(c, {
       id: true, label: true, managedAdAccountIds: true,
       fbAccessToken: true, fbTokenCapturedAt: true, fbTokenValidatedAt: true, fbUserName: true,
+      healthStatus: true,
     })
     if (!profile) return c.json({ error: 'Invalid API key' }, 401)
+
+    // If profile is PAUSED, accept heartbeat but send NO jobs/tokenRefresh — let user work manually
+    if (profile.healthStatus === 'paused') {
+      await prisma.facebookAutomationProfile.update({ where: { id: profile.id }, data: { lastHeartbeatAt: new Date() } })
+      return c.json({ jobs: [], tokenRefreshNeeded: false, syncFundingSources: false, paused: true })
+    }
 
     const body = await c.req.json().catch(() => ({}))
     const { adAccountIds, fbUserId, fbUserName, fbAccessToken } = body as any
@@ -459,11 +466,11 @@ extension.post('/heartbeat', async (c) => {
     let pendingBmShareCount = 0
 
     if (managedIds.length > 0) {
-      // Pending recharges (include FAILED so extension can retry server-side failures)
+      // Pending recharges — only PENDING/NONE, NOT FAILED (admin must explicitly retry FAILED jobs)
       const pendingRecharges = await prisma.accountDeposit.findMany({
         where: {
           status: 'PENDING',
-          rechargeStatus: { in: ['PENDING', 'NONE', 'FAILED'] },
+          rechargeStatus: { in: ['PENDING', 'NONE'] },
           rechargeAttempts: { lt: 10 },
           adAccount: { accountId: { in: managedIds } },
         },
@@ -597,10 +604,11 @@ extension.post('/funding-sources', async (c) => {
 
     const entries = Object.entries(fundingSources)
     let updated = 0
+    let dbMatched = 0
 
     for (const [accountId, cards] of entries) {
       try {
-        await prisma.adAccount.updateMany({
+        const result = await prisma.adAccount.updateMany({
           where: { accountId: String(accountId) },
           data: {
             fundingSources: JSON.stringify(cards),
@@ -608,14 +616,15 @@ extension.post('/funding-sources', async (c) => {
           },
         })
         updated++
+        if (result.count > 0) dbMatched++
       } catch (err: any) {
         // Individual account failure is non-fatal
         console.log(`[Extension] Failed to update funding sources for ${accountId}:`, err.message)
       }
     }
 
-    console.log(`[Extension] Funding sources updated for ${updated}/${entries.length} accounts`)
-    return c.json({ updated, total: entries.length })
+    console.log(`[Extension] Funding sources: ${dbMatched} DB records updated out of ${entries.length} accounts sent (${entries.length - dbMatched} not in DB)`)
+    return c.json({ updated: dbMatched, total: entries.length, sent: entries.length })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
@@ -690,6 +699,14 @@ extension.post('/recharge/:id/complete', async (c) => {
     const depositId = c.req.param('id')
     const body = await c.req.json().catch(() => ({}))
     const { previousSpendCap, newSpendCap, fbAccessToken: tokenUsed } = body as any
+
+    // Guard: prevent duplicate /complete calls
+    const existingDep = await prisma.accountDeposit.findUnique({ where: { id: depositId }, select: { rechargeStatus: true, status: true } })
+    if (!existingDep) return c.json({ error: 'Deposit not found' }, 404)
+    if (existingDep.status === 'APPROVED') return c.json({ error: 'Already approved' }, 409)
+    if (existingDep.rechargeStatus === 'VERIFYING' || existingDep.rechargeStatus === 'COMPLETED') {
+      return c.json({ error: 'Already completed or verifying' }, 409)
+    }
 
     await prisma.accountDeposit.update({
       where: { id: depositId },
@@ -892,6 +909,11 @@ extension.post('/bm-share/:id/failed', async (c) => {
 
 /**
  * POST /extension/job/:id/claim — Claim a job (could be recharge or BM share)
+ *
+ * For RECHARGE jobs: accepts { currentSpendCap } in body.
+ * On first claim, snapshots previousSpendCap and computes targetSpendCap = previousCap + amount.
+ * On retry, returns the existing targetSpendCap (never recomputes).
+ * Extension MUST use the returned targetSpendCap for its Facebook POST (absolute value, not current + amount).
  */
 extension.post('/job/:id/claim', async (c) => {
   try {
@@ -899,33 +921,76 @@ extension.post('/job/:id/claim', async (c) => {
     if (!profile) return c.json({ error: 'Invalid API key' }, 401)
 
     const jobId = c.req.param('id')
+    const body = await c.req.json().catch(() => ({}))
+    const { currentSpendCap } = body as any
 
-    // Try as deposit first
-    const deposit = await prisma.accountDeposit.findUnique({ where: { id: jobId } }).catch(() => null)
-    if (deposit) {
-      if (deposit.rechargeStatus === 'IN_PROGRESS') {
-        return c.json({ error: 'Already claimed' }, 409)
-      }
-      await prisma.accountDeposit.update({
+    // Try as deposit first — atomic claim to prevent race condition
+    const depositClaim = await prisma.accountDeposit.updateMany({
+      where: { id: jobId, rechargeStatus: { notIn: ['IN_PROGRESS', 'VERIFYING', 'COMPLETED'] } },
+      data: { rechargeStatus: 'IN_PROGRESS' },
+    })
+    if (depositClaim.count > 0) {
+      // Claimed successfully — now snapshot the spend cap and compute target
+      const deposit = await prisma.accountDeposit.findUnique({
         where: { id: jobId },
-        data: { rechargeStatus: 'IN_PROGRESS' },
+        select: { id: true, amount: true, targetSpendCap: true, previousSpendCap: true, adAccount: { select: { accountId: true } } },
       })
-      console.log(`[Extension] Job claimed (RECHARGE) by "${profile.label}": ${jobId}`)
-      return c.json({ ok: true })
+
+      let targetSpendCap = deposit?.targetSpendCap ?? null
+
+      if (deposit && !targetSpendCap && currentSpendCap != null && !isNaN(currentSpendCap)) {
+        // First attempt — snapshot the current cap and compute target
+        targetSpendCap = currentSpendCap + Number(deposit.amount)
+        await prisma.accountDeposit.update({
+          where: { id: jobId },
+          data: {
+            previousSpendCap: currentSpendCap,
+            targetSpendCap,
+          },
+        })
+        console.log(`[Extension] Job claimed (RECHARGE) by "${profile.label}": ${jobId} — snapshot cap=$${currentSpendCap}, target=$${targetSpendCap}`)
+      } else {
+        console.log(`[Extension] Job claimed (RECHARGE) by "${profile.label}": ${jobId} — using existing target=$${targetSpendCap ?? 'null'}`)
+      }
+
+      // Audit log
+      try {
+        await prisma.rechargeAuditLog.create({
+          data: {
+            depositId: jobId,
+            adAccountId: deposit?.adAccount?.accountId || 'unknown',
+            action: 'CLAIM',
+            actor: `extension:${profile.label}`,
+            previousCap: currentSpendCap ?? deposit?.previousSpendCap ?? undefined,
+            targetCap: targetSpendCap ?? undefined,
+            amount: deposit ? Number(deposit.amount) : undefined,
+          },
+        }).catch(() => {})
+      } catch {}
+
+      return c.json({ ok: true, targetSpendCap })
+    }
+    // Check if deposit exists but was already claimed
+    const depositExists = await prisma.accountDeposit.findUnique({
+      where: { id: jobId },
+      select: { id: true, targetSpendCap: true },
+    }).catch(() => null)
+    if (depositExists) {
+      return c.json({ error: 'Already claimed', targetSpendCap: depositExists.targetSpendCap }, 409)
     }
 
-    // Try as BM share
-    const bmShare = await prisma.bmShareRequest.findUnique({ where: { id: jobId } }).catch(() => null)
-    if (bmShare) {
-      if (bmShare.shareMethod === 'EXTENSION' && bmShare.status === 'PENDING') {
-        return c.json({ error: 'Already claimed' }, 409)
-      }
-      await prisma.bmShareRequest.update({
-        where: { id: jobId },
-        data: { shareMethod: 'EXTENSION', shareError: null },
-      })
+    // Try as BM share — atomic claim
+    const bmClaim = await prisma.bmShareRequest.updateMany({
+      where: { id: jobId, status: { not: 'APPROVED' }, shareMethod: { not: 'EXTENSION' } },
+      data: { shareMethod: 'EXTENSION', shareError: null },
+    })
+    if (bmClaim.count > 0) {
       console.log(`[Extension] Job claimed (BM_SHARE) by "${profile.label}": ${jobId}`)
       return c.json({ ok: true })
+    }
+    const bmExists = await prisma.bmShareRequest.findUnique({ where: { id: jobId }, select: { id: true } }).catch(() => null)
+    if (bmExists) {
+      return c.json({ error: 'Already claimed' }, 409)
     }
 
     return c.json({ error: 'Job not found' }, 404)
@@ -947,9 +1012,14 @@ extension.post('/job/:id/complete', async (c) => {
     const { result } = body as any
 
     // Try as deposit first
-    const deposit = await prisma.accountDeposit.findUnique({ where: { id: jobId } }).catch(() => null)
+    const deposit = await prisma.accountDeposit.findUnique({ where: { id: jobId }, select: { id: true, rechargeStatus: true, status: true } }).catch(() => null)
     if (deposit) {
-      await prisma.accountDeposit.update({
+      // Guard: prevent duplicate complete calls
+      if (deposit.status === 'APPROVED') return c.json({ error: 'Already approved' }, 409)
+      if (deposit.rechargeStatus === 'VERIFYING' || deposit.rechargeStatus === 'COMPLETED') {
+        return c.json({ error: 'Already completed or verifying' }, 409)
+      }
+      const updatedDeposit = await prisma.accountDeposit.update({
         where: { id: jobId },
         data: {
           rechargeStatus: 'VERIFYING',
@@ -960,14 +1030,29 @@ extension.post('/job/:id/complete', async (c) => {
           previousSpendCap: result?.previousSpendCap ?? null,
           newSpendCap: result?.newSpendCap ?? null,
         },
+        select: { adAccountId: true }
       })
-      console.log(`[Extension] Job complete (RECHARGE) by "${profile.label}": ${jobId} (cap → $${result?.newSpendCap}) — awaiting verification`)
+
+      // Update ad account's BM info if extension provided it
+      if (result?.businessId && updatedDeposit.adAccountId) {
+        await prisma.adAccount.update({
+          where: { id: updatedDeposit.adAccountId },
+          data: {
+            sourceBmId: result.businessId,
+            sourceBmName: result.businessName || null,
+          }
+        }).catch(err => console.error(`[Extension] Failed to update BM info for account ${updatedDeposit.adAccountId}:`, err.message))
+      }
+
+      console.log(`[Extension] Job complete (RECHARGE) by "${profile.label}": ${jobId} (cap → $${result?.newSpendCap}${result?.businessName ? ', BM: ' + result.businessName : ''}) — awaiting verification`)
       return c.json({ ok: true })
     }
 
     // Try as BM share
-    const bmShare = await prisma.bmShareRequest.findUnique({ where: { id: jobId } }).catch(() => null)
+    const bmShare = await prisma.bmShareRequest.findUnique({ where: { id: jobId }, select: { id: true, status: true } }).catch(() => null)
     if (bmShare) {
+      // Guard: prevent duplicate complete calls
+      if (bmShare.status === 'APPROVED') return c.json({ error: 'BM share already approved' }, 409)
       await prisma.bmShareRequest.update({
         where: { id: jobId },
         data: {
@@ -1097,80 +1182,25 @@ extension.post('/token', async (c) => {
   }
 })
 
-// ==================== EXTENSION POLL ENDPOINT (API key auth) ====================
+// ==================== EXTENSION POLL ENDPOINT (DEPRECATED) ====================
 
 /**
- * GET /extension/poll — Extension polls for pending tasks
- * Returns recharge + BM share tasks for this profile's managed accounts.
+ * GET /extension/poll — DEPRECATED: Use /heartbeat instead.
+ * Returns empty tasks to prevent double-execution from legacy extensions.
  */
 extension.get('/poll', async (c) => {
   try {
     const profile = await getProfileByKey(c, { id: true, label: true, managedAdAccountIds: true })
     if (!profile) return c.json({ error: 'Invalid API key' }, 401)
 
-    // Update heartbeat
+    // Update heartbeat only — no jobs served
     await prisma.facebookAutomationProfile.update({
       where: { id: profile.id },
       data: { lastHeartbeatAt: new Date(), status: 'IDLE' },
     })
 
-    const managedIds = profile.managedAdAccountIds || []
-    if (managedIds.length === 0) {
-      return c.json({ tasks: [], heartbeat: true })
-    }
-
-    const tasks: any[] = []
-
-    // Pick up PENDING deposits for recharge. After recharge → system verifies spending cap → APPROVED or REJECTED.
-    const pendingRecharges = await prisma.accountDeposit.findMany({
-      where: {
-        status: 'PENDING',
-        rechargeStatus: { in: ['PENDING', 'NONE', 'FAILED'] },
-        rechargeAttempts: { lt: 10 },
-        adAccount: { accountId: { in: managedIds }, sourceBmId: { not: 'cheetah' } },
-      },
-      include: {
-        adAccount: { select: { accountId: true, accountName: true, platform: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-      take: 2,
-    })
-
-    for (const dep of pendingRecharges) {
-      tasks.push({
-        type: 'RECHARGE',
-        depositId: dep.id,
-        accountId: dep.adAccount.accountId,
-        accountName: dep.adAccount.accountName,
-        amount: Number(dep.amount),
-        applyId: dep.applyId,
-      })
-    }
-
-    // Find pending BM shares for managed accounts
-    const pendingBmShares = await prisma.bmShareRequest.findMany({
-      where: {
-        status: 'PENDING',
-        platform: 'FACEBOOK',
-        shareAttempts: { lt: 10 },
-        adAccountId: { in: managedIds },
-      },
-      orderBy: { createdAt: 'asc' },
-      take: 2,
-    })
-
-    for (const req of pendingBmShares) {
-      tasks.push({
-        type: 'BM_SHARE',
-        requestId: req.id,
-        accountId: req.adAccountId,
-        accountName: req.adAccountName,
-        bmId: req.bmId,
-        applyId: req.applyId,
-      })
-    }
-
-    return c.json({ tasks, heartbeat: true })
+    console.log(`[Extension] DEPRECATED /poll called by "${profile.label}" — returning empty tasks. Use /heartbeat instead.`)
+    return c.json({ tasks: [], heartbeat: true })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }

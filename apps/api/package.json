@@ -4,10 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --external:@prisma/client --external:@hono/node-server --external:hono --external:bcryptjs --external:dotenv --external:jsonwebtoken --external:nodemailer --external:otpauth --external:zod --external:bs58check --external:sharp --external:rebrowser-puppeteer --external:imap --external:mailparser --external:ws",
+    "build": "npx esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/index.js --external:@prisma/client --external:@hono/node-server --external:hono --external:bcryptjs --external:dotenv --external:jsonwebtoken --external:nodemailer --external:otpauth --external:zod --external:bs58check --external:sharp --external:rebrowser-puppeteer --external:imap --external:mailparser --external:ws --external:@aws-sdk/client-s3",
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1015.0",
     "@hono/node-server": "^1.13.0",
     "@prisma/client": "^6.0.0",
     "bcryptjs": "^2.4.3",

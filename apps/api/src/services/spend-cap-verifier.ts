@@ -35,7 +35,7 @@ interface SpendCapResult {
  * Try Cheetah API first, then fall back to Facebook Graph API.
  * Returns the current spend_cap in DOLLARS.
  */
-async function getActualSpendCap(
+export async function getActualSpendCap(
   accountId: string,
   fbAccessToken: string | null
 ): Promise<SpendCapResult> {
@@ -59,7 +59,7 @@ async function getActualSpendCap(
 
   try {
     const resp = await fetch(
-      `${FB_GRAPH}/act_${accountId}?fields=spend_cap&access_token=${encodeURIComponent(fbAccessToken)}`
+      `${FB_GRAPH}/act_${accountId}?fields=spend_cap,business{id,name}&access_token=${encodeURIComponent(fbAccessToken)}`
     )
     const text = await resp.text()
     let data: any
@@ -68,6 +68,14 @@ async function getActualSpendCap(
     }
     if (data.error) {
       return { success: false, error: `FB Graph error: ${data.error.message || JSON.stringify(data.error)}` }
+    }
+
+    // Auto-populate BM name if returned
+    if (data.business?.name) {
+      prisma.adAccount.updateMany({
+        where: { accountId, sourceBmName: null },
+        data: { sourceBmName: data.business.name, sourceBmId: data.business.id }
+      }).catch(() => {}) // fire and forget
     }
 
     // Graph API returns spend_cap in CENTS
@@ -100,6 +108,8 @@ export async function verifyDeposit(depositId: string): Promise<{
         select: {
           accountId: true,
           extensionProfileId: true,
+          platform: true,
+          sourceBmId: true,
         },
       },
     },
@@ -139,6 +149,8 @@ export async function verifyDeposit(depositId: string): Promise<{
       if (capIncrease >= deposit.amount - TOLERANCE_DOLLARS) {
         console.log(`[SpendCapVerifier] Cheetah+Graph failed but extension reported cap increase: $${deposit.previousSpendCap} → $${deposit.newSpendCap} (+$${capIncrease}) for deposit ${depositId} — auto-approving via extension data`)
 
+        const isNonCheetahFb = deposit.adAccount.platform === 'FACEBOOK' && deposit.adAccount.sourceBmId !== 'cheetah'
+
         await prisma.$transaction(async (tx) => {
           const dep = await tx.accountDeposit.findUnique({
             where: { id: depositId },
@@ -154,6 +166,7 @@ export async function verifyDeposit(depositId: string): Promise<{
               verifiedAt: new Date(),
               verificationFailed: false,
               rechargeError: null,
+              cardPaymentStatus: isNonCheetahFb ? 'PENDING' : 'NONE',
             },
           })
 
@@ -184,6 +197,8 @@ export async function verifyDeposit(depositId: string): Promise<{
   console.log(`[SpendCapVerifier] deposit ${depositId}: actual=$${actualCap} (${result.source}), expected=$${expectedCap}`)
 
   // Compare: actual should be >= expected (tolerance for float precision)
+  const isNonCheetahFb2 = deposit.adAccount.platform === 'FACEBOOK' && deposit.adAccount.sourceBmId !== 'cheetah'
+
   if (actualCap >= expectedCap - TOLERANCE_DOLLARS) {
     // ✅ VERIFIED — approve and increment balance
     await prisma.$transaction(async (tx) => {
@@ -201,6 +216,7 @@ export async function verifyDeposit(depositId: string): Promise<{
           verifiedAt: new Date(),
           verificationFailed: false,
           rechargeError: null,
+          cardPaymentStatus: isNonCheetahFb2 ? 'PENDING' : 'NONE',
         },
       })
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "6AD Worker",
-  "version": "3.0.4",
+  "version": "3.1.0",
   "description": "6AD automation worker — captures tokens, executes recharges & BM shares",
   "permissions": ["storage", "alarms", "tabs"],
   "host_permissions": [

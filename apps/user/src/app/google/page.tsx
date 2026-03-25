@@ -921,7 +921,7 @@ export default function GooglePage() {
 
     } catch (error: any) {
       console.error('Failed to submit deposit:', error)
-      setSubmitError(error.message || 'Failed to submit deposit. Please try again.')
+      showToast('error', 'Error', error.message || 'Failed to submit deposit. Please try again.')
     } finally {
       setIsSubmitting(false)
     }

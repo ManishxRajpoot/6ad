@@ -99,6 +99,12 @@ type AccountDeposit = {
   rechargeStatus?: string
   rechargeMethod?: string
   rechargeError?: string | null
+  rechargeAttempts?: number
+  previousSpendCap?: number | null
+  newSpendCap?: number | null
+  targetSpendCap?: number | null
+  cardPaymentStatus?: string
+  cardPaymentDoneAt?: string | null
   adAccount: {
     id: string
     accountId: string
@@ -106,6 +112,12 @@ type AccountDeposit = {
     platform: string
     fundingSources?: string | null
     sourceBmId?: string | null
+    sourceBmName?: string | null
+    extensionProfile?: {
+      id: string
+      label: string
+      adsPowerSerialNumber: string
+    } | null
     user: {
       id: string
       username: string
@@ -175,7 +187,10 @@ export default function FacebookPage() {
 
   // Card wallet top-up tracking
   const [cardWalletPending, setCardWalletPending] = useState(0)
+  const [cardPendingCount, setCardPendingCount] = useState(0)
   const [walletMarkingAdded, setWalletMarkingAdded] = useState(false)
+  const [cardPaymentFilter, setCardPaymentFilter] = useState<string>('all')
+  const [reattemptFilter, setReattemptFilter] = useState<boolean>(false)
 
   // Balance Transfers state
   const [balanceTransfers, setBalanceTransfers] = useState<any[]>([])
@@ -243,7 +258,7 @@ export default function FacebookPage() {
   const [bmSharePage, setBmSharePage] = useState(1)
   const [bmSharePerPage, setBmSharePerPage] = useState(25)
   const [depositsPage, setDepositsPage] = useState(1)
-  const [depositsPerPage, setDepositsPerPage] = useState(25)
+  const [depositsPerPage, setDepositsPerPage] = useState(10)
   const [refundsPage, setRefundsPage] = useState(1)
   const [refundsPerPage, setRefundsPerPage] = useState(25)
   const [transfersPage, setTransfersPage] = useState(1)
@@ -374,6 +389,7 @@ export default function FacebookPage() {
     try {
       const data = await accountDepositsApi.getCardWalletPending()
       setCardWalletPending(data.pendingAmount || 0)
+      setCardPendingCount(data.pendingCount || 0)
     } catch {
       // Silently fail
     }
@@ -399,7 +415,10 @@ export default function FacebookPage() {
     const cached = getCached<AccountDeposit[]>(cacheKey)
     if (cached) { setAccountDeposits(cached); setDepositsLoading(false) } else { setDepositsLoading(true) }
     try {
-      const data = await accountDepositsApi.getAll('FACEBOOK', statusFilter !== 'all' ? statusFilter : undefined)
+      // REATTEMPTED is a client-side filter — fetch all deposits (no status filter, high limit)
+      const apiStatus = statusFilter === 'REATTEMPTED' ? undefined : (statusFilter !== 'all' ? statusFilter : undefined)
+      const apiLimit = statusFilter === 'REATTEMPTED' ? 10000 : undefined
+      const data = await accountDepositsApi.getAll('FACEBOOK', apiStatus, apiLimit)
       const deposits = data.deposits || []
       setAccountDeposits(deposits)
       setCache(cacheKey, deposits)
@@ -501,6 +520,8 @@ export default function FacebookPage() {
 
   // Handle Account Deposit approve/reject
   const handleDepositApprove = async (id: string) => {
+    const confirmed = await confirm({ title: 'Approve Deposit', message: 'This will recharge the Facebook ad account and update the spending cap. Are you sure?', variant: 'warning' })
+    if (!confirmed) return
     setApprovingDepositId(id)
     try {
       const result = await accountDepositsApi.approve(id)
@@ -575,6 +596,23 @@ export default function FacebookPage() {
       fetchAccountDeposits()
     } catch (error: any) {
       toast.error('Force Approve Failed', error.message || 'Failed to force approve')
+    }
+  }
+
+  // Mark card payment as done (single or bulk)
+  const handleMarkCardDone = async (depositIds: string[]) => {
+    if (depositIds.length === 0) return
+    const confirmed = await confirm({
+      title: 'Mark Card Payment Done',
+      message: `Mark card payment as done for ${depositIds.length} deposit(s)?`,
+    })
+    if (!confirmed) return
+    try {
+      const result = await accountDepositsApi.markCardDone(depositIds)
+      toast.success('Card Payment', result.message || `${depositIds.length} deposit(s) marked as done`)
+      fetchAccountDeposits()
+    } catch (error: any) {
+      toast.error('Failed', error.message || 'Failed to mark card payment')
     }
   }
 
@@ -1032,13 +1070,16 @@ export default function FacebookPage() {
 
   // Deposits — client-side filter + pagination
   const filteredDeposits = accountDeposits.filter(dep => {
-    if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
-    return (
-      dep.adAccount.user.username.toLowerCase().includes(q) ||
-      dep.adAccount.accountName.toLowerCase().includes(q) ||
-      dep.adAccount.accountId.toLowerCase().includes(q)
-    )
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      if (!(dep.adAccount.user.username.toLowerCase().includes(q) ||
+            dep.adAccount.accountName.toLowerCase().includes(q) ||
+            dep.adAccount.accountId.toLowerCase().includes(q))) return false
+    }
+    if (cardPaymentFilter !== 'all' && dep.cardPaymentStatus !== cardPaymentFilter) return false
+    if (reattemptFilter && (!dep.rechargeAttempts || dep.rechargeAttempts <= 1)) return false
+    if (statusFilter === 'REATTEMPTED' && (!dep.rechargeAttempts || dep.rechargeAttempts <= 1)) return false
+    return true
   })
   const effectiveDepositsPerPage = depositsPerPage === -1 ? filteredDeposits.length : depositsPerPage
   const totalDepositsPages = effectiveDepositsPerPage > 0 ? Math.ceil(filteredDeposits.length / effectiveDepositsPerPage) : 1
@@ -1200,7 +1241,7 @@ export default function FacebookPage() {
               onClick={() => setShowStatusDropdown(!showStatusDropdown)}
               className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:border-gray-300 transition-colors min-w-[130px] justify-between bg-white"
             >
-              <span>{statusFilter === 'all' ? 'All Status' : statusFilter === 'APPROVED' ? 'Approved' : statusFilter === 'PENDING' ? 'Pending' : 'Rejected'}</span>
+              <span>{statusFilter === 'all' ? 'All Status' : statusFilter === 'APPROVED' ? 'Approved' : statusFilter === 'PENDING' ? 'Pending' : statusFilter === 'REJECTED' ? 'Rejected' : 'Reattempted'}</span>
               <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showStatusDropdown ? 'rotate-180' : ''}`} />
             </button>
             <div className={`absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 transition-all duration-200 ease-out origin-top ${
@@ -1213,6 +1254,7 @@ export default function FacebookPage() {
                 { value: 'APPROVED', label: 'Approved' },
                 { value: 'PENDING', label: 'Pending' },
                 { value: 'REJECTED', label: 'Rejected' },
+                { value: 'REATTEMPTED', label: 'Reattempted' },
               ].map((option, index) => (
                 <button
                   key={option.value}
@@ -1322,10 +1364,10 @@ export default function FacebookPage() {
       </div>
 
       {/* Main Card with Tabs & Table */}
-      <Card className="p-0 overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 340px)' }}>
+      <Card className="p-0 overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 280px)' }}>
         {/* Tabs with smooth sliding indicator */}
         <div className="border-b border-gray-100 flex-shrink-0">
-          <div className="flex relative">
+          <div className="flex relative items-center">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -1340,6 +1382,20 @@ export default function FacebookPage() {
                 {tab.label}
               </button>
             ))}
+            {/* Refresh button */}
+            <button
+              onClick={() => {
+                if (activeTab === 'account-list') fetchData()
+                else if (activeTab === 'bm-share') fetchBmShareRequests()
+                else if (activeTab === 'deposit-list') fetchAccountDeposits()
+                else if (activeTab === 'transfer-list') fetchData()
+                else if (activeTab === 'refund-list') fetchAccountRefunds()
+              }}
+              className="ml-auto mr-3 p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors"
+              title="Refresh data"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
             {/* Sliding indicator */}
             <div
               className="absolute bottom-0 h-0.5 bg-violet-600 transition-all duration-300 ease-out"
@@ -1383,7 +1439,7 @@ export default function FacebookPage() {
         </div>
 
         {/* Table — Scrollable area */}
-        <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0" key={activeTab}>
+        <div className="overflow-auto flex-1 min-h-0" key={activeTab}>
 
           {/* ═══════════════════════════════════════════════════
               ACCOUNT LIST TAB
@@ -1423,6 +1479,7 @@ export default function FacebookPage() {
                     <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Total Cost</th>
                     <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Date</th>
                     <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Status</th>
+                    <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50" style={{minWidth: '150px'}}>Remarks</th>
                     <th className="text-center py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Actions</th>
                   </tr>
                 </thead>
@@ -1460,6 +1517,25 @@ export default function FacebookPage() {
                       <td className="py-2.5 px-2 xl:px-3 font-semibold text-emerald-600 whitespace-nowrap">${parseFloat(app.totalCost).toFixed(2)}</td>
                       <td className="py-2.5 px-2 xl:px-3 text-gray-500 whitespace-nowrap">{formatDate(app.createdAt)}</td>
                       <td className="py-2.5 px-2 xl:px-3">{getStatusBadge(app.status)}</td>
+                      <td className="py-2.5 px-2 xl:px-3">
+                        <input
+                          type="text"
+                          defaultValue={app.adminRemarks || ''}
+                          placeholder="Add remark..."
+                          className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-violet-400 focus:border-violet-400 bg-white"
+                          onBlur={async (e) => {
+                            const val = e.target.value.trim()
+                            if (val !== (app.adminRemarks || '')) {
+                              try {
+                                await applicationsApi.update(app.id, { adminRemarks: val || null })
+                                app.adminRemarks = val || null
+                                toast.success('Remark saved')
+                              } catch { toast.error('Failed to save remark') }
+                            }
+                          }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                        />
+                      </td>
                       <td className="py-2.5 px-2 xl:px-3">
                         <div className="flex items-center justify-center gap-1">
                           <button
@@ -1609,58 +1685,94 @@ export default function FacebookPage() {
                   <span className="text-gray-500 text-sm">Loading...</span>
                 </div>
               </div>
-            ) : filteredDeposits.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Deposits</h3>
-                <p className="text-gray-500 text-sm">No deposit requests found matching your filters</p>
-              </div>
             ) : (
               <>
-              {/* Select Multiple & Bulk Actions bar */}
+              {/* Select Multiple, Card Filter & Bulk Actions — single row */}
               <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-100 bg-gray-50/50">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <div className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${selectMultipleDeposits ? 'bg-violet-600' : 'bg-gray-300'}`}
-                    onClick={() => { setSelectMultipleDeposits(!selectMultipleDeposits); if (selectMultipleDeposits) setSelectedDeposits([]) }}>
-                    <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform duration-200 ${selectMultipleDeposits ? 'translate-x-[16px]' : 'translate-x-[2px]'}`} />
-                  </div>
-                  <span className="text-xs text-gray-500">Select Multiple</span>
-                </label>
-                {selectMultipleDeposits && selectedDeposits.length > 0 && (
-                  <div className="flex items-center gap-2" ref={bulkDepositDropdownRef}>
-                    <span className="text-xs text-violet-600 font-medium">{selectedDeposits.length} selected</span>
-                    <div className="relative">
-                      <button
-                        onClick={() => setShowBulkDepositDropdown(!showBulkDepositDropdown)}
-                        className="px-3 py-1 text-xs font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors"
-                      >
-                        Bulk Action ▾
-                      </button>
-                      {showBulkDepositDropdown && (
-                        <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
-                          <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('retry-recharge') }} className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2 transition-colors">
-                            <RefreshCw className="w-3.5 h-3.5" /> Retry Recharge
-                          </button>
-                          <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('approve') }} className="w-full text-left px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 transition-colors">
-                            <Check className="w-3.5 h-3.5" /> Approve Selected
-                          </button>
-                          <div className="border-t border-gray-100 my-1" />
-                          <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('reject-refund') }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
-                            <X className="w-3.5 h-3.5" /> Reject with Refund
-                          </button>
-                          <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('reject') }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
-                            <X className="w-3.5 h-3.5" /> Reject (No Refund)
-                          </button>
-                        </div>
-                      )}
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <div className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${selectMultipleDeposits ? 'bg-violet-600' : 'bg-gray-300'}`}
+                      onClick={() => { setSelectMultipleDeposits(!selectMultipleDeposits); if (selectMultipleDeposits) setSelectedDeposits([]) }}>
+                      <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform duration-200 ${selectMultipleDeposits ? 'translate-x-[16px]' : 'translate-x-[2px]'}`} />
                     </div>
+                    <span className="text-xs text-gray-500">Select Multiple</span>
+                  </label>
+                  <div className="w-px h-4 bg-gray-200" />
+                  {/* Card Payment Filter Pills */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-gray-400 font-medium">Card:</span>
+                    {(['all', 'PENDING', 'DONE'] as const).map(val => (
+                      <button
+                        key={val}
+                        onClick={() => setCardPaymentFilter(val)}
+                        className={`px-2 py-0.5 text-[10px] font-medium rounded-full transition-colors ${
+                          cardPaymentFilter === val
+                            ? val === 'PENDING' ? 'bg-orange-100 text-orange-700' : val === 'DONE' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        {val === 'all' ? 'All' : val === 'PENDING' ? `Pending (${cardPendingCount})` : 'Approved'}
+                      </button>
+                    ))}
                   </div>
-                )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Quick bulk: Card Money Added */}
+                  {selectMultipleDeposits && selectedDeposits.length > 0 && (
+                    <button
+                      onClick={() => handleMarkCardDone(selectedDeposits)}
+                      className="px-3 py-1 text-[11px] font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1"
+                    >
+                      <Check className="w-3 h-3" /> Card Money Added ({selectedDeposits.length})
+                    </button>
+                  )}
+                  {selectMultipleDeposits && selectedDeposits.length > 0 && (
+                    <div className="flex items-center gap-2" ref={bulkDepositDropdownRef}>
+                      <span className="text-xs text-violet-600 font-medium">{selectedDeposits.length} selected</span>
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowBulkDepositDropdown(!showBulkDepositDropdown)}
+                          className="px-3 py-1 text-xs font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors"
+                        >
+                          Bulk Action ▾
+                        </button>
+                        {showBulkDepositDropdown && (
+                          <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+                            <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('retry-recharge') }} className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2 transition-colors">
+                              <RefreshCw className="w-3.5 h-3.5" /> Retry Recharge
+                            </button>
+                            <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('approve') }} className="w-full text-left px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 transition-colors">
+                              <Check className="w-3.5 h-3.5" /> Approve Selected
+                            </button>
+                            <div className="border-t border-gray-100 my-1" />
+                            <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('reject-refund') }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                              <X className="w-3.5 h-3.5" /> Reject with Refund
+                            </button>
+                            <button onClick={() => { setShowBulkDepositDropdown(false); handleBulkDepositAction('reject') }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                              <X className="w-3.5 h-3.5" /> Reject (No Refund)
+                            </button>
+                            <div className="border-t border-gray-100 my-1" />
+                            <button onClick={() => { setShowBulkDepositDropdown(false); handleMarkCardDone(selectedDeposits) }} className="w-full text-left px-3 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2 transition-colors">
+                              <Check className="w-3.5 h-3.5" /> Mark Card Done
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-              <table className="w-full text-sm xl:text-[13px]">
+              {filteredDeposits.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Deposits</h3>
+                  <p className="text-gray-500 text-sm">No deposit requests found matching your filters</p>
+                </div>
+              ) : (
+              <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
                     {selectMultipleDeposits && (
-                      <th className="py-2 px-1.5 bg-gray-50 w-10">
+                      <th className="py-2.5 px-2 bg-gray-50 w-10">
                         <div
                           onClick={toggleSelectAllDeposits}
                           className={`w-[18px] h-[18px] rounded border-2 flex items-center justify-center cursor-pointer transition-all duration-150 mx-auto ${
@@ -1677,17 +1789,22 @@ export default function FacebookPage() {
                         </div>
                       </th>
                     )}
-                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">#</th>
-                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Apply ID</th>
-                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">User</th>
-                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Account</th>
-                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">VCC Card</th>
-                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Amount</th>
-                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Total</th>
-                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Date</th>
-                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Status</th>
-                    <th className="text-left py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Remark</th>
-                    <th className="text-center py-2 px-1.5 font-semibold text-gray-500 uppercase tracking-wide text-[11px] whitespace-nowrap bg-gray-50">Actions</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">#</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Apply ID</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">User</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Account</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">VCC Card</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Amount</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Total</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Before Cap</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">After Cap</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">AdsPower</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Source BM</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Date</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Status</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Method</th>
+                    <th className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Card</th>
+                    <th className="text-center py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-xs whitespace-nowrap bg-gray-50">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1705,7 +1822,7 @@ export default function FacebookPage() {
                         onClick={() => { if (selectMultipleDeposits) toggleDepositSelection(dep.id) }}
                       >
                         {selectMultipleDeposits && (
-                          <td className="py-1.5 px-1.5 w-10">
+                          <td className="py-3 px-2 w-10">
                             <div
                               className={`w-[18px] h-[18px] rounded border-2 flex items-center justify-center transition-all duration-150 mx-auto ${
                                 selectedDeposits.includes(dep.id)
@@ -1719,11 +1836,11 @@ export default function FacebookPage() {
                             </div>
                           </td>
                         )}
-                        <td className="py-1.5 px-1.5 text-gray-400 text-center text-xs">{depositsStartIndex + index + 1}</td>
-                        <td className="py-1.5 px-1.5 text-gray-600 font-mono text-[11px]">{dep.applyId || '---'}</td>
-                        <td className="py-1.5 px-1.5 text-gray-700 text-xs whitespace-nowrap">{dep.adAccount.user.username}</td>
-                        <td className="py-1.5 px-1.5">
-                          <div className="text-gray-600 text-xs leading-tight">{dep.adAccount.accountName}</div>
+                        <td className="py-3 px-2 text-gray-400 text-center text-xs">{depositsStartIndex + index + 1}</td>
+                        <td className="py-3 px-2 text-gray-600 font-mono text-xs">{dep.applyId || '---'}</td>
+                        <td className="py-3 px-2 text-gray-700 text-sm whitespace-nowrap">{dep.adAccount.user.username}</td>
+                        <td className="py-3 px-2">
+                          <div className="text-gray-600 text-sm leading-tight">{dep.adAccount.accountName}</div>
                           <div className="flex items-center gap-1 mt-0.5">
                             <span className="text-emerald-600 font-mono text-[10px]">{dep.adAccount.accountId}</span>
                             {isNotCheetah && dep.status === 'PENDING' && (
@@ -1733,7 +1850,7 @@ export default function FacebookPage() {
                             )}
                           </div>
                         </td>
-                        <td className="py-1.5 px-1.5">
+                        <td className="py-3 px-2">
                           {dep.adAccount.fundingSources ? (() => {
                             try {
                               const cards = JSON.parse(dep.adAccount.fundingSources)
@@ -1745,15 +1862,50 @@ export default function FacebookPage() {
                             } catch { return <span className="text-gray-300 text-[10px]">—</span> }
                           })() : <span className="text-gray-300 text-[10px]">—</span>}
                         </td>
-                        <td className="py-1.5 px-1.5 font-semibold text-emerald-600 text-xs whitespace-nowrap">${depositAmount.toFixed(2)}</td>
-                        <td className="py-1.5 px-1.5 font-semibold text-orange-600 text-xs whitespace-nowrap" title={dep.remarks || ''}>
+                        <td className="py-3 px-2 font-semibold text-emerald-600 text-sm whitespace-nowrap">${depositAmount.toFixed(2)}</td>
+                        <td className="py-3 px-2 font-semibold text-orange-600 text-sm whitespace-nowrap" title={dep.remarks || ''}>
                           ${totalCost.toFixed(2)}
                           {commissionAmount > 0 && (
                             <span className="text-[10px] font-normal text-gray-400 ml-0.5">(+${commissionAmount.toFixed(2)})</span>
                           )}
                         </td>
-                        <td className="py-1.5 px-1.5 text-gray-500 text-[11px] whitespace-nowrap">{formatDate(dep.createdAt)}</td>
-                        <td className="py-1.5 px-1.5">
+                        <td className="py-3 px-2 text-xs whitespace-nowrap">
+                          {dep.previousSpendCap != null ? (
+                            <span className="text-gray-600 font-mono">${Number(dep.previousSpendCap).toLocaleString()}</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-xs whitespace-nowrap">
+                          {dep.newSpendCap != null ? (
+                            <span className="text-blue-600 font-semibold font-mono">${Number(dep.newSpendCap).toLocaleString()}</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-xs whitespace-nowrap">
+                          {dep.adAccount.extensionProfile ? (
+                            <span className="text-purple-600 font-medium">
+                              {dep.adAccount.extensionProfile.adsPowerSerialNumber && <span className="text-gray-500 font-normal">#{dep.adAccount.extensionProfile.adsPowerSerialNumber} </span>}
+                              {dep.adAccount.extensionProfile.label}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-xs whitespace-nowrap">
+                          {dep.adAccount.sourceBmName ? (
+                            <span className="text-blue-600 font-medium">{dep.adAccount.sourceBmName}</span>
+                          ) : dep.adAccount.sourceBmId === 'cheetah' ? (
+                            <span className="text-violet-600 font-medium">Cheetah</span>
+                          ) : dep.adAccount.sourceBmId ? (
+                            <span className="text-blue-600 font-mono text-[10px]">{dep.adAccount.sourceBmId}</span>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-gray-500 text-xs whitespace-nowrap">{formatDate(dep.createdAt)}</td>
+                        <td className="py-3 px-2">
                           {dep.status === 'APPROVED' ? (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700">
                               <span className="w-1 h-1 rounded-full bg-emerald-500" />Approved
@@ -1784,7 +1936,7 @@ export default function FacebookPage() {
                             </span>
                           )}
                         </td>
-                        <td className="py-1.5 px-1.5 whitespace-nowrap max-w-[120px]">
+                        <td className="py-3 px-2 whitespace-nowrap max-w-[120px]">
                           {/* APPROVED deposits — show method */}
                           {dep.status === 'APPROVED' && dep.rechargeMethod === 'CHEETAH' && (
                             <span className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-medium bg-green-50 text-green-700">Credit Line</span>
@@ -1830,7 +1982,26 @@ export default function FacebookPage() {
                               : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">Waiting for extension...</span>
                           )}
                         </td>
-                        <td className="py-2.5 px-2 xl:px-3" onClick={(e) => e.stopPropagation()}>
+                        {/* Card Payment Status column */}
+                        <td className="py-3 px-2">
+                          {dep.cardPaymentStatus === 'PENDING' ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleMarkCardDone([dep.id]) }}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors cursor-pointer"
+                              title="Click to mark card payment as done"
+                            >
+                              <span className="w-1 h-1 rounded-full bg-orange-500 animate-pulse" />
+                              Pending
+                            </button>
+                          ) : dep.cardPaymentStatus === 'DONE' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">
+                              <Check className="w-3 h-3" /> Approved
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-[10px]">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-2" onClick={(e) => e.stopPropagation()}>
                           {/* PENDING — show dropdown with actions */}
                           {dep.status === 'PENDING' && (
                             <div className="flex items-center justify-center gap-1">
@@ -1874,6 +2045,7 @@ export default function FacebookPage() {
                   })}
                 </tbody>
               </table>
+              )}
               </>
             )
           )}

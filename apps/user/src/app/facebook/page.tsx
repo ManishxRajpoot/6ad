@@ -873,17 +873,56 @@ export default function FacebookPage() {
   const platformStopped = platformStatus === 'stop'
   const hasExistingAccounts = userAccounts.length > 0
 
+  // Cooldown timer - tick every 30s to update remaining time
+  const [cooldownTick, setCooldownTick] = useState(0)
+  useEffect(() => {
+    const interval = setInterval(() => setCooldownTick(t => t + 1), 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Build a map of adAccountId -> last deposit time (within 10 min)
+  const accountCooldowns = useMemo(() => {
+    const map: Record<string, Date> = {}
+    const tenMinAgo = Date.now() - 10 * 60 * 1000
+    for (const dep of accountDeposits) {
+      const created = new Date(dep.createdAt).getTime()
+      if (created > tenMinAgo) {
+        const accId = dep.adAccountId
+        if (!map[accId] || created > new Date(map[accId]).getTime()) {
+          map[accId] = new Date(dep.createdAt)
+        }
+      }
+    }
+    return map
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountDeposits, cooldownTick])
+
   // Generate ad account options for searchable dropdown from userAccounts
   // Note: value should be the database ID (acc.id) for API calls, but display the accountId
   // Only show APPROVED accounts for deposits/transfers/refunds
   const adAccountOptions = useMemo(() => {
     return userAccounts
       .filter(acc => acc.status === 'APPROVED')
-      .map(acc => ({
-        value: acc.id, // Use database ID for API calls
-        label: `${acc.accountName || 'Unknown'} (${acc.accountId || acc.id})`
-      }))
-  }, [userAccounts])
+      .map(acc => {
+        const lastDep = accountCooldowns[acc.id]
+        let badge: string | undefined
+        let badgeColor: string | undefined
+        if (lastDep) {
+          const remainMs = lastDep.getTime() + 10 * 60 * 1000 - Date.now()
+          if (remainMs > 0) {
+            const mins = Math.ceil(remainMs / 60000)
+            badge = `${mins}m cooldown`
+            badgeColor = mins <= 3 ? 'orange' : 'red'
+          }
+        }
+        return {
+          value: acc.id,
+          label: `${acc.accountName || 'Unknown'} (${acc.accountId || acc.id})`,
+          badge,
+          badgeColor,
+        }
+      })
+  }, [userAccounts, accountCooldowns])
 
   // Get unique license names from user's approved accounts for "Existing License" dropdown
   // This shows licenses like Yo1, Yo2 that the user created with their previous ad accounts
@@ -1203,7 +1242,7 @@ export default function FacebookPage() {
 
     } catch (error: any) {
       console.error('Failed to submit deposit:', error)
-      setSubmitError(error.message || 'Failed to submit deposit. Please try again.')
+      showToast('error', 'Error', error.message || 'Failed to submit deposit. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
@@ -2526,8 +2565,8 @@ export default function FacebookPage() {
                     </div>
                   )}
 
-                  {/* Error Message */}
-                  {submitError && (
+                  {/* Error Message - removed, now shown as floating toast */}
+                  {false && (
                     <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg">
                       <p className="text-[10px] lg:text-xs text-red-700 font-medium text-center">
                         {submitError}
@@ -3056,8 +3095,8 @@ export default function FacebookPage() {
                     )}
                   </Button>
 
-                  {/* Error Message */}
-                  {submitError && (
+                  {/* Error Message - removed, now shown as floating toast */}
+                  {false && (
                     <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                       <p className="text-sm text-red-600 font-medium text-center">{submitError}</p>
                     </div>

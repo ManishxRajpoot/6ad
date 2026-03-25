@@ -81,6 +81,11 @@ export default function UsersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(25)
 
+  // Multi-select state
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  const [selectMultiple, setSelectMultiple] = useState(false)
+  const [showBulkDropdown, setShowBulkDropdown] = useState(false)
+
   // Tab refs for sliding indicator
   const allTabRef = useRef<HTMLButtonElement>(null)
   const activeTabRef = useRef<HTMLButtonElement>(null)
@@ -560,6 +565,49 @@ export default function UsersPage() {
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedUsers = filteredAndSortedUsers.slice(startIndex, startIndex + itemsPerPage)
 
+  // Multi-select functions
+  const toggleSelection = (id: string) => {
+    setSelectedUsers(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  }
+  const toggleSelectAll = () => {
+    if (selectedUsers.length === paginatedUsers.length) {
+      setSelectedUsers([])
+    } else {
+      setSelectedUsers(paginatedUsers.map(u => u.id))
+    }
+  }
+
+  const handleBulkAction = async (action: 'delete' | 'block' | 'activate') => {
+    if (selectedUsers.length === 0) {
+      toast.error('No Selection', 'Please select users first')
+      return
+    }
+    const actionLabel = action === 'delete' ? 'delete' : action === 'block' ? 'block' : 'activate'
+    const confirmed = await confirm({
+      title: `Bulk ${actionLabel.charAt(0).toUpperCase() + actionLabel.slice(1)}`,
+      message: `Are you sure you want to ${actionLabel} ${selectedUsers.length} user(s)?`,
+      variant: action === 'activate' ? 'default' : 'danger'
+    })
+    if (!confirmed) return
+
+    let success = 0
+    let failed = 0
+    for (const userId of selectedUsers) {
+      try {
+        if (action === 'delete') {
+          await usersApi.delete(userId)
+        } else {
+          await usersApi.update(userId, { status: action === 'block' ? 'BLOCKED' : 'ACTIVE' })
+        }
+        success++
+      } catch { failed++ }
+    }
+    toast.success('Bulk Action', `${success} user(s) ${actionLabel}d${failed > 0 ? `, ${failed} failed` : ''}`)
+    setSelectedUsers([])
+    setShowBulkDropdown(false)
+    fetchData()
+  }
+
   useEffect(() => {
     setCurrentPage(1)
   }, [searchQuery, statusFilter, agentFilter, startDate, endDate])
@@ -776,11 +824,71 @@ export default function UsersPage() {
           </div>
         </div>
 
+        {/* Bulk Actions Bar */}
+        <div className="flex items-center justify-between mb-2">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <div
+              onClick={() => { setSelectMultiple(!selectMultiple); if (selectMultiple) setSelectedUsers([]); setShowBulkDropdown(false) }}
+              className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${selectMultiple ? 'bg-violet-600' : 'bg-gray-300'}`}
+            >
+              <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform duration-200 ${selectMultiple ? 'translate-x-[16px]' : 'translate-x-[2px]'}`} />
+            </div>
+            <span className="text-xs text-gray-500">Select Multiple</span>
+          </label>
+          <div className="flex items-center gap-2">
+            {selectMultiple && selectedUsers.length > 0 && (
+              <>
+                <span className="text-xs text-violet-600 font-medium">{selectedUsers.length} selected</span>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowBulkDropdown(!showBulkDropdown)}
+                    className="px-3 py-1 text-xs font-medium text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors"
+                  >
+                    Bulk Action ▾
+                  </button>
+                  {showBulkDropdown && (
+                    <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+                      <button onClick={() => { setShowBulkDropdown(false); handleBulkAction('activate') }} className="w-full text-left px-3 py-2 text-sm text-emerald-600 hover:bg-emerald-50 flex items-center gap-2 transition-colors">
+                        <Check className="w-3.5 h-3.5" /> Activate Selected
+                      </button>
+                      <button onClick={() => { setShowBulkDropdown(false); handleBulkAction('block') }} className="w-full text-left px-3 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2 transition-colors">
+                        <Ban className="w-3.5 h-3.5" /> Block Selected
+                      </button>
+                      <div className="border-t border-gray-100 my-1" />
+                      <button onClick={() => { setShowBulkDropdown(false); handleBulkAction('delete') }} className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" /> Delete Selected
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         {/* Table */}
         <div className="overflow-auto flex-1 min-h-0" key={statusFilter}>
           <table className="w-full text-sm xl:text-[13px]">
             <thead className="sticky top-0 z-10">
               <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+                {selectMultiple && (
+                  <th className="py-2.5 px-2 bg-gray-50 w-10">
+                    <div
+                      onClick={toggleSelectAll}
+                      className={`w-[18px] h-[18px] rounded border-2 flex items-center justify-center cursor-pointer transition-all duration-150 mx-auto ${
+                        paginatedUsers.length > 0 && paginatedUsers.every(u => selectedUsers.includes(u.id))
+                          ? 'bg-violet-600 border-violet-600'
+                          : paginatedUsers.some(u => selectedUsers.includes(u.id))
+                            ? 'bg-violet-300 border-violet-400'
+                            : 'bg-white border-gray-300 hover:border-violet-400'
+                      }`}
+                    >
+                      {paginatedUsers.length > 0 && paginatedUsers.some(u => selectedUsers.includes(u.id)) && (
+                        <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                      )}
+                    </div>
+                  </th>
+                )}
                 <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">User</th>
                 <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Credentials</th>
                 <th className="text-left py-2.5 px-2 xl:px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Agent</th>
@@ -796,7 +904,7 @@ export default function UsersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="py-6 text-center">
+                  <td colSpan={selectMultiple ? 11 : 10} className="py-6 text-center">
                     <div className="flex flex-col items-center">
                       <Loader2 className="w-5 h-5 text-violet-600 animate-spin mb-1" />
                       <span className="text-gray-500">Loading...</span>
@@ -805,7 +913,7 @@ export default function UsersPage() {
                 </tr>
               ) : paginatedUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-6 text-center text-gray-500">
+                  <td colSpan={selectMultiple ? 11 : 10} className="py-6 text-center text-gray-500">
                     {searchQuery ? 'No matching users found' : 'No users found'}
                   </td>
                 </tr>
@@ -813,9 +921,25 @@ export default function UsersPage() {
                 paginatedUsers.map((user, index) => (
                   <tr
                     key={user.id}
-                    className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate"
+                    className={`border-b border-gray-100 align-middle tab-row-animate ${selectMultiple ? 'cursor-pointer' : ''} ${selectMultiple && selectedUsers.includes(user.id) ? 'bg-violet-50/70 hover:bg-violet-50' : 'hover:bg-gray-50/50'}`}
                     style={{ animationDelay: `${index * 20}ms` }}
+                    onClick={() => { if (selectMultiple) toggleSelection(user.id) }}
                   >
+                    {selectMultiple && (
+                      <td className="py-2.5 px-2 w-10">
+                        <div
+                          className={`w-[18px] h-[18px] rounded border-2 flex items-center justify-center transition-all duration-150 mx-auto ${
+                            selectedUsers.includes(user.id)
+                              ? 'bg-violet-600 border-violet-600'
+                              : 'bg-white border-gray-300'
+                          }`}
+                        >
+                          {selectedUsers.includes(user.id) && (
+                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                          )}
+                        </div>
+                      </td>
+                    )}
                     {/* User Info */}
                     <td className="py-2.5 px-2 xl:px-3">
                       <div className="flex items-center gap-2">
@@ -948,7 +1072,7 @@ export default function UsersPage() {
                     {/* Join Date */}
                     <td className="py-2.5 px-2 xl:px-3 text-center whitespace-nowrap">
                       <span className="text-gray-500 text-sm">
-                        {new Date(user.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+                        {new Date(user.createdAt).toLocaleDateString('en-GB')}
                       </span>
                     </td>
 

@@ -1,0 +1,7 @@
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Just the arrow/triangles — no background. White for use on dark/colored surfaces -->
+  <!-- Front triangle -->
+  <path d="M22 66 L36 14 L50 66Z" fill="white" fill-opacity="0.9"/>
+  <!-- Back triangle -->
+  <path d="M32 70 L46 18 L60 70Z" fill="white" fill-opacity="0.35"/>
+</svg>

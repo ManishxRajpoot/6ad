@@ -289,7 +289,7 @@ accounts.get('/deposits', requireUser, async (c) => {
 // GET /accounts/deposits/admin - Get all account deposits for admin
 accounts.get('/deposits/admin', requireAdmin, async (c) => {
   try {
-    const { platform, status, page = '1', limit = '100' } = c.req.query()
+    const { platform, status, cardPaymentStatus, page = '1', limit = '10000' } = c.req.query()
 
     const where: any = {}
     if (platform) {
@@ -297,6 +297,9 @@ accounts.get('/deposits/admin', requireAdmin, async (c) => {
     }
     if (status) {
       where.status = status.toUpperCase()
+    }
+    if (cardPaymentStatus) {
+      where.cardPaymentStatus = cardPaymentStatus.toUpperCase()
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit)
@@ -313,6 +316,8 @@ accounts.get('/deposits/admin', requireAdmin, async (c) => {
               platform: true,
               fundingSources: true,
               sourceBmId: true,
+              sourceBmName: true,
+              extensionProfileId: true,
               user: {
                 select: { id: true, username: true, email: true, uniqueId: true }
               }
@@ -326,8 +331,50 @@ accounts.get('/deposits/admin', requireAdmin, async (c) => {
       prisma.accountDeposit.count({ where })
     ])
 
+    // Fetch extension profiles: first by extensionProfileId, then fallback by managedAdAccountIds
+    const profileIds = [...new Set(deposits.map(d => d.adAccount?.extensionProfileId).filter(Boolean))] as string[]
+    const accountIds = [...new Set(deposits.map(d => d.adAccount?.accountId).filter(Boolean))] as string[]
+
+    const [profilesById, profilesByAccount] = await Promise.all([
+      profileIds.length > 0
+        ? prisma.facebookAutomationProfile.findMany({
+            where: { id: { in: profileIds } },
+            select: { id: true, label: true, adsPowerSerialNumber: true }
+          })
+        : [],
+      accountIds.length > 0
+        ? prisma.facebookAutomationProfile.findMany({
+            where: { managedAdAccountIds: { hasSome: accountIds } },
+            select: { id: true, label: true, adsPowerSerialNumber: true, managedAdAccountIds: true }
+          })
+        : []
+    ])
+
+    const profileMapById = new Map(profilesById.map(p => [p.id, p]))
+    // Map accountId -> profile (first match)
+    const profileMapByAccount = new Map<string, typeof profilesByAccount[0]>()
+    for (const p of profilesByAccount) {
+      for (const accId of p.managedAdAccountIds) {
+        if (!profileMapByAccount.has(accId)) profileMapByAccount.set(accId, p)
+      }
+    }
+
+    const depositsWithProfiles = deposits.map(d => {
+      let profile = null
+      if (d.adAccount?.extensionProfileId) {
+        profile = profileMapById.get(d.adAccount.extensionProfileId) || null
+      }
+      if (!profile && d.adAccount?.accountId) {
+        profile = profileMapByAccount.get(d.adAccount.accountId) || null
+      }
+      return {
+        ...d,
+        adAccount: d.adAccount ? { ...d.adAccount, extensionProfile: profile } : d.adAccount
+      }
+    })
+
     return c.json({
-      deposits,
+      deposits: depositsWithProfiles,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -376,6 +423,50 @@ accounts.post('/deposits/check-cheetah', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Check Cheetah accounts error:', error)
     return c.json({ error: 'Failed to check Cheetah accounts' }, 500)
+  }
+})
+
+// ========== CARD PAYMENT TRACKING (admin-only) ==========
+
+// GET /accounts/deposits/card-pending-count — Count deposits with pending card payments
+accounts.get('/deposits/card-pending-count', requireAdmin, async (c) => {
+  try {
+    const count = await prisma.accountDeposit.count({
+      where: { cardPaymentStatus: 'PENDING' }
+    })
+    return c.json({ count })
+  } catch (error) {
+    console.error('Card pending count error:', error)
+    return c.json({ count: 0 })
+  }
+})
+
+// POST /accounts/deposits/mark-card-done — Mark card payment as done (single or bulk)
+accounts.post('/deposits/mark-card-done', requireAdmin, async (c) => {
+  try {
+    const { depositIds } = await c.req.json()
+    if (!depositIds || !Array.isArray(depositIds) || depositIds.length === 0) {
+      return c.json({ error: 'depositIds array required' }, 400)
+    }
+
+    const result = await prisma.accountDeposit.updateMany({
+      where: {
+        id: { in: depositIds },
+        cardPaymentStatus: 'PENDING',
+      },
+      data: {
+        cardPaymentStatus: 'DONE',
+        cardPaymentDoneAt: new Date(),
+      }
+    })
+
+    return c.json({
+      message: `${result.count} deposit(s) marked as card payment done`,
+      updated: result.count,
+    })
+  } catch (error) {
+    console.error('Mark card done error:', error)
+    return c.json({ error: 'Failed to mark card payment' }, 500)
   }
 })
 
@@ -777,17 +868,18 @@ accounts.get('/agent-all', async (c) => {
 
 // ==================== CARD WALLET TOP-UP TRACKER ====================
 
-// GET /accounts/card-wallet-pending - Get pending wallet top-up amount for card accounts
+// GET /accounts/card-wallet-pending - Get pending card payment amount (derived from per-deposit tracking)
 accounts.get('/card-wallet-pending', requireAdmin, async (c) => {
   try {
-    const setting = await prisma.setting.findUnique({
-      where: { key: 'card_wallet_pending_amount' }
+    const result = await prisma.accountDeposit.aggregate({
+      where: { cardPaymentStatus: 'PENDING' },
+      _sum: { amount: true },
+      _count: true,
     })
-    const pendingAmount = setting ? parseFloat(setting.value) : 0
-    return c.json({ pendingAmount })
+    return c.json({ pendingAmount: result._sum.amount || 0, pendingCount: result._count || 0 })
   } catch (error) {
     console.error('Get card wallet pending error:', error)
-    return c.json({ pendingAmount: 0 })
+    return c.json({ pendingAmount: 0, pendingCount: 0 })
   }
 })
 
@@ -1172,6 +1264,22 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
       return c.json({ message: `Account is not approved. Current status: ${account.status}` }, 400)
     }
 
+    // 10-minute cooldown: prevent duplicate recharges on the same ad account
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000)
+    const recentDeposit = await prisma.accountDeposit.findFirst({
+      where: {
+        adAccountId: id,
+        createdAt: { gte: tenMinutesAgo },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    })
+    if (recentDeposit) {
+      const waitMs = recentDeposit.createdAt.getTime() + 10 * 60 * 1000 - Date.now()
+      const waitMin = Math.ceil(waitMs / 60000)
+      return c.json({ message: `Please wait ${waitMin} minute${waitMin > 1 ? 's' : ''} before submitting another recharge for this ad account.` }, 429)
+    }
+
     // Get user's commission rate for this platform at time of deposit
     let commissionRate = 0
     switch (account.platform) {
@@ -1297,23 +1405,38 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
             if (accountResult.code === 0 && accountResult.data && accountResult.data.length > 0) {
               const cheetahAccount = accountResult.data[0]
               const currentSpendCap = parseFloat(cheetahAccount.spend_cap) || 0
-              const newSpendCap = currentSpendCap + amount
 
-              const quotaResult = await cheetahApi.getQuota()
-              if (quotaResult.code === 0) {
-                const availableQuota = parseFloat(quotaResult.data.available_quota) || 0
-                if (availableQuota >= amount) {
-                  const rechargeResult = await cheetahApi.rechargeAccount(account.accountId, newSpendCap)
-                  if (rechargeResult.code === 0) {
-                    rechargeMethod = 'CHEETAH'
-                    rechargeStatus = 'COMPLETED'
-                    autoApproved = true
-                    console.log(`[Auto-Approve] Credit Line recharge success for act_${account.accountId}: $${amount}`)
+              // SNAPSHOT-FIRST: compute target ONCE, store it
+              const targetSpendCap = currentSpendCap + amount
+              await prisma.accountDeposit.update({
+                where: { id: accountDeposit.id },
+                data: { previousSpendCap: currentSpendCap, targetSpendCap },
+              })
+
+              // GUARD: if already at target (shouldn't happen on first deposit, but safety)
+              if (currentSpendCap >= targetSpendCap - 0.01) {
+                rechargeMethod = 'CHEETAH'
+                rechargeStatus = 'COMPLETED'
+                autoApproved = true
+                console.log(`[Auto-Approve] Credit Line already at target for act_${account.accountId}: cap=$${currentSpendCap} >= target=$${targetSpendCap}`)
+              } else {
+                const quotaResult = await cheetahApi.getQuota()
+                if (quotaResult.code === 0) {
+                  const availableQuota = parseFloat(quotaResult.data.available_quota) || 0
+                  if (availableQuota >= amount) {
+                    // Use absolute targetSpendCap, NOT currentCap + amount
+                    const rechargeResult = await cheetahApi.rechargeAccount(account.accountId, targetSpendCap)
+                    if (rechargeResult.code === 0) {
+                      rechargeMethod = 'CHEETAH'
+                      rechargeStatus = 'COMPLETED'
+                      autoApproved = true
+                      console.log(`[Auto-Approve] Credit Line recharge success for act_${account.accountId}: $${amount} target=$${targetSpendCap}`)
+                    } else {
+                      console.log(`[Auto-Approve] Credit Line recharge API failed for act_${account.accountId}: ${rechargeResult.msg}`)
+                    }
                   } else {
-                    console.log(`[Auto-Approve] Credit Line recharge API failed for act_${account.accountId}: ${rechargeResult.msg}`)
+                    console.log(`[Auto-Approve] Credit Line insufficient quota for act_${account.accountId}: available $${availableQuota}, need $${amount}`)
                   }
-                } else {
-                  console.log(`[Auto-Approve] Credit Line insufficient quota for act_${account.accountId}: available $${availableQuota}, need $${amount}`)
                 }
               }
             }
@@ -1458,6 +1581,11 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       return c.json({ error: 'Deposit already processed' }, 400)
     }
 
+    // Block if extension is currently processing this recharge
+    if (deposit.rechargeStatus === 'IN_PROGRESS') {
+      return c.json({ error: 'Recharge currently in progress by extension — please wait' }, 409)
+    }
+
     // Cheetah API auto-recharge variables
     let cheetahRechargeResult: any = null
     let cheetahError: string | null = null
@@ -1473,22 +1601,52 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
 
           if (accountResult.code === 0 && accountResult.data && accountResult.data.length > 0) {
             isCheetahAccount = true
+
+            // Skip Cheetah API if already recharged (prevents double-spend on retry)
+            if (deposit.rechargeStatus === 'COMPLETED') {
+              console.log(`[Admin Approve] Cheetah already recharged for deposit ${id} — skipping API call`)
+              cheetahRechargeResult = { code: 0 }
+            } else {
             const cheetahAccount = accountResult.data[0]
             const currentSpendCap = parseFloat(cheetahAccount.spend_cap) || 0
             const depositAmount = Number(deposit.amount)
-            const newSpendCap = currentSpendCap + depositAmount
 
+            // SNAPSHOT-FIRST: use stored target or compute it
+            let targetSpendCap = deposit.targetSpendCap
+            if (!targetSpendCap) {
+              targetSpendCap = currentSpendCap + depositAmount
+              await prisma.accountDeposit.update({
+                where: { id },
+                data: { previousSpendCap: currentSpendCap, targetSpendCap },
+              })
+              console.log(`[Admin Approve] Snapshot cap for deposit ${id}: current=$${currentSpendCap}, target=$${targetSpendCap}`)
+            }
+
+            // GUARD: if already at target, skip API call
+            if (currentSpendCap >= targetSpendCap - 0.01) {
+              console.log(`[Admin Approve] Already at target for deposit ${id}: cap=$${currentSpendCap} >= target=$${targetSpendCap}`)
+              cheetahRechargeResult = { code: 0 }
+              await prisma.accountDeposit.update({
+                where: { id },
+                data: { rechargeStatus: 'COMPLETED', rechargeMethod: 'CHEETAH', rechargedAt: new Date(), newSpendCap: targetSpendCap }
+              })
+            } else {
             // Check available quota before recharging
             const quotaResult = await cheetahApi.getQuota()
             if (quotaResult.code === 0) {
               const availableQuota = parseFloat(quotaResult.data.available_quota) || 0
 
               if (availableQuota >= depositAmount) {
-                // Sufficient balance - proceed with recharge
+                // Use absolute targetSpendCap (NOT currentCap + depositAmount)
                 cheetahRechargeResult = await cheetahApi.rechargeAccount(
                   deposit.adAccount.accountId,
-                  newSpendCap
+                  targetSpendCap
                 )
+
+                // Audit log
+                await prisma.rechargeAuditLog.create({
+                  data: { depositId: id, adAccountId: deposit.adAccount.accountId, action: 'FB_POST', actor: 'admin-approve', previousCap: currentSpendCap, targetCap: targetSpendCap, amount: depositAmount }
+                }).catch(() => {})
 
                 if (cheetahRechargeResult.code !== 0) {
                   // Cheetah recharge failed - DO NOT approve, keep pending
@@ -1498,6 +1656,12 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
                     isCheetahAccount: true
                   }, 400)
                 }
+
+                // Immediately mark Cheetah success BEFORE the main transaction
+                await prisma.accountDeposit.update({
+                  where: { id },
+                  data: { rechargeStatus: 'COMPLETED', rechargeMethod: 'CHEETAH', rechargedAt: new Date(), newSpendCap: targetSpendCap }
+                })
               } else {
                 // Insufficient Cheetah balance - DO NOT approve, keep pending
                 return c.json({
@@ -1514,6 +1678,8 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
                 isCheetahAccount: true
               }, 400)
             }
+            } // end else (not already at target)
+            } // end else (not already COMPLETED)
           } else {
             // Account not found in Cheetah - not a Cheetah account, allow manual approve
             isCheetahAccount = false
@@ -1586,19 +1752,15 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       })
     }
 
-    // Card wallet tracking only for Cheetah-approved non-Cheetah FB
+    // Card payment tracking: set PENDING for non-Cheetah FB accounts when deposit is approved directly
     if (deposit.adAccount.platform === 'FACEBOOK' && !isCheetahAccount && depositStatus === 'APPROVED') {
       try {
-        const existing = await prisma.setting.findUnique({ where: { key: 'card_wallet_pending_amount' } })
-        const currentPending = existing ? parseFloat(existing.value) : 0
-        const newPending = currentPending + Number(deposit.amount)
-        await prisma.setting.upsert({
-          where: { key: 'card_wallet_pending_amount' },
-          update: { value: newPending.toString() },
-          create: { key: 'card_wallet_pending_amount', value: newPending.toString(), description: 'Pending card account wallet top-up amount' }
+        await prisma.accountDeposit.update({
+          where: { id },
+          data: { cardPaymentStatus: 'PENDING' }
         })
       } catch (err: any) {
-        console.error('[Card Wallet] Failed to update pending amount:', err.message)
+        console.error('[Card Payment] Failed to set card payment pending:', err.message)
       }
     }
 
@@ -1664,8 +1826,15 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
 accounts.post('/deposits/:id/retry-recharge', requireAdmin, async (c) => {
   try {
     const { id } = c.req.param()
-    const existing = await prisma.accountDeposit.findUnique({ where: { id }, select: { rechargeError: true, applyId: true } })
-    if (existing?.rechargeError) {
+    const existing = await prisma.accountDeposit.findUnique({ where: { id }, select: { rechargeError: true, rechargeStatus: true, status: true, applyId: true } })
+    if (!existing) return c.json({ error: 'Deposit not found' }, 404)
+    if (existing.status === 'APPROVED') {
+      return c.json({ error: 'Deposit already approved — cannot retry recharge' }, 400)
+    }
+    if (existing.rechargeStatus === 'COMPLETED' || existing.rechargeStatus === 'VERIFYING') {
+      return c.json({ error: `Recharge already ${existing.rechargeStatus.toLowerCase()} — cannot retry` }, 400)
+    }
+    if (existing.rechargeError) {
       console.log(`[Recharge Retry] Deposit ${id} (${existing.applyId || 'N/A'}) — previous error: ${existing.rechargeError}`)
     }
     await prisma.accountDeposit.update({
@@ -1712,13 +1881,17 @@ accounts.post('/deposits/:id/force-approve', requireAdmin, async (c) => {
     const { id } = c.req.param()
     const existing = await prisma.accountDeposit.findUnique({
       where: { id },
-      select: { amount: true, adAccountId: true, status: true, rechargeError: true, applyId: true }
+      select: { amount: true, adAccountId: true, status: true, rechargeError: true, applyId: true,
+        adAccount: { select: { sourceBmId: true, platform: true } }
+      }
     })
     if (!existing) return c.json({ error: 'Deposit not found' }, 404)
 
     if (existing.rechargeError) {
       console.log(`[Force Approve] Deposit ${id} (${existing.applyId || 'N/A'}) — previous error: ${existing.rechargeError}`)
     }
+
+    const isNonCheetahFb = existing.adAccount?.platform === 'FACEBOOK' && existing.adAccount?.sourceBmId !== 'cheetah'
 
     await prisma.$transaction(async (tx) => {
       await tx.accountDeposit.update({
@@ -1730,6 +1903,7 @@ accounts.post('/deposits/:id/force-approve', requireAdmin, async (c) => {
           rechargedAt: new Date(),
           rechargedBy: 'admin-force',
           rechargeError: null,
+          cardPaymentStatus: isNonCheetahFb ? 'PENDING' : 'NONE',
         }
       })
       // Only increment balance if not already APPROVED (prevent double-increment)
@@ -1783,7 +1957,9 @@ accounts.post('/deposits/:id/reject', requireAdmin, async (c) => {
       data: {
         status: 'REJECTED',
         adminRemarks,
-        rechargeStatus: 'NONE',
+        approvedAt: null,
+        rechargeStatus: 'FAILED',
+        rechargeError: 'Deposit rejected by admin',
       }
     })
 
@@ -1839,7 +2015,7 @@ accounts.post('/deposits/:id/reject-refund', requireAdmin, async (c) => {
     })
 
     if (!deposit) return c.json({ error: 'Deposit not found' }, 404)
-    if (deposit.status === 'APPROVED') return c.json({ error: 'Cannot reject an approved deposit' }, 400)
+    if (deposit.status !== 'PENDING') return c.json({ error: `Deposit already ${deposit.status.toLowerCase()} — cannot reject-refund` }, 400)
 
     const depositAmount = Number(deposit.amount) || 0
     const commissionAmount = Number(deposit.commissionAmount) || 0
@@ -1852,7 +2028,9 @@ accounts.post('/deposits/:id/reject-refund', requireAdmin, async (c) => {
         data: {
           status: 'REJECTED',
           adminRemarks: adminRemarks ? `[Refunded] ${adminRemarks}` : '[Refunded]',
-          rechargeStatus: 'NONE',
+          approvedAt: null,
+          rechargeStatus: 'FAILED',
+          rechargeError: 'Deposit rejected by admin (refunded)',
         }
       })
 
@@ -1920,7 +2098,7 @@ accounts.patch('/:id', requireAdmin, async (c) => {
     const body = await c.req.json()
 
     // Whitelist allowed fields to prevent arbitrary field injection
-    const allowedFields = ['accountId', 'accountName', 'platform', 'status', 'bmId', 'sourceBmId', 'timezone', 'currency', 'dailyLimit', 'notes', 'threshold', 'rechargeAmount', 'autoRecharge', 'extensionProfileId', 'cheetahAccountId', 'topupMode', 'fundingSources']
+    const allowedFields = ['accountId', 'accountName', 'platform', 'status', 'bmId', 'sourceBmId', 'timezone', 'currency', 'dailyLimit', 'notes', 'adminRemarks', 'threshold', 'rechargeAmount', 'autoRecharge', 'extensionProfileId', 'cheetahAccountId', 'topupMode', 'fundingSources']
     const data: Record<string, any> = {}
     for (const key of allowedFields) {
       if (key in body) {
@@ -2058,6 +2236,11 @@ accounts.post('/:id/refund', requireUser, async (c) => {
 
     if (account.status !== 'APPROVED') {
       return c.json({ message: `Account is not approved. Current status: ${account.status}` }, 400)
+    }
+
+    // Validate refund amount does not exceed account balance
+    if (amount > Number(account.balance)) {
+      return c.json({ message: `Refund amount ($${amount}) exceeds account balance ($${Number(account.balance).toFixed(2)})` }, 400)
     }
 
     // Create account refund request

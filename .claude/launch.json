@@ -1,0 +1,56 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5001,
+      "cwd": "apps/api"
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3001,
+      "autoPort": false,
+      "cwd": "apps/admin"
+    },
+    {
+      "name": "agency",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3002,
+      "cwd": "apps/agency"
+    },
+    {
+      "name": "user",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3003,
+      "cwd": "apps/user"
+    },
+    {
+      "name": "ads-check",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3004,
+      "cwd": "apps/ads-check"
+    },
+    {
+      "name": "landing",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3005,
+      "autoPort": false,
+      "cwd": "apps/landing"
+    },
+    {
+      "name": "sixmedia-hk",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8888"],
+      "port": 8888,
+      "cwd": "sixmedia-hk"
+    }
+  ]
+}

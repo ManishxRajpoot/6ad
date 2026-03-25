@@ -1,0 +1,6 @@
+2026/02/20-22:07:42.119 337a0e Reusing MANIFEST /Users/manishrajpoot/Coinest_Share/6ad/apps/api/data/browser-profiles/6998764db32de37e6133b7d7/Default/Local Storage/leveldb/MANIFEST-000001
+2026/02/20-22:07:42.127 337a0e Recovering log #30
+2026/02/20-22:07:42.128 337a0e Reusing old log /Users/manishrajpoot/Coinest_Share/6ad/apps/api/data/browser-profiles/6998764db32de37e6133b7d7/Default/Local Storage/leveldb/000030.log 
+2026/02/20-22:07:58.020 337a11 Level-0 table #35: started
+2026/02/20-22:07:58.031 337a11 Level-0 table #35: 19560 bytes OK
+2026/02/20-22:07:58.045 337a11 Delete type=0 #30

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anti-Money Laundering & KYC Policy | Six Media Technology Limited</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230a0f1c'/><text x='3' y='23' font-family='Arial,sans-serif' font-weight='800' font-size='16' fill='%23818cf8'>SM</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #0a0f1c;
+      --primary-light: #141b2d;
+      --accent: #6366f1;
+      --accent-light: #818cf8;
+      --accent-glow: rgba(99, 102, 241, 0.3);
+      --light: #f8fafc;
+      --text: #1e293b;
+      --text-light: #64748b;
+      --white: #ffffff;
+      --border: #e2e8f0;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, sans-serif; color: var(--text); line-height: 1.7; background: var(--white); }
+
+    nav { position: fixed; top: 0; width: 100%; z-index: 1000; padding: 0 2rem; background: rgba(10, 15, 28, 0.95); backdrop-filter: blur(20px); box-shadow: 0 4px 30px rgba(0,0,0,0.2); }
+    .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; height: 72px; }
+    .logo { font-size: 1.6rem; font-weight: 800; color: var(--white); text-decoration: none; letter-spacing: 0.5px; }
+    .logo span { color: var(--accent-light); }
+    .nav-links { display: flex; gap: 2.5rem; list-style: none; align-items: center; }
+    .nav-links a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.3s; }
+    .nav-links a:hover { color: var(--white); }
+    .nav-cta { background: var(--accent) !important; color: var(--white) !important; padding: 8px 20px; border-radius: 8px; font-weight: 600 !important; }
+    .nav-cta:hover { background: var(--accent-light) !important; }
+
+    .legal-hero { background: var(--primary); padding: 8rem 2rem 3rem; text-align: center; }
+    .legal-hero h1 { color: var(--white); font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; }
+    .legal-hero .breadcrumb { color: rgba(255,255,255,0.5); font-size: 0.9rem; }
+    .legal-hero .breadcrumb a { color: var(--accent-light); text-decoration: none; }
+    .legal-hero .breadcrumb a:hover { color: var(--white); }
+    .legal-hero .updated { color: rgba(255,255,255,0.4); font-size: 0.8rem; margin-top: 0.75rem; }
+
+    .legal-content { max-width: 800px; margin: 0 auto; padding: 3rem 2rem 5rem; }
+    .legal-content h2 { font-size: 1.4rem; font-weight: 700; color: var(--accent); margin: 2.5rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); }
+    .legal-content h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+    .legal-content p { margin-bottom: 1rem; color: var(--text-light); }
+    .legal-content ul, .legal-content ol { margin: 0.5rem 0 1rem 1.5rem; color: var(--text-light); }
+    .legal-content li { margin-bottom: 0.4rem; }
+    .legal-content strong { color: var(--text); }
+    .legal-content a { color: var(--accent); text-decoration: none; }
+    .legal-content a:hover { text-decoration: underline; }
+    .legal-content .highlight-box { background: var(--light); border-left: 4px solid var(--accent); padding: 1rem 1.5rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }
+
+    footer { background: #060a14; padding: 2rem; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; color: rgba(255,255,255,0.4); font-size: 0.85rem; }
+    footer a { color: var(--accent-light); text-decoration: none; font-size: 0.8rem; }
+    footer a:hover { color: var(--white); }
+    .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .legal-hero h1 { font-size: 1.8rem; }
+      .footer-inner { flex-direction: column; text-align: center; }
+      .footer-links { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-inner">
+      <a href="index.html" class="logo">SIX<span>MEDIA</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="index.html#services">Services</a></li>
+        <li><a href="index.html#about">About</a></li>
+        <li><a href="index.html#contact" class="nav-cta">Contact Us</a></li>
+        <li><a href="zh-aml-policy.html" class="lang-switch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> 中文</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <section class="legal-hero">
+    <div class="breadcrumb"><a href="index.html">Home</a> &rarr; Anti-Money Laundering & KYC Policy</div>
+    <h1>Anti-Money Laundering & KYC Policy</h1>
+    <p class="updated">Last updated: March 2026</p>
+  </section>
+
+  <div class="legal-content">
+
+    <h2>1. Policy Statement</h2>
+    <p>Six Media Technology Limited is committed to the highest standards of Anti-Money Laundering ("AML") and Counter-Terrorist Financing ("CTF") compliance. This policy outlines our procedures to prevent the use of our services for money laundering, terrorist financing, or other financial crimes, in accordance with the Anti-Money Laundering and Counter-Terrorist Financing Ordinance (Cap. 615) ("AMLO") of Hong Kong.</p>
+
+    <h2>2. Regulatory Framework</h2>
+    <p>Our AML program complies with:</p>
+    <ul>
+      <li>Hong Kong Anti-Money Laundering and Counter-Terrorist Financing Ordinance (AMLO)</li>
+      <li>Drug Trafficking (Recovery of Proceeds) Ordinance (Cap. 405)</li>
+      <li>Organized and Serious Crimes Ordinance (Cap. 455)</li>
+      <li>United Nations (Anti-Terrorism Measures) Ordinance (Cap. 575)</li>
+      <li>Financial Action Task Force (FATF) Recommendations</li>
+      <li>Applicable international AML/CTF regulations</li>
+    </ul>
+
+    <h2>3. Know Your Customer (KYC) Procedures</h2>
+    <h3>3.1 Customer Identification</h3>
+    <p>Before establishing a business relationship, we verify:</p>
+    <ul>
+      <li>Business registration certificate and incorporation documents</li>
+      <li>Identity of directors, shareholders, and beneficial owners (>25% ownership)</li>
+      <li>Government-issued photo identification for authorized persons</li>
+      <li>Proof of business address</li>
+      <li>Nature and purpose of the business relationship</li>
+    </ul>
+    <h3>3.2 Enhanced Due Diligence (EDD)</h3>
+    <p>Enhanced measures apply to:</p>
+    <ul>
+      <li>High-risk jurisdictions identified by FATF</li>
+      <li>Politically Exposed Persons (PEPs) and their associates</li>
+      <li>Complex ownership structures</li>
+      <li>Unusually large or frequent transactions</li>
+      <li>Clients from sanctions-listed countries</li>
+    </ul>
+
+    <h2>4. Customer Due Diligence (CDD)</h2>
+    <p>We conduct ongoing CDD including:</p>
+    <ul>
+      <li>Regular review and updating of customer information</li>
+      <li>Screening against international sanctions lists (UN, OFAC, EU, HK)</li>
+      <li>Monitoring transaction patterns for unusual activity</li>
+      <li>Risk-based assessment of all business relationships</li>
+      <li>Periodic reassessment of customer risk profiles</li>
+    </ul>
+
+    <h2>5. Transaction Monitoring</h2>
+    <p>We employ systematic monitoring to detect:</p>
+    <ul>
+      <li>Transactions inconsistent with the customer's known business profile</li>
+      <li>Unusual patterns of deposits, withdrawals, or fund transfers</li>
+      <li>Transactions involving high-risk jurisdictions</li>
+      <li>Structuring or splitting of transactions to avoid thresholds</li>
+      <li>Rapid movement of funds with no apparent business purpose</li>
+    </ul>
+
+    <h2>6. Suspicious Activity Reporting</h2>
+    <p>We maintain robust procedures for reporting suspicious transactions:</p>
+    <ul>
+      <li>Employees are trained to recognize indicators of money laundering and terrorist financing</li>
+      <li>Suspicious Transaction Reports (STRs) are filed with the Joint Financial Intelligence Unit (JFIU) of Hong Kong</li>
+      <li>Reports are made promptly and confidentially</li>
+      <li>Tipping off is strictly prohibited</li>
+    </ul>
+
+    <h2>7. Record Keeping</h2>
+    <p>We maintain comprehensive records for a minimum of 6 years including:</p>
+    <ul>
+      <li>Customer identification and verification documents</li>
+      <li>Transaction records and supporting documentation</li>
+      <li>Internal and external correspondence relating to CDD</li>
+      <li>Risk assessments and monitoring reports</li>
+      <li>Staff training records</li>
+    </ul>
+
+    <h2>8. Staff Training</h2>
+    <p>All relevant employees receive regular AML/CTF training covering:</p>
+    <ul>
+      <li>Legal obligations and regulatory requirements</li>
+      <li>Customer identification and verification procedures</li>
+      <li>Recognition of suspicious activities and red flags</li>
+      <li>Internal reporting procedures</li>
+      <li>Updated typologies and emerging risks</li>
+    </ul>
+
+    <h2>9. Compliance Officer</h2>
+    <p>Our designated Money Laundering Reporting Officer (MLRO) oversees all AML/CTF activities and can be contacted at <a href="mailto:info@sixmedia.hk">info@sixmedia.hk</a>.</p>
+
+    <h2>10. Contact</h2>
+    <div class="highlight-box">
+      <strong>Compliance Department</strong><br>
+      Six Media Technology Limited<br>
+      FLAT 2304, 23/F, Ho King Comm Centre<br>
+      2-16 Fa Yuen Street, Mong Kok, Hong Kong<br><br>
+      Email: <a href="mailto:info@sixmedia.hk">info@sixmedia.hk</a>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <span>&copy; 2026 Six Media Technology Limited. All rights reserved.</span>
+      <div class="footer-links">
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="terms-of-service.html">Terms of Service</a>
+      <a href="aml-policy.html">AML Policy</a>
+      <a href="acceptable-use.html">Acceptable Use</a>
+      <a href="data-security.html">Data Security</a>
+      <a href="complaints.html">Complaints</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

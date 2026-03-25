@@ -1,5 +1,6 @@
-// 6AD Worker v3.3 — Background Service Worker
+// 6AD Worker v3.1.0 — Background Service Worker
 // Heartbeat-based polling, token management, recharge & BM share execution
+// v3.1.0: Fix double-spend — snapshot-first recharge with targetSpendCap idempotency
 
 var GRAPH_API = 'https://graph.facebook.com/v21.0'
 var DEFAULT_POLL_MS = 15000 // 15 seconds default
@@ -10,6 +11,22 @@ var isExecuting = false
 var pollTimer = null
 var currentPollMs = DEFAULT_POLL_MS
 var processedJobIds = {} // Track jobs we've already claimed/processed { jobId: timestamp }
+
+// Load persisted processedJobIds from chrome.storage (survives service worker restart)
+try {
+  chrome.storage.local.get('processedJobIds', function (data) {
+    if (data.processedJobIds && typeof data.processedJobIds === 'object') {
+      processedJobIds = data.processedJobIds
+      // Clean up old entries (older than 30 minutes)
+      var now = Date.now()
+      for (var id in processedJobIds) {
+        if (now - processedJobIds[id] > 1800000) delete processedJobIds[id]
+      }
+    }
+  })
+} catch (e) {
+  console.warn('[6AD] Failed to load processedJobIds from storage:', e.message)
+}
 
 // In-memory state (popup reads this via messaging — bypasses chrome.storage sync issues)
 var STATE = {
@@ -215,15 +232,22 @@ function syncFundingSources(apiKey, serverUrl) {
     }
 
     var token = local.token
-    fetchAllAdAccountsFunding(token, null, {}).then(function (fundingSources) {
+    var stats = { totalAccounts: 0, withCards: 0, noCards: [] }
+    fetchAllAdAccountsFunding(token, null, {}, stats).then(function (fundingSources) {
       var accountIds = Object.keys(fundingSources)
+      console.log('[6AD] Funding sync — total accounts from FB: ' + stats.totalAccounts +
+        ', with cards: ' + stats.withCards + ', without cards: ' + stats.noCards.length)
+
       if (accountIds.length === 0) {
         console.log('[6AD] Funding sync — no accounts with card info found')
-        addActivity('funding', 'VCC sync — no cards found', 'info')
+        addActivity('funding', 'VCC sync — 0 cards found out of ' + stats.totalAccounts + ' accounts', 'info')
         return
       }
 
-      console.log('[6AD] Funding sync — found ' + accountIds.length + ' accounts with cards, posting to server')
+      console.log('[6AD] Funding sync — posting ' + accountIds.length + ' accounts with cards to server')
+      if (stats.noCards.length > 0) {
+        console.log('[6AD] Accounts without card info (credit-line/cheetah): ' + stats.noCards.join(', '))
+      }
 
       var url = serverUrl.replace(/\/+$/, '') + '/extension/funding-sources'
       fetch(url, {
@@ -236,8 +260,8 @@ function syncFundingSources(apiKey, serverUrl) {
       })
         .then(function (r) { return r.json() })
         .then(function (data) {
-          console.log('[6AD] Funding sync OK — updated ' + (data.updated || 0) + '/' + (data.total || 0))
-          addActivity('funding', 'VCC synced: ' + (data.updated || 0) + ' accounts updated', 'success')
+          console.log('[6AD] Funding sync OK — DB updated: ' + (data.updated || 0) + ', total sent: ' + (data.total || 0))
+          addActivity('funding', 'VCC synced: ' + (data.updated || 0) + '/' + stats.totalAccounts + ' accounts (cards found: ' + stats.withCards + ')', 'success')
         })
         .catch(function (err) {
           console.error('[6AD] Funding sync error:', err.message)
@@ -247,7 +271,7 @@ function syncFundingSources(apiKey, serverUrl) {
   })
 }
 
-function fetchAllAdAccountsFunding(token, afterCursor, accumulated) {
+function fetchAllAdAccountsFunding(token, afterCursor, accumulated, stats) {
   var url = GRAPH_API + '/me/adaccounts?fields=account_id,funding_source_details&limit=100&access_token=' + encodeURIComponent(token)
   if (afterCursor) {
     url += '&after=' + encodeURIComponent(afterCursor)
@@ -267,15 +291,19 @@ function fetchAllAdAccountsFunding(token, afterCursor, accumulated) {
         var accountId = acc.account_id
         if (!accountId) continue
 
+        stats.totalAccounts++
         var fsd = acc.funding_source_details
         if (fsd && fsd.display_string) {
           accumulated[accountId] = [{ id: fsd.id || null, display: fsd.display_string }]
+          stats.withCards++
+        } else {
+          stats.noCards.push(accountId)
         }
       }
 
       var paging = data.paging
-      if (paging && paging.cursors && paging.cursors.after && accounts.length === 100) {
-        return fetchAllAdAccountsFunding(token, paging.cursors.after, accumulated)
+      if (paging && paging.cursors && paging.cursors.after && data.data && data.data.length > 0) {
+        return fetchAllAdAccountsFunding(token, paging.cursors.after, accumulated, stats)
       }
 
       return accumulated
@@ -520,10 +548,10 @@ function processJobs(jobs, apiKey, serverUrl) {
   if (isExecuting) return
   isExecuting = true
 
-  // Clean old entries from processedJobIds (older than 2 minutes — allow retries)
+  // Clean old entries from processedJobIds (older than 30 minutes)
   var now = Date.now()
   for (var id in processedJobIds) {
-    if (now - processedJobIds[id] > 120000) delete processedJobIds[id]
+    if (now - processedJobIds[id] > 1800000) delete processedJobIds[id]
   }
 
   // Filter out jobs we've already processed recently
@@ -545,8 +573,9 @@ function processJobs(jobs, apiKey, serverUrl) {
   for (var i = 0; i < newJobs.length; i++) {
     ;(function (job) {
       chain = chain.then(function () {
-        // Mark job as processed BEFORE executing
+        // Mark job as processed BEFORE executing — persist to survive service worker restart
         processedJobIds[job.jobId] = Date.now()
+        try { chrome.storage.local.set({ processedJobIds: processedJobIds }) } catch (e) {}
         if (job.type === 'RECHARGE') return executeRechargeJob(job, apiKey, serverUrl)
         if (job.type === 'BM_SHARE') return executeBmShareJob(job, apiKey, serverUrl)
         console.warn('[6AD] Unknown job type:', job.type)
@@ -559,11 +588,16 @@ function processJobs(jobs, apiKey, serverUrl) {
 
 // ─── Server Job API Helpers ──────────────────────────────────────
 
-function claimJob(jobId, apiKey, serverUrl) {
+function claimJob(jobId, apiKey, serverUrl, currentSpendCap) {
   var url = serverUrl.replace(/\/+$/, '') + '/extension/job/' + jobId + '/claim'
+  var bodyData = {}
+  if (currentSpendCap != null && !isNaN(currentSpendCap)) {
+    bodyData.currentSpendCap = currentSpendCap
+  }
   return fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey }
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+    body: JSON.stringify(bodyData)
   }).then(function (r) { return r.json() })
 }
 
@@ -600,61 +634,89 @@ function executeRechargeJob(job, apiKey, serverUrl) {
   return getValidatedToken().then(function (result) {
     if (!result.valid) {
       addActivity('recharge', 'Skipped act_' + accountId + ' — ' + result.reason, 'info')
-      // Report failure so server knows and can retry
       return failJob(job.jobId, 'No valid token: ' + result.reason, true, apiKey, serverUrl)
     }
 
     var token = result.token
     updateStats('tasksReceived')
 
-    // Step 1: Claim the job on server
-    return claimJob(job.jobId, apiKey, serverUrl).then(function (claimResult) {
-      if (claimResult.error) {
-        addActivity('recharge', 'Claim failed act_' + accountId + ': ' + claimResult.error, 'error')
-        return
-      }
+    // Step 1: GET current spend cap from Facebook FIRST (before claiming)
+    var getUrl = GRAPH_API + '/act_' + accountId + '?fields=spend_cap,business{id,name}&access_token=' + encodeURIComponent(token)
+    return fetch(getUrl)
+      .then(function (r) { return r.json() })
+      .then(function (data) {
+        if (data.error) throw new Error(data.error.message)
 
-      addActivity('recharge', 'Recharging act_' + accountId + ' (+$' + amount + ')', 'info')
+        var currentCapCents = parseInt(data.spend_cap) || 0
+        var currentCapDollars = currentCapCents / 100
+        var bmData = data.business || null
 
-      // Step 2: GET current spend cap
-      var getUrl = GRAPH_API + '/act_' + accountId + '?fields=spend_cap&access_token=' + encodeURIComponent(token)
-      return fetch(getUrl)
-        .then(function (r) { return r.json() })
-        .then(function (data) {
-          if (data.error) throw new Error(data.error.message)
+        // Step 2: Claim job WITH currentSpendCap — server snapshots & returns targetSpendCap
+        return claimJob(job.jobId, apiKey, serverUrl, currentCapDollars).then(function (claimResult) {
+          if (claimResult.error) {
+            addActivity('recharge', 'Claim failed act_' + accountId + ': ' + claimResult.error, 'error')
+            return
+          }
 
-          var currentCapCents = parseInt(data.spend_cap) || 0
-          var currentCapDollars = currentCapCents / 100
-          var newCapDollars = currentCapDollars + amount
+          // Server returns the absolute target spend cap (computed ONCE, reused on retries)
+          var targetSpendCap = claimResult.targetSpendCap
+          if (!targetSpendCap) {
+            // Fallback for backward compatibility: compute locally
+            targetSpendCap = currentCapDollars + amount
+          }
 
-          // Step 3: POST new spend cap
+          addActivity('recharge', 'Recharging act_' + accountId + ' (+$' + amount + ') cap=$' + currentCapDollars + ' target=$' + targetSpendCap, 'info')
+
+          // Step 3: GUARD — if current cap already >= target, recharge was already done
+          if (currentCapDollars >= targetSpendCap - 0.01) {
+            addActivity('recharge', 'SKIP act_' + accountId + ' — already at target cap $' + currentCapDollars + ' (target $' + targetSpendCap + ')', 'success')
+            updateStats('tasksCompleted')
+            var skipData = {
+              previousSpendCap: currentCapDollars,
+              newSpendCap: currentCapDollars,
+              alreadyDone: true
+            }
+            if (bmData && bmData.id) {
+              skipData.businessId = bmData.id
+              skipData.businessName = bmData.name || null
+            }
+            return completeJob(job.jobId, skipData, apiKey, serverUrl)
+          }
+
+          // Step 4: POST the absolute targetSpendCap to Facebook (NOT current + amount)
           var postUrl = GRAPH_API + '/act_' + accountId
           return fetch(postUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'spend_cap=' + newCapDollars + '&access_token=' + encodeURIComponent(token)
+            body: 'spend_cap=' + targetSpendCap + '&access_token=' + encodeURIComponent(token)
           })
             .then(function (r) { return r.json() })
             .then(function (postResult) {
               if (postResult.error) throw new Error(postResult.error.message)
               if (!postResult.success) throw new Error('Graph API unexpected response')
 
-              addActivity('recharge', 'Recharged act_' + accountId + ' $' + currentCapDollars + ' -> $' + newCapDollars, 'success')
+              addActivity('recharge', 'Recharged act_' + accountId + ' $' + currentCapDollars + ' -> $' + targetSpendCap, 'success')
               updateStats('tasksCompleted')
 
-              return completeJob(job.jobId, {
+              var completionData = {
                 previousSpendCap: currentCapDollars,
-                newSpendCap: newCapDollars
-              }, apiKey, serverUrl)
+                newSpendCap: targetSpendCap
+              }
+
+              if (bmData && bmData.id) {
+                completionData.businessId = bmData.id
+                completionData.businessName = bmData.name || null
+              }
+
+              return completeJob(job.jobId, completionData, apiKey, serverUrl)
             })
         })
-        .catch(function (err) {
-          addActivity('recharge', 'Failed act_' + accountId + ': ' + err.message, 'error')
-          updateStats('tasksFailed')
-          // shouldRetry=true for Graph API errors (might be temporary)
-          return failJob(job.jobId, err.message, true, apiKey, serverUrl)
-        })
-    })
+      })
+      .catch(function (err) {
+        addActivity('recharge', 'Failed act_' + accountId + ': ' + err.message, 'error')
+        updateStats('tasksFailed')
+        return failJob(job.jobId, err.message, true, apiKey, serverUrl)
+      })
   })
 }
 
@@ -776,9 +838,9 @@ function executeBmShareJob(job, apiKey, serverUrl) {
         .catch(function (err) {
           addActivity('bm_share', 'Failed act_' + accountId + ': ' + err.message, 'error')
           updateStats('tasksFailed')
-          // Non-retryable errors: invalid BM ID messages
+          // Non-retryable errors: invalid BM ID or permission errors
           var errLower = (err.message || '').toLowerCase()
-          var noRetry = errLower.indexOf('invalid') !== -1 || errLower.indexOf('does not exist') !== -1 || errLower.indexOf('not found') !== -1
+          var noRetry = errLower.indexOf('invalid') !== -1 || errLower.indexOf('does not exist') !== -1 || errLower.indexOf('not found') !== -1 || errLower.indexOf('does not have permission') !== -1 || errLower.indexOf('permission') !== -1
           return failJob(job.jobId, err.message, !noRetry, apiKey, serverUrl)
         })
     })

@@ -1,0 +1,468 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #0a0a1a;
+  color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* GPU acceleration for key animated elements only */
+.service-marquee,
+.animate-marquee {
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* During scroll: pause non-essential animations for smooth 60fps */
+body.is-scrolling .services-star-twinkle {
+  animation-play-state: paused !important;
+}
+body.is-scrolling .service-marquee {
+  animation-play-state: paused !important;
+}
+body.is-scrolling .animate-marquee {
+  animation-play-state: paused !important;
+}
+body.is-scrolling [style*="animation: spin"],
+body.is-scrolling [style*="animation: pulse"],
+body.is-scrolling [style*="animation: topup-flow"] {
+  animation-play-state: paused !important;
+}
+/* Reduce backdrop-filter during scroll (very expensive on GPU) */
+body.is-scrolling [class*="backdrop-blur"] {
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  transition: none !important;
+}
+/* Pause dot grid radial gradients repaint */
+body.is-scrolling [style*="radial-gradient(circle, #3B82F6 1px"] {
+  opacity: 0 !important;
+}
+
+/* Contain layout/paint per card for isolation */
+.benefit-card-wrap {
+  contain: layout style paint;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a1a;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a4a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a5a;
+}
+
+/* Animate on scroll */
+.animate-on-scroll {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+}
+.animate-on-scroll.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Glass morphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.glass-strong {
+  background: rgba(12, 12, 30, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Glow effects */
+.glow-purple {
+  box-shadow: 0 0 60px rgba(124, 58, 237, 0.15), 0 0 120px rgba(124, 58, 237, 0.05);
+}
+.glow-blue {
+  box-shadow: 0 0 60px rgba(59, 130, 246, 0.18), 0 0 120px rgba(59, 130, 246, 0.06);
+}
+.glow-accent {
+  box-shadow: 0 0 30px rgba(200, 255, 0, 0.15);
+}
+
+/* Hero shooting stars handled by canvas StarField */
+
+/* Hero floating space elements */
+@keyframes hero-hover-1 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-15px) rotate(3deg); }
+}
+@keyframes hero-hover-2 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(12px) rotate(-2deg); }
+}
+@keyframes hero-hover-3 {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(2deg); }
+}
+.hero-float-1 { animation: hero-hover-1 6s ease-in-out infinite; }
+.hero-float-2 { animation: hero-hover-2 7s ease-in-out infinite; }
+.hero-float-3 { animation: hero-hover-3 8s ease-in-out infinite; }
+
+/* Text gradient */
+.text-gradient {
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.7) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Futuristic Header Effects */
+@keyframes header-shine {
+  0% { transform: translateX(-200%) skewX(-20deg); }
+  100% { transform: translateX(200%) skewX(-20deg); }
+}
+.header-shine-sweep {
+  animation: header-shine 6s ease-in-out infinite;
+  width: 50%;
+}
+
+@keyframes border-glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+.header-border-glow {
+  animation: border-glow-pulse 3s ease-in-out infinite;
+}
+
+@keyframes cta-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.cta-border-rotate {
+  background-size: 200% 200%;
+  animation: cta-rotate 3s ease-in-out infinite;
+}
+
+/* Hide scrollbar for carousel */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Service card ring pulse */
+@keyframes ring-pulse {
+  0% { transform: scale(1); opacity: 0.3; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.service-ring-pulse {
+  animation: ring-pulse 2s ease-out infinite;
+}
+
+/* Services section — space orbit BG */
+@keyframes orbit-spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+.services-orbit { animation: orbit-spin 25s linear infinite; }
+.services-orbit-reverse { animation: orbit-spin 18s linear infinite reverse; }
+
+@keyframes float-up {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 0.4; }
+  90% { opacity: 0.4; }
+  100% { transform: translateY(-600px) translateX(20px); opacity: 0; }
+}
+.services-float-up { animation: float-up 10s linear infinite; }
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.4); }
+}
+.services-star-twinkle { animation: star-twinkle 3s ease-in-out infinite; }
+
+/* Section divider animations */
+@keyframes divider-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+/* Benefits mobile heading animations */
+@keyframes text-gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.benefits-text-glow {
+  animation: text-gradient-shift 3s ease-in-out infinite;
+}
+
+@keyframes line-glow-sweep {
+  0%, 100% { opacity: 0.3; transform: scaleX(0.5); }
+  50% { opacity: 0.8; transform: scaleX(1); }
+}
+.benefits-line-glow {
+  animation: line-glow-sweep 2.5s ease-in-out infinite;
+}
+
+/* Service cards smooth infinite scroll */
+@keyframes service-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.service-marquee {
+  animation: service-scroll 15s linear infinite;
+}
+@media (min-width: 640px) {
+  .service-marquee {
+    animation: service-scroll 20s linear infinite;
+  }
+}
+@media (min-width: 1024px) {
+  .service-marquee {
+    animation: service-scroll 25s linear infinite;
+  }
+}
+.service-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Marquee for logos */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 12s linear infinite;
+}
+
+/* Topup flow animation - dot travels along arrow */
+@keyframes topup-flow {
+  0% { left: 0; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: calc(100% - 6px); opacity: 0; }
+}
+
+/* Fade in for dynamic elements */
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateX(-6px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+/* ===== SECTION BG ANIMATIONS ===== */
+
+/* HowItWorks — circuit trace lines */
+@keyframes circuit-trace {
+  0% { stroke-dashoffset: 400; opacity: 0; }
+  10% { opacity: 1; }
+  50% { stroke-dashoffset: 0; opacity: 0.8; }
+  90% { opacity: 0; }
+  100% { stroke-dashoffset: -400; opacity: 0; }
+}
+.hiw-circuit { stroke-dasharray: 400; animation: circuit-trace 10s linear infinite; }
+
+@keyframes hiw-node-pulse {
+  0%, 100% { r: 3; opacity: 0.4; }
+  50% { r: 6; opacity: 1; }
+}
+.hiw-node { animation: hiw-node-pulse 3s ease-in-out infinite; }
+
+@keyframes hiw-progress-glow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+.hiw-progress-glow { animation: hiw-progress-glow 4s ease-in-out infinite; }
+
+/* Comparison — data matrix rain */
+@keyframes matrix-fall {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 0.4; }
+  90% { opacity: 0.4; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+.comp-matrix-col { animation: matrix-fall 15s linear infinite; }
+
+@keyframes comp-crosshair {
+  0%, 100% { opacity: 0.08; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.2; transform: translate(-50%, -50%) scale(1.05); }
+}
+.comp-crosshair { animation: comp-crosshair 4s ease-in-out infinite; }
+
+/* Testimonials — floating quote marks */
+@keyframes quote-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.08; }
+  25% { transform: translateY(-25px) rotate(5deg); opacity: 0.15; }
+  75% { transform: translateY(15px) rotate(-3deg); opacity: 0.1; }
+}
+.test-quote-float { animation: quote-float 10s ease-in-out infinite; }
+
+@keyframes test-shimmer {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(300%) skewX(-15deg); }
+}
+.test-shimmer { animation: test-shimmer 6s ease-in-out infinite; }
+
+/* Pricing — radar sweep */
+@keyframes radar-sweep {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+.pricing-radar { animation: radar-sweep 6s linear infinite; }
+
+@keyframes pricing-ripple {
+  0% { transform: scale(0.8); opacity: 0.3; }
+  100% { transform: scale(3); opacity: 0; }
+}
+.pricing-ripple { animation: pricing-ripple 3s ease-out infinite; }
+
+/* GlobalPresence — slow globe rotation dots */
+@keyframes globe-rotate {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+.globe-orbit { animation: globe-rotate 25s linear infinite; }
+.globe-orbit-reverse { animation: globe-rotate 18s linear infinite reverse; }
+
+@keyframes gp-ping {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(2.2); }
+}
+.gp-ping { animation: gp-ping 2s ease-in-out infinite; }
+
+/* Guarantee — shield pulse + hexagon grid */
+@keyframes shield-pulse {
+  0%, 100% { opacity: 0.08; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.18; transform: translate(-50%, -50%) scale(1.03); }
+}
+.guarantee-shield { animation: shield-pulse 5s ease-in-out infinite; }
+
+@keyframes hex-breathe {
+  0%, 100% { opacity: 0.04; }
+  50% { opacity: 0.1; }
+}
+.guarantee-hex { animation: hex-breathe 7s ease-in-out infinite; }
+
+/* MeetTeam — DNA helix / connecting lines */
+@keyframes team-helix {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+.team-helix { animation: team-helix 15s linear infinite; }
+
+@keyframes team-glow-wander {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(50px, -60px); }
+  50% { transform: translate(-30px, -100px); }
+  75% { transform: translate(-60px, -30px); }
+}
+.team-glow-wander { animation: team-glow-wander 14s ease-in-out infinite; }
+
+/* Contact — wave pulse */
+@keyframes contact-wave {
+  0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.25; }
+  100% { transform: translate(-50%, -50%) scale(4); opacity: 0; }
+}
+.contact-wave { animation: contact-wave 4s ease-out infinite; }
+
+@keyframes contact-line-grow {
+  0%, 100% { transform: scaleX(0); opacity: 0; }
+  30%, 70% { transform: scaleX(1); opacity: 0.15; }
+}
+.contact-line-grow { animation: contact-line-grow 5s ease-in-out infinite; }
+
+/* Milestone — confetti / sparkle */
+@keyframes milestone-sparkle {
+  0% { transform: translateY(0) rotate(0deg) scale(0); opacity: 0; }
+  15% { transform: translateY(-40px) rotate(90deg) scale(1.5); opacity: 0.8; }
+  100% { transform: translateY(-250px) rotate(360deg) scale(0); opacity: 0; }
+}
+.milestone-sparkle { animation: milestone-sparkle 5s ease-out infinite; }
+
+@keyframes milestone-trophy-glow {
+  0%, 100% { opacity: 0.05; filter: blur(50px); }
+  50% { opacity: 0.15; filter: blur(70px); }
+}
+.milestone-trophy-glow { animation: milestone-trophy-glow 5s ease-in-out infinite; }
+
+/* ===== MOBILE PERFORMANCE — reduce heavy animations on Android ===== */
+@media (max-width: 767px) {
+  /* Disable heavy background animations */
+  .services-orbit,
+  .services-orbit-reverse,
+  .globe-orbit,
+  .globe-orbit-reverse,
+  .team-helix,
+  .team-glow-wander,
+  .comp-matrix-col,
+  .hiw-circuit,
+  .hiw-node,
+  .hiw-progress-glow,
+  .test-shimmer,
+  .pricing-radar,
+  .contact-wave,
+  .contact-line-grow,
+  .milestone-sparkle {
+    animation: none !important;
+  }
+
+  /* Reduce blur effects (GPU expensive on Android) */
+  .glass,
+  .glass-strong,
+  [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Reduce box-shadow glows */
+  .glow-purple,
+  .glow-blue,
+  .glow-accent {
+    box-shadow: none !important;
+  }
+
+  /* Reduce large blur backgrounds */
+  [class*="blur-[120px]"],
+  [class*="blur-[180px]"],
+  [class*="blur-[200px]"] {
+    display: none !important;
+  }
+
+  /* Simpler float animations */
+  .hero-float-1,
+  .hero-float-2,
+  .hero-float-3 {
+    animation: none !important;
+  }
+
+  /* Faster transitions */
+  .transition-all {
+    transition-duration: 300ms !important;
+  }
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .service-marquee,
+  .animate-marquee {
+    animation: none !important;
+  }
+}

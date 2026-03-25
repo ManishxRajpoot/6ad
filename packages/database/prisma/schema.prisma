@@ -233,6 +233,7 @@ model AdAccount {
   licenseName       String?       // License name from the application
   bmId              String?       // User's Business Manager ID (for sharing)
   sourceBmId        String?       // Source BM where this account is from (e.g., "cheetah" or actual BM ID)
+  sourceBmName      String?       // BM name fetched from Facebook Graph API
   extensionProfileId String?      // Which extension/AdsPower profile manages this ad account
   timezone          String?
   currency          String        @default("USD")
@@ -454,10 +455,15 @@ model AccountDeposit {
   rechargedBy       String?                               // ExtensionSession ID that completed it
 
   // Post-recharge verification (idempotent recharge safety)
-  previousSpendCap    Float?                              // Spend cap BEFORE recharge (for idempotency check)
+  previousSpendCap    Float?                              // Spend cap BEFORE recharge (snapshot at first attempt)
   newSpendCap         Float?                              // Spend cap AFTER recharge (verified)
+  targetSpendCap      Float?                              // SET ONCE before first recharge: previousCap + amount. All retries POST this exact value.
   verifiedAt          DateTime?                           // When post-recharge verification passed
   verificationFailed  Boolean           @default(false)   // True = needs manual review (verification mismatch)
+
+  // Card payment tracking (non-Cheetah FB accounts only — admin manually adds money to card)
+  cardPaymentStatus   String            @default("NONE")  // NONE | PENDING | DONE
+  cardPaymentDoneAt   DateTime?
 
   approvedAt        DateTime?
 
@@ -468,6 +474,7 @@ model AccountDeposit {
   @@index([status, rechargeStatus])
   @@index([createdAt])
   @@index([status, createdAt])
+  @@index([cardPaymentStatus])
 }
 
 model AccountRefund {
@@ -1473,4 +1480,98 @@ model EmailLog {
   @@index([sentBy])
   @@index([recipientUserId])
   @@index([createdAt])
+}
+
+// Audit log for every recharge action — forensics for double-spend investigation
+model RechargeAuditLog {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  depositId       String   @db.ObjectId
+  adAccountId     String
+  action          String   // SNAPSHOT_CAP | CLAIM | FB_POST | COMPLETE | FAIL | WATCHDOG_RESET | ADMIN_APPROVE | ADMIN_FORCE | CRON_RETRY | SKIP_ALREADY_DONE
+  actor           String   // extension profile label, "recharge-cron", "admin", "watchdog", "spend-cap-verifier"
+  previousCap     Float?
+  targetCap       Float?
+  actualCap       Float?
+  amount          Float?
+  error           String?
+  createdAt       DateTime @default(now())
+
+  @@index([depositId])
+  @@index([adAccountId, createdAt])
+}
+
+// ============= CMS MODELS =============
+
+enum ContactStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  ARCHIVED
+}
+
+// One document per landing page section — stores JSON content blob
+model CmsSection {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  sectionKey String   @unique // e.g. "hero", "services", "pricing", "seo"
+  data       Json     // section-specific content
+  isActive   Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+  updatedBy  String?  // admin user ID
+}
+
+// Contact form submissions from landing page
+model ContactSubmission {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  fullName    String
+  email       String
+  phone       String?
+  companyName String?
+  website     String?
+  country     String?
+  budget      String?
+  platform    String?
+  description String?
+  promoCode   String?
+  status      ContactStatus @default(NEW)
+  notes       String?       // admin notes
+  createdAt   DateTime      @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Uploaded media files (Cloudinary)
+model CmsMedia {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  url       String   // Cloudinary URL
+  publicId  String   // Cloudinary public_id for deletion
+  filename  String
+  section   String?  // which section it belongs to
+  createdAt DateTime @default(now())
+}
+
+// Landing page analytics events
+model CmsAnalytics {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  event     String   // pageview, cta_click, contact_submit
+  metadata  Json?    // extra data (referrer, section, etc.)
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([event])
+  @@index([createdAt])
+}
+
+// Daily rotating hero headlines for landing page
+model HeroHeadline {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  headline  String   // Main headline text (e.g. "UNSTOPPABLE ADS UNSTOPPABLE BUSINESS")
+  subtitle  String   // Subtitle text (e.g. "Real agency ad accounts, live in 1 hour...")
+  order     Int      // Order in rotation (0-indexed, day of cycle)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([order])
 }

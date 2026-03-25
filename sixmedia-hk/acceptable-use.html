@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptable Use Policy | Six Media Technology Limited</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230a0f1c'/><text x='3' y='23' font-family='Arial,sans-serif' font-weight='800' font-size='16' fill='%23818cf8'>SM</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #0a0f1c;
+      --primary-light: #141b2d;
+      --accent: #6366f1;
+      --accent-light: #818cf8;
+      --accent-glow: rgba(99, 102, 241, 0.3);
+      --light: #f8fafc;
+      --text: #1e293b;
+      --text-light: #64748b;
+      --white: #ffffff;
+      --border: #e2e8f0;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, sans-serif; color: var(--text); line-height: 1.7; background: var(--white); }
+
+    nav { position: fixed; top: 0; width: 100%; z-index: 1000; padding: 0 2rem; background: rgba(10, 15, 28, 0.95); backdrop-filter: blur(20px); box-shadow: 0 4px 30px rgba(0,0,0,0.2); }
+    .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; height: 72px; }
+    .logo { font-size: 1.6rem; font-weight: 800; color: var(--white); text-decoration: none; letter-spacing: 0.5px; }
+    .logo span { color: var(--accent-light); }
+    .nav-links { display: flex; gap: 2.5rem; list-style: none; align-items: center; }
+    .nav-links a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.3s; }
+    .nav-links a:hover { color: var(--white); }
+    .nav-cta { background: var(--accent) !important; color: var(--white) !important; padding: 8px 20px; border-radius: 8px; font-weight: 600 !important; }
+    .nav-cta:hover { background: var(--accent-light) !important; }
+
+    .legal-hero { background: var(--primary); padding: 8rem 2rem 3rem; text-align: center; }
+    .legal-hero h1 { color: var(--white); font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; }
+    .legal-hero .breadcrumb { color: rgba(255,255,255,0.5); font-size: 0.9rem; }
+    .legal-hero .breadcrumb a { color: var(--accent-light); text-decoration: none; }
+    .legal-hero .breadcrumb a:hover { color: var(--white); }
+    .legal-hero .updated { color: rgba(255,255,255,0.4); font-size: 0.8rem; margin-top: 0.75rem; }
+
+    .legal-content { max-width: 800px; margin: 0 auto; padding: 3rem 2rem 5rem; }
+    .legal-content h2 { font-size: 1.4rem; font-weight: 700; color: var(--accent); margin: 2.5rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); }
+    .legal-content h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+    .legal-content p { margin-bottom: 1rem; color: var(--text-light); }
+    .legal-content ul, .legal-content ol { margin: 0.5rem 0 1rem 1.5rem; color: var(--text-light); }
+    .legal-content li { margin-bottom: 0.4rem; }
+    .legal-content strong { color: var(--text); }
+    .legal-content a { color: var(--accent); text-decoration: none; }
+    .legal-content a:hover { text-decoration: underline; }
+    .legal-content .highlight-box { background: var(--light); border-left: 4px solid var(--accent); padding: 1rem 1.5rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }
+
+    footer { background: #060a14; padding: 2rem; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; color: rgba(255,255,255,0.4); font-size: 0.85rem; }
+    footer a { color: var(--accent-light); text-decoration: none; font-size: 0.8rem; }
+    footer a:hover { color: var(--white); }
+    .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .legal-hero h1 { font-size: 1.8rem; }
+      .footer-inner { flex-direction: column; text-align: center; }
+      .footer-links { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-inner">
+      <a href="index.html" class="logo">SIX<span>MEDIA</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="index.html#services">Services</a></li>
+        <li><a href="index.html#about">About</a></li>
+        <li><a href="index.html#contact" class="nav-cta">Contact Us</a></li>
+        <li><a href="zh-acceptable-use.html" class="lang-switch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> 中文</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <section class="legal-hero">
+    <div class="breadcrumb"><a href="index.html">Home</a> &rarr; Acceptable Use Policy</div>
+    <h1>Acceptable Use Policy</h1>
+    <p class="updated">Last updated: March 2026</p>
+  </section>
+
+  <div class="legal-content">
+
+    <h2>1. Purpose</h2>
+    <p>This Acceptable Use Policy ("AUP") defines the permitted and prohibited uses of services provided by Six Media Technology Limited. All clients and users must comply with this policy. Violations may result in immediate suspension or termination of services.</p>
+
+    <h2>2. Permitted Use</h2>
+    <p>Our services may be used for:</p>
+    <ul>
+      <li>Legitimate digital advertising and marketing campaigns</li>
+      <li>E-commerce product and service promotion</li>
+      <li>Brand awareness and customer acquisition campaigns</li>
+      <li>Performance marketing and lead generation</li>
+      <li>Advertising account management for lawful businesses</li>
+    </ul>
+
+    <h2>3. Prohibited Activities</h2>
+    <p>The following activities are strictly prohibited:</p>
+    <ul>
+      <li>Advertising illegal products, services, or activities</li>
+      <li>Promoting counterfeit, pirated, or trademark-infringing goods</li>
+      <li>Running deceptive, misleading, or fraudulent advertisements</li>
+      <li>Click fraud, bot traffic, or artificial engagement manipulation</li>
+      <li>Unauthorized data collection or privacy violations</li>
+      <li>Distribution of malware, spyware, or harmful software</li>
+      <li>Harassment, hate speech, or discriminatory content</li>
+      <li>Any activity designed to circumvent advertising platform policies</li>
+      <li>Using our services for money laundering or terrorist financing</li>
+    </ul>
+
+    <h2>4. Restricted Industries</h2>
+    <p>We do not provide services for the following industries/products:</p>
+    <ul>
+      <li>Illegal drugs or controlled substances</li>
+      <li>Weapons, ammunition, and explosives</li>
+      <li>Adult content or services</li>
+      <li>Gambling (unless properly licensed in the operating jurisdiction)</li>
+      <li>Cryptocurrency and unregistered securities offerings</li>
+      <li>Tobacco and vaping products (where prohibited)</li>
+      <li>Payday lending and predatory financial services</li>
+      <li>Multi-level marketing or pyramid schemes</li>
+      <li>Products making unsubstantiated health claims</li>
+    </ul>
+
+    <h2>5. Sanctions Compliance</h2>
+    <p>Users must not use our services in connection with:</p>
+    <ul>
+      <li>Individuals or entities on international sanctions lists (UN, OFAC, EU, Hong Kong)</li>
+      <li>Countries or territories subject to comprehensive sanctions</li>
+      <li>Any transaction that would violate applicable trade restrictions</li>
+    </ul>
+    <p>We actively screen clients against relevant sanctions databases and reserve the right to refuse or terminate services where sanctions risks are identified.</p>
+
+    <h2>6. Content Guidelines</h2>
+    <p>All advertising content must:</p>
+    <ul>
+      <li>Be truthful, accurate, and not misleading</li>
+      <li>Comply with applicable advertising standards and regulations</li>
+      <li>Respect intellectual property rights of third parties</li>
+      <li>Comply with the advertising policies of the respective platforms</li>
+      <li>Not exploit minors or vulnerable populations</li>
+    </ul>
+
+    <h2>7. Enforcement</h2>
+    <p>Violations of this AUP may result in:</p>
+    <ul>
+      <li>Written warning and request for remediation</li>
+      <li>Temporary suspension of services</li>
+      <li>Permanent termination of services without refund</li>
+      <li>Reporting to relevant law enforcement or regulatory authorities</li>
+    </ul>
+    <p>We investigate all reported violations promptly and reserve the right to take immediate action to protect our platform, other clients, and the public.</p>
+
+    <h2>8. Reporting Violations</h2>
+    <div class="highlight-box">
+      To report a violation of this policy, contact:<br><br>
+      Email: <a href="mailto:info@sixmedia.hk">info@sixmedia.hk</a><br>
+      Email: <a href="mailto:mavrickmanixh@gmail.com">mavrickmanixh@gmail.com</a>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <span>&copy; 2026 Six Media Technology Limited. All rights reserved.</span>
+      <div class="footer-links">
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="terms-of-service.html">Terms of Service</a>
+      <a href="aml-policy.html">AML Policy</a>
+      <a href="acceptable-use.html">Acceptable Use</a>
+      <a href="data-security.html">Data Security</a>
+      <a href="complaints.html">Complaints</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy | Six Media Technology Limited</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230a0f1c'/><text x='3' y='23' font-family='Arial,sans-serif' font-weight='800' font-size='16' fill='%23818cf8'>SM</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --primary: #0a0f1c;
+      --primary-light: #141b2d;
+      --accent: #6366f1;
+      --accent-light: #818cf8;
+      --accent-glow: rgba(99, 102, 241, 0.3);
+      --light: #f8fafc;
+      --text: #1e293b;
+      --text-light: #64748b;
+      --white: #ffffff;
+      --border: #e2e8f0;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, sans-serif; color: var(--text); line-height: 1.7; background: var(--white); }
+
+    nav { position: fixed; top: 0; width: 100%; z-index: 1000; padding: 0 2rem; background: rgba(10, 15, 28, 0.95); backdrop-filter: blur(20px); box-shadow: 0 4px 30px rgba(0,0,0,0.2); }
+    .nav-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; height: 72px; }
+    .logo { font-size: 1.6rem; font-weight: 800; color: var(--white); text-decoration: none; letter-spacing: 0.5px; }
+    .logo span { color: var(--accent-light); }
+    .nav-links { display: flex; gap: 2.5rem; list-style: none; align-items: center; }
+    .nav-links a { color: rgba(255,255,255,0.75); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.3s; }
+    .nav-links a:hover { color: var(--white); }
+    .nav-cta { background: var(--accent) !important; color: var(--white) !important; padding: 8px 20px; border-radius: 8px; font-weight: 600 !important; }
+    .nav-cta:hover { background: var(--accent-light) !important; }
+
+    .legal-hero { background: var(--primary); padding: 8rem 2rem 3rem; text-align: center; }
+    .legal-hero h1 { color: var(--white); font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; }
+    .legal-hero .breadcrumb { color: rgba(255,255,255,0.5); font-size: 0.9rem; }
+    .legal-hero .breadcrumb a { color: var(--accent-light); text-decoration: none; }
+    .legal-hero .breadcrumb a:hover { color: var(--white); }
+    .legal-hero .updated { color: rgba(255,255,255,0.4); font-size: 0.8rem; margin-top: 0.75rem; }
+
+    .legal-content { max-width: 800px; margin: 0 auto; padding: 3rem 2rem 5rem; }
+    .legal-content h2 { font-size: 1.4rem; font-weight: 700; color: var(--accent); margin: 2.5rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); }
+    .legal-content h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+    .legal-content p { margin-bottom: 1rem; color: var(--text-light); }
+    .legal-content ul, .legal-content ol { margin: 0.5rem 0 1rem 1.5rem; color: var(--text-light); }
+    .legal-content li { margin-bottom: 0.4rem; }
+    .legal-content strong { color: var(--text); }
+    .legal-content a { color: var(--accent); text-decoration: none; }
+    .legal-content a:hover { text-decoration: underline; }
+    .legal-content .highlight-box { background: var(--light); border-left: 4px solid var(--accent); padding: 1rem 1.5rem; margin: 1.5rem 0; border-radius: 0 8px 8px 0; }
+
+    footer { background: #060a14; padding: 2rem; }
+    .footer-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; color: rgba(255,255,255,0.4); font-size: 0.85rem; }
+    footer a { color: var(--accent-light); text-decoration: none; font-size: 0.8rem; }
+    footer a:hover { color: var(--white); }
+    .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .legal-hero h1 { font-size: 1.8rem; }
+      .footer-inner { flex-direction: column; text-align: center; }
+      .footer-links { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="nav-inner">
+      <a href="index.html" class="logo">SIX<span>MEDIA</span></a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="index.html#services">Services</a></li>
+        <li><a href="index.html#about">About</a></li>
+        <li><a href="index.html#contact" class="nav-cta">Contact Us</a></li>
+        <li><a href="zh-privacy-policy.html" class="lang-switch"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> 中文</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <section class="legal-hero">
+    <div class="breadcrumb"><a href="index.html">Home</a> &rarr; Privacy Policy</div>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: March 2026</p>
+  </section>
+
+  <div class="legal-content">
+
+    <h2>1. Introduction</h2>
+    <p>Six Media Technology Limited ("Company", "we", "us") is committed to protecting the privacy and personal data of our clients, partners, and website visitors. This Privacy Policy explains how we collect, use, disclose, and safeguard your information in accordance with the Hong Kong Personal Data (Privacy) Ordinance (Cap. 486) ("PDPO") and applicable international data protection regulations including the General Data Protection Regulation ("GDPR").</p>
+    <div class="highlight-box"><strong>Data Controller:</strong> Six Media Technology Limited, FLAT 2304, 23/F, Ho King Comm Centre, 2-16 Fa Yuen Street, Mong Kok, Hong Kong.<br>Email: <a href="mailto:info@sixmedia.hk">info@sixmedia.hk</a></div>
+
+    <h2>2. Information We Collect</h2>
+    <h3>2.1 Personal Information</h3>
+    <ul>
+      <li>Full name, business name, and job title</li>
+      <li>Contact details: email address, phone number, postal address</li>
+      <li>Business registration documents and identification</li>
+      <li>Account login credentials</li>
+    </ul>
+    <h3>2.2 Financial Information</h3>
+    <ul>
+      <li>Payment card details (processed through PCI-DSS compliant payment processors)</li>
+      <li>Bank account information for wire transfers</li>
+      <li>Billing and transaction history</li>
+      <li>Advertising spend and budget data</li>
+    </ul>
+    <h3>2.3 Technical Information</h3>
+    <ul>
+      <li>IP address and browser type</li>
+      <li>Device information and operating system</li>
+      <li>Cookies and similar tracking technologies</li>
+      <li>Usage data and access logs</li>
+    </ul>
+
+    <h2>3. How We Use Your Information</h2>
+    <p>We process personal data for the following purposes:</p>
+    <ul>
+      <li><strong>Service Delivery:</strong> To provide advertising account management, media buying, and campaign management services</li>
+      <li><strong>Account Management:</strong> To create and manage your account, process payments, and communicate about our services</li>
+      <li><strong>Compliance:</strong> To meet our legal obligations including KYC/AML requirements</li>
+      <li><strong>Improvement:</strong> To analyze usage patterns and improve our services</li>
+      <li><strong>Communication:</strong> To send service updates, invoices, and marketing communications (with consent)</li>
+      <li><strong>Security:</strong> To protect against fraud, unauthorized transactions, and misuse</li>
+    </ul>
+
+    <h2>4. Legal Basis for Processing</h2>
+    <p>We process personal data based on:</p>
+    <ul>
+      <li><strong>Contractual necessity:</strong> To fulfill our service agreements</li>
+      <li><strong>Legal obligation:</strong> To comply with applicable laws and regulations</li>
+      <li><strong>Legitimate interests:</strong> To improve our services, prevent fraud, and ensure security</li>
+      <li><strong>Consent:</strong> For marketing communications and non-essential cookies</li>
+    </ul>
+
+    <h2>5. Data Sharing & Third Parties</h2>
+    <p>We may share your information with:</p>
+    <ul>
+      <li><strong>Advertising Platforms:</strong> Meta (Facebook), Google, TikTok, Snapchat for campaign execution</li>
+      <li><strong>Payment Processors:</strong> Secure PCI-DSS compliant payment service providers</li>
+      <li><strong>Cloud Infrastructure:</strong> Hosting and data storage providers with appropriate safeguards</li>
+      <li><strong>Professional Advisors:</strong> Lawyers, auditors, and compliance consultants</li>
+      <li><strong>Regulatory Authorities:</strong> When required by law or regulation</li>
+    </ul>
+    <p>We do not sell personal data to third parties. All third-party processors are contractually bound to protect your data.</p>
+
+    <h2>6. International Data Transfers</h2>
+    <p>Your data may be transferred to and processed in countries outside Hong Kong. We ensure adequate safeguards are in place, including standard contractual clauses and data processing agreements compliant with applicable data protection laws.</p>
+
+    <h2>7. Data Retention</h2>
+    <p>We retain personal data for as long as necessary to fulfill the purposes outlined in this policy, typically:</p>
+    <ul>
+      <li>Active account data: Duration of business relationship plus 7 years</li>
+      <li>Financial records: 7 years (as required by Hong Kong tax legislation)</li>
+      <li>Marketing consent records: Until consent is withdrawn</li>
+      <li>Website analytics: 26 months</li>
+    </ul>
+
+    <h2>8. Your Rights</h2>
+    <p>Under the PDPO and GDPR (where applicable), you have the right to:</p>
+    <ul>
+      <li><strong>Access:</strong> Request a copy of your personal data</li>
+      <li><strong>Correction:</strong> Request correction of inaccurate data</li>
+      <li><strong>Erasure:</strong> Request deletion of your data (subject to legal obligations)</li>
+      <li><strong>Restriction:</strong> Request limitation of processing</li>
+      <li><strong>Portability:</strong> Receive your data in a structured, machine-readable format</li>
+      <li><strong>Objection:</strong> Object to processing based on legitimate interests</li>
+      <li><strong>Withdraw Consent:</strong> Withdraw consent at any time for consent-based processing</li>
+    </ul>
+    <p>To exercise your rights, contact us at <a href="mailto:info@sixmedia.hk">info@sixmedia.hk</a>. We will respond within 40 days as required by the PDPO.</p>
+
+    <h2>9. Cookies Policy</h2>
+    <p>Our website uses cookies and similar technologies:</p>
+    <ul>
+      <li><strong>Essential Cookies:</strong> Required for website functionality</li>
+      <li><strong>Analytics Cookies:</strong> To understand how visitors interact with our website</li>
+      <li><strong>Performance Cookies:</strong> To improve website speed and user experience</li>
+    </ul>
+    <p>You can manage cookie preferences through your browser settings. Disabling certain cookies may limit website functionality.</p>
+
+    <h2>10. Security Measures</h2>
+    <p>We implement industry-standard security measures including TLS encryption, firewalls, access controls, and regular security audits to protect your personal data. For more details, see our <a href="data-security.html">Data Security Policy</a>.</p>
+
+    <h2>11. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy periodically. Changes will be posted on this page with an updated revision date. Continued use of our services after changes constitutes acceptance of the revised policy.</p>
+
+    <h2>12. Contact Us</h2>
+    <div class="highlight-box">
+      <strong>Six Media Technology Limited</strong><br>
+      FLAT 2304, 23/F, Ho King Comm Centre<br>
+      2-16 Fa Yuen Street, Mong Kok, Hong Kong<br><br>
+      Email: <a href="mailto:info@sixmedia.hk">info@sixmedia.hk</a><br>
+      Email: <a href="mailto:mavrickmanixh@gmail.com">mavrickmanixh@gmail.com</a>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <span>&copy; 2026 Six Media Technology Limited. All rights reserved.</span>
+      <div class="footer-links">
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="terms-of-service.html">Terms of Service</a>
+      <a href="aml-policy.html">AML Policy</a>
+      <a href="acceptable-use.html">Acceptable Use</a>
+      <a href="data-security.html">Data Security</a>
+      <a href="complaints.html">Complaints</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
