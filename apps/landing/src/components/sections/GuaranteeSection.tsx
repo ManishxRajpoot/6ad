@@ -51,7 +51,7 @@ export default function GuaranteeSection() {
             {/* Card image — using img tag for reliable loading */}
             <div className="relative rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl shadow-black/40">
               <img
-                src="/guarantee-card.png"
+                src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/guarantee-card.webp"
                 alt="ADS360 Guarantee - Account Replacement, Ad Spend Refund, and Locked Rate guarantees with 100% satisfaction promise"
                 className="w-full h-auto"
                 loading="eager"

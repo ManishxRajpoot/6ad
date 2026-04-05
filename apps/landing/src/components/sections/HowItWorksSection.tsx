@@ -37,7 +37,7 @@ function HiwMobileIllustration({ step }: { step: number }) {
     <div className="bg-[#0d1225]/90 rounded-lg border border-white/[0.08] overflow-hidden select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
       <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-white/[0.06] bg-white/[0.02]">
         <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-400/60" /><div className="w-1.5 h-1.5 rounded-full bg-yellow-400/60" /><div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60" /></div>
-        <span className="text-[7px] text-gray-500">New Application</span>
+        <span className="text-[7px] text-gray-400">New Application</span>
         <div className="flex items-center gap-0.5"><div className="w-1 h-1 rounded-full bg-blue-400 animate-pulse" /><span className="text-[6px] text-blue-400/70">Draft</span></div>
       </div>
       <div className="p-2 space-y-1.5">
@@ -55,7 +55,7 @@ function HiwMobileIllustration({ step }: { step: number }) {
     <div className="bg-[#0d1225]/90 rounded-lg border border-white/[0.08] overflow-hidden select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
       <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-white/[0.06] bg-white/[0.02]">
         <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-400/60" /><div className="w-1.5 h-1.5 rounded-full bg-yellow-400/60" /><div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60" /></div>
-        <span className="text-[7px] text-gray-500">Wallet</span>
+        <span className="text-[7px] text-gray-400">Wallet</span>
         <div className="flex items-center gap-0.5"><div className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" /><span className="text-[6px] text-emerald-400/70">Connected</span></div>
       </div>
       <div className="p-2 space-y-1.5">
@@ -78,13 +78,13 @@ function HiwMobileIllustration({ step }: { step: number }) {
     <div className="bg-[#0d1225]/90 rounded-lg border border-white/[0.08] overflow-hidden select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
       <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-white/[0.06] bg-white/[0.02]">
         <div className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-red-400/60" /><div className="w-1.5 h-1.5 rounded-full bg-yellow-400/60" /><div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60" /></div>
-        <span className="text-[7px] text-gray-500">Dashboard</span>
+        <span className="text-[7px] text-gray-400">Dashboard</span>
         <div className="flex items-center gap-0.5"><div className="w-1 h-1 rounded-full bg-purple-400 animate-pulse" /><span className="text-[6px] text-purple-400/70">Live</span></div>
       </div>
       <div className="p-2 space-y-1.5">
         <div className="grid grid-cols-3 gap-1">
           {[{ l: 'Spend', v: '$8,240', c: 'text-blue-400' }, { l: 'ROAS', v: '4.2x', c: 'text-emerald-400' }, { l: 'Conv.', v: '1,847', c: 'text-purple-400' }].map((s, i) => (
-            <div key={i} className="bg-white/[0.03] rounded p-1.5 text-center"><div className="text-[6px] text-gray-500">{s.l}</div><div className={`text-[10px] font-bold ${s.c}`}>{s.v}</div></div>
+            <div key={i} className="bg-white/[0.03] rounded p-1.5 text-center"><div className="text-[6px] text-gray-400">{s.l}</div><div className={`text-[10px] font-bold ${s.c}`}>{s.v}</div></div>
           ))}
         </div>
         <div className="bg-white/[0.02] rounded p-2">
@@ -266,7 +266,7 @@ export default function HowItWorksSection() {
           <h2 className="text-lg sm:text-3xl md:text-4xl lg:text-[42px] font-bold text-white leading-tight mb-1 sm:mb-4">
             Get your Agency Ad Accounts in 3 Simple Steps
           </h2>
-          <p className="text-gray-500 text-xs sm:text-base max-w-xl mx-auto leading-relaxed">
+          <p className="text-gray-400 text-xs sm:text-base max-w-xl mx-auto leading-relaxed">
             Getting started is fast, simple, and designed to keep your campaigns running smoothly—no stress, no bans.
           </p>
         </div>
@@ -291,7 +291,7 @@ export default function HowItWorksSection() {
                   </div>
                 </div>
                 <div className="px-3 pb-3">
-                  <p className="text-gray-500 text-[10px] leading-relaxed mb-2 pl-11">{step.desc}</p>
+                  <p className="text-gray-400 text-[10px] leading-relaxed mb-2 pl-11">{step.desc}</p>
                   <HiwMobileIllustration step={i} />
                 </div>
               </div>
@@ -327,7 +327,7 @@ export default function HowItWorksSection() {
 
                   <div className={`transition-all duration-500 ${activeStep === i ? 'opacity-100' : 'opacity-40'}`}>
                     <h3 className="text-base sm:text-lg font-semibold text-white mb-2">
-                      <span className="text-gray-500 font-normal">Step {step.num}: </span>
+                      <span className="text-gray-400 font-normal">Step {step.num}: </span>
                       <span className={activeStep === i ? 'text-white' : 'text-gray-300'}>{step.boldTitle}</span>
                     </h3>
                     <p className={`text-sm leading-relaxed max-w-md transition-colors duration-500 ${
@@ -365,7 +365,7 @@ export default function HowItWorksSection() {
                               <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60" />
                               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400/60" />
                             </div>
-                            <div className="text-[10px] text-gray-500 font-medium">New Application</div>
+                            <div className="text-[10px] text-gray-400 font-medium">New Application</div>
                             <div className="flex items-center gap-1">
                               <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
                               <span className="text-[9px] text-blue-400/70">Draft</span>
@@ -408,7 +408,7 @@ export default function HowItWorksSection() {
                                 <div className="text-[9px] text-blue-400/50 uppercase tracking-wider font-medium">Platform</div>
                                 <div className="text-white/60 text-[13px]">Meta (Facebook & Instagram)</div>
                               </div>
-                              <svg viewBox="0 0 12 12" className="w-3 h-3 text-gray-500"><path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                              <svg viewBox="0 0 12 12" className="w-3 h-3 text-gray-400"><path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                             </div>
                             {/* Field 4 */}
                             <div className="flex items-center gap-3 bg-white/[0.03] rounded-lg px-3.5 py-2.5 border-l-2 border-white/[0.06]">
@@ -419,7 +419,7 @@ export default function HowItWorksSection() {
                                 <div className="text-[9px] text-blue-400/50 uppercase tracking-wider font-medium">Monthly Budget</div>
                                 <div className="text-white/60 text-[13px]">$10,000 - $25,000</div>
                               </div>
-                              <svg viewBox="0 0 12 12" className="w-3 h-3 text-gray-500"><path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                              <svg viewBox="0 0 12 12" className="w-3 h-3 text-gray-400"><path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                             </div>
                             {/* Submit button */}
                             <div className="pt-1">
@@ -437,7 +437,7 @@ export default function HowItWorksSection() {
                         ))}
                       </div>
                       <h4 className="text-white font-semibold text-base mb-1">Submit & Get Onboarded</h4>
-                      <p className="text-gray-500 text-xs leading-relaxed">Fill in your business details and get verified in minutes</p>
+                      <p className="text-gray-400 text-xs leading-relaxed">Fill in your business details and get verified in minutes</p>
                     </div>
 
                     {/* Step 2 — Professional Wallet UI */}
@@ -453,7 +453,7 @@ export default function HowItWorksSection() {
                               <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60" />
                               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400/60" />
                             </div>
-                            <div className="text-[10px] text-gray-500 font-medium">Wallet</div>
+                            <div className="text-[10px] text-gray-400 font-medium">Wallet</div>
                             <div className="flex items-center gap-1">
                               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                               <span className="text-[9px] text-emerald-400/70">Connected</span>
@@ -480,7 +480,7 @@ export default function HowItWorksSection() {
                             </div>
                             {/* Recent transactions */}
                             <div className="space-y-1.5">
-                              <div className="text-[9px] text-gray-500 uppercase tracking-wider font-medium px-1">Recent Deposits</div>
+                              <div className="text-[9px] text-gray-400 uppercase tracking-wider font-medium px-1">Recent Deposits</div>
                               {[
                                 { method: 'Visa ****8193', amount: '+$5,000', time: '2 min ago', color: 'text-blue-400' },
                                 { method: 'USDT (TRC20)', amount: '+$3,500', time: '1 hour ago', color: 'text-orange-400' },
@@ -514,7 +514,7 @@ export default function HowItWorksSection() {
                         ))}
                       </div>
                       <h4 className="text-white font-semibold text-base mb-1">Fund Your Account</h4>
-                      <p className="text-gray-500 text-xs leading-relaxed">Card, crypto, or bank transfer — instant top-ups 24/7</p>
+                      <p className="text-gray-400 text-xs leading-relaxed">Card, crypto, or bank transfer — instant top-ups 24/7</p>
                     </div>
 
                     {/* Step 3 — Professional Analytics Dashboard */}
@@ -530,7 +530,7 @@ export default function HowItWorksSection() {
                               <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60" />
                               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400/60" />
                             </div>
-                            <div className="text-[10px] text-gray-500 font-medium">Campaign Dashboard</div>
+                            <div className="text-[10px] text-gray-400 font-medium">Campaign Dashboard</div>
                             <div className="flex items-center gap-1 bg-emerald-500/15 rounded-full px-2 py-0.5">
                               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                               <span className="text-[9px] text-emerald-400 font-semibold">LIVE</span>
@@ -545,7 +545,7 @@ export default function HowItWorksSection() {
                                 { label: 'Conv. Rate', value: '7.5%', trend: '+12%', color: 'emerald' },
                               ].map((m, i) => (
                                 <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-2.5 text-center">
-                                  <div className="text-gray-500 text-[8px] uppercase tracking-wider mb-1">{m.label}</div>
+                                  <div className="text-gray-400 text-[8px] uppercase tracking-wider mb-1">{m.label}</div>
                                   <div className={`text-sm font-bold ${m.color === 'emerald' ? 'text-emerald-400' : 'text-white'}`}>{m.value}</div>
                                   <div className="flex items-center justify-center gap-0.5 mt-1">
                                     <svg viewBox="0 0 8 8" className="w-2 h-2 text-emerald-400" fill="currentColor"><path d="M4 1v6M4 1L2 3m2-2l2 2"/></svg>
@@ -557,7 +557,7 @@ export default function HowItWorksSection() {
                             {/* Area chart */}
                             <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-3">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-[9px] text-gray-500 uppercase tracking-wider font-medium">Performance (7 days)</span>
+                                <span className="text-[9px] text-gray-400 uppercase tracking-wider font-medium">Performance (7 days)</span>
                                 <div className="flex items-center gap-1 bg-purple-500/10 rounded-full px-2 py-0.5">
                                   <span className="text-purple-400 text-[9px] font-bold">+23% ROI</span>
                                 </div>
@@ -609,7 +609,7 @@ export default function HowItWorksSection() {
                         ))}
                       </div>
                       <h4 className="text-white font-semibold text-base mb-1">Launch & Scale</h4>
-                      <p className="text-gray-500 text-xs leading-relaxed">Run campaigns on ban-resistant accounts with no limits</p>
+                      <p className="text-gray-400 text-xs leading-relaxed">Run campaigns on ban-resistant accounts with no limits</p>
                     </div>
                   </div>
                 </div>
@@ -640,7 +640,7 @@ export default function HowItWorksSection() {
                       ))}
                     </div>
                     <h4 className="text-white font-semibold text-lg mb-2">{steps[activeStep].cardTitle}</h4>
-                    <p className="text-gray-500 text-sm leading-relaxed">{steps[activeStep].cardDesc}</p>
+                    <p className="text-gray-400 text-sm leading-relaxed">{steps[activeStep].cardDesc}</p>
                   </div>
                 </div>
               </div>

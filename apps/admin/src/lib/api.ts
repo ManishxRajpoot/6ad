@@ -701,58 +701,90 @@ export const cheetahApi = {
 }
 
 // Airwallex API
-export const airwallexApi = {
-  // Auth test
-  testAuth: () => api.get<{ success: boolean; message: string }>('/airwallex/auth/test'),
-
-  // Balances
-  getBalances: () => api.get<any>('/airwallex/balances'),
-
-  // Cards
-  cards: {
-    getAll: (params?: { page_num?: number; page_size?: number; status?: string }) => {
-      const query = new URLSearchParams()
-      if (params?.page_num !== undefined) query.append('page_num', params.page_num.toString())
-      if (params?.page_size) query.append('page_size', params.page_size.toString())
-      if (params?.status) query.append('status', params.status)
-      return api.get<any>(`/airwallex/cards?${query.toString()}`)
-    },
-    getById: (id: string) => api.get<any>(`/airwallex/cards/${id}`),
-    getDetails: (id: string) => api.get<any>(`/airwallex/cards/${id}/details`),
-    create: (data: any) => api.post<any>('/airwallex/cards', data),
-    update: (id: string, data: any) => api.post<any>(`/airwallex/cards/${id}/update`, data),
-    activate: (id: string) => api.post<any>(`/airwallex/cards/${id}/activate`, {}),
-    deactivate: (id: string) => api.post<any>(`/airwallex/cards/${id}/deactivate`, {}),
-    cancel: (id: string, reason?: string) => api.post<any>(`/airwallex/cards/${id}/cancel`, { reason }),
-    fund: (id: string, data: { amount: number; currency: string }) => api.post<any>(`/airwallex/cards/${id}/fund`, data),
-    withdraw: (id: string, data: { amount: number; currency: string }) => api.post<any>(`/airwallex/cards/${id}/withdraw`, data),
-  },
+// Yeewallex VCC API
+export const yeewallexApi = {
+  // Sync & Account
+  sync: () => api.post<any>('/yeewallex/sync', {}),
+  getAccountInfo: () => api.get<any>('/yeewallex/account-info'),
+  getCardBins: () => api.get<any>('/yeewallex/card-bins'),
 
   // Cardholders
   cardholders: {
-    getAll: (params?: { page_num?: number; page_size?: number }) => {
-      const query = new URLSearchParams()
-      if (params?.page_num !== undefined) query.append('page_num', params.page_num.toString())
-      if (params?.page_size) query.append('page_size', params.page_size.toString())
-      return api.get<any>(`/airwallex/cardholders?${query.toString()}`)
+    getAll: (params?: { page?: number; limit?: number }) => {
+      const q = new URLSearchParams()
+      if (params?.page) q.append('page', params.page.toString())
+      if (params?.limit) q.append('limit', params.limit.toString())
+      return api.get<any>(`/yeewallex/cardholders?${q.toString()}`)
     },
-    getById: (id: string) => api.get<any>(`/airwallex/cardholders/${id}`),
-    create: (data: any) => api.post<any>('/airwallex/cardholders', data),
+    getById: (id: string) => api.get<any>(`/yeewallex/cardholders/${id}`),
+    create: (data: any) => api.post<any>('/yeewallex/cardholders', data),
   },
 
-  // Transactions
+  // Cards
+  cards: {
+    getAll: (params?: { page?: number; limit?: number; status?: string }) => {
+      const q = new URLSearchParams()
+      if (params?.page) q.append('page', params.page.toString())
+      if (params?.limit) q.append('limit', params.limit.toString())
+      if (params?.status) q.append('status', params.status)
+      return api.get<any>(`/yeewallex/cards?${q.toString()}`)
+    },
+    getById: (id: string) => api.get<any>(`/yeewallex/cards/${id}`),
+    getDetails: (id: string) => api.get<any>(`/yeewallex/cards/${id}/details`),
+    getTaskStatus: (id: string) => api.get<any>(`/yeewallex/cards/${id}/task-status`),
+    create: (data: any) => api.post<any>('/yeewallex/cards', data),
+    activate: (id: string) => api.post<any>(`/yeewallex/cards/${id}/activate`, {}),
+    freeze: (id: string) => api.post<any>(`/yeewallex/cards/${id}/freeze`, {}),
+    unfreeze: (id: string) => api.post<any>(`/yeewallex/cards/${id}/unfreeze`, {}),
+    cancel: (id: string) => api.post<any>(`/yeewallex/cards/${id}/cancel`, {}),
+    assign: (id: string, userId: string | null) => api.post<any>(`/yeewallex/cards/${id}/assign`, { userId }),
+    recharge: (id: string, data: { amount: number; currency?: string }) => api.post<any>(`/yeewallex/cards/${id}/recharge`, data),
+    withdraw: (id: string, data: { amount: number; currency?: string }) => api.post<any>(`/yeewallex/cards/${id}/withdraw`, data),
+  },
+
+  // Transactions (from Yeewallex API + local DB)
   transactions: {
-    getAll: (params?: { page_num?: number; page_size?: number; card_id?: string }) => {
-      const query = new URLSearchParams()
-      if (params?.page_num !== undefined) query.append('page_num', params.page_num.toString())
-      if (params?.page_size) query.append('page_size', params.page_size.toString())
-      if (params?.card_id) query.append('card_id', params.card_id)
-      return api.get<any>(`/airwallex/transactions?${query.toString()}`)
+    getRechargeHistory: () => api.get<any>('/yeewallex/recharge-history'),
+    getAll: (params?: { page?: number; size?: number; cardId?: string; startDate?: string; endDate?: string }) => {
+      const q = new URLSearchParams()
+      if (params?.page) q.append('page', params.page.toString())
+      if (params?.size) q.append('size', params.size.toString())
+      if (params?.cardId) q.append('cardId', params.cardId)
+      if (params?.startDate) q.append('startDate', params.startDate)
+      if (params?.endDate) q.append('endDate', params.endDate)
+      return api.get<any>(`/yeewallex/transactions?${q.toString()}`)
     },
   },
+}
 
-  // Config
-  getConfig: () => api.get<any>('/airwallex/config'),
+// Shop Management API
+export const shopApi = {
+  getStats: () => api.get<any>('/shop/admin/stats'),
+
+  products: {
+    getAll: () => api.get<any>('/shop/admin/products'),
+    create: (data: any) => api.post<any>('/shop/admin/products', data),
+    update: (id: string, data: any) => api.put<any>(`/shop/admin/products/${id}`, data),
+    delete: (id: string) => api.delete<any>(`/shop/admin/products/${id}`),
+  },
+
+  categories: {
+    getAll: () => api.get<any>('/shop/admin/categories'),
+    create: (data: any) => api.post<any>('/shop/admin/categories', data),
+    update: (id: string, data: any) => api.put<any>(`/shop/admin/categories/${id}`, data),
+    delete: (id: string) => api.delete<any>(`/shop/admin/categories/${id}`),
+  },
+
+  orders: {
+    getAll: () => api.get<any>('/shop/admin/orders'),
+    update: (id: string, data: any) => api.put<any>(`/shop/admin/orders/${id}`, data),
+    deliver: (id: string, deliveryContent: string) => api.post<any>(`/shop/admin/orders/${id}/deliver`, { deliveryContent }),
+  },
+
+  settings: {
+    get: () => api.get<any>('/shop/admin/settings'),
+    update: (data: any) => api.put<any>('/shop/admin/settings', data),
+  },
 }
 
 // Crypto Wallet Configuration API

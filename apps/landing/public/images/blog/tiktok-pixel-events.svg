@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" fill="none">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="800" y2="450">
+      <stop offset="0%" stop-color="#0c1222"/>
+      <stop offset="100%" stop-color="#1a0f3c"/>
+    </linearGradient>
+    <linearGradient id="bar1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="bar2" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+    <linearGradient id="bar3" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+    <linearGradient id="bar4" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <linearGradient id="bar5" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#f87171"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#bg2)" rx="16"/>
+  <!-- Subtle dot grid -->
+  <g opacity="0.08">
+    <pattern id="dots2" x="0" y="0" width="30" height="30" patternUnits="userSpaceOnUse">
+      <circle cx="15" cy="15" r="1" fill="white"/>
+    </pattern>
+    <rect width="800" height="450" fill="url(#dots2)"/>
+  </g>
+  <!-- Glow -->
+  <ellipse cx="400" cy="320" rx="300" ry="100" fill="#3b82f6" opacity="0.06"/>
+  <!-- Title -->
+  <text x="400" y="45" text-anchor="middle" font-size="18" font-weight="700" fill="white" opacity="0.85" font-family="system-ui">Event Tracking Dashboard</text>
+  <text x="400" y="68" text-anchor="middle" font-size="12" fill="#94a3b8" font-family="system-ui">Real-time pixel events captured from your website</text>
+  <!-- Chart area -->
+  <line x1="100" y1="350" x2="720" y2="350" stroke="white" stroke-opacity="0.1" stroke-width="1"/>
+  <line x1="100" y1="280" x2="720" y2="280" stroke="white" stroke-opacity="0.05" stroke-width="1" stroke-dasharray="4 4"/>
+  <line x1="100" y1="210" x2="720" y2="210" stroke="white" stroke-opacity="0.05" stroke-width="1" stroke-dasharray="4 4"/>
+  <line x1="100" y1="140" x2="720" y2="140" stroke="white" stroke-opacity="0.05" stroke-width="1" stroke-dasharray="4 4"/>
+  <!-- Y-axis labels -->
+  <text x="85" y="354" text-anchor="end" font-size="10" fill="#64748b" font-family="system-ui">0</text>
+  <text x="85" y="284" text-anchor="end" font-size="10" fill="#64748b" font-family="system-ui">250</text>
+  <text x="85" y="214" text-anchor="end" font-size="10" fill="#64748b" font-family="system-ui">500</text>
+  <text x="85" y="144" text-anchor="end" font-size="10" fill="#64748b" font-family="system-ui">750</text>
+  <!-- Bars -->
+  <g>
+    <!-- PageView -->
+    <rect x="130" y="120" width="55" height="230" rx="6" fill="url(#bar1)" opacity="0.85"/>
+    <text x="157" y="110" text-anchor="middle" font-size="12" font-weight="700" fill="#06b6d4" font-family="system-ui">842</text>
+    <text x="157" y="375" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="system-ui">PageView</text>
+    <!-- ViewContent -->
+    <rect x="230" y="175" width="55" height="175" rx="6" fill="url(#bar2)" opacity="0.85"/>
+    <text x="257" y="165" text-anchor="middle" font-size="12" font-weight="700" fill="#c084fc" font-family="system-ui">614</text>
+    <text x="257" y="375" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="system-ui">ViewContent</text>
+    <!-- AddToCart -->
+    <rect x="330" y="230" width="55" height="120" rx="6" fill="url(#bar3)" opacity="0.85"/>
+    <text x="357" y="220" text-anchor="middle" font-size="12" font-weight="700" fill="#34d399" font-family="system-ui">389</text>
+    <text x="357" y="375" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="system-ui">AddToCart</text>
+    <!-- Checkout -->
+    <rect x="430" y="275" width="55" height="75" rx="6" fill="url(#bar4)" opacity="0.85"/>
+    <text x="457" y="265" text-anchor="middle" font-size="12" font-weight="700" fill="#fbbf24" font-family="system-ui">241</text>
+    <text x="457" y="375" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="system-ui">Checkout</text>
+    <!-- Purchase -->
+    <rect x="530" y="300" width="55" height="50" rx="6" fill="url(#bar5)" opacity="0.85"/>
+    <text x="557" y="290" text-anchor="middle" font-size="12" font-weight="700" fill="#f87171" font-family="system-ui">156</text>
+    <text x="557" y="375" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="system-ui">Purchase</text>
+    <!-- SignUp -->
+    <rect x="630" y="310" width="55" height="40" rx="6" fill="url(#bar1)" opacity="0.6"/>
+    <text x="657" y="300" text-anchor="middle" font-size="12" font-weight="700" fill="#06b6d4" opacity="0.7" font-family="system-ui">98</text>
+    <text x="657" y="375" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="system-ui">SignUp</text>
+  </g>
+  <!-- Conversion funnel line -->
+  <polyline points="157,120 257,175 357,230 457,275 557,300 657,310" fill="none" stroke="white" stroke-opacity="0.2" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <!-- Bottom stat cards -->
+  <g transform="translate(110,395)">
+    <rect width="130" height="38" rx="8" fill="white" fill-opacity="0.04" stroke="white" stroke-opacity="0.06"/>
+    <text x="12" y="16" font-size="9" fill="#64748b" font-family="system-ui">Conversion Rate</text>
+    <text x="12" y="31" font-size="14" font-weight="700" fill="#34d399" font-family="system-ui">18.5%</text>
+  </g>
+  <g transform="translate(260,395)">
+    <rect width="130" height="38" rx="8" fill="white" fill-opacity="0.04" stroke="white" stroke-opacity="0.06"/>
+    <text x="12" y="16" font-size="9" fill="#64748b" font-family="system-ui">Total Events</text>
+    <text x="12" y="31" font-size="14" font-weight="700" fill="#06b6d4" font-family="system-ui">2,340</text>
+  </g>
+  <g transform="translate(410,395)">
+    <rect width="130" height="38" rx="8" fill="white" fill-opacity="0.04" stroke="white" stroke-opacity="0.06"/>
+    <text x="12" y="16" font-size="9" fill="#64748b" font-family="system-ui">Revenue Tracked</text>
+    <text x="12" y="31" font-size="14" font-weight="700" fill="#fbbf24" font-family="system-ui">$12,480</text>
+  </g>
+</svg>

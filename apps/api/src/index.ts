@@ -38,8 +38,9 @@ import eventRoutes from './routes/events.js'
 import extensionRoutes from './routes/extension.js'
 import reportRoutes from './routes/reports.js'
 import emailRoutes from './routes/emails.js'
-import airwallexRoutes from './routes/airwallex.js'
+import yeewallexRoutes from './routes/yeewallex.js'
 import cmsRoutes from './routes/cms.js'
+import shopRoutes from './routes/shop.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
 import { startTaskWatchdog } from './services/task-watchdog.js'
@@ -133,8 +134,9 @@ app.route('/events', eventRoutes)
 app.route('/extension', extensionRoutes)
 app.route('/reports', reportRoutes)
 app.route('/emails', emailRoutes)
-app.route('/airwallex', airwallexRoutes)
+app.route('/yeewallex', yeewallexRoutes)
 app.route('/cms', cmsRoutes)
+app.route('/shop', shopRoutes)
 
 // Start background crypto verification service
 startBackgroundVerifier().catch(console.error)

@@ -84,7 +84,7 @@ function MiniVal({ v, side }: { v: RowValue; side: 'us' | 'them' }) {
     </div>
   )
   if (v.type === 'badge') return <span className={`text-[6px] font-bold px-1 py-0.5 rounded-full flex-shrink-0 ${v.color === 'green' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/10 text-red-400/60'}`}>{v.value}</span>
-  return <span className={`text-[7px] font-semibold flex-shrink-0 ${side === 'us' ? 'text-white' : 'text-gray-500'}`}>{v.value}</span>
+  return <span className={`text-[7px] font-semibold flex-shrink-0 ${side === 'us' ? 'text-white' : 'text-gray-400'}`}>{v.value}</span>
 }
 
 export default function ComparisonSection() {
@@ -130,7 +130,7 @@ export default function ComparisonSection() {
           <h2 className="text-lg sm:text-3xl md:text-4xl lg:text-[42px] font-bold text-white leading-tight mb-1 sm:mb-4">
             ADS360 vs Traditional
           </h2>
-          <p className="text-gray-500 text-xs sm:text-base max-w-lg mx-auto leading-relaxed">
+          <p className="text-gray-400 text-xs sm:text-base max-w-lg mx-auto leading-relaxed">
             See how our agency accounts beat all other service providers.
           </p>
         </div>
@@ -154,7 +154,7 @@ export default function ComparisonSection() {
                 </div>
               </div>
               <div className="px-2 py-2 border-l border-white/[0.04]">
-                <span className="text-gray-500 text-[9px] font-bold">Traditional</span>
+                <span className="text-gray-400 text-[9px] font-bold">Traditional</span>
               </div>
             </div>
             {/* Rows */}
@@ -166,7 +166,7 @@ export default function ComparisonSection() {
                 </div>
                 <div className="px-2 py-1.5 border-l border-white/[0.03] flex items-center gap-1">
                   <MiniVal v={row.them} side="them" />
-                  <span className="text-[7px] text-gray-500 leading-tight">{row.feature}</span>
+                  <span className="text-[7px] text-gray-400 leading-tight">{row.feature}</span>
                 </div>
               </div>
             ))}
@@ -222,7 +222,7 @@ export default function ComparisonSection() {
               </div>
               {/* Traditional column header */}
               <div className="px-4 py-5 flex items-center justify-center">
-                <span className="text-gray-500 font-medium text-sm">Traditional</span>
+                <span className="text-gray-400 font-medium text-sm">Traditional</span>
               </div>
             </div>
 
@@ -252,7 +252,7 @@ export default function ComparisonSection() {
                 </div>
                 {/* Traditional value */}
                 <div className="px-4 py-4 sm:py-5 flex justify-center">
-                  <span className="text-gray-500 text-sm">
+                  <span className="text-gray-400 text-sm">
                     <CellValue val={row.them} />
                   </span>
                 </div>

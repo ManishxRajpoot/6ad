@@ -2039,3 +2039,70 @@ export function getAgentRefundRejectedNotificationTemplate(data: AccountRefundEm
     })
   }
 }
+
+// ============= SHOP ORDER TEMPLATES =============
+
+interface ShopDeliveryEmailData {
+  orderNumber: string
+  email: string
+  items: { title: string; quantity: number; price: number }[]
+  totalAmount: number
+  deliveryContent: string
+}
+
+export function getShopOrderDeliveryTemplate(data: ShopDeliveryEmailData): { subject: string; html: string } {
+  const itemRows = data.items.map(item =>
+    `<tr>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; color: #374151; font-size: 14px;">${item.title}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-size: 14px; text-align: center;">${item.quantity}</td>
+      <td style="padding: 8px 12px; border-bottom: 1px solid #f3f4f6; color: #374151; font-size: 14px; text-align: right;">$${item.price.toFixed(2)}</td>
+    </tr>`
+  ).join('')
+
+  const content = `
+    <p style="margin: 0 0 16px; color: #374151; font-size: 15px; line-height: 1.6;">
+      Hi there,
+    </p>
+    <p style="margin: 0 0 24px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+      Your order <strong style="color: #374151;">${data.orderNumber}</strong> has been delivered! Here are your details:
+    </p>
+
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+      <thead>
+        <tr style="background: #f9fafb;">
+          <th style="padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Product</th>
+          <th style="padding: 10px 12px; text-align: center; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Qty</th>
+          <th style="padding: 10px 12px; text-align: right; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+        <tr style="background: #f9fafb;">
+          <td colspan="2" style="padding: 10px 12px; font-size: 14px; font-weight: 700; color: #374151;">Total</td>
+          <td style="padding: 10px 12px; text-align: right; font-size: 14px; font-weight: 700; color: #059669;">$${data.totalAmount.toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+      <p style="margin: 0 0 12px; color: #166534; font-size: 14px; font-weight: 600;">Your Delivery Details:</p>
+      <pre style="margin: 0; color: #374151; font-size: 14px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; font-family: 'Courier New', monospace; background: #ffffff; padding: 16px; border-radius: 6px; border: 1px solid #dcfce7;">${data.deliveryContent}</pre>
+    </div>
+
+    <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">
+      Thank you for your purchase! If you have any issues, please contact us via Telegram.
+    </p>
+  `
+
+  return {
+    subject: `Order Delivered - ${data.orderNumber} | ADS360`,
+    html: getBaseEmailTemplate({
+      title: 'Order Delivered',
+      subtitle: data.orderNumber,
+      headerColor: 'green',
+      agentBrandName: 'ADS360',
+      content,
+      footerText: 'You received this email because you placed an order on ADS360.'
+    })
+  }
+}

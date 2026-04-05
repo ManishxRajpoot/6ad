@@ -152,10 +152,10 @@ export default function TestimonialsSection() {
             </div>
           </div>
           <div className="flex justify-center gap-3 mt-2">
-            <button onClick={() => scrollBy('left')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
+            <button aria-label="Previous testimonial" onClick={() => scrollBy('left')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
               <ChevronLeft className="w-4 h-4 text-white/70" />
             </button>
-            <button onClick={() => scrollBy('right')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
+            <button aria-label="Next testimonial" onClick={() => scrollBy('right')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
               <ChevronRight className="w-4 h-4 text-white/70" />
             </button>
           </div>

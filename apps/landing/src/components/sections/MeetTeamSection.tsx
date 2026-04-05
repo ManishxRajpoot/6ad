@@ -49,12 +49,12 @@ export default function MeetTeamSection() {
           <div className="relative flex justify-center mb-4">
             <div className="rounded-xl overflow-hidden border border-white/[0.08] shadow-xl w-full max-w-[280px]">
               <div className="aspect-[4/3] bg-white/[0.04]">
-                <Image src="/team-main.jpg" alt="ADS360 Team" width={280} height={210} className="w-full h-full object-cover" />
+                <Image src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/team-main.jpg" alt="ADS360 Team" width={280} height={210} className="w-full h-full object-cover" />
               </div>
             </div>
             <div className="absolute -bottom-3 right-4 z-20 w-[80px] rounded-xl overflow-hidden border-2 border-white/[0.1] shadow-xl bg-dark-900">
               <div className="aspect-[9/16] bg-white/[0.04]">
-                <Image src="/team-phone.jpg" alt="ADS360 Team" width={80} height={142} className="w-full h-full object-cover" />
+                <Image src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/team-phone.jpg" alt="ADS360 Team" width={80} height={142} className="w-full h-full object-cover" />
               </div>
             </div>
           </div>
@@ -97,12 +97,12 @@ export default function MeetTeamSection() {
               <div className="absolute bottom-0 left-1/4 w-24 h-48 bg-gradient-to-tr from-blue-500/15 to-purple-500/5 rounded-xl -rotate-12 blur-sm" />
               <div className="relative z-10 rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl shadow-black/30 w-full max-w-[420px]">
                 <div className="aspect-[4/3] bg-white/[0.04]">
-                  <Image src="/team-main.jpg" alt="ADS360 Team" width={420} height={315} className="w-full h-full object-cover" />
+                  <Image src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/team-main.jpg" alt="ADS360 Team" width={420} height={315} className="w-full h-full object-cover" />
                 </div>
               </div>
               <div className="absolute -bottom-4 right-4 z-20 w-[160px] rounded-2xl overflow-hidden border-2 border-white/[0.1] shadow-2xl shadow-black/40 bg-dark-900">
                 <div className="aspect-[9/16] bg-white/[0.04]">
-                  <Image src="/team-phone.jpg" alt="ADS360 Team" width={160} height={284} className="w-full h-full object-cover" />
+                  <Image src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/team-phone.jpg" alt="ADS360 Team" width={160} height={284} className="w-full h-full object-cover" />
                 </div>
               </div>
             </div>

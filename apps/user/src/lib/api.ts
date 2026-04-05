@@ -438,3 +438,16 @@ export const chatApi = {
   },
   getUnreadCount: () => api.get<{ unreadCount: number }>('/chat/unread'),
 }
+
+// VCC Cards API
+export const vccApi = {
+  getMyCards: () => api.get<{ cards: any[] }>('/yeewallex/my/cards'),
+  getCardById: (id: string) => api.get<{ card: any }>(`/yeewallex/my/cards/${id}`),
+  getCardDetails: (id: string) => api.get<any>(`/yeewallex/my/cards/${id}/details`),
+  getMyTransactions: (params?: { page?: number; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.page) q.append('page', params.page.toString())
+    if (params?.limit) q.append('limit', params.limit.toString())
+    return api.get<{ transactions: any[]; total: number }>(`/yeewallex/my/transactions?${q.toString()}`)
+  },
+}

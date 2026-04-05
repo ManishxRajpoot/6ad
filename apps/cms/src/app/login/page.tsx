@@ -47,16 +47,21 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="mb-6 sm:mb-8 text-center">
             <div className="mx-auto mb-4 flex items-center justify-center gap-2 sm:gap-3">
-              {/* ADS360 Logo - Blue triangle */}
+              {/* ADS360 Logo - Radiant Pyramid */}
               <svg viewBox="0 0 40 40" className="w-10 sm:w-14 h-10 sm:h-14" fill="none">
                 <defs>
-                  <linearGradient id="loginLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#3B82F6" />
-                    <stop offset="100%" stopColor="#1D4ED8" />
+                  <linearGradient id="loginLogoGrad" x1="0" y1="40" x2="40" y2="0">
+                    <stop offset="0%" stopColor="#1d4ed8" />
+                    <stop offset="100%" stopColor="#3b82f6" />
                   </linearGradient>
                 </defs>
-                <path d="M20 4L36 34H4L20 4Z" fill="url(#loginLogoGrad)" />
-                <path d="M20 12L28 28H12L20 12Z" fill="white" opacity="0.2" />
+                <rect x="1" y="1" width="38" height="38" rx="10" fill="url(#loginLogoGrad)" />
+                <line x1="20" y1="2" x2="20" y2="9" stroke="white" strokeWidth="1" strokeOpacity="0.35" strokeLinecap="round" />
+                <line x1="12" y1="5" x2="15" y2="11" stroke="white" strokeWidth="0.8" strokeOpacity="0.2" strokeLinecap="round" />
+                <line x1="28" y1="5" x2="25" y2="11" stroke="white" strokeWidth="0.8" strokeOpacity="0.2" strokeLinecap="round" />
+                <path d="M20 10 L33 35 L20 28Z" fill="white" fillOpacity="0.9" strokeLinejoin="round" />
+                <path d="M20 10 L7 35 L20 28Z" fill="white" fillOpacity="0.5" strokeLinejoin="round" />
+                <path d="M20 28 L7 35 L33 35Z" fill="white" fillOpacity="0.2" strokeLinejoin="round" />
               </svg>
               <div className="flex flex-col leading-none text-left">
                 <span className="text-[18px] sm:text-[24px] font-bold bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 bg-clip-text text-transparent tracking-tight">

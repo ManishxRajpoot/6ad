@@ -22,6 +22,7 @@ import {
   Layers,
   Mail,
   Wallet,
+  BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -88,6 +89,7 @@ const menuSections: MenuSection[] = [
     items: [
       { name: 'Hero Headlines', href: '/headlines', icon: Megaphone },
       { name: 'Hero Media', href: '/hero-media', icon: Layers },
+      { name: 'Blog Posts', href: '/blog', icon: BookOpen },
     ]
   },
   {
@@ -169,28 +171,22 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-[230px] bg-white/80 backdrop-blur-xl flex flex-col border-r border-black/[0.06]">
-      {/* Logo — ribbon infinity in black/gray */}
+      {/* Logo — Radiant Pyramid */}
       <div className="px-5 py-5 flex items-center gap-3">
-        <svg viewBox="0 0 48 28" className="w-14 h-9 shrink-0" fill="none">
+        <svg viewBox="0 0 40 40" className="w-10 h-10 shrink-0" fill="none">
           <defs>
-            <linearGradient id="adminRibbonGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#111827"/>
-              <stop offset="100%" stopColor="#374151"/>
-            </linearGradient>
-            <linearGradient id="adminRibbonGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#374151"/>
-              <stop offset="100%" stopColor="#6B7280"/>
+            <linearGradient id="sidebarLogoBg" x1="0" y1="40" x2="40" y2="0">
+              <stop offset="0%" stopColor="#1d4ed8"/>
+              <stop offset="100%" stopColor="#3b82f6"/>
             </linearGradient>
           </defs>
-          <path
-            d="M4 14 C4 6, 10 2, 18 8 C22 11, 24 14, 24 14 C24 14, 22 17, 18 20 C10 26, 4 22, 4 14"
-            fill="url(#adminRibbonGrad1)"
-          />
-          <path
-            d="M44 14 C44 6, 38 2, 30 8 C26 11, 24 14, 24 14 C24 14, 26 17, 30 20 C38 26, 44 22, 44 14"
-            fill="url(#adminRibbonGrad2)"
-          />
-          <ellipse cx="24" cy="14" rx="4" ry="5" fill="white" opacity="0.12"/>
+          <rect x="1" y="1" width="38" height="38" rx="10" fill="url(#sidebarLogoBg)"/>
+          <line x1="20" y1="2" x2="20" y2="9" stroke="white" strokeWidth="1" strokeOpacity="0.35" strokeLinecap="round"/>
+          <line x1="12" y1="5" x2="15" y2="11" stroke="white" strokeWidth="0.8" strokeOpacity="0.2" strokeLinecap="round"/>
+          <line x1="28" y1="5" x2="25" y2="11" stroke="white" strokeWidth="0.8" strokeOpacity="0.2" strokeLinecap="round"/>
+          <path d="M20 10 L33 35 L20 28Z" fill="white" fillOpacity="0.9" strokeLinejoin="round"/>
+          <path d="M20 10 L7 35 L20 28Z" fill="white" fillOpacity="0.5" strokeLinejoin="round"/>
+          <path d="M20 28 L7 35 L33 35Z" fill="white" fillOpacity="0.2" strokeLinejoin="round"/>
         </svg>
         <div className="flex flex-col leading-none">
           <span className="text-[19px] font-bold text-gray-900 tracking-tight">

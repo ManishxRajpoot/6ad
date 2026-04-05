@@ -6,9 +6,16 @@
     </linearGradient>
   </defs>
   <rect width="120" height="120" rx="28" fill="url(#bg)"/>
-  <rect x="2" y="2" width="116" height="116" rx="26" fill="none" stroke="white" stroke-width="1" stroke-opacity="0.12"/>
-  <!-- Front triangle -->
-  <path d="M38 92 L55 28 L72 92Z" fill="white" fill-opacity="0.95"/>
-  <!-- Back triangle (overlapping, offset right) -->
-  <path d="M50 96 L67 32 L84 96Z" fill="white" fill-opacity="0.4"/>
+  <!-- Radiant lines -->
+  <line x1="60" y1="6" x2="60" y2="27" stroke="white" stroke-width="3" stroke-opacity="0.35" stroke-linecap="round"/>
+  <line x1="36" y1="15" x2="45" y2="33" stroke="white" stroke-width="2.4" stroke-opacity="0.2" stroke-linecap="round"/>
+  <line x1="84" y1="15" x2="75" y2="33" stroke="white" stroke-width="2.4" stroke-opacity="0.2" stroke-linecap="round"/>
+  <line x1="24" y1="30" x2="36" y2="42" stroke="white" stroke-width="1.8" stroke-opacity="0.12" stroke-linecap="round"/>
+  <line x1="96" y1="30" x2="84" y2="42" stroke="white" stroke-width="1.8" stroke-opacity="0.12" stroke-linecap="round"/>
+  <!-- Pyramid right face -->
+  <path d="M60 30 L99 105 L60 84Z" fill="white" fill-opacity="0.9" stroke-linejoin="round"/>
+  <!-- Pyramid left face -->
+  <path d="M60 30 L21 105 L60 84Z" fill="white" fill-opacity="0.5" stroke-linejoin="round"/>
+  <!-- Pyramid bottom face -->
+  <path d="M60 84 L21 105 L99 105Z" fill="white" fill-opacity="0.2" stroke-linejoin="round"/>
 </svg>

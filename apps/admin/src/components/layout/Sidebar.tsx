@@ -22,6 +22,7 @@ import {
   Layers,
   Mail,
   Wallet,
+  ShoppingBag,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
@@ -97,7 +98,7 @@ const menuSections: MenuSection[] = [
     items: [
       { name: 'Transactions', href: '/transactions', icon: CreditCard },
       { name: 'Withdrawals', href: '/withdrawals', icon: ArrowUpRight },
-      { name: 'Airwallex', href: '/airwallex', icon: Wallet },
+      { name: 'VCC Cards', href: '/yeewallex', icon: CreditCard },
       { name: 'Reports', href: '/reports', icon: FileText },
     ]
   },
@@ -124,6 +125,7 @@ const menuSections: MenuSection[] = [
       { name: 'Email Sender', href: '/email', icon: Mail },
       { name: 'Coupons', href: '/coupons', icon: Ticket },
       { name: 'Referrals', href: '/referrals', icon: Gift },
+      { name: 'Shop', href: '/shop', icon: ShoppingBag },
     ]
   },
   {

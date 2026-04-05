@@ -1,7 +1,13 @@
 <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Just the arrow/triangles — no background. White for use on dark/colored surfaces -->
-  <!-- Front triangle -->
-  <path d="M22 66 L36 14 L50 66Z" fill="white" fill-opacity="0.9"/>
-  <!-- Back triangle -->
-  <path d="M32 70 L46 18 L60 70Z" fill="white" fill-opacity="0.35"/>
+  <!-- Radiant Pyramid — white only, no background. For use on dark/colored surfaces -->
+  <!-- Radiant lines -->
+  <line x1="40" y1="2" x2="40" y2="16" stroke="white" stroke-width="2.5" stroke-opacity="0.35" stroke-linecap="round"/>
+  <line x1="24" y1="8" x2="30" y2="20" stroke="white" stroke-width="2" stroke-opacity="0.2" stroke-linecap="round"/>
+  <line x1="56" y1="8" x2="50" y2="20" stroke="white" stroke-width="2" stroke-opacity="0.2" stroke-linecap="round"/>
+  <!-- Pyramid right face -->
+  <path d="M40 18 L66 70 L40 56Z" fill="white" fill-opacity="0.9" stroke-linejoin="round"/>
+  <!-- Pyramid left face -->
+  <path d="M40 18 L14 70 L40 56Z" fill="white" fill-opacity="0.5" stroke-linejoin="round"/>
+  <!-- Pyramid bottom face -->
+  <path d="M40 56 L14 70 L66 70Z" fill="white" fill-opacity="0.2" stroke-linejoin="round"/>
 </svg>

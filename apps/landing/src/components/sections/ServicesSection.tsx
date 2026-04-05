@@ -22,7 +22,7 @@ export default function ServicesSection() {
       desc: 'Unlock the full potential of your brand with premium Meta Advertising, reaching billions across Facebook, Instagram, Messenger, and WhatsApp. Benefit from whitelisted accounts for higher trust and faster scaling.',
       ringColor: '#0081FB',
       iconColor: '#0081FB',
-      icon: <img src="/meta-logo.png" alt="Meta" className="w-full h-full object-contain" />,
+      icon: <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/meta-logo.webp" alt="Meta" className="w-full h-full object-contain" />,
     },
     {
       name: 'Google',
@@ -30,7 +30,7 @@ export default function ServicesSection() {
       desc: 'Tap into the power of Google\'s vast network with whitelisted Google ad accounts that deliver higher approval rates, wider reach, and better conversions across Search, YouTube, Display, and Shopping campaigns.',
       ringColor: '#4285F4',
       iconColor: '#4285F4',
-      icon: <img src="/google-logo.png" alt="Google" className="w-full h-full object-contain" />,
+      icon: <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/google-logo.webp" alt="Google" className="w-full h-full object-contain" />,
     },
     {
       name: 'TikTok',
@@ -38,7 +38,7 @@ export default function ServicesSection() {
       desc: 'Engage the fastest-growing audience with TikTok\'s high-impact ad formats through our TikTok agency ad accounts. Our whitelisted accounts help you run compliant, scalable campaigns with higher reach and engagement from day one.',
       ringColor: '#ff0050',
       iconColor: '#ff0050',
-      icon: <img src="/tiktok-logo.png" alt="TikTok" className="w-full h-full object-contain" />,
+      icon: <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/tiktok-logo.webp" alt="TikTok" className="w-full h-full object-contain" />,
     },
     {
       name: 'Snapchat',
@@ -46,7 +46,7 @@ export default function ServicesSection() {
       desc: 'Reach Gen-Z and millennial audiences with Snapchat\'s immersive ad formats. Our agency accounts offer higher trust scores, faster approvals, and premium placement across Snap\'s advertising ecosystem.',
       ringColor: '#FFFC00',
       iconColor: '#FFFC00',
-      icon: <img src="/snapchat.png" alt="Snapchat" className="w-full h-full object-contain" />,
+      icon: <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/snapchat.webp" alt="Snapchat" className="w-full h-full object-contain" />,
     },
     {
       name: 'Bing',
@@ -54,7 +54,7 @@ export default function ServicesSection() {
       desc: 'Capture high-intent audiences across Bing, Outlook, and the Microsoft Advertising network. Our whitelisted agency accounts deliver faster approvals, higher spend limits, and premium support.',
       ringColor: '#00897B',
       iconColor: '#00BFA5',
-      icon: <img src="/bing-logo.png" alt="Bing" className="w-full h-full object-contain" />,
+      icon: <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/bing-logo.webp" alt="Bing" className="w-full h-full object-contain" />,
     },
   ]
 
@@ -118,7 +118,7 @@ export default function ServicesSection() {
               Agency Accounts
             </span>
           </h2>
-          <p className="text-gray-500 text-xs sm:text-sm md:text-base max-w-xl mx-auto">
+          <p className="text-gray-400 text-xs sm:text-sm md:text-base max-w-xl mx-auto">
             Premium agency ad accounts across all major platforms. Live in 1 hour, unlimited spend.
           </p>
         </div>
@@ -132,7 +132,7 @@ export default function ServicesSection() {
                   {service.icon}
                 </div>
                 <h3 className="text-white text-[11px] font-bold leading-tight">{service.name} Agency</h3>
-                <p className="text-gray-500 text-[9px] mt-1 line-clamp-2 leading-relaxed">{service.desc}</p>
+                <p className="text-gray-400 text-[9px] mt-1 line-clamp-2 leading-relaxed">{service.desc}</p>
                 <a href="#contact" className="inline-flex items-center gap-1 mt-2 text-[9px] font-semibold px-2.5 py-1 rounded-md" style={{ color: service.ringColor, background: `${service.ringColor}10`, border: `1px solid ${service.ringColor}20` }}>
                   Start <ArrowRight className="w-2.5 h-2.5" />
                 </a>
@@ -141,10 +141,10 @@ export default function ServicesSection() {
           </div>
           {/* Arrow buttons */}
           <div className="flex justify-center gap-3 mt-3">
-            <button onClick={() => scrollMobile('left')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.03] flex items-center justify-center text-gray-400 hover:text-white hover:border-white/20 transition-all">
+            <button aria-label="Previous service" onClick={() => scrollMobile('left')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.03] flex items-center justify-center text-gray-400 hover:text-white hover:border-white/20 transition-all">
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <button onClick={() => scrollMobile('right')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.03] flex items-center justify-center text-gray-400 hover:text-white hover:border-white/20 transition-all">
+            <button aria-label="Next service" onClick={() => scrollMobile('right')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.03] flex items-center justify-center text-gray-400 hover:text-white hover:border-white/20 transition-all">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
@@ -252,7 +252,7 @@ export default function ServicesSection() {
                   </h3>
 
                   {/* Description */}
-                  <p className="text-gray-500 text-[10px] sm:text-sm leading-relaxed mb-2 sm:mb-6 flex-grow">
+                  <p className="text-gray-400 text-[10px] sm:text-sm leading-relaxed mb-2 sm:mb-6 flex-grow">
                     {service.desc}
                   </p>
 

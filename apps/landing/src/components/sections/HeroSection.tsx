@@ -241,7 +241,7 @@ function HeroVideo({ videoId = 'QlQAMHzRwiM' }: { videoId?: string }) {
         videoId,
         playerVars: {
           autoplay: 1,
-          mute: 1,
+          mute: 0,
           controls: 1,
           showinfo: 0,
           rel: 0,
@@ -250,7 +250,7 @@ function HeroVideo({ videoId = 'QlQAMHzRwiM' }: { videoId?: string }) {
           playsinline: 1,
         },
         events: {
-          onReady: (e: any) => { e.target.playVideo() },
+          onReady: (e: any) => { e.target.unMute(); e.target.setVolume(100); e.target.playVideo() },
           onStateChange: (e: any) => {
             if (e.data === 0) {
               setPlaying(false)
@@ -301,14 +301,46 @@ function HeroVideo({ videoId = 'QlQAMHzRwiM' }: { videoId?: string }) {
   return <div ref={playerRef} className="absolute inset-0 w-full h-full" />
 }
 
-// ==================== HERO IMAGE ====================
+// ==================== HERO IMAGE (Browser Mockup) ====================
 function HeroImage({ src }: { src: string }) {
   return (
-    <img
-      src={src}
-      alt="Hero"
-      className="absolute inset-0 w-full h-full object-cover"
-    />
+    <div className="absolute inset-0 w-full h-full flex flex-col bg-[#0c1120]">
+      {/* Browser chrome bar */}
+      <div className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-[#151d2e] border-b border-white/[0.06] shrink-0">
+        {/* Traffic lights */}
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#ff5f57]" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#febc2e]" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#28c840]" />
+        </div>
+        {/* URL bar */}
+        <div className="flex-1 flex justify-center">
+          <div className="flex items-center gap-1.5 px-3 sm:px-4 py-1 sm:py-1.5 rounded-md sm:rounded-lg bg-[#0c1120] border border-white/[0.06] max-w-[280px] sm:max-w-sm w-full">
+            <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <span className="text-[9px] sm:text-[11px] text-white/60 truncate">vip.ads360.ai/dashboard</span>
+          </div>
+        </div>
+        {/* Right side dots */}
+        <div className="flex items-center gap-1">
+          <div className="w-1 h-1 rounded-full bg-white/20" />
+          <div className="w-1 h-1 rounded-full bg-white/20" />
+          <div className="w-1 h-1 rounded-full bg-white/20" />
+        </div>
+      </div>
+      {/* Screenshot */}
+      <div className="flex-1 overflow-hidden relative">
+        <img
+          src={src}
+          alt="ADS360 Dashboard"
+          fetchPriority="high"
+          className="w-full h-full object-cover object-top"
+        />
+        {/* Bottom fade to blend into page */}
+        <div className="absolute bottom-0 left-0 right-0 h-16 sm:h-24 bg-gradient-to-t from-[#0c1120] to-transparent pointer-events-none" />
+      </div>
+    </div>
   )
 }
 
@@ -329,7 +361,7 @@ function HeroSection() {
 
   // Daily rotating headline from API
   const [heroText, setHeroText] = useState({ headline: 'UNSTOPPABLE ADS\nUNSTOPPABLE BUSINESS', subtitle: 'Real agency ad accounts, live in 1 hour — no stress, no bans.' })
-  const [heroMedia, setHeroMedia] = useState<{ mode: 'video' | 'image'; videoUrl: string; imageUrl: string } | null>(null)
+  const [heroMedia, setHeroMedia] = useState<{ mode: 'video' | 'image'; videoUrl: string; imageUrl: string }>({ mode: 'image', videoUrl: '', imageUrl: 'https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/hero-dashboard.webp' })
   useEffect(() => {
     const API = typeof window !== 'undefined' && (window.location.hostname.endsWith('6ad.in') || window.location.hostname.endsWith('ads360.ai'))
       ? 'https://api.6ad.in' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001')
@@ -343,7 +375,7 @@ function HeroSection() {
   }, [])
 
   return (
-    <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-4 pt-28 sm:pt-32 pb-6 sm:pb-10 overflow-hidden">
+    <section className="relative min-h-0 sm:min-h-screen flex flex-col items-center justify-start sm:justify-center text-center px-4 pt-24 sm:pt-32 pb-2 sm:pb-10 overflow-hidden">
       {/* Star Field */}
       <StarField />
 
@@ -367,65 +399,67 @@ function HeroSection() {
       {/* Floating 3D space elements */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {/* 3D Satellite — top right */}
-        <img src="/satellite.png" alt="" loading="lazy" className="absolute top-[12%] right-[8%] w-16 sm:w-24 opacity-30 hero-float-1 hidden sm:block drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]" style={{ filter: 'saturate(0.3) brightness(0.8) sepia(0.5) hue-rotate(190deg)' }} />
+        <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/satellite.webp" alt="" loading="lazy" className="absolute top-[12%] right-[8%] w-16 sm:w-24 opacity-30 hero-float-1 hidden sm:block drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]" style={{ filter: 'saturate(0.3) brightness(0.8) sepia(0.5) hue-rotate(190deg)' }} />
         {/* 3D Rocket — left side */}
-        <img src="/rocket.png" alt="" loading="lazy" className="absolute top-[50%] left-[4%] w-14 sm:w-20 opacity-25 hero-float-2 hidden sm:block drop-shadow-[0_0_12px_rgba(59,130,246,0.25)]" style={{ filter: 'saturate(0.3) brightness(0.8) sepia(0.5) hue-rotate(190deg)' }} />
+        <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/rocket.webp" alt="" loading="lazy" className="absolute top-[50%] left-[4%] w-14 sm:w-20 opacity-25 hero-float-2 hidden sm:block drop-shadow-[0_0_12px_rgba(59,130,246,0.25)]" style={{ filter: 'saturate(0.3) brightness(0.8) sepia(0.5) hue-rotate(190deg)' }} />
         {/* 3D Planet — bottom right */}
-        <img src="/planet.png" alt="" loading="lazy" className="absolute bottom-[12%] right-[5%] w-20 sm:w-28 opacity-20 hero-float-3 hidden sm:block drop-shadow-[0_0_20px_rgba(59,130,246,0.2)]" />
+        <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/planet.webp" alt="" loading="lazy" className="absolute bottom-[12%] right-[5%] w-20 sm:w-28 opacity-20 hero-float-3 hidden sm:block drop-shadow-[0_0_20px_rgba(59,130,246,0.2)]" />
         {/* 3D Star — left top area */}
-        <img src="/astronaut.png" alt="" loading="lazy" className="absolute top-[30%] left-[10%] w-10 sm:w-14 opacity-20 hero-float-3 hidden lg:block drop-shadow-[0_0_10px_rgba(59,130,246,0.3)]" style={{ animationDelay: '1.5s', filter: 'saturate(0.3) brightness(0.8) sepia(0.5) hue-rotate(190deg)' }} />
+        <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/astronaut.webp" alt="" loading="lazy" className="absolute top-[30%] left-[10%] w-10 sm:w-14 opacity-20 hero-float-3 hidden lg:block drop-shadow-[0_0_10px_rgba(59,130,246,0.3)]" style={{ animationDelay: '1.5s', filter: 'saturate(0.3) brightness(0.8) sepia(0.5) hue-rotate(190deg)' }} />
         {/* Small satellite — right middle */}
-        <img src="/satellite.png" alt="" loading="lazy" className="absolute top-[65%] right-[12%] w-8 sm:w-12 opacity-15 hero-float-1 hidden lg:block" style={{ animationDelay: '3s', filter: 'saturate(0.3) brightness(0.8) sepia(0.5) hue-rotate(190deg)' }} />
+        <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/satellite.webp" alt="" loading="lazy" className="absolute top-[65%] right-[12%] w-8 sm:w-12 opacity-15 hero-float-1 hidden lg:block" style={{ animationDelay: '3s', filter: 'saturate(0.3) brightness(0.8) sepia(0.5) hue-rotate(190deg)' }} />
       </div>
 
       <div className="relative z-10 max-w-5xl mx-auto w-full">
-        {/* Badge */}
+        {/* Badge — visible immediately for LCP */}
         <div
           ref={badge.ref}
-          className={`transition-all duration-700 ${badge.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+          className="opacity-100"
         >
-          <div className="inline-flex items-center gap-2 sm:gap-2.5 glass rounded-full px-3 sm:px-5 py-1.5 sm:py-2 mb-3 sm:mb-4">
+          <div className="inline-flex items-center gap-2 sm:gap-2.5 glass rounded-full px-3 sm:px-5 py-1 sm:py-2 mb-2 sm:mb-4">
             <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
             <span className="text-gray-400 text-xs sm:text-sm tracking-wide">ADS360 – Real Agency Ad Account</span>
           </div>
         </div>
 
-        {/* Heading */}
+        {/* Heading — visible immediately for LCP */}
         <div
           ref={heading.ref}
-          className={`transition-all duration-700 delay-100 ${heading.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+          className="opacity-100"
         >
-          <h1 className="text-white text-[22px] sm:text-[36px] md:text-[42px] lg:text-[46px] font-normal leading-[1.3] sm:leading-[1.4] mb-2 sm:mb-3 tracking-[0.06em] sm:tracking-[0.08em] drop-shadow-[0_0_40px_rgba(59,130,246,0.15)]" style={{ fontFamily: 'var(--font-pixel)' }}>
+          <h1 className="text-white text-[18px] sm:text-[36px] md:text-[42px] lg:text-[46px] font-normal leading-[1.25] sm:leading-[1.4] mb-1.5 sm:mb-3 tracking-[0.06em] sm:tracking-[0.08em] drop-shadow-[0_0_40px_rgba(59,130,246,0.15)]" style={{ fontFamily: 'var(--font-pixel)' }}>
             {heroText.headline.split('\n').map((line, i) => (
               <span key={i}>{line}{i < heroText.headline.split('\n').length - 1 && <br />}</span>
             ))}
           </h1>
         </div>
 
-        {/* Subtext */}
+        {/* Subtext — visible immediately for LCP */}
         <div
           ref={sub.ref}
-          className={`transition-all duration-700 delay-200 ${sub.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+          className="opacity-100"
         >
-          <p className="text-gray-500 text-xs sm:text-base md:text-lg max-w-2xl mx-auto mb-4 sm:mb-6 leading-relaxed sm:whitespace-nowrap">
+          <p className="text-gray-300 text-[11px] sm:text-base md:text-lg max-w-2xl mx-auto mb-3 sm:mb-6 leading-relaxed sm:whitespace-nowrap">
             {heroText.subtitle}
           </p>
         </div>
 
-        {/* Video Container with Ambilight Effect */}
+        {/* Video Container with Ambilight Effect — NO opacity-0 start, must be visible for LCP */}
         <div
           ref={video.ref}
-          className={`transition-all duration-1000 delay-300 ${video.visible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-8 scale-[0.97]'}`}
+          className="opacity-100"
         >
-          <div className="w-full mx-auto mb-4 sm:mb-6 relative">
-            {/* AMBILIGHT — subtle glow behind video */}
-            <div className="absolute -inset-2 sm:-inset-4 z-0 rounded-2xl overflow-hidden opacity-30 blur-[20px] sm:blur-[30px] scale-[1.02] pointer-events-none">
-              <div className="w-full h-full bg-blue-500/20" />
+          <div className="w-full mx-auto mb-5 sm:mb-6 relative">
+            {/* AMBILIGHT — premium glow behind frame */}
+            <div className="absolute -inset-3 sm:-inset-6 z-0 rounded-3xl overflow-hidden pointer-events-none">
+              <div className="absolute inset-0 bg-blue-500/15 blur-[25px] sm:blur-[40px] scale-[1.02]" />
+              <div className="absolute top-0 left-1/4 w-1/2 h-1/3 bg-cyan-400/10 blur-[30px] sm:blur-[50px]" />
+              <div className="absolute bottom-0 right-1/4 w-1/2 h-1/3 bg-indigo-500/10 blur-[30px] sm:blur-[50px]" />
             </div>
 
-            {/* Main video — glass frame, full width */}
-            <div className="relative z-10 rounded-2xl p-[1px] bg-gradient-to-b from-white/[0.12] to-white/[0.03]">
-              <div className="rounded-2xl overflow-hidden glass">
+            {/* Main frame — glass border */}
+            <div className="relative z-10 rounded-2xl p-[1px] bg-gradient-to-b from-white/[0.15] to-white/[0.04]" style={{ boxShadow: '0 0 40px rgba(59,130,246,0.08), 0 20px 60px rgba(0,0,0,0.3)' }}>
+              <div className="rounded-2xl overflow-hidden">
                 <div className="relative aspect-video bg-dark-800 rounded-2xl overflow-hidden">
                   {heroMedia?.mode === 'image' && heroMedia.imageUrl ? (
                     <HeroImage src={heroMedia.imageUrl} />
@@ -441,34 +475,37 @@ function HeroSection() {
         {/* CTA + Social Proof Row */}
         <div
           ref={cta.ref}
-          className={`transition-all duration-700 delay-500 ${cta.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+          className="opacity-100"
         >
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5 mb-4 sm:mb-8">
-            {/* CTA Button — futuristic glowing */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-5 mb-3 sm:mb-8">
+            {/* CTA Button — large with shimmer animation */}
             <a
               href="#contact"
-              className="group relative inline-flex items-center gap-2 sm:gap-3 text-white px-5 sm:px-7 py-2.5 sm:py-3.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-500 overflow-hidden"
+              className="relative group/cta inline-flex items-center gap-2 sm:gap-3 rounded-full px-5 py-2.5 sm:px-7 sm:py-4 text-white font-semibold text-sm sm:text-base overflow-hidden"
             >
-              {/* Animated gradient border */}
-              <span className="absolute inset-0 rounded-full p-[1.5px] overflow-hidden">
-                <span className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-500 cta-border-rotate" />
-                <span className="absolute inset-[1.5px] rounded-full bg-[#0a0a1e]/90 backdrop-blur-sm" />
-              </span>
-              {/* Hover glow fill */}
-              <span className="absolute inset-[1.5px] rounded-full bg-gradient-to-r from-blue-500/0 via-blue-500/15 to-cyan-500/0 opacity-0 group-hover:opacity-100 transition-all duration-500" />
+              {/* Shimmer sweep */}
+              <span className="cta-shimmer absolute inset-0 z-10"
+                style={{ background: 'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%)' }} />
+              {/* Background + border */}
+              <span className="absolute inset-0 rounded-full"
+                style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.25) 0%, rgba(139,92,246,0.2) 100%)', border: '1px solid rgba(255,255,255,0.18)' }} />
+              {/* Hover fill */}
+              <span className="absolute inset-0 rounded-full opacity-0 group-hover/cta:opacity-100 transition-opacity duration-300"
+                style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.4) 0%, rgba(139,92,246,0.35) 100%)' }} />
               {/* Outer glow */}
-              <span className="absolute -inset-2 rounded-full bg-blue-500/0 group-hover:bg-blue-500/15 blur-2xl transition-all duration-500 pointer-events-none" />
-              {/* Icon */}
-              <span className="relative w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500/30 to-cyan-500/20 rounded-md sm:rounded-lg flex items-center justify-center group-hover:from-blue-500/50 group-hover:to-cyan-500/30 transition-all duration-300 shadow-[0_0_12px_rgba(59,130,246,0.3)]">
-                <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-cyan-300 group-hover:translate-x-0.5 transition-transform duration-300" />
+              <span className="absolute inset-0 rounded-full opacity-0 group-hover/cta:opacity-100 transition-opacity duration-300 blur-lg -z-10"
+                style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.5), rgba(139,92,246,0.4))' }} />
+              {/* Icon box */}
+              <span className="relative z-20 w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white/10 flex items-center justify-center group-hover/cta:bg-white/20 transition-colors duration-300">
+                <ArrowRight className="w-4 h-4 text-white" />
               </span>
-              <span className="relative tracking-wide">Get Ad Account in 5mins</span>
+              <span className="relative z-20">Get Ad Account in 5mins</span>
             </a>
 
             {/* Social Proof — futuristic */}
             <div
               ref={proof.ref}
-              className={`relative inline-flex items-center gap-2 sm:gap-3 rounded-full px-3 sm:px-5 py-2 sm:py-3 transition-all duration-700 delay-700 overflow-hidden ${proof.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+              className="relative inline-flex items-center gap-2 sm:gap-3 rounded-full px-3 sm:px-5 py-2 sm:py-3 overflow-hidden opacity-100"
             >
               {/* Border glow */}
               <span className="absolute inset-0 rounded-full p-[1px] overflow-hidden">
@@ -480,7 +517,7 @@ function HeroSection() {
                 <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent header-shine-sweep" />
               </span>
               <div className="relative flex -space-x-2">
-                {['/arjun-thakur.jpg', '/nikhil-kumar.jpg', '/rohit-mehta.jpg', '/vikram-desai.jpg'].map((src, i) => (
+                {['/arjun-thakur.webp', '/nikhil-kumar.webp', '/rohit-mehta.webp', '/vikram-desai.webp'].map((src, i) => (
                   <img key={i} src={src} alt="Client" className="w-6 h-6 sm:w-8 sm:h-8 rounded-full border-2 border-[#0a0a1e] object-cover shadow-[0_0_8px_rgba(59,130,246,0.3)]" />
                 ))}
               </div>
@@ -493,10 +530,10 @@ function HeroSection() {
         </div>
       </div>
 
-      <div className="h-4 sm:h-10" />
+      <div className="h-2 sm:h-10" />
 
       {/* Logo Marquee — merged into hero, futuristic */}
-      <div className="relative overflow-hidden py-4 sm:py-8" style={{ width: 'calc(100% + 2rem)', marginLeft: '-1rem', marginRight: '-1rem' }}>
+      <div className="relative overflow-hidden py-2 sm:py-8" style={{ width: 'calc(100% + 2rem)', marginLeft: '-1rem', marginRight: '-1rem' }}>
         {/* Top line glow */}
         <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent" />
         {/* Fade edges */}
@@ -506,13 +543,13 @@ function HeroSection() {
           {[...Array(3)].flatMap((_, setIdx) =>
             [
               { name: 'The Souled Store', src: '/images/clients/souledstore.svg' },
-              { name: 'Snitch', src: '/images/clients/snitch.png' },
+              { name: 'Snitch', src: '/images/clients/snitch.webp' },
               { name: 'AdsPower', src: '/images/clients/adspower.svg' },
-              { name: 'Adil Qadri', src: '/images/clients/adilqadri.png' },
+              { name: 'Adil Qadri', src: '/images/clients/adilqadri.webp' },
               { name: 'Bummer', src: '/images/clients/bummer.svg' },
               { name: 'GoDesi', src: '/images/clients/godesi.svg' },
               { name: 'Dolphin Anty', src: '/images/clients/dolphin-anty.svg' },
-              { name: 'The Manga Store', src: '/images/clients/mangastore.png' },
+              { name: 'The Manga Store', src: '/images/clients/mangastore.webp' },
             ].map((logo, i) => (
               <div key={`${setIdx}-${i}`} className="flex items-center mx-5 sm:mx-12 shrink-0 group">
                 <img

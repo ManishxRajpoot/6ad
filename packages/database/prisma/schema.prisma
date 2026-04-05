@@ -214,6 +214,10 @@ model User {
   // Agent Withdrawals (for agents to withdraw their earnings)
   agentWithdrawals  AgentWithdrawal[]
 
+  // VCC (Virtual Credit Cards)
+  vccCardholders    VccCardholder[]
+  vccCards          VccCard[]       @relation("AssignedVccCards")
+
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
@@ -1574,4 +1578,236 @@ model HeroHeadline {
   updatedAt DateTime @updatedAt
 
   @@index([order])
+}
+
+// Blog posts for landing page
+model BlogPost {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  slug        String         @unique
+  excerpt     String?        // Short description for cards
+  content     String         // Full HTML/markdown content
+  coverImage  String?        // URL
+  category    String?
+  tags        String[]       @default([])
+  status      BlogStatus     @default(DRAFT)
+  authorName  String         @default("ADS360 Team")
+  authorImage String?
+  metaTitle   String?        // SEO
+  metaDesc    String?        // SEO
+  views       Int            @default(0)
+  readTime    Int            @default(3) // minutes
+  publishedAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@index([publishedAt])
+}
+
+enum BlogStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// ============= VCC (VIRTUAL CREDIT CARDS) =============
+
+enum VccCardStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  FROZEN
+  CANCELLED
+  FAILED
+}
+
+enum VccTxType {
+  RECHARGE
+  PURCHASE
+  REFUND
+  WITHDRAWAL
+}
+
+enum VccTxStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model VccCardholder {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  yeewallexId     String    @unique   // Yeewallex cardholder ID
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  idType          String?             // PASSPORT, ID_CARD, etc.
+  idNumber        String?
+
+  // Link to 6AD user (optional — one user can have multiple cardholders)
+  userId          String?   @db.ObjectId
+  user            User?     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  cards           VccCard[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model VccCard {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  yeewallexCardId String?        @unique   // Yeewallex card ID (null while PENDING)
+  cardBinId       String                   // Card BIN used for issuance
+  taskId          String?        @unique   // Async card-open task ID for polling
+  label           String?                  // Admin-defined label (e.g. "FB Ads #1")
+  alias           String?                  // Card alias in Yeewallex
+  status          VccCardStatus  @default(PENDING)
+  currency        String         @default("USD")
+  balance         Float          @default(0)
+  totalRecharge   Float          @default(0)
+
+  // Cardholder
+  cardholderId    String         @db.ObjectId
+  cardholder      VccCardholder  @relation(fields: [cardholderId], references: [id])
+
+  // Assigned to user (admin assigns cards to users)
+  assignedUserId  String?        @db.ObjectId
+  assignedUser    User?          @relation("AssignedVccCards", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  transactions    VccTransaction[]
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([status])
+  @@index([assignedUserId])
+  @@index([cardholderId])
+}
+
+model VccTransaction {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  yeewallexTxId   String?      @unique   // Yeewallex transaction ID
+  type            VccTxType
+  amount          Float
+  currency        String       @default("USD")
+  status          VccTxStatus  @default(PENDING)
+  merchantName    String?
+  merchantCategory String?     // MCC code or category
+  merchantCountry String?
+  description     String?
+  metadata        Json?                  // Raw webhook data or extra info
+
+  // Card relation
+  cardId          String       @db.ObjectId
+  card            VccCard      @relation(fields: [cardId], references: [id])
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([cardId])
+  @@index([type])
+  @@index([status])
+}
+
+// ============= SHOP =============
+
+enum ShopPlatform {
+  META
+  GOOGLE
+  TIKTOK
+  SNAPCHAT
+  BING
+  INSTAGRAM
+  TWITTER
+  OTHER
+}
+
+enum ShopOrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum ShopPaymentMethod {
+  USDT_TRC20
+  USDT_BEP20
+  UPI
+}
+
+model ShopCategory {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  slug      String        @unique
+  icon      String?       // emoji or icon name
+  image     String?       // category banner image URL
+  order     Int           @default(0)
+  isActive  Boolean       @default(true)
+  products  ShopProduct[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model ShopProduct {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  title        String
+  slug         String        @unique
+  description  String
+  shortDesc    String?       // one-line for card
+  price        Float
+  comparePrice Float?        // strikethrough price
+  images       String[]      // array of image URLs
+  stock        Int           @default(-1) // -1 = unlimited
+  isActive     Boolean       @default(true)
+  isFeatured   Boolean       @default(false)
+  platform     ShopPlatform  @default(OTHER)
+  features     String[]      // bullet points
+  specs        Json?         // key-value pairs like { "Age": "2+ years", "Region": "US" }
+  categoryId   String        @db.ObjectId
+  category     ShopCategory  @relation(fields: [categoryId], references: [id])
+  orderItems   ShopOrderItem[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([categoryId])
+  @@index([platform])
+  @@index([isActive])
+}
+
+model ShopOrder {
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  orderNumber      String            @unique // e.g. ADS-20260403-XXXX
+  email            String
+  telegramUsername String?
+  items            ShopOrderItem[]
+  totalAmount      Float
+  paymentMethod    ShopPaymentMethod
+  txHash           String?
+  walletAddress    String?           // wallet we showed them
+  status           ShopOrderStatus   @default(PENDING)
+  notes            String?           // admin notes
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([status])
+  @@index([email])
+}
+
+model ShopOrderItem {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  quantity   Int         @default(1)
+  price      Float       // price at time of purchase
+  orderId    String      @db.ObjectId
+  order      ShopOrder   @relation(fields: [orderId], references: [id])
+  productId  String      @db.ObjectId
+  product    ShopProduct @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
 }

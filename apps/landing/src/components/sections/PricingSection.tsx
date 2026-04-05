@@ -449,7 +449,7 @@ export default function PricingSection() {
           </h2>
           <p className="text-[10px] sm:text-base max-w-2xl mx-auto leading-relaxed">
             <span className="text-red-400 font-semibold">Only 8/20 Spots left</span>
-            <span className="text-gray-500"> | We only open access a few times per year to maintain the highest quality accounts & provide hands-on support.</span>
+            <span className="text-gray-400"> | We only open access a few times per year to maintain the highest quality accounts & provide hands-on support.</span>
           </p>
 
           {/* Trust avatars */}
@@ -492,7 +492,7 @@ export default function PricingSection() {
                   <div className="relative flex rounded-lg bg-white/[0.03] border border-white/[0.05] p-0.5">
                     <div className="absolute top-0.5 bottom-0.5 rounded-md bg-blue-500/15 border border-blue-400/25 transition-all duration-300" style={{ left: fbSub === 'Whitehat' ? '2px' : '50%', width: 'calc(50% - 4px)' }} />
                     {fbSubTypes.map(sub => (
-                      <button key={sub} onClick={() => setFbSub(sub)} className={`relative z-10 flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[9px] font-bold transition-colors ${fbSub === sub ? 'text-white' : 'text-gray-500'}`}>
+                      <button key={sub} onClick={() => setFbSub(sub)} className={`relative z-10 flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md text-[9px] font-bold transition-colors ${fbSub === sub ? 'text-white' : 'text-gray-400'}`}>
                         {sub}
                       </button>
                     ))}
@@ -533,7 +533,7 @@ export default function PricingSection() {
                   <button
                     onClick={() => setActivePlatform('Facebook')}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-300 whitespace-nowrap ${
-                      isFb ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                      isFb ? 'text-white' : 'text-gray-400 hover:text-gray-300'
                     }`}
                   >
                     <PlatformIcon name="Facebook" />
@@ -562,7 +562,7 @@ export default function PricingSection() {
                   ref={(el) => { tabRefs.current[name] = el }}
                   onClick={() => setActivePlatform(name)}
                   className={`relative z-10 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-300 whitespace-nowrap ${
-                    activePlatform === name ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                    activePlatform === name ? 'text-white' : 'text-gray-400 hover:text-gray-300'
                   }`}
                 >
                   <PlatformIcon name={name} />
@@ -594,7 +594,7 @@ export default function PricingSection() {
                 </div>
                 <div className="flex items-baseline gap-1 mb-1">
                   <span className="text-white text-xl font-bold">${singlePlan.price}</span>
-                  <span className="text-gray-500 text-[8px]">{singlePlan.priceLabel}</span>
+                  <span className="text-gray-400 text-[8px]">{singlePlan.priceLabel}</span>
                   <span className="text-gray-400 text-[8px] bg-white/[0.06] px-1.5 py-0.5 rounded ml-1">+ {singlePlan.spendFee}</span>
                 </div>
                 <div className="space-y-1.5 mb-3 mt-3">
@@ -609,7 +609,7 @@ export default function PricingSection() {
                 </div>
                 {/* Bonuses */}
                 <div className="rounded-lg bg-blue-500/[0.06] border border-blue-500/10 p-2.5 mb-3">
-                  <p className="text-[8px] text-gray-500 font-semibold uppercase tracking-wider mb-2">Bonuses:</p>
+                  <p className="text-[8px] text-gray-400 font-semibold uppercase tracking-wider mb-2">Bonuses:</p>
                   {singlePlan.bonuses.map((b: { text: string; value: string }, j: number) => (
                     <div key={j} className="flex items-center gap-1.5 mb-1">
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
@@ -659,7 +659,7 @@ export default function PricingSection() {
                 <div className="flex items-center justify-center gap-2 mt-4">
                   {['Visa', 'MC', 'Amex', 'Pay', 'Crypto', '₿'].map((icon, j) => (
                     <div key={j} className="w-10 h-6 rounded bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
-                      <span className="text-[7px] text-gray-500 font-bold">{icon}</span>
+                      <span className="text-[7px] text-gray-400 font-bold">{icon}</span>
                     </div>
                   ))}
                 </div>
@@ -718,7 +718,7 @@ export default function PricingSection() {
                     </div>
                     <div className="flex items-baseline gap-0.5 mb-3">
                       <span className="text-white text-xl font-bold">${getPrice(plan)}</span>
-                      <span className="text-gray-500 text-[8px]">{plan.priceLabel}</span>
+                      <span className="text-gray-400 text-[8px]">{plan.priceLabel}</span>
                     </div>
                     <div className="space-y-1.5 mb-3">
                       {plan.features.map((f: string, j: number) => (
@@ -740,10 +740,10 @@ export default function PricingSection() {
           </div>
           {/* Arrow buttons */}
           <div className="flex justify-center gap-3 mt-2">
-            <button onClick={() => scrollPriceBy('left')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
+            <button aria-label="Previous pricing plan" onClick={() => scrollPriceBy('left')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
               <ChevronLeft className="w-4 h-4 text-white/70" />
             </button>
-            <button onClick={() => scrollPriceBy('right')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
+            <button aria-label="Next pricing plan" onClick={() => scrollPriceBy('right')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
               <ChevronRight className="w-4 h-4 text-white/70" />
             </button>
           </div>
@@ -803,7 +803,7 @@ export default function PricingSection() {
                       <span className="text-3xl font-black text-white transition-all duration-300">
                         ${getPrice(plan)}
                       </span>
-                      <span className="text-gray-500 text-[10px] font-medium">{plan.priceLabel}</span>
+                      <span className="text-gray-400 text-[10px] font-medium">{plan.priceLabel}</span>
                     </div>
                   </div>
 
@@ -826,7 +826,7 @@ export default function PricingSection() {
                       ? 'bg-gradient-to-br from-blue-500/[0.08] to-cyan-500/[0.04] border border-blue-500/10'
                       : 'bg-white/[0.02] border border-white/[0.04]'
                   }`}>
-                    <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-3">What you get:</p>
+                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-3">What you get:</p>
                     <ul className="space-y-2.5">
                       {plan.features.map((f, j) => (
                         <li key={j} className="flex items-start gap-2">
@@ -843,7 +843,7 @@ export default function PricingSection() {
                       ? 'bg-gradient-to-br from-cyan-500/[0.06] to-blue-500/[0.03] border border-cyan-500/10'
                       : 'bg-white/[0.015] border border-white/[0.04]'
                   }`}>
-                    <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-3">Bonuses Include:</p>
+                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-3">Bonuses Include:</p>
                     <ul className="space-y-2">
                       {plan.bonuses.map((b, j) => (
                         <li key={j} className="flex items-start gap-2">
@@ -859,7 +859,7 @@ export default function PricingSection() {
 
                   {/* Core features */}
                   <div className="mt-auto">
-                    <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mb-3">Core features:</p>
+                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-3">Core features:</p>
                     <ul className="space-y-2.5">
                       {plan.coreFeatures.map((f, j) => (
                         <li key={j} className="flex items-start gap-2">
@@ -899,11 +899,11 @@ export default function PricingSection() {
           {/* Trust badges */}
           <div className="mt-3 sm:mt-6 flex flex-wrap items-center justify-center gap-3 sm:gap-10">
             <div className="flex items-center gap-1 sm:gap-2">
-              <span className="text-gray-500 text-xs sm:text-lg">✓</span>
+              <span className="text-gray-400 text-xs sm:text-lg">✓</span>
               <span className="text-gray-400 text-[9px] sm:text-sm">No long-term commitments</span>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
-              <span className="text-gray-500 text-xs sm:text-lg">✓</span>
+              <span className="text-gray-400 text-xs sm:text-lg">✓</span>
               <span className="text-gray-400 text-[9px] sm:text-sm">Cancel at any time</span>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">

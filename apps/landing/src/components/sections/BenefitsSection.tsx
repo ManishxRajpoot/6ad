@@ -323,7 +323,7 @@ function BenefitsSection() {
                     {/* Content */}
                     <div className="px-2.5 pb-2.5 pt-1.5">
                       <h3 className="text-white text-[10px] font-bold leading-tight">{b.title}</h3>
-                      <p className="text-gray-500 text-[8px] mt-0.5 leading-relaxed line-clamp-2">{b.desc}</p>
+                      <p className="text-gray-400 text-[8px] mt-0.5 leading-relaxed line-clamp-2">{b.desc}</p>
                     </div>
                   </div>
                 )
@@ -332,10 +332,10 @@ function BenefitsSection() {
           </div>
           {/* Arrow buttons */}
           <div className="flex justify-center gap-3 mt-1">
-            <button onClick={() => scrollBy('left')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
+            <button aria-label="Previous benefit" onClick={() => scrollBy('left')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
               <ChevronLeft className="w-4 h-4 text-white/70" />
             </button>
-            <button onClick={() => scrollBy('right')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
+            <button aria-label="Next benefit" onClick={() => scrollBy('right')} className="w-8 h-8 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center active:scale-90 transition-transform">
               <ChevronRight className="w-4 h-4 text-white/70" />
             </button>
           </div>
@@ -846,7 +846,7 @@ function BenefitIllustration({ id }: { id: string }) {
                 {/* Disabled account row */}
                 <div className="flex items-center gap-2 bg-red-500/[0.06] border border-red-500/15 rounded-lg px-2 py-1.5">
                   <div className="w-5 h-5 rounded-md overflow-hidden bg-white/5 flex items-center justify-center shrink-0">
-                    <img src="/fb.png" alt="Meta" className="w-3.5 h-3.5 object-contain opacity-40" />
+                    <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/fb.webp" alt="Meta" className="w-3.5 h-3.5 object-contain opacity-40" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-[8px] text-white/40 font-medium line-through">Ad Account #1847</span>
@@ -868,7 +868,7 @@ function BenefitIllustration({ id }: { id: string }) {
                 {/* New replacement account — active */}
                 <div className="flex items-center gap-2 bg-green-500/[0.06] border border-green-500/15 rounded-lg px-2 py-1.5">
                   <div className="w-5 h-5 rounded-md overflow-hidden bg-white/5 flex items-center justify-center shrink-0">
-                    <img src="/fb.png" alt="Meta" className="w-3.5 h-3.5 object-contain" />
+                    <img src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/fb.webp" alt="Meta" className="w-3.5 h-3.5 object-contain" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-[8px] text-white/70 font-medium">Ad Account #2053</span>
@@ -1014,7 +1014,7 @@ function BenefitCard({ benefit, index }: { benefit: { id: string; title: string;
         {/* Text content */}
         <div className="p-5 sm:p-6">
           <h3 className="text-white text-base sm:text-lg font-bold mb-2">{benefit.title}</h3>
-          <p className="text-gray-500 text-sm leading-relaxed">{benefit.desc}</p>
+          <p className="text-gray-400 text-sm leading-relaxed">{benefit.desc}</p>
         </div>
 
         {/* Bottom corner glow on hover */}

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="512" x2="512" y2="0">
+      <stop offset="0%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#bg)"/>
+
+  <!-- Radiant lines from apex -->
+  <line x1="256" y1="20" x2="256" y2="110" stroke="white" stroke-width="8" stroke-opacity="0.35" stroke-linecap="round"/>
+  <line x1="148" y1="55" x2="185" y2="135" stroke="white" stroke-width="6" stroke-opacity="0.2" stroke-linecap="round"/>
+  <line x1="364" y1="55" x2="327" y2="135" stroke="white" stroke-width="6" stroke-opacity="0.2" stroke-linecap="round"/>
+  <line x1="90" y1="115" x2="145" y2="170" stroke="white" stroke-width="5" stroke-opacity="0.12" stroke-linecap="round"/>
+  <line x1="422" y1="115" x2="367" y2="170" stroke="white" stroke-width="5" stroke-opacity="0.12" stroke-linecap="round"/>
+
+  <!-- Pyramid: right face (bright) -->
+  <path d="M256 125 L422 445 L256 358Z" fill="white" fill-opacity="0.9" stroke="white" stroke-opacity="0.95" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Pyramid: left face (medium) -->
+  <path d="M256 125 L90 445 L256 358Z" fill="white" fill-opacity="0.5" stroke="white" stroke-opacity="0.55" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- Pyramid: bottom face (dark) -->
+  <path d="M256 358 L90 445 L422 445Z" fill="white" fill-opacity="0.2" stroke="white" stroke-opacity="0.25" stroke-width="4" stroke-linejoin="round"/>
+</svg>

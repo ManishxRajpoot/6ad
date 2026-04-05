@@ -5,14 +5,14 @@ import Image from 'next/image'
 
 // ==================== PLATFORM ICONS ====================
 const platformsLeft = [
-  { name: 'Meta', icon: '/meta-logo.png' },
-  { name: 'TikTok', icon: '/tiktok-logo.png' },
-  { name: 'Bing', icon: '/bing-logo.png' },
+  { name: 'Meta', icon: '/meta-logo.webp' },
+  { name: 'TikTok', icon: '/tiktok-logo.webp' },
+  { name: 'Bing', icon: '/bing-logo.webp' },
 ]
 const platformsRight = [
-  { name: 'Google', icon: '/google-logo.png' },
-  { name: 'Facebook', icon: '/fb.png', size: 36 },
-  { name: 'Snapchat', icon: '/snapchat.png' },
+  { name: 'Google', icon: '/google-logo.webp' },
+  { name: 'Facebook', icon: '/fb.webp', size: 36 },
+  { name: 'Snapchat', icon: '/snapchat.webp' },
 ]
 
 // ==================== FOOTER LINKS ====================
@@ -75,9 +75,12 @@ function FooterLogo() {
           </linearGradient>
         </defs>
         <rect x="1" y="1" width="38" height="38" rx="10" fill="url(#footerLogoBg)" />
-        <rect x="1" y="1" width="38" height="38" rx="10" fill="none" stroke="white" strokeWidth="0.5" strokeOpacity="0.15" />
-        <polygon points="20,8 30,30 10,30" fill="white" opacity="0.95" />
-        <polygon points="24,10 32,32 16,32" fill="white" opacity="0.4" />
+        <line x1="20" y1="2" x2="20" y2="9" stroke="white" strokeWidth="1" strokeOpacity="0.35" strokeLinecap="round" />
+        <line x1="12" y1="5" x2="15" y2="11" stroke="white" strokeWidth="0.8" strokeOpacity="0.2" strokeLinecap="round" />
+        <line x1="28" y1="5" x2="25" y2="11" stroke="white" strokeWidth="0.8" strokeOpacity="0.2" strokeLinecap="round" />
+        <path d="M20 10 L33 35 L20 28Z" fill="white" fillOpacity="0.9" strokeLinejoin="round" />
+        <path d="M20 10 L7 35 L20 28Z" fill="white" fillOpacity="0.5" strokeLinejoin="round" />
+        <path d="M20 28 L7 35 L33 35Z" fill="white" fillOpacity="0.2" strokeLinejoin="round" />
       </svg>
       <span className="text-white font-bold text-lg tracking-[0.25em]">ADS360</span>
     </div>
@@ -361,7 +364,7 @@ export default function FooterSection() {
                 <span className="text-sm sm:text-lg mt-0.5 flex-shrink-0">{office.flag}</span>
                 <div>
                   <p className="text-white/70 text-[11px] sm:text-sm font-medium mb-0.5">{office.country}</p>
-                  <p className="text-white/30 text-[9px] sm:text-xs leading-relaxed">{office.address}</p>
+                  <p className="text-white/50 text-[9px] sm:text-xs leading-relaxed">{office.address}</p>
                 </div>
               </div>
             ))}
@@ -383,7 +386,7 @@ export default function FooterSection() {
                     <li key={link.label}>
                       <a
                         href={link.href}
-                        className="text-white/40 text-[11px] sm:text-sm hover:text-white transition-colors duration-200"
+                        className="text-white/55 text-[11px] sm:text-sm hover:text-white transition-colors duration-200"
                       >
                         {link.label}
                       </a>
@@ -403,14 +406,14 @@ export default function FooterSection() {
             {/* Left: Logo + Description */}
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 sm:gap-4">
               <FooterLogo />
-              <p className="text-white/30 text-[10px] sm:text-xs max-w-sm text-center sm:text-left leading-relaxed">
+              <p className="text-white/50 text-[10px] sm:text-xs max-w-sm text-center sm:text-left leading-relaxed">
                 ADS360 is the leading provider of premium agency ad accounts for Meta, Google, and TikTok. Trusted by 500+ advertisers worldwide.
               </p>
             </div>
 
             {/* Right: Policies + Payments */}
             <div className="flex flex-col items-center sm:items-end gap-2 sm:gap-3">
-              <div className="flex items-center gap-3 sm:gap-4 text-white/30 text-[9px] sm:text-xs">
+              <div className="flex items-center gap-3 sm:gap-4 text-white/50 text-[9px] sm:text-xs">
                 <a href="#" className="hover:text-white/60 transition-colors">Purchase Policy</a>
                 <a href="#" className="hover:text-white/60 transition-colors">Service Agreement</a>
                 <a href="#" className="hover:text-white/60 transition-colors">Privacy Policy</a>
@@ -465,7 +468,7 @@ export default function FooterSection() {
 
           {/* Copyright */}
           <div className="mt-6 pt-4 border-t border-white/[0.04] text-center">
-            <p className="text-white/20 text-xs">
+            <p className="text-white/50 text-xs">
               © 2026 ADS360 — All rights reserved.
             </p>
           </div>

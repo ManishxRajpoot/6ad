@@ -60,7 +60,7 @@ export default function GlobalPresenceSection() {
             }}
           >
             <Image
-              src="/location-pins.png"
+              src="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/location-pins.webp"
               alt="Office locations worldwide"
               fill
               className="object-contain"
