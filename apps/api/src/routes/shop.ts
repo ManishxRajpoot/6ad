@@ -740,9 +740,12 @@ shop.put('/admin/products/:id', verifyToken, async (c) => {
 shop.delete('/admin/products/:id', verifyToken, async (c) => {
   try {
     const id = c.req.param('id')
+    // Delete linked order items first to avoid foreign key constraint
+    await prisma.shopOrderItem.deleteMany({ where: { productId: id } })
     await prisma.shopProduct.delete({ where: { id } })
     return c.json({ success: true })
-  } catch (e) {
+  } catch (e: any) {
+    console.error('[Shop] Delete product error:', e.message)
     return c.json({ error: 'Failed to delete product' }, 500)
   }
 })
