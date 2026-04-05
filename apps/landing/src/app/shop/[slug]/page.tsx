@@ -169,7 +169,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <div className="flex items-center gap-2 mb-5">
                 {product.stock === 0 ? (
                   <span className="flex items-center gap-1.5 text-sm text-red-400"><span className="w-2 h-2 rounded-full bg-red-400" />Sold out</span>
-                ) : product.stock > 0 && product.stock <= 20 ? (
+                ) : (product.stock ?? -1) > 0 && (product.stock ?? -1) <= 20 ? (
                   <span className="flex items-center gap-1.5 text-sm text-amber-400"><span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />Only {product.stock} left</span>
                 ) : (
                   <span className="flex items-center gap-1.5 text-sm text-green-400/70"><span className="w-2 h-2 rounded-full bg-green-400" />In Stock</span>
