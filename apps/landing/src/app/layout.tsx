@@ -25,6 +25,9 @@ export const metadata: Metadata = {
   description: 'Get ban-resistant agency ad accounts for Meta, Google, TikTok, Snapchat & Bing. Live in 1 hour. Unlimited spend. 24/7 support.',
   keywords: ['agency ad accounts', 'meta ad accounts', 'facebook agency accounts', 'google ads agency', 'tiktok ad accounts', 'ban resistant ad accounts', 'ads360'],
   metadataBase: new URL('https://ads360.ai'),
+  alternates: {
+    canonical: '/',
+  },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: '48x48' },

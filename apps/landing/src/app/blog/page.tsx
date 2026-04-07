@@ -6,6 +6,9 @@ import FooterSection from '@/components/sections/FooterSection'
 export const metadata: Metadata = {
   title: 'Blog — ADS360 | Agency Ad Account Tips & Guides',
   description: 'Expert tips, guides and strategies for Facebook, Google, TikTok agency ad accounts.',
+  alternates: {
+    canonical: '/blog',
+  },
 }
 
 type Post = {
