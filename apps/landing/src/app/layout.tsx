@@ -1,6 +1,18 @@
 import type { Metadata } from 'next'
 import { Outfit, Press_Start_2P } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
+
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+
+async function getTrackingPixels() {
+  try {
+    const res = await fetch(`${API}/cms/sections/tracking-pixels`, { next: { revalidate: 60 } })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data?.data || null
+  } catch { return null }
+}
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -67,16 +79,39 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const pixels = await getTrackingPixels()
+  const gtmId = pixels?.enabled && pixels?.gtmId ? pixels.gtmId : null
+  const ga4Id = pixels?.enabled && pixels?.ga4Id ? pixels.ga4Id : null
+  const metaPixelId = pixels?.enabled && pixels?.metaPixelId ? pixels.metaPixelId : null
+
   return (
     <html lang="en" className={`${outfit.variable} ${pressStart2P.variable}`}>
       <head>
         {/* Preload hero image for LCP */}
         <link rel="preload" as="image" href="https://pub-ab628c238a58431a980c671b4352cc87.r2.dev/landing/hero-dashboard.webp" fetchPriority="high" type="image/webp" />
+
+        {/* Google Tag Manager */}
+        {gtmId && (
+          <Script id="gtm" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtmId}');` }} />
+        )}
+
+        {/* Google Analytics 4 */}
+        {ga4Id && (
+          <>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${ga4Id}`} strategy="afterInteractive" />
+            <Script id="ga4" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${ga4Id}');` }} />
+          </>
+        )}
+
+        {/* Meta (Facebook) Pixel */}
+        {metaPixelId && (
+          <Script id="meta-pixel" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${metaPixelId}');fbq('track','PageView');` }} />
+        )}
         {/* Organization Schema */}
         <script
           type="application/ld+json"
@@ -218,6 +253,14 @@ export default function RootLayout({
         />
       </head>
       <body className={outfit.className} suppressHydrationWarning>
+        {/* GTM noscript fallback */}
+        {gtmId && (
+          <noscript><iframe src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`} height="0" width="0" style={{ display: 'none', visibility: 'hidden' }} /></noscript>
+        )}
+        {/* Meta Pixel noscript fallback */}
+        {metaPixelId && (
+          <noscript><img height="1" width="1" style={{ display: 'none' }} src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`} alt="" /></noscript>
+        )}
         <main>{children}</main>
       </body>
     </html>

@@ -106,6 +106,7 @@ const menuSections: MenuSection[] = [
     collapsible: true,
     items: [
       { name: 'SEO', href: '/seo', icon: Globe },
+      { name: 'Tracking Pixels', href: '/tracking', icon: Plug },
       { name: 'Settings', href: '/settings', icon: Settings },
     ]
   },
