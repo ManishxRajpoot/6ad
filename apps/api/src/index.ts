@@ -41,6 +41,7 @@ import emailRoutes from './routes/emails.js'
 import yeewallexRoutes from './routes/yeewallex.js'
 import cmsRoutes from './routes/cms.js'
 import shopRoutes from './routes/shop.js'
+import trackingRoutes from './routes/tracking.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
 import { startTaskWatchdog } from './services/task-watchdog.js'
@@ -137,6 +138,7 @@ app.route('/emails', emailRoutes)
 app.route('/yeewallex', yeewallexRoutes)
 app.route('/cms', cmsRoutes)
 app.route('/shop', shopRoutes)
+app.route('/tracking', trackingRoutes)
 
 // Start background crypto verification service
 startBackgroundVerifier().catch(console.error)

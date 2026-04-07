@@ -16,6 +16,7 @@ export default function TrackingPixelsPage() {
     gtmId: '',
     ga4Id: '',
     metaPixelId: '',
+    metaCapiToken: '',
   })
 
   useEffect(() => {
@@ -172,6 +173,20 @@ export default function TrackingPixelsPage() {
               className={inputClass}
             />
             <p className={hintClass}>Find it at business.facebook.com → Events Manager → Pixel ID</p>
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <label className={labelClass}>Conversions API (CAPI) Access Token</label>
+            <input
+              type="password"
+              value={config.metaCapiToken}
+              onChange={e => setConfig(c => ({ ...c, metaCapiToken: e.target.value.trim() }))}
+              placeholder="EAAxxxxxxx..."
+              className={inputClass}
+            />
+            <p className={hintClass}>Required for server-side event tracking. Generate at business.facebook.com → Events Manager → Settings → Conversions API → Generate Access Token</p>
+          </div>
+          <div className="mt-3 bg-green-50 border border-green-100 rounded-xl p-3">
+            <p className="text-[12px] text-green-700"><strong>CAPI + Pixel = Best Results.</strong> Browser pixel fires client-side, CAPI fires server-side. Both use the same event ID for deduplication — Meta won't double-count. CAPI works even with ad blockers and iOS privacy restrictions.</p>
           </div>
         </div>
 
