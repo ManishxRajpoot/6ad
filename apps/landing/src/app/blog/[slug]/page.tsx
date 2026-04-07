@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 import { TableOfContents } from './TableOfContents'
 import { ShareButtons } from './ShareButtons'
+import { TrackBlogView } from '@/lib/TrackPageView'
 import { RelatedPosts } from './RelatedPosts'
 import Header from '@/components/sections/Header'
 import FooterSection from '@/components/sections/FooterSection'
@@ -91,6 +92,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
   return (
     <div className="min-h-screen bg-[#07071a] text-white">
+      <TrackBlogView post={{ id: post.id, title: post.title, slug: post.slug }} />
       <Header />
 
       {/* ─── HERO BANNER ──────────────────────────────────────────── */}

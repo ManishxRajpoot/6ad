@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import CheckoutModal from './CheckoutModal'
+import { trackInitiateCheckout } from '@/lib/tracking'
 
 type Props = {
   product: {
@@ -20,7 +21,7 @@ export default function ProductDetail({ product }: Props) {
   return (
     <>
       <button
-        onClick={() => setShowCheckout(true)}
+        onClick={() => { trackInitiateCheckout(product); setShowCheckout(true) }}
         disabled={outOfStock}
         className="w-full py-3.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >

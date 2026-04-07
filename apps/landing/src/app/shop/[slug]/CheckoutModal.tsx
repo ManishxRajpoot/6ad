@@ -2,6 +2,7 @@
 
 import { useState, Fragment, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { trackAddToCart, trackPurchase } from '@/lib/tracking'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
 
@@ -127,6 +128,7 @@ export default function CheckoutModal({ product, onClose }: Props) {
       setOrderNumber(data.order?.orderNumber || data.orderNumber || '')
       setWalletAddress(data.walletAddress || data.order?.walletAddress || '')
       setExpiresAt(Date.now() + 60 * 60 * 1000) // 1 hour expiry
+      trackAddToCart(product, data.order?.id || data.id)
 
       // Fetch USD to INR rate for UPI
       if (paymentMethod === 'UPI') {
@@ -164,6 +166,7 @@ export default function CheckoutModal({ product, onClose }: Props) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to submit')
+      trackPurchase(product, orderId, paymentMethod)
       goToStep(3)
     } catch (err: any) {
       setError(err.message || 'Something went wrong')
@@ -202,6 +205,7 @@ export default function CheckoutModal({ product, onClose }: Props) {
         body: JSON.stringify({ screenshotUrl }),
       })
       if (!res.ok) throw new Error('Failed to submit')
+      trackPurchase(product, orderId, 'UPI')
       goToStep(3)
     } catch (err: any) {
       setError(err.message || 'Failed to submit payment proof')

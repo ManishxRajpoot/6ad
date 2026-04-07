@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 import Header from '@/components/sections/Header'
 import FooterSection from '@/components/sections/FooterSection'
+import { TrackProductView } from '@/lib/TrackPageView'
 import ProductDetail from './ProductDetail'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
@@ -66,6 +67,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="min-h-screen bg-[#07071a] text-white">
+      <TrackProductView product={{ id: product.id, title: product.title, price: product.price, platform: product.platform }} />
       <Header />
 
       <div className="max-w-6xl mx-auto px-6 pt-24 pb-14">
