@@ -4,7 +4,9 @@ import { useState, Fragment, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { trackAddToCart, trackPurchase } from '@/lib/tracking'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+const API = typeof window !== 'undefined' && (window.location.hostname.endsWith('6ad.in') || window.location.hostname.endsWith('ads360.ai'))
+  ? 'https://api.6ad.in'
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001')
 
 type Props = {
   product: { id: string; title: string; price: number; slug: string }
