@@ -1019,6 +1019,9 @@ extension.post('/job/:id/complete', async (c) => {
       if (deposit.rechargeStatus === 'VERIFYING' || deposit.rechargeStatus === 'COMPLETED') {
         return c.json({ error: 'Already completed or verifying' }, 409)
       }
+      // Auto-calculate targetSpendCap if not set during claim
+      const prevCap = result?.previousSpendCap ?? deposit.previousSpendCap
+      const computedTarget = (prevCap != null && deposit.amount) ? prevCap + Number(deposit.amount) : null
       const updatedDeposit = await prisma.accountDeposit.update({
         where: { id: jobId },
         data: {
@@ -1027,8 +1030,9 @@ extension.post('/job/:id/complete', async (c) => {
           rechargedAt: new Date(),
           rechargeError: null,
           rechargeAttempts: { increment: 1 },
-          previousSpendCap: result?.previousSpendCap ?? null,
+          previousSpendCap: prevCap ?? null,
           newSpendCap: result?.newSpendCap ?? null,
+          ...(deposit.targetSpendCap == null && computedTarget != null ? { targetSpendCap: computedTarget } : {}),
         },
         select: { adAccountId: true }
       })
@@ -1222,6 +1226,9 @@ extension.post('/task-result', async (c) => {
       if (success) {
         // Extension says recharge done — mark VERIFYING (don't trust blindly)
         // Spend-cap-verifier cron will confirm the actual cap on Facebook
+        const dep = await prisma.accountDeposit.findUnique({ where: { id: depositId }, select: { amount: true, previousSpendCap: true, targetSpendCap: true } })
+        const prevCap = data?.previousSpendCap ?? dep?.previousSpendCap
+        const computedTarget = (prevCap != null && dep?.amount) ? prevCap + Number(dep.amount) : null
         await prisma.accountDeposit.update({
           where: { id: depositId },
           data: {
@@ -1230,8 +1237,9 @@ extension.post('/task-result', async (c) => {
             rechargedAt: new Date(),
             rechargeError: null,
             rechargeAttempts: { increment: 1 },
-            previousSpendCap: data?.previousSpendCap ?? null,
+            previousSpendCap: prevCap ?? null,
             newSpendCap: data?.newSpendCap ?? null,
+            ...(dep?.targetSpendCap == null && computedTarget != null ? { targetSpendCap: computedTarget } : {}),
           },
         })
         // DO NOT set status='APPROVED' or increment balance — verifier will do that
