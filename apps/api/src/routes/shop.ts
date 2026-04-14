@@ -119,18 +119,16 @@ shop.post('/orders', async (c) => {
     const rand = String(Math.floor(1000000 + Math.random() * 9000000))
     const orderNumber = `ADS360${dateStr}${rand}`
 
-    // Determine wallet address — read from DB (cryptoWalletConfig) or env
+    // Determine wallet address — read from shop-settings (separate from 6AD system wallets)
+    const shopSettings = await prisma.cmsSection.findUnique({ where: { sectionKey: 'shop-settings' } }).catch(() => null)
+    const shopData = (shopSettings?.data as any) || {}
     let walletAddress = ''
-    if (paymentMethod !== 'UPI') {
-      const network = paymentMethod === 'USDT_TRC20' ? 'TRON_TRC20' : 'BSC_BEP20'
-      const walletConfig = await prisma.cryptoWalletConfig.findUnique({ where: { network: network as any } }).catch(() => null)
-      walletAddress = walletConfig?.walletAddress
-        || (paymentMethod === 'USDT_TRC20' ? process.env.USDT_TRC20_WALLET : process.env.USDT_BEP20_WALLET)
-        || 'WALLET_NOT_SET'
+    if (paymentMethod === 'USDT_TRC20') {
+      walletAddress = shopData.trc20WalletAddress || process.env.USDT_TRC20_WALLET || 'WALLET_NOT_SET'
+    } else if (paymentMethod === 'USDT_BEP20') {
+      walletAddress = shopData.bep20WalletAddress || process.env.USDT_BEP20_WALLET || 'WALLET_NOT_SET'
     } else {
-      // UPI — get from DB settings
-      const shopSettings = await prisma.cmsSection.findUnique({ where: { sectionKey: 'shop-settings' } }).catch(() => null)
-      walletAddress = (shopSettings?.data as any)?.upiId || process.env.UPI_ID || 'UPI_NOT_SET'
+      walletAddress = shopData.upiId || process.env.UPI_ID || 'UPI_NOT_SET'
     }
 
     const order = await prisma.shopOrder.create({
@@ -306,12 +304,8 @@ shop.patch('/orders/:id/txhash', async (c) => {
   if (order.paymentMethod !== 'UPI') {
     const network = order.paymentMethod === 'USDT_TRC20' ? 'TRON_TRC20' : 'BSC_BEP20'
 
-    // Get wallet address from crypto config or payment methods
-    const walletConfig = await prisma.cryptoWalletConfig.findUnique({
-      where: { network: network as any }
-    }).catch(() => null)
-
-    const walletAddress = walletConfig?.walletAddress || order.walletAddress
+    // Get wallet address from shop-settings (separate from 6AD system)
+    const walletAddress = order.walletAddress
 
     if (walletAddress) {
       // Start background verification — don't block the response
@@ -929,46 +923,32 @@ shop.get('/admin/stats', verifyToken, async (c) => {
   })
 })
 
-// GET /admin/settings — get shop wallet settings
+// GET /admin/settings — get shop wallet settings (separate from 6AD system)
 shop.get('/admin/settings', verifyToken, async (c) => {
-  const trc20 = await prisma.cryptoWalletConfig.findUnique({ where: { network: 'TRON_TRC20' } }).catch(() => null)
-  const bep20 = await prisma.cryptoWalletConfig.findUnique({ where: { network: 'BSC_BEP20' } }).catch(() => null)
   const shopSettings = await prisma.cmsSection.findUnique({ where: { sectionKey: 'shop-settings' } }).catch(() => null)
-  const settingsData = (shopSettings?.data as any) || {}
+  const d = (shopSettings?.data as any) || {}
   return c.json({
-    trc20WalletAddress: trc20?.walletAddress || '',
-    bep20WalletAddress: bep20?.walletAddress || '',
-    upiId: settingsData.upiId || '',
+    trc20WalletAddress: d.trc20WalletAddress || '',
+    bep20WalletAddress: d.bep20WalletAddress || '',
+    upiId: d.upiId || '',
   })
 })
 
-// PUT /admin/settings — update shop wallet settings
+// PUT /admin/settings — update shop wallet settings (stored in shop-settings, NOT cryptoWalletConfig)
 shop.put('/admin/settings', verifyToken, async (c) => {
   const { trc20WalletAddress, bep20WalletAddress, upiId } = await c.req.json()
   try {
-    if (trc20WalletAddress !== undefined) {
-      await prisma.cryptoWalletConfig.upsert({
-        where: { network: 'TRON_TRC20' },
-        update: { walletAddress: trc20WalletAddress },
-        create: { network: 'TRON_TRC20' as any, walletAddress: trc20WalletAddress, contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t' },
-      })
-    }
-    if (bep20WalletAddress !== undefined) {
-      await prisma.cryptoWalletConfig.upsert({
-        where: { network: 'BSC_BEP20' },
-        update: { walletAddress: bep20WalletAddress },
-        create: { network: 'BSC_BEP20' as any, walletAddress: bep20WalletAddress, contractAddress: '0x55d398326f99059fF775485246999027B3197955' },
-      })
-    }
-    if (upiId !== undefined) {
-      const existing = await prisma.cmsSection.findUnique({ where: { sectionKey: 'shop-settings' } }).catch(() => null)
-      const currentData = (existing?.data as any) || {}
-      await prisma.cmsSection.upsert({
-        where: { sectionKey: 'shop-settings' },
-        update: { data: { ...currentData, upiId } },
-        create: { sectionKey: 'shop-settings', data: { upiId } },
-      })
-    }
+    const existing = await prisma.cmsSection.findUnique({ where: { sectionKey: 'shop-settings' } }).catch(() => null)
+    const currentData = (existing?.data as any) || {}
+    const updatedData = { ...currentData }
+    if (trc20WalletAddress !== undefined) updatedData.trc20WalletAddress = trc20WalletAddress
+    if (bep20WalletAddress !== undefined) updatedData.bep20WalletAddress = bep20WalletAddress
+    if (upiId !== undefined) updatedData.upiId = upiId
+    await prisma.cmsSection.upsert({
+      where: { sectionKey: 'shop-settings' },
+      update: { data: updatedData },
+      create: { sectionKey: 'shop-settings', data: updatedData },
+    })
     return c.json({ success: true })
   } catch (e: any) {
     return c.json({ error: 'Failed to update settings: ' + e.message }, 500)
