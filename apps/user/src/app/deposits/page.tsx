@@ -202,9 +202,9 @@ export default function DepositsPage() {
   const { user, updateUser, isAuthenticated, isHydrated } = useAuthStore()
   const { branding, isCustomDomain } = useDomainStore()
 
-  // Get logo for QR overlay: agent favicon → agent logo → default 6AD favicon
+  // Get logo for QR overlay: agent favicon → agent logo → default Six Media favicon
   const qrLogoUrl = (isCustomDomain && branding?.favicon) ? branding.favicon
-    : (user?.agent?.favicon || user?.agent?.brandLogo || 'https://ads360.ai/favicon.png')
+    : (user?.agent?.favicon || user?.agent?.brandLogo || '/favicon.svg')
 
   // Fetch deposits from API and refresh user balance
   useEffect(() => {
