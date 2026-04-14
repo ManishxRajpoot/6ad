@@ -12,6 +12,7 @@ import { DatePicker } from '@/components/ui/DatePicker'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
 import { paymentMethodsApi, transactionsApi, authApi, getCached, setCache, invalidateCache } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { useDomainStore } from '@/store/domain'
 import { useToast } from '@/contexts/ToastContext'
 import { useSSEEvent } from '@/hooks/useSSEEvent'
 import {
@@ -199,6 +200,11 @@ export default function DepositsPage() {
   }
 
   const { user, updateUser, isAuthenticated, isHydrated } = useAuthStore()
+  const { branding, isCustomDomain } = useDomainStore()
+
+  // Get logo for QR overlay: agent favicon → agent logo → default 6AD favicon
+  const qrLogoUrl = (isCustomDomain && branding?.favicon) ? branding.favicon
+    : (user?.agent?.favicon || user?.agent?.brandLogo || 'https://ads360.ai/favicon.png')
 
   // Fetch deposits from API and refresh user balance
   useEffect(() => {
@@ -1832,16 +1838,28 @@ export default function DepositsPage() {
                     )}
                   </button>
                 </div>
-                {/* QR Code for wallet address */}
+                {/* QR Code with logo overlay */}
                 <div className="flex justify-center mt-3 pt-3 border-t border-[#7C3AED]/20">
-                  <div className="bg-white p-2 rounded-lg shadow-sm">
+                  <div className="bg-white p-2 rounded-lg shadow-sm relative">
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedMethod.description || '')}`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(selectedMethod.description || '')}&ecc=H`}
                       alt="Wallet QR Code"
-                      width={150}
-                      height={150}
+                      width={180}
+                      height={180}
                       className="rounded"
                     />
+                    {/* Logo overlay in center of QR */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-white rounded-lg p-1 shadow-sm">
+                        <img
+                          src={qrLogoUrl}
+                          alt="Logo"
+                          width={32}
+                          height={32}
+                          className="rounded-md"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <p className="text-[9px] text-center text-gray-400 mt-1.5">Scan QR to copy address</p>
