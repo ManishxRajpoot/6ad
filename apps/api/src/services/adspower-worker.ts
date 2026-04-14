@@ -22,12 +22,12 @@ export const CONFIG = {
   BROWSER_LAUNCH_WAIT_MS: 15_000,
   HEARTBEAT_TIMEOUT_MS: 120_000,
   TASK_TIMEOUT_MS: 300_000,
-  IDLE_CLOSE_DELAY_MS: 7 * 24 * 60 * 60 * 1000, // 7 days — keep browsers open (dedicated browser VPS has 24GB RAM)
+  IDLE_CLOSE_DELAY_MS: Infinity,           // Never close — keep browsers open forever (dedicated 24GB VPS)
   POST_LOGIN_COOLDOWN_MS: 30_000,         // 30s cooldown after fresh login before opening adsmanager
   MAX_LOGINS_PER_DAY: 999,                // No practical limit — let it retry as needed
   LOGIN_BACKOFF_BASE_MS: 60_000,          // Base backoff after failed login (1 min)
-  MAX_TASKS_BEFORE_RESTART: 9999,         // Never restart — keep browser alive
-  MAX_UPTIME_MS: 7 * 24 * 60 * 60 * 1000, // 7 days uptime before restart (was 8 hours)
+  MAX_TASKS_BEFORE_RESTART: Infinity,     // Never restart — keep browser alive forever
+  MAX_UPTIME_MS: Infinity,                // No uptime limit — browsers run forever
   CDP_AUTO_LOGIN_ENABLED: process.env.CDP_AUTO_LOGIN !== 'false',  // Set CDP_AUTO_LOGIN=false to disable
 }
 
