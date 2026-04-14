@@ -2260,12 +2260,9 @@ async function ensureBrowserRunning(profile: any): Promise<boolean> {
       // Verify heartbeat is still working
       const heartbeatOk = await waitForHeartbeat(profile.id)
       if (!heartbeatOk) {
-        console.warn(`[AdsPower] Extension not responding in "${profile.label}" — force restarting`)
-        await stopBrowser(serialNumber)
-        activeBrowsers.delete(profile.id)
-        browserDebugInfo.delete(serialNumber)
-        await sleep(5_000)
-        // Fall through to start fresh below
+        console.warn(`[AdsPower] Extension not responding in "${profile.label}" — skipping (browser kept open)`)
+        // Don't close browser — keep it alive, user may be logging in manually
+        continue
       } else {
         return true
       }
@@ -2319,9 +2316,8 @@ async function ensureBrowserRunning(profile: any): Promise<boolean> {
 
   const heartbeatOk = await waitForHeartbeat(profile.id)
   if (!heartbeatOk) {
-    console.warn(`[AdsPower] Extension not responding in "${profile.label}" — stopping`)
-    await stopBrowser(serialNumber)
-    activeBrowsers.delete(profile.id)
+    console.warn(`[AdsPower] Extension not responding in "${profile.label}" — skipping (browser kept open)`)
+    // Don't close browser — keep it alive for manual login/2FA
     return false
   }
 
