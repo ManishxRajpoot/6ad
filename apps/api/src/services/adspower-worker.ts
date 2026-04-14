@@ -2262,7 +2262,7 @@ async function ensureBrowserRunning(profile: any): Promise<boolean> {
       if (!heartbeatOk) {
         console.warn(`[AdsPower] Extension not responding in "${profile.label}" — skipping (browser kept open)`)
         // Don't close browser — keep it alive, user may be logging in manually
-        continue
+        return false
       } else {
         return true
       }
