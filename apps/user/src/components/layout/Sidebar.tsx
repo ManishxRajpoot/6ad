@@ -286,20 +286,6 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             </Link>
           )}
 
-          {/* VCC Cards */}
-          <Link
-            href="/vcc"
-            className={cn(
-              'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              isActive('/vcc')
-                ? 'bg-[#52B788] text-white'
-                : 'text-gray-600 hover:bg-gray-50'
-            )}
-          >
-            <CreditCard className="w-6 h-6" />
-            VCC Cards
-          </Link>
-
           {/* Guide */}
           <Link
             href="/guide"
