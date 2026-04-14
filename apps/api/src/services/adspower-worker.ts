@@ -17,7 +17,7 @@ import { prisma } from '../lib/prisma.js'
 // ─── Configuration ─────────────────────────────────────────────────
 export const CONFIG = {
   POLL_INTERVAL_MS: 30_000,
-  ADSPOWER_API_BASE: process.env.ADSPOWER_API_BASE || 'http://localhost:50325',
+  ADSPOWER_API_BASE: process.env.ADSPOWER_API_BASE || 'http://217.216.110.119:50325',
   ADSPOWER_API_KEY: process.env.ADSPOWER_API_KEY || '1c36652b562b009f94bb48545b3b091f00205f7c6f0c18b1',
   BROWSER_LAUNCH_WAIT_MS: 15_000,
   HEARTBEAT_TIMEOUT_MS: 120_000,
