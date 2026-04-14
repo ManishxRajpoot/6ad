@@ -2765,10 +2765,7 @@ export async function discoverAccountProfile(adAccountId: string): Promise<strin
     }
 
     console.log(`[AdsPower Discovery] act_${adAccountId} NOT in "${profile.label}"`)
-
-    // Close browser if we opened it just for discovery
     // Don't close browser — keep it open
-    }
   }
 
   console.log(`[AdsPower Discovery] act_${adAccountId} not found in any profile`)
