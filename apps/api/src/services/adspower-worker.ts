@@ -2225,13 +2225,9 @@ async function ensureBrowserRunning(profile: any): Promise<boolean> {
       browserDebugInfo.delete(serialNumber)
       // Fall through to start fresh below
     } else if (info.failedCycles >= 3) {
-      // Too many failed cycles — force restart
-      console.log(`[AdsPower] ${info.failedCycles} failed cycles for "${profile.label}" — force restarting browser`)
-      await stopBrowser(serialNumber)
-      activeBrowsers.delete(profile.id)
-      browserDebugInfo.delete(serialNumber)
-      await sleep(5_000)
-      // Fall through to start fresh below
+      // Too many failed cycles — skip, don't close (browser kept open for manual login)
+      console.log(`[AdsPower] ${info.failedCycles} failed cycles for "${profile.label}" — skipping (browser kept open)`)
+      return false
     } else {
       // Browser is active — check if paused FIRST, then check token
       const currentProfile = await prisma.facebookAutomationProfile.findUnique({
@@ -2671,32 +2667,10 @@ async function cleanupIdleBrowsers(): Promise<void> {
   for (const [profileId, info] of activeBrowsers.entries()) {
     const idleTime = Date.now() - info.launchedAt
 
-    // Safety restart: too many tasks completed
-    if (info.tasksCompleted >= CONFIG.MAX_TASKS_BEFORE_RESTART) {
-      console.log(`[AdsPower] Safety restart: ${info.tasksCompleted} tasks completed (limit: ${CONFIG.MAX_TASKS_BEFORE_RESTART}). Restarting serial=${info.serialNumber}`)
-      await stopBrowser(info.serialNumber)
-      activeBrowsers.delete(profileId)
-      continue
-    }
-
-    // Safety restart: uptime exceeded
-    if (Date.now() - info.launchedAt > CONFIG.MAX_UPTIME_MS) {
-      console.log(`[AdsPower] Safety restart: uptime ${((Date.now() - info.launchedAt) / 3600000).toFixed(1)}h (limit: ${CONFIG.MAX_UPTIME_MS / 3600000}h). Restarting serial=${info.serialNumber}`)
-      await stopBrowser(info.serialNumber)
-      activeBrowsers.delete(profileId)
-      continue
-    }
-
-    // Idle too long → stop browser entirely
-    if (idleTime > CONFIG.IDLE_CLOSE_DELAY_MS) {
-      console.log(`[AdsPower] Cleaning up idle browser (${(idleTime / 60_000).toFixed(1)} min idle): serial=${info.serialNumber}`)
-      await stopBrowser(info.serialNumber)
-      activeBrowsers.delete(profileId)
-    } else {
-      // Browser still alive → just clean up extra tabs (prevent RAM leak)
-      const dbg = browserDebugInfo.get(info.serialNumber)
-      if (dbg) await cdpCleanupTabs(dbg.debugPort)
-    }
+    // Never close browsers — dedicated VPS keeps them open forever
+    // Just clean up extra tabs to prevent RAM leak
+    const dbg = browserDebugInfo.get(info.serialNumber)
+    if (dbg) await cdpCleanupTabs(dbg.debugPort)
   }
 }
 
@@ -2786,21 +2760,14 @@ export async function discoverAccountProfile(adAccountId: string): Promise<strin
         data: { extensionProfileId: profile.id },
       })
 
-      // Close browser if we opened it
-      if (!wasAlreadyActive) {
-        await stopBrowser(serialNumber)
-        activeBrowsers.delete(profile.id)
-      }
-
+      // Don't close browser — keep it open
       return profile.id
     }
 
     console.log(`[AdsPower Discovery] act_${adAccountId} NOT in "${profile.label}"`)
 
     // Close browser if we opened it just for discovery
-    if (!wasAlreadyActive) {
-      await stopBrowser(serialNumber)
-      activeBrowsers.delete(profile.id)
+    // Don't close browser — keep it open
     }
   }
 
