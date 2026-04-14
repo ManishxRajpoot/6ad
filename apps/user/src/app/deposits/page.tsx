@@ -1832,6 +1832,19 @@ export default function DepositsPage() {
                     )}
                   </button>
                 </div>
+                {/* QR Code for wallet address */}
+                <div className="flex justify-center mt-3 pt-3 border-t border-[#7C3AED]/20">
+                  <div className="bg-white p-2 rounded-lg shadow-sm">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedMethod.description || '')}`}
+                      alt="Wallet QR Code"
+                      width={150}
+                      height={150}
+                      className="rounded"
+                    />
+                  </div>
+                </div>
+                <p className="text-[9px] text-center text-gray-400 mt-1.5">Scan QR to copy address</p>
               </div>
             )
           })()}
