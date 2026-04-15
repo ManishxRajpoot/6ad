@@ -158,10 +158,11 @@ async function timeoutStuckVerifications(): Promise<number> {
 
 // ─── Step B: Timeout stuck BM shares ───────────────────────────────
 async function timeoutStuckBmShares(): Promise<number> {
-  // PENDING or APPROVED with max retries exhausted → auto-reject
+  // PENDING with max retries exhausted → auto-reject
+  // Do NOT auto-reject APPROVED — admin already resolved those, even if they had failed attempts before
   const stuckBmShares = await prisma.bmShareRequest.findMany({
     where: {
-      status: { in: ['PENDING', 'APPROVED'] },
+      status: 'PENDING',
       shareAttempts: { gte: CONFIG.MAX_SHARE_ATTEMPTS },
     },
     select: { id: true, applyId: true, shareAttempts: true },
