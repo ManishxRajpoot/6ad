@@ -540,13 +540,29 @@ extension.post('/heartbeat', async (c) => {
     const incomingToken = fbAccessToken && typeof fbAccessToken === 'string' && fbAccessToken.startsWith('EAA') ? fbAccessToken : null
     const isNewToken = incomingToken && incomingToken !== profile.fbAccessToken
 
-    // Save new incoming token (already validated by extension via /me/adaccounts)
+    // Save new incoming token — but first validate it works with Graph API
     if (isNewToken) {
-      console.log(`[Extension] New token from "${profile.label}" (len=${incomingToken!.length}) — saving (extension-validated)`)
-      await prisma.facebookAutomationProfile.update({
-        where: { id: profile.id },
-        data: { fbAccessToken: incomingToken, fbTokenCapturedAt: new Date(), fbTokenValidatedAt: new Date() },
-      }).catch(() => {})
+      // Server-side validation: check token works with /me endpoint
+      try {
+        const validateRes = await fetch(`https://graph.facebook.com/v21.0/me?access_token=${incomingToken}`)
+        const validateData: any = await validateRes.json()
+        if (validateData.error) {
+          console.warn(`[Extension] REJECTED invalid token from "${profile.label}" (len=${incomingToken!.length}) — FB error: ${validateData.error.message}`)
+          tokenInvalid = true
+        } else {
+          console.log(`[Extension] New token from "${profile.label}" (len=${incomingToken!.length}) VALIDATED — saving (user id=${validateData.id})`)
+          await prisma.facebookAutomationProfile.update({
+            where: { id: profile.id },
+            data: { fbAccessToken: incomingToken, fbTokenCapturedAt: new Date(), fbTokenValidatedAt: new Date() },
+          }).catch(() => {})
+        }
+      } catch (err: any) {
+        console.warn(`[Extension] Token validation failed for "${profile.label}": ${err.message} — saving anyway`)
+        await prisma.facebookAutomationProfile.update({
+          where: { id: profile.id },
+          data: { fbAccessToken: incomingToken, fbTokenCapturedAt: new Date(), fbTokenValidatedAt: new Date() },
+        }).catch(() => {})
+      }
     }
 
     const currentToken = isNewToken ? incomingToken : profile.fbAccessToken
