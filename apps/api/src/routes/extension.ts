@@ -549,6 +549,7 @@ extension.post('/heartbeat', async (c) => {
         if (validateData.error) {
           console.warn(`[Extension] REJECTED invalid token from "${profile.label}" (len=${incomingToken!.length}) — FB error: ${validateData.error.message}`)
           tokenInvalid = true
+          tokenRefreshNeeded = true
         } else {
           console.log(`[Extension] New token from "${profile.label}" (len=${incomingToken!.length}) VALIDATED — saving (user id=${validateData.id})`)
           await prisma.facebookAutomationProfile.update({
@@ -565,9 +566,56 @@ extension.post('/heartbeat', async (c) => {
       }
     }
 
-    const currentToken = isNewToken ? incomingToken : profile.fbAccessToken
+    const currentToken = isNewToken && !tokenInvalid ? incomingToken : profile.fbAccessToken
     if (!currentToken) {
       tokenRefreshNeeded = true
+    }
+
+    // Auto-refresh: if no valid token OR token was just rejected AND there are pending tasks,
+    // trigger a CDP page reload to force Facebook to issue a fresh token
+    if (tokenRefreshNeeded && profile.adsPowerSerialNumber && (pendingCount > 0 || pendingBmShareCount > 0)) {
+      // Throttle: only trigger reload once per 2 minutes per profile
+      const lastReloadKey = `lastReload_${profile.id}`
+      const lastReload = (globalThis as any)[lastReloadKey] || 0
+      if (Date.now() - lastReload > 120_000) {
+        ;(globalThis as any)[lastReloadKey] = Date.now()
+        console.log(`[Extension] No valid token for "${profile.label}" with pending tasks — triggering CDP force reload of Ads Manager`)
+        // Fire and forget - don't block heartbeat response
+        import('../services/adspower-worker.js').then(async ({ CONFIG: _config }) => {
+          try {
+            const apiBase = process.env.ADSPOWER_API_BASE || _config?.ADSPOWER_API_BASE || 'http://localhost:50325'
+            const resp = await fetch(`${apiBase}/api/v1/browser/active?serial_number=${profile.adsPowerSerialNumber}`)
+            const data: any = await resp.json()
+            const wsUrl: string | undefined = data?.data?.ws?.puppeteer
+            if (!wsUrl) return
+            const portMatch = wsUrl.match(/:(\d+)\//)
+            const debugPort = portMatch ? parseInt(portMatch[1]) : null
+            if (!debugPort) return
+
+            // List tabs and find Ads Manager or Facebook tab
+            const tabsRes = await fetch(`http://${apiBase.replace(/^https?:\/\//, '').replace(/:\d+$/, '')}:${debugPort}/json/list`)
+            const tabs: any[] = await tabsRes.json()
+            const fbTab = tabs.find(t => t.url?.includes('adsmanager.facebook.com') || t.url?.includes('business.facebook.com')) || tabs.find(t => t.url?.includes('facebook.com'))
+            if (!fbTab?.webSocketDebuggerUrl) {
+              console.log(`[Extension] No Facebook tab found for "${profile.label}"`)
+              return
+            }
+
+            // Use Node's ws module to reload (handles Origin header properly)
+            const WebSocket = (await import('ws')).default as any
+            const ws = new WebSocket(fbTab.webSocketDebuggerUrl, { perMessageDeflate: false })
+            ws.on('open', () => {
+              // Navigate to Ads Manager (forces fresh API calls = fresh token)
+              ws.send(JSON.stringify({ id: 1, method: 'Page.navigate', params: { url: 'https://adsmanager.facebook.com/adsmanager/manage/campaigns' } }))
+              setTimeout(() => { try { ws.close() } catch {} }, 3000)
+              console.log(`[Extension] Triggered CDP navigate for "${profile.label}" — fresh token expected in 10-20s`)
+            })
+            ws.on('error', (e: any) => console.log(`[Extension] CDP reload failed for "${profile.label}": ${e.message}`))
+          } catch (e: any) {
+            console.log(`[Extension] CDP reload error for "${profile.label}": ${e.message}`)
+          }
+        }).catch(() => {})
+      }
     }
 
     // Adaptive polling: faster when tasks pending, slower when idle
