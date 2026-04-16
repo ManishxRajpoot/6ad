@@ -428,7 +428,7 @@ extension.post('/heartbeat', async (c) => {
     const profile = await getProfileByKey(c, {
       id: true, label: true, managedAdAccountIds: true,
       fbAccessToken: true, fbTokenCapturedAt: true, fbTokenValidatedAt: true, fbUserName: true,
-      healthStatus: true,
+      healthStatus: true, adsPowerSerialNumber: true,
     })
     if (!profile) return c.json({ error: 'Invalid API key' }, 401)
 
