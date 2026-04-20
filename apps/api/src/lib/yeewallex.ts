@@ -262,7 +262,7 @@ export const rechargeCard = (data: { cardId: string; amount: number; currency?: 
   yeewallexRequest('POST', '/rest/v1.0/vcc/card-recharge', {
     cardId: data.cardId,
     amount: String(data.amount),
-    currency: data.currency || 'USD',
+    currency: data.currency || 'USDT',
     requestNo: `RC_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
   })
 
