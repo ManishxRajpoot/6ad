@@ -284,6 +284,22 @@ yeewallex.get('/cards', async (c) => {
     prisma.vccCard.count({ where }),
   ])
 
+  // Auto-fetch card numbers for cards missing them (fire and forget)
+  const missingNumbers = cards.filter(c => !c.cardNumber && c.yeewallexCardId && c.status !== 'PENDING')
+  if (missingNumbers.length > 0) {
+    Promise.all(missingNumbers.map(async (card) => {
+      try {
+        const result = await getCardKeyInfo(card.yeewallexCardId!)
+        if (result.data?.cardNo) {
+          const cn = result.data.cardNo
+          const masked = cn.length > 10 ? cn.substring(0, 6) + '******' + cn.substring(cn.length - 4) : cn
+          await prisma.vccCard.update({ where: { id: card.id }, data: { cardNumber: masked } })
+          card.cardNumber = masked
+        }
+      } catch {}
+    })).catch(() => {})
+  }
+
   return c.json({ cards, total, page, limit })
 })
 
