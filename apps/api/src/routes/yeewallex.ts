@@ -140,7 +140,10 @@ yeewallex.post('/sync', async (c) => {
     try {
       for (let page = 1; page <= 10; page++) {
         const cardsResult = await getCards({ pageNo: page, pageSize: 50 })
-        const remoteCards = cardsResult.data?.data || []
+        console.log(`[Yeewallex Sync] Cards page ${page} raw keys:`, Object.keys(cardsResult || {}), 'data keys:', Object.keys(cardsResult?.data || {}))
+        // Try multiple response shapes
+        const remoteCards = cardsResult.data?.data || cardsResult.data?.list || cardsResult.data?.records || (Array.isArray(cardsResult.data) ? cardsResult.data : [])
+        console.log(`[Yeewallex Sync] Found ${remoteCards.length} remote cards on page ${page}`)
         if (remoteCards.length === 0) break
 
         for (const rc of remoteCards) {
