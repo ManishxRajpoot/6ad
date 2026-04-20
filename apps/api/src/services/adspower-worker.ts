@@ -2011,13 +2011,15 @@ export async function serverSideRecharge(depositId: string, adAccountId: string,
 
     console.log(`[Server Recharge] act_${adAccountId}: currentCap=$${currentCapDollars} (${currentCapCents} cents), deposit=$${amount}, newCap=$${newCapDollars}`)
 
-    // Step 2: POST new spend cap (Facebook Graph API expects spend_cap in the account currency, NOT cents)
-    // The Graph API spend_cap field returns cents but the POST expects dollars for the /act_{id} endpoint
+    // Step 2: POST new spend cap
+    // CRITICAL: Facebook Graph API expects spend_cap in CENTS (smallest currency unit)
+    // GET returns cents, POST expects cents
+    const newCapCents = Math.round(newCapDollars * 100)
     const postResp = await fetch(`${FB_GRAPH}/act_${adAccountId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        spend_cap: newCapDollars.toString(),
+        spend_cap: newCapCents.toString(),
         access_token: accessToken,
       }).toString(),
     })
