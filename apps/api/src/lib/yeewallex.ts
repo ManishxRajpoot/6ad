@@ -275,38 +275,15 @@ export const freezeCard = (cardId: string) => yeewallexRequest('POST', '/rest/v1
 export const unfreezeCard = (cardId: string) => yeewallexRequest('POST', '/rest/v1.0/vcc/card-unfreeze', { cardId })
 export const cancelCard = (cardId: string) => yeewallexRequest('POST', '/rest/v1.0/vcc/card-cancel', { cardId })
 
-// YeewalleX's /vcc/cards endpoint returns 99001002 "service invalid". Known-good endpoints
-// tend to use dashed verbs, so we probe a few candidate paths until one succeeds.
-const CARD_LIST_PATH_CANDIDATES = [
-  '/rest/v1.0/vcc/card-list',
-  '/rest/v1.0/vcc/card-query',
-  '/rest/v1.0/vcc/query-cards',
-  '/rest/v1.0/vcc/card-page',
-  '/rest/v1.0/vcc/cards',
-]
-
-export const getCards = async (params: { pageNo?: number; pageSize?: number; status?: string; customerId?: string } = {}): Promise<any> => {
-  const query = {
-    pageNo: String(params.pageNo || 1),
-    pageSize: String(params.pageSize || 50),
-    ...(params.customerId && { customerId: params.customerId }),
+// The real card-list endpoint is /vcc/user-cards with `page` / `size` params
+// (not `pageNo` / `pageSize`, which returns "Page size cannot be less than 0").
+// Response shape: { state: "SUCCESS", result: { status: 200, data: { records: [...], total, current, pages, size } } }
+export const getCards = (params: { page?: number; size?: number; status?: string } = {}) =>
+  yeewallexRequest('GET', '/rest/v1.0/vcc/user-cards', {
+    page: String(params.page || 1),
+    size: String(params.size || 50),
     ...(params.status && { status: params.status }),
-  }
-  for (const p of CARD_LIST_PATH_CANDIDATES) {
-    const r = await yeewallexRequest('GET', p, query)
-    // Consider it a success if there's no error OR the error isn't "service invalid"
-    if (!r.error) {
-      console.log(`[Yeewallex] Card list endpoint ${p} worked`)
-      return { ...r, _path: p }
-    }
-    // 99001002 = service invalid/doesn't exist. Try next candidate.
-    if (r.code !== '99001002') {
-      console.log(`[Yeewallex] Card list ${p} returned error ${r.code}, not path-related; stopping probe`)
-      return r
-    }
-  }
-  return { error: true, code: '99001002', message: 'All card-list endpoint candidates returned 99001002' }
-}
+  })
 
 export const getCardDetail = (cardId: string) => yeewallexRequest('GET', '/rest/v1.0/vcc/card-info', { cardId })
 

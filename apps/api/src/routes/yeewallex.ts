@@ -175,20 +175,28 @@ yeewallex.post('/sync', async (c) => {
         }
       }
 
-      // 2) DISCOVER orphaned remote cardIds — probe multiple list-endpoint candidates,
-      //    then as a fallback harvest cardIds from the (working) transactions endpoint.
+      // 2) DISCOVER remote cardIds via /vcc/user-cards (paginated — walk until we get <size records)
+      //    YeewalleX's docs-advertised /vcc/cards returns 99001002; /vcc/user-cards is the real endpoint.
+      const remoteCardsByYwId = new Map<string, any>()
       try {
-        const listResult = await getCards({ pageNo: 1, pageSize: 100, customerId: '10027281' })
-        const remoteCards = listResult.data?.data || listResult.data?.list || listResult.data?.records || (Array.isArray(listResult.data) ? listResult.data : [])
-        for (const rc of remoteCards) {
-          const ywId = rc.cardId || rc.id
-          if (ywId) discoveredCardIds.add(ywId)
+        for (let page = 1; page <= 10; page++) {
+          const listResult = await getCards({ page, size: 50 })
+          const records = listResult.data?.data?.records || []
+          for (const rc of records) {
+            const ywId = rc.cardId || rc.id
+            if (ywId) {
+              remoteCardsByYwId.set(ywId, rc)
+              discoveredCardIds.add(ywId)
+            }
+          }
+          if (records.length < 50) break
         }
-        console.log(`[Yeewallex Sync] List API discovered ${discoveredCardIds.size} cardIds`)
+        console.log(`[Yeewallex Sync] /vcc/user-cards discovered ${discoveredCardIds.size} cardIds`)
       } catch (e: any) {
-        console.log(`[Yeewallex Sync] List API unavailable: ${e.message}`)
+        console.log(`[Yeewallex Sync] user-cards list failed: ${e.message}`)
       }
 
+      // Also harvest cardIds from transactions as a secondary safety net.
       try {
         const txResult = await getTransactions({ page: 1, size: 200 })
         const txs = txResult.data?.data?.list || txResult.data?.data?.records || txResult.data?.list || txResult.data?.records || (Array.isArray(txResult.data?.data) ? txResult.data.data : []) || []
@@ -213,9 +221,13 @@ yeewallex.post('/sync', async (c) => {
       for (const ywId of discoveredCardIds) {
         if (existingYwIds.has(ywId)) continue
         try {
-          const detail = await getCardDetail(ywId)
-          if (detail.error || !detail.data) continue
-          const rd = detail.data?.data || detail.data || {}
+          // Prefer the record from the list (cheaper); fall back to a per-card detail fetch.
+          let rd: any = remoteCardsByYwId.get(ywId)
+          if (!rd) {
+            const detail = await getCardDetail(ywId)
+            if (detail.error || !detail.data) continue
+            rd = detail.data?.data || detail.data || {}
+          }
           const rcHolderYwId = rd.cardholder?.id || rd.cardholderId || rd.memberId
           const cardholderId = (rcHolderYwId && holderByYwId.get(String(rcHolderYwId))) || fallbackHolderId
           if (!cardholderId) {
@@ -245,16 +257,20 @@ yeewallex.post('/sync', async (c) => {
         }
       }
 
-      // 4) UPDATE every issued DB card with live status/balance/cardNumber
+      // 4) UPDATE every issued DB card with live status/balance/cardNumber.
+      //    Prefer data from the already-fetched user-cards list; fall back to per-card detail.
       const issuedCards = await prisma.vccCard.findMany({
         where: { yeewallexCardId: { not: null } },
         select: { id: true, yeewallexCardId: true, cardNumber: true },
       })
       for (const card of issuedCards) {
         try {
-          const detail = await getCardDetail(card.yeewallexCardId!)
-          if (!detail.data) continue
-          const rd = detail.data?.data || detail.data || {}
+          let rd: any = remoteCardsByYwId.get(card.yeewallexCardId!)
+          if (!rd) {
+            const detail = await getCardDetail(card.yeewallexCardId!)
+            if (!detail.data) continue
+            rd = detail.data?.data || detail.data || {}
+          }
           const cardStatus = statusMap[String(rd.cardStatus)] || statusMap[String(rd.status)] || undefined
           const balance = rd.balance != null ? parseFloat(String(rd.balance)) : undefined
           const cn = rd.cardNumber
@@ -432,8 +448,7 @@ yeewallex.post('/cards', async (c) => {
 
 // GET /cards — List all cards (DB-sourced, enriched with live data)
 // Includes both issued cards (have yeewallexCardId) and pending cards (have taskId only).
-// The YeewalleX list endpoint /vcc/cards is broken (returns 99001002 "service invalid"),
-// so we treat the DB as source of truth and enrich per-card via card-info / card-open-task.
+// Click the Sync button to pull any YeewalleX cards missing from the DB.
 yeewallex.get('/cards', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
   const statusFilter = c.req.query('status')
