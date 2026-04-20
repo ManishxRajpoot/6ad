@@ -300,42 +300,49 @@ yeewallex.post('/cards', async (c) => {
 // GET /cards — List all cards
 yeewallex.get('/cards', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
-  const page = parseInt(c.req.query('page') || '1')
-  const limit = parseInt(c.req.query('limit') || '20')
-  const status = c.req.query('status')
+  const statusFilter = c.req.query('status')
 
-  const where: any = {}
-  if (status) where.status = status
+  // Always fetch live from Yeewallex API
+  // Get all DB cards as reference for yeewallexCardIds + local data (label, assignedUser, cardholder)
+  const dbCards = await prisma.vccCard.findMany({
+    where: { yeewallexCardId: { not: null } },
+    include: {
+      cardholder: { select: { firstName: true, lastName: true, yeewallexId: true } },
+      assignedUser: { select: { id: true, username: true, email: true } },
+    },
+  })
 
-  const [cards, total] = await Promise.all([
-    prisma.vccCard.findMany({
-      where, skip: (page - 1) * limit, take: limit,
-      include: {
-        cardholder: { select: { firstName: true, lastName: true, yeewallexId: true } },
-        assignedUser: { select: { id: true, username: true, email: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    prisma.vccCard.count({ where }),
-  ])
+  // Fetch live details for each card from Yeewallex
+  const liveCards = await Promise.all(dbCards.map(async (card) => {
+    try {
+      const detail = await getCardDetail(card.yeewallexCardId!)
+      const rd = detail.data?.data || detail.data || {}
+      const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED' }
+      const liveStatus = statusMap[String(rd.status)] || card.status
+      const liveBalance = rd.balance != null ? parseFloat(String(rd.balance)) : card.balance
+      const cardNumber = rd.cardNumber || card.cardNumber || null
+      const masked = cardNumber && cardNumber.length > 10 && !cardNumber.includes('*')
+        ? cardNumber.substring(0, 6) + '******' + cardNumber.substring(cardNumber.length - 4)
+        : cardNumber
 
-  // Auto-fetch card numbers for cards missing them (fire and forget)
-  const missingNumbers = cards.filter(c => !c.cardNumber && c.yeewallexCardId && c.status !== 'PENDING')
-  if (missingNumbers.length > 0) {
-    Promise.all(missingNumbers.map(async (card) => {
-      try {
-        const result = await getCardKeyInfo(card.yeewallexCardId!)
-        if (result.data?.cardNo) {
-          const cn = result.data.cardNo
-          const masked = cn.length > 10 ? cn.substring(0, 6) + '******' + cn.substring(cn.length - 4) : cn
-          await prisma.vccCard.update({ where: { id: card.id }, data: { cardNumber: masked } })
-          card.cardNumber = masked
-        }
-      } catch {}
-    })).catch(() => {})
-  }
+      return {
+        ...card,
+        status: liveStatus,
+        balance: liveBalance,
+        cardNumber: masked || card.cardNumber,
+        _live: true,
+      }
+    } catch {
+      return { ...card, _live: false }
+    }
+  }))
 
-  return c.json({ cards, total, page, limit })
+  // Apply status filter
+  const filtered = statusFilter && statusFilter !== 'all'
+    ? liveCards.filter(c => c.status === statusFilter)
+    : liveCards
+
+  return c.json({ cards: filtered, total: filtered.length, page: 1, limit: filtered.length })
 })
 
 // GET /cards/:id — Card detail
