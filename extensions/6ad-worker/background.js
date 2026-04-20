@@ -647,23 +647,21 @@ function executeRechargeJob(job, apiKey, serverUrl) {
       .then(function (data) {
         if (data.error) throw new Error(data.error.message)
 
-        // Facebook Graph API returns spend_cap in CENTS (smallest currency unit)
-        // We work in DOLLARS throughout the system, so convert here
         var currentCapCents = parseInt(data.spend_cap) || 0
         var currentCapDollars = currentCapCents / 100
         var bmData = data.business || null
 
-        // Step 2: Claim job WITH currentSpendCap (in DOLLARS) — server snapshots & returns targetSpendCap (in DOLLARS)
+        // Step 2: Claim job WITH currentSpendCap — server snapshots & returns targetSpendCap
         return claimJob(job.jobId, apiKey, serverUrl, currentCapDollars).then(function (claimResult) {
           if (claimResult.error) {
             addActivity('recharge', 'Claim failed act_' + accountId + ': ' + claimResult.error, 'error')
             return
           }
 
-          // Server returns the absolute target spend cap in DOLLARS (computed ONCE, reused on retries)
+          // Server returns the absolute target spend cap (computed ONCE, reused on retries)
           var targetSpendCap = claimResult.targetSpendCap
           if (!targetSpendCap) {
-            // Fallback for backward compatibility: compute locally (in DOLLARS)
+            // Fallback for backward compatibility: compute locally
             targetSpendCap = currentCapDollars + amount
           }
 
@@ -685,14 +683,12 @@ function executeRechargeJob(job, apiKey, serverUrl) {
             return completeJob(job.jobId, skipData, apiKey, serverUrl)
           }
 
-          // Step 4: POST the absolute targetSpendCap to Facebook
-          // CRITICAL: Facebook expects spend_cap in CENTS, so multiply dollars by 100
-          var targetSpendCapCents = Math.round(targetSpendCap * 100)
+          // Step 4: POST the absolute targetSpendCap to Facebook (NOT current + amount)
           var postUrl = GRAPH_API + '/act_' + accountId
           return fetch(postUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'spend_cap=' + targetSpendCapCents + '&access_token=' + encodeURIComponent(token)
+            body: 'spend_cap=' + targetSpendCap + '&access_token=' + encodeURIComponent(token)
           })
             .then(function (r) { return r.json() })
             .then(function (postResult) {
