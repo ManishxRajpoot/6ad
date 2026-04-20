@@ -311,6 +311,13 @@ yeewallex.get('/cards/:id/details', async (c) => {
   const result = await getCardKeyInfo(card.yeewallexCardId)
   if (result.error) return c.json({ error: result.message }, 400)
 
+  // Save masked card number to DB
+  if (result.data.cardNo && !card.cardNumber) {
+    const cn = result.data.cardNo
+    const masked = cn.length > 10 ? cn.substring(0, 6) + '******' + cn.substring(cn.length - 4) : cn
+    await prisma.vccCard.update({ where: { id: card.id }, data: { cardNumber: masked } }).catch(() => {})
+  }
+
   return c.json({ cardNo: result.data.cardNo, cvv: result.data.cvv, expireDate: result.data.expireDate })
 })
 
@@ -448,16 +455,17 @@ yeewallex.post('/cards/:id/recharge', async (c) => {
 
   // Update card balance — for BIN 44135977 recharge is synchronous
   const newBalance = rd.balance ?? rd.cardBalance ?? result.data?.balance
+  const maskedCardNumber = rd.cardNumber || result.data?.cardNumber || null
   if (newBalance !== undefined && newBalance !== null) {
     await prisma.vccCard.update({
       where: { id: card.id },
-      data: { balance: parseFloat(String(newBalance)), totalRecharge: { increment: amount } },
+      data: { balance: parseFloat(String(newBalance)), totalRecharge: { increment: amount }, ...(maskedCardNumber && { cardNumber: maskedCardNumber }) },
     })
   } else if (isSuccess) {
     // If no balance returned but success, increment locally
     await prisma.vccCard.update({
       where: { id: card.id },
-      data: { balance: { increment: amount }, totalRecharge: { increment: amount } },
+      data: { balance: { increment: amount }, totalRecharge: { increment: amount }, ...(maskedCardNumber && { cardNumber: maskedCardNumber }) },
     })
   }
 

@@ -1663,6 +1663,7 @@ model VccCard {
   yeewallexCardId String?        @unique   // Yeewallex card ID (null while PENDING)
   cardBinId       String                   // Card BIN used for issuance
   taskId          String?        @unique   // Async card-open task ID for polling
+  cardNumber      String?                  // Masked card number (e.g. "441359******0323")
   label           String?                  // Admin-defined label (e.g. "FB Ads #1")
   alias           String?                  // Card alias in Yeewallex
   status          VccCardStatus  @default(PENDING)

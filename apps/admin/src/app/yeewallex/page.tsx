@@ -386,7 +386,7 @@ export default function VCCPage() {
                   {filteredCards.map((card, index) => (
                     <tr key={card.id} className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate" style={{ animationDelay: `${index * 20}ms` }}>
                       <td className="py-2.5 px-3 text-gray-700 whitespace-nowrap font-medium">{card.label || card.alias || 'Untitled'}</td>
-                      <td className="py-2.5 px-3 text-gray-500 font-mono text-xs">{(card.yeewallexCardId || card.taskId || '—').slice(0, 18)}...</td>
+                      <td className="py-2.5 px-3 text-gray-500 font-mono text-xs">{card.cardNumber || (card.yeewallexCardId || card.taskId || '—').slice(0, 18) + '...'}</td>
                       <td className="py-2.5 px-3">{getStatusBadge(card.status)}</td>
                       <td className="py-2.5 px-3 font-semibold text-emerald-600 whitespace-nowrap">${card.balance?.toFixed(2) || '0.00'}</td>
                       <td className="py-2.5 px-3 text-gray-600">{card.cardholder ? `${card.cardholder.firstName} ${card.cardholder.lastName}` : '—'}</td>
