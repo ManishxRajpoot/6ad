@@ -134,10 +134,63 @@ yeewallex.post('/sync', async (c) => {
       synced.cardholders++
     }
 
+    // Sync cards from Yeewallex
+    let cardsSynced = 0
+    let cardsUpdated = 0
+    try {
+      for (let page = 1; page <= 10; page++) {
+        const cardsResult = await getCards({ pageNo: page, pageSize: 50 })
+        const remoteCards = cardsResult.data?.data || []
+        if (remoteCards.length === 0) break
+
+        for (const rc of remoteCards) {
+          const ywCardId = rc.cardId || rc.id
+          if (!ywCardId) continue
+
+          const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE' }
+          const cardStatus = statusMap[String(rc.status)] || 'ACTIVE'
+          const maskedNumber = rc.cardNumber || null
+
+          const existing = await prisma.vccCard.findFirst({ where: { yeewallexCardId: ywCardId } })
+          if (existing) {
+            // Update status and balance
+            await prisma.vccCard.update({
+              where: { id: existing.id },
+              data: {
+                status: cardStatus as any,
+                balance: rc.balance != null ? parseFloat(String(rc.balance)) : existing.balance,
+                ...(maskedNumber && !existing.cardNumber ? { cardNumber: maskedNumber } : {}),
+              },
+            })
+            cardsUpdated++
+          } else {
+            // Find cardholder
+            const holder = rc.customerId ? await prisma.vccCardholder.findFirst({ where: { yeewallexId: String(rc.customerId) } }) : null
+            if (holder) {
+              await prisma.vccCard.create({
+                data: {
+                  yeewallexCardId: ywCardId,
+                  cardBinId: rc.sectionId || rc.cardBinId || 'unknown',
+                  cardNumber: maskedNumber,
+                  status: cardStatus as any,
+                  currency: rc.currency || 'USD',
+                  balance: rc.balance != null ? parseFloat(String(rc.balance)) : 0,
+                  cardholderId: holder.id,
+                },
+              })
+              cardsSynced++
+            }
+          }
+        }
+      }
+    } catch (cardErr: any) {
+      console.error('[Yeewallex Sync] Card sync error:', cardErr.message)
+    }
+
     return c.json({
       success: true,
-      message: `Synced ${synced.cardholders} new cardholders. Total remote: ${remoteHolders.length}`,
-      synced,
+      message: `Synced ${synced.cardholders} new cardholders, ${cardsSynced} new cards, ${cardsUpdated} cards updated.`,
+      synced: { ...synced, cardsSynced, cardsUpdated },
     })
   } catch (err: any) {
     console.error('[Yeewallex Sync] Error:', err)
