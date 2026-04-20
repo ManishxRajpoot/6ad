@@ -374,73 +374,84 @@ yeewallex.post('/cards', async (c) => {
   }
 })
 
-// GET /cards — List all cards
+// GET /cards — List all cards (DB-sourced, enriched with live data)
+// Includes both issued cards (have yeewallexCardId) and pending cards (have taskId only).
+// The YeewalleX list endpoint /vcc/cards is broken (returns 99001002 "service invalid"),
+// so we treat the DB as source of truth and enrich per-card via card-info / card-open-task.
 yeewallex.get('/cards', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
   const statusFilter = c.req.query('status')
 
-  // Try to fetch ALL cards from Yeewallex list API first (includes cancelled)
-  let allCards: any[] = []
-  try {
-    const listResult = await getCards({ pageNo: 1, pageSize: 50, customerId: '10027281' })
-    const remoteCards = listResult.data?.data || listResult.data?.list || listResult.data?.records || (Array.isArray(listResult.data) ? listResult.data : [])
-    if (remoteCards.length > 0) {
-      console.log(`[Yeewallex] List API returned ${remoteCards.length} cards`)
-      // Map Yeewallex cards to our format
-      const dbCardsMap = new Map<string, any>()
-      const dbCards = await prisma.vccCard.findMany({
-        where: { yeewallexCardId: { not: null } },
-        include: { cardholder: { select: { firstName: true, lastName: true, yeewallexId: true } }, assignedUser: { select: { id: true, username: true, email: true } } },
-      })
-      dbCards.forEach(c => dbCardsMap.set(c.yeewallexCardId!, c))
+  const dbCards = await prisma.vccCard.findMany({
+    where: { OR: [{ yeewallexCardId: { not: null } }, { taskId: { not: null } }] },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      cardholder: { select: { firstName: true, lastName: true, yeewallexId: true } },
+      assignedUser: { select: { id: true, username: true, email: true } },
+    },
+  })
 
-      const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED', 'NORMAL': 'ACTIVE', 'FREEZE': 'FROZEN', 'CANCELED': 'CANCELLED' }
-      allCards = remoteCards.map((rc: any) => {
-        const ywId = rc.cardId || rc.id
-        const dbCard = dbCardsMap.get(ywId)
-        const cardNum = rc.cardNumber || dbCard?.cardNumber || null
-        const masked = cardNum && cardNum.length > 10 && !cardNum.includes('*') ? cardNum.substring(0, 6) + '******' + cardNum.substring(cardNum.length - 4) : cardNum
-        return {
-          id: dbCard?.id || ywId,
-          yeewallexCardId: ywId,
-          cardNumber: masked,
-          label: dbCard?.label || rc.alias || null,
-          status: statusMap[String(rc.cardStatus)] || statusMap[String(rc.status)] || 'ACTIVE',
-          balance: rc.balance != null ? parseFloat(String(rc.balance)) : 0,
-          currency: rc.currency || 'USD',
-          cardholder: dbCard?.cardholder || null,
-          assignedUser: dbCard?.assignedUser || null,
-          createdAt: dbCard?.createdAt || rc.createTime || new Date().toISOString(),
-          _live: true,
-          _orphan: !dbCard,
-        }
-      })
-    }
-  } catch (e: any) {
-    console.log(`[Yeewallex] List API failed: ${e.message}`)
+  const cardStatusMap: Record<string, string> = {
+    'NORMAL': 'ACTIVE', 'FREEZE': 'FROZEN', 'CANCELED': 'CANCELLED', 'CANCEL': 'CANCELLED',
+    '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE',
+    'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED',
   }
 
-  // Fallback: if list API failed, fetch per-card from DB + live details
-  if (allCards.length === 0) {
-    const dbCards = await prisma.vccCard.findMany({
-      where: { yeewallexCardId: { not: null } },
-      include: { cardholder: { select: { firstName: true, lastName: true, yeewallexId: true } }, assignedUser: { select: { id: true, username: true, email: true } } },
-    })
-    allCards = await Promise.all(dbCards.map(async (card) => {
+  const allCards = await Promise.all(dbCards.map(async (card) => {
+    // PENDING card (only taskId, no yeewallexCardId yet) — try to promote if the task finished
+    if (!card.yeewallexCardId && card.taskId) {
       try {
-        const detail = await getCardDetail(card.yeewallexCardId!)
-        console.log(`[VCC] Card ${card.yeewallexCardId?.substring(0,20)} detail:`, JSON.stringify(detail).substring(0, 500))
-        if (detail.error || !detail.data) return { ...card, status: 'CANCELLED', balance: 0, _live: false }
+        const task = await getCardOpenTask(card.taskId)
+        const rd = task.data?.data || task.data || {}
+        const taskStatus = rd.status || rd.taskStatus
+        const cardList = rd.cardList || rd.card_list || []
+        const firstCard = cardList[0] || {}
+        const issuedCardId = firstCard.cardId || rd.cardId || rd.card_id
+
+        if (issuedCardId && (taskStatus === 'SUCCESS' || taskStatus === 'COMPLETED' || taskStatus === 200 || taskStatus === 100)) {
+          const cardNum = firstCard.cardNumber || null
+          const masked = cardNum && cardNum.length > 10 && !cardNum.includes('*')
+            ? cardNum.substring(0, 6) + '******' + cardNum.substring(cardNum.length - 4) : cardNum
+          await prisma.vccCard.update({
+            where: { id: card.id },
+            data: { yeewallexCardId: issuedCardId, status: 'ACTIVE', ...(masked ? { cardNumber: masked } : {}) },
+          })
+          return { ...card, yeewallexCardId: issuedCardId, status: 'ACTIVE', balance: 0, cardNumber: masked || null, _live: true }
+        }
+        if (taskStatus === 'FAILED' || taskStatus === 'FAIL') {
+          await prisma.vccCard.update({ where: { id: card.id }, data: { status: 'FAILED' as any } }).catch(() => {})
+          return { ...card, status: 'FAILED', _live: false }
+        }
+      } catch (e: any) {
+        console.log(`[VCC] Task check failed for ${card.taskId}: ${e.message}`)
+      }
+      return { ...card, status: 'PENDING', _live: false }
+    }
+
+    // Issued card — fetch live detail
+    if (card.yeewallexCardId) {
+      try {
+        const detail = await getCardDetail(card.yeewallexCardId)
+        if (detail.error || !detail.data) return { ...card, _live: false }
         const rd = detail.data?.data || detail.data || {}
-        // Yeewallex uses cardStatus field (not status): NORMAL, FREEZE, CANCELED
-        const cardStatusMap: Record<string, string> = { 'NORMAL': 'ACTIVE', 'FREEZE': 'FROZEN', 'CANCELED': 'CANCELLED', 'CANCEL': 'CANCELLED', '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED' }
         const liveStatus = cardStatusMap[rd.cardStatus] || cardStatusMap[String(rd.status)] || card.status
         const cardNum = rd.cardNumber || card.cardNumber
-        const masked = cardNum && cardNum.length > 10 && !cardNum.includes('*') ? cardNum.substring(0, 6) + '******' + cardNum.substring(cardNum.length - 4) : cardNum
-        return { ...card, status: liveStatus, balance: rd.balance != null ? parseFloat(String(rd.balance)) : card.balance, cardNumber: masked || card.cardNumber, _live: true }
-      } catch { return { ...card, status: 'CANCELLED', balance: 0, _live: false } }
-    }))
-  }
+        const masked = cardNum && cardNum.length > 10 && !cardNum.includes('*')
+          ? cardNum.substring(0, 6) + '******' + cardNum.substring(cardNum.length - 4) : cardNum
+        return {
+          ...card,
+          status: liveStatus,
+          balance: rd.balance != null ? parseFloat(String(rd.balance)) : card.balance,
+          cardNumber: masked || card.cardNumber,
+          _live: true,
+        }
+      } catch {
+        return { ...card, _live: false }
+      }
+    }
+
+    return { ...card, _live: false }
+  }))
 
   const filtered = statusFilter && statusFilter !== 'all' ? allCards.filter((c: any) => c.status === statusFilter) : allCards
   return c.json({ cards: filtered, total: filtered.length, page: 1, limit: filtered.length })
