@@ -138,52 +138,31 @@ yeewallex.post('/sync', async (c) => {
     let cardsSynced = 0
     let cardsUpdated = 0
     try {
-      for (let page = 1; page <= 10; page++) {
-        const cardsResult = await getCards({ pageNo: page, pageSize: 50 })
-        console.log(`[Yeewallex Sync] Cards page ${page} full response:`, JSON.stringify(cardsResult).substring(0, 500))
-        // Try multiple response shapes
-        const remoteCards = cardsResult.data?.data || cardsResult.data?.list || cardsResult.data?.records || (Array.isArray(cardsResult.data) ? cardsResult.data : [])
-        console.log(`[Yeewallex Sync] Found ${remoteCards.length} remote cards on page ${page}`)
-        if (remoteCards.length === 0) break
+      // Sync existing cards: update status, balance, and card numbers
+      const existingCards = await prisma.vccCard.findMany({ where: { yeewallexCardId: { not: null } }, select: { id: true, yeewallexCardId: true, cardNumber: true } })
+      for (const card of existingCards) {
+        try {
+          const detail = await getCardDetail(card.yeewallexCardId!)
+          if (detail.data) {
+            const rd = detail.data.data || detail.data
+            const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED' }
+            const cardStatus = statusMap[String(rd.status)] || undefined
+            const balance = rd.balance != null ? parseFloat(String(rd.balance)) : undefined
+            const cardNumber = rd.cardNumber || null
+            const masked = cardNumber && cardNumber.length > 10 ? cardNumber.substring(0, 6) + '******' + cardNumber.substring(cardNumber.length - 4) : cardNumber
 
-        for (const rc of remoteCards) {
-          const ywCardId = rc.cardId || rc.id
-          if (!ywCardId) continue
-
-          const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE' }
-          const cardStatus = statusMap[String(rc.status)] || 'ACTIVE'
-          const maskedNumber = rc.cardNumber || null
-
-          const existing = await prisma.vccCard.findFirst({ where: { yeewallexCardId: ywCardId } })
-          if (existing) {
-            // Update status and balance
             await prisma.vccCard.update({
-              where: { id: existing.id },
+              where: { id: card.id },
               data: {
-                status: cardStatus as any,
-                balance: rc.balance != null ? parseFloat(String(rc.balance)) : existing.balance,
-                ...(maskedNumber && !existing.cardNumber ? { cardNumber: maskedNumber } : {}),
+                ...(cardStatus ? { status: cardStatus as any } : {}),
+                ...(balance !== undefined ? { balance } : {}),
+                ...(masked && !card.cardNumber ? { cardNumber: masked } : {}),
               },
             })
             cardsUpdated++
-          } else {
-            // Find cardholder
-            const holder = rc.customerId ? await prisma.vccCardholder.findFirst({ where: { yeewallexId: String(rc.customerId) } }) : null
-            if (holder) {
-              await prisma.vccCard.create({
-                data: {
-                  yeewallexCardId: ywCardId,
-                  cardBinId: rc.sectionId || rc.cardBinId || 'unknown',
-                  cardNumber: maskedNumber,
-                  status: cardStatus as any,
-                  currency: rc.currency || 'USD',
-                  balance: rc.balance != null ? parseFloat(String(rc.balance)) : 0,
-                  cardholderId: holder.id,
-                },
-              })
-              cardsSynced++
-            }
           }
+        } catch (e: any) {
+          console.log(`[Yeewallex Sync] Failed to sync card ${card.yeewallexCardId}: ${e.message}`)
         }
       }
     } catch (cardErr: any) {
