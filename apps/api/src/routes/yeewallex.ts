@@ -209,7 +209,22 @@ yeewallex.post('/sync', async (c) => {
         console.log(`[Yeewallex Sync] Transactions harvest failed: ${e.message}`)
       }
 
-      // 3) BACK-FILL any discovered cardId not in our DB
+      // 3) BACK-FILL any discovered cardId not in our DB.
+      // VccCard.taskId is @unique and MongoDB treats every null as equal, so a second
+      // orphan row with null taskId triggers P2002. Give orphans a synthetic unique
+      // placeholder ("ORPHAN:<cardId>") to satisfy the constraint, and clean up any
+      // pre-existing rows that are already holding the null slot.
+      const nullTaskRows = await prisma.vccCard.findMany({
+        where: { AND: [{ taskId: null }, { yeewallexCardId: { not: null } }] },
+        select: { id: true, yeewallexCardId: true },
+      })
+      for (const row of nullTaskRows) {
+        await prisma.vccCard.update({
+          where: { id: row.id },
+          data: { taskId: `ORPHAN:${row.yeewallexCardId}` },
+        }).catch(err => console.log(`[Yeewallex Sync] Failed to unblock null taskId for ${row.yeewallexCardId}: ${err.message}`))
+      }
+
       const existingYwIds = new Set(
         (await prisma.vccCard.findMany({ where: { yeewallexCardId: { not: null } }, select: { yeewallexCardId: true } }))
           .map(c => c.yeewallexCardId!)
@@ -240,6 +255,7 @@ yeewallex.post('/sync', async (c) => {
           await prisma.vccCard.create({
             data: {
               yeewallexCardId: ywId,
+              taskId: `ORPHAN:${ywId}`, // Placeholder to satisfy @unique constraint on nullable taskId
               cardBinId: rd.cardBinId || CARD_BINS.ADS_USD,
               label: rd.alias || null,
               alias: rd.alias || null,
