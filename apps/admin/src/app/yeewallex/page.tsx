@@ -369,47 +369,52 @@ export default function VCCPage() {
             ) : filteredCards.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16"><h3 className="text-lg font-semibold text-gray-900 mb-2">No Cards</h3><p className="text-gray-500 text-sm">No cards found. Issue your first card.</p></div>
             ) : (
-              <table className="w-full text-sm xl:text-[13px]">
-                <thead className="sticky top-0 z-10">
-                  <tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
-                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Label</th>
-                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Card ID</th>
-                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Status</th>
-                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Balance</th>
-                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Cardholder</th>
-                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Assigned To</th>
-                    <th className="text-left py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Date</th>
-                    <th className="text-center py-2.5 px-3 font-semibold text-gray-500 uppercase tracking-wide text-sm whitespace-nowrap bg-gray-50">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCards.map((card, index) => (
-                    <tr key={card.id} className="border-b border-gray-100 hover:bg-gray-50/50 align-middle tab-row-animate" style={{ animationDelay: `${index * 20}ms` }}>
-                      <td className="py-2.5 px-3 text-gray-700 whitespace-nowrap font-medium">{card.label || card.alias || 'Untitled'}</td>
-                      <td className="py-2.5 px-3 text-gray-500 font-mono text-xs">{card.cardNumber || (card.yeewallexCardId || card.taskId || '—').slice(0, 18) + '...'}</td>
-                      <td className="py-2.5 px-3">{getStatusBadge(card.status)}</td>
-                      <td className="py-2.5 px-3 font-semibold text-emerald-600 whitespace-nowrap">${card.balance?.toFixed(2) || '0.00'}</td>
-                      <td className="py-2.5 px-3 text-gray-600">{card.cardholder ? `${card.cardholder.firstName} ${card.cardholder.lastName}` : '—'}</td>
-                      <td className="py-2.5 px-3 text-gray-500">{card.assignedUser?.username || <span className="text-gray-300">—</span>}</td>
-                      <td className="py-2.5 px-3 text-gray-500 whitespace-nowrap">{formatDate(card.createdAt)}</td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center justify-center gap-0.5">
-                          {card.status === 'PENDING' && card.taskId && <button onClick={() => pollTaskStatus(card.id)} className="p-1.5 rounded-md hover:bg-blue-50 text-blue-500" title="Check Status"><RefreshCw className="w-3.5 h-3.5" /></button>}
-                          {card.yeewallexCardId && <button onClick={() => revealSensitive(card.id)} className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500" title="View"><Eye className="w-3.5 h-3.5" /></button>}
-                          {card.status === 'INACTIVE' && <button onClick={() => cardAction(card.id, 'activate')} className="p-1.5 rounded-md hover:bg-green-50 text-green-600" title="Activate"><Play className="w-3.5 h-3.5" /></button>}
-                          {card.status === 'ACTIVE' && <>
-                            <button onClick={() => { setRechargeCardId(card.id); setRechargeAmount('') }} className="p-1.5 rounded-md hover:bg-green-50 text-green-600" title="Recharge"><DollarSign className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => cardAction(card.id, 'freeze')} className="p-1.5 rounded-md hover:bg-blue-50 text-blue-500" title="Freeze"><Snowflake className="w-3.5 h-3.5" /></button>
-                          </>}
-                          {card.status === 'FROZEN' && <button onClick={() => cardAction(card.id, 'unfreeze')} className="p-1.5 rounded-md hover:bg-green-50 text-green-600" title="Unfreeze"><Play className="w-3.5 h-3.5" /></button>}
-                          <button onClick={() => { setAssignCardId(card.id); setAssignUserId(card.assignedUser?.id || '') }} className="p-1.5 rounded-md hover:bg-violet-50 text-violet-600" title="Assign"><Link2 className="w-3.5 h-3.5" /></button>
-                          {card.status !== 'CANCELLED' && card.status !== 'PENDING' && <button onClick={() => cardAction(card.id, 'cancel')} className="p-1.5 rounded-md hover:bg-red-50 text-red-500" title="Cancel"><XCircle className="w-3.5 h-3.5" /></button>}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="divide-y divide-gray-100">
+                {filteredCards.map((card, index) => (
+                  <div key={card.id} className="flex items-start gap-4 p-4 hover:bg-gray-50/50 tab-row-animate" style={{ animationDelay: `${index * 20}ms` }}>
+                    {/* Card Image */}
+                    <div className="flex-shrink-0 w-16 h-10 rounded-md bg-gradient-to-br from-green-300 to-green-500 flex items-center justify-center shadow-sm">
+                      <span className="text-white text-[9px] font-bold tracking-wider">VISA</span>
+                    </div>
+
+                    {/* Card Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="text-[15px] font-semibold text-gray-900 font-mono tracking-wide">
+                          {card.cardNumber
+                            ? card.cardNumber.replace(/(\d{4})(\d{2})\*{6}(\d{4})/, '$1 $2** **** $3')
+                            : card.yeewallexCardId?.slice(0, 20) || '—'}
+                        </span>
+                        {getStatusBadge(card.status)}
+                      </div>
+                      <div className="flex items-center gap-4 text-xs text-gray-400">
+                        <span>{formatDate(card.createdAt)}</span>
+                        <span className="font-medium text-gray-600">{card.balance?.toFixed(2) || '0'} {card.currency || 'USD'}</span>
+                        {card.cardholder && <span>Holder: {card.cardholder.firstName} {card.cardholder.lastName}</span>}
+                        {card.assignedUser && <span>Assigned: {card.assignedUser.username}</span>}
+                      </div>
+                      <div className="flex items-center gap-4 mt-1.5 text-[11px] text-gray-400">
+                        <span>Card ID: <span className="font-mono text-gray-500">{card.yeewallexCardId || card.taskId || '—'}</span></span>
+                        {card.label && <span>Label: <span className="text-gray-500">{card.label}</span></span>}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {card.status === 'PENDING' && card.taskId && <button onClick={() => pollTaskStatus(card.id)} className="p-1.5 rounded-md hover:bg-blue-50 text-blue-500" title="Check Status"><RefreshCw className="w-3.5 h-3.5" /></button>}
+                      {card.yeewallexCardId && <button onClick={() => revealSensitive(card.id)} className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500" title="View Details"><Eye className="w-3.5 h-3.5" /></button>}
+                      {card.status === 'INACTIVE' && <button onClick={() => cardAction(card.id, 'activate')} className="p-1.5 rounded-md hover:bg-green-50 text-green-600" title="Activate"><Play className="w-3.5 h-3.5" /></button>}
+                      {card.status === 'ACTIVE' && <>
+                        <button onClick={() => { setRechargeCardId(card.id); setRechargeAmount('') }} className="p-1.5 rounded-md hover:bg-green-50 text-green-600" title="Recharge"><DollarSign className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => cardAction(card.id, 'freeze')} className="p-1.5 rounded-md hover:bg-blue-50 text-blue-500" title="Freeze"><Snowflake className="w-3.5 h-3.5" /></button>
+                      </>}
+                      {card.status === 'FROZEN' && <button onClick={() => cardAction(card.id, 'unfreeze')} className="p-1.5 rounded-md hover:bg-green-50 text-green-600" title="Unfreeze"><Play className="w-3.5 h-3.5" /></button>}
+                      <button onClick={() => { setAssignCardId(card.id); setAssignUserId(card.assignedUser?.id || '') }} className="p-1.5 rounded-md hover:bg-violet-50 text-violet-600" title="Assign"><Link2 className="w-3.5 h-3.5" /></button>
+                      {card.status !== 'CANCELLED' && card.status !== 'PENDING' && <button onClick={() => cardAction(card.id, 'cancel')} className="p-1.5 rounded-md hover:bg-red-50 text-red-500" title="Cancel"><XCircle className="w-3.5 h-3.5" /></button>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )
           )}
 
