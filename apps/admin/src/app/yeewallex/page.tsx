@@ -11,7 +11,7 @@ import { yeewallexApi } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { useConfirm } from '@/contexts/ConfirmContext'
 import {
-  Search, Plus, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronDown,
+  Search, Plus, Eye, ChevronLeft, ChevronRight, ChevronDown,
   RefreshCw, Loader2, Copy, CreditCard, DollarSign, Snowflake, Play,
   XCircle, Link2, UserPlus, Wallet, Ban, Zap, ArrowUpRight, Activity,
 } from 'lucide-react'
@@ -51,9 +51,7 @@ export default function VCCPage() {
   // Modals
   const [showCreateCard, setShowCreateCard] = useState(false)
   const [showCreateHolder, setShowCreateHolder] = useState(false)
-  const [showCardDetails, setShowCardDetails] = useState<string | null>(null)
-  const [cardSensitive, setCardSensitive] = useState<any>(null)
-  const [showSensitive, setShowSensitive] = useState(false)
+  const [sensitiveMap, setSensitiveMap] = useState<Record<string, { cardNo?: string; cvv?: string; expireDate?: string; loading?: boolean }>>({})
   const [rechargeCardId, setRechargeCardId] = useState<string | null>(null)
   const [rechargeAmount, setRechargeAmount] = useState('')
   const [assignCardId, setAssignCardId] = useState<string | null>(null)
@@ -208,9 +206,19 @@ export default function VCCPage() {
   const pollTaskStatus = async (id: string) => {
     try { const r = await yeewallexApi.cards.getTaskStatus(id); toast.info('Status', `Task: ${r.taskStatus || r.data?.status || 'Processing'}`); fetchCards() } catch (e: any) { toast.error('Error', e.message) }
   }
-  const revealSensitive = async (id: string) => {
-    setShowCardDetails(id); setCardSensitive(null); setShowSensitive(false)
-    try { const data = await yeewallexApi.cards.getDetails(id); setCardSensitive(data); setShowSensitive(true); setTimeout(() => { setShowSensitive(false); setCardSensitive(null) }, 30000) } catch (e: any) { toast.error('Error', e.message) }
+  const fetchSensitive = async (id: string) => {
+    if (sensitiveMap[id]?.cardNo || sensitiveMap[id]?.loading) return
+    setSensitiveMap(p => ({ ...p, [id]: { loading: true } }))
+    try {
+      const data = await yeewallexApi.cards.getDetails(id)
+      setSensitiveMap(p => ({ ...p, [id]: { cardNo: data.cardNo, cvv: data.cvv, expireDate: data.expireDate, loading: false } }))
+      setTimeout(() => {
+        setSensitiveMap(p => { const n = { ...p }; delete n[id]; return n })
+      }, 60000)
+    } catch (e: any) {
+      setSensitiveMap(p => { const n = { ...p }; delete n[id]; return n })
+      toast.error('Error', e.message)
+    }
   }
   const cardAction = async (id: string, action: string) => {
     const ok = await confirm({ title: `${action.charAt(0).toUpperCase() + action.slice(1)} Card`, message: `Are you sure you want to ${action} this card?`, variant: action === 'cancel' ? 'danger' : 'warning' })
@@ -395,7 +403,11 @@ export default function VCCPage() {
                     <div key={card.id} className={`tab-row-animate ${isExpanded ? 'bg-violet-50/30' : 'hover:bg-gray-50/50'}`} style={{ animationDelay: `${index * 20}ms` }}>
                       {/* Row */}
                       <button
-                        onClick={() => setExpandedCardId(isExpanded ? null : card.id)}
+                        onClick={() => {
+                          const next = isExpanded ? null : card.id
+                          setExpandedCardId(next)
+                          if (next && card.yeewallexCardId) fetchSensitive(card.id)
+                        }}
                         className="w-full grid grid-cols-[32px,110px,1fr,140px,1.2fr,140px,100px,110px] gap-3 px-4 py-3 items-center text-left"
                       >
                         <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''} text-gray-400`}>
@@ -480,6 +492,50 @@ export default function VCCPage() {
                             <div className="lg:col-span-1 space-y-3">
                               <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Metadata</p>
                               <div className="space-y-2.5 bg-white border border-gray-200 rounded-lg p-4 text-[12px]">
+                                {card.yeewallexCardId && (() => {
+                                  const s = sensitiveMap[card.id]
+                                  const fullNumber = s?.cardNo
+                                  return (
+                                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-gray-100">
+                                      <span className="text-gray-500 flex-shrink-0">Card Number</span>
+                                      {s?.loading ? (
+                                        <span className="inline-flex items-center gap-1.5 text-gray-400"><Loader2 className="w-3 h-3 animate-spin" /><span className="font-mono">•••• •••• •••• ••••</span></span>
+                                      ) : fullNumber ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-mono text-gray-900 font-semibold tracking-wider">{fullNumber}</span>
+                                          <button onClick={(e) => { e.stopPropagation(); copyText(fullNumber) }}
+                                            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-violet-600"><Copy className="w-3 h-3" /></button>
+                                        </div>
+                                      ) : (
+                                        <span className="font-mono text-gray-400 text-[11px]">—</span>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
+                                {card.yeewallexCardId && (() => {
+                                  const s = sensitiveMap[card.id]
+                                  return (
+                                    <>
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-gray-500">Expiry</span>
+                                        {s?.loading ? <span className="text-gray-400"><Loader2 className="w-3 h-3 animate-spin" /></span> :
+                                          <span className="font-mono text-gray-800 font-semibold">{s?.expireDate || '—'}</span>}
+                                      </div>
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-gray-500">CVV</span>
+                                        {s?.loading ? <span className="text-gray-400"><Loader2 className="w-3 h-3 animate-spin" /></span> : (
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="font-mono text-gray-800 font-semibold tracking-widest">{s?.cvv || '—'}</span>
+                                            {s?.cvv && (
+                                              <button onClick={(e) => { e.stopPropagation(); copyText(s.cvv!) }}
+                                                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-violet-600"><Copy className="w-3 h-3" /></button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </>
+                                  )
+                                })()}
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="text-gray-500 flex-shrink-0">Card ID</span>
                                   <button onClick={(e) => { e.stopPropagation(); if (card.yeewallexCardId) copyText(card.yeewallexCardId) }}
@@ -509,31 +565,19 @@ export default function VCCPage() {
 
                             {/* Right: grouped actions */}
                             <div className="lg:col-span-1 space-y-4">
-                              <div>
-                                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Funds</p>
-                                <div className="grid grid-cols-1 gap-2">
-                                  {card.status === 'ACTIVE' && (
-                                    <button onClick={(e) => { e.stopPropagation(); setRechargeCardId(card.id); setRechargeAmount('') }}
-                                      className="group flex items-start gap-3 p-3 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-all text-left">
-                                      <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-sm flex-shrink-0"><DollarSign className="w-4 h-4" /></div>
-                                      <div className="min-w-0">
-                                        <div className="flex items-center gap-1 text-[13px] font-semibold">Recharge <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
-                                        <p className="text-[11px] opacity-70 mt-0.5 leading-tight">Add balance from wallet</p>
-                                      </div>
-                                    </button>
-                                  )}
-                                  {card.yeewallexCardId && (
-                                    <button onClick={(e) => { e.stopPropagation(); revealSensitive(card.id) }}
-                                      className="group flex items-start gap-3 p-3 rounded-lg border bg-gray-50 border-gray-200 text-gray-800 hover:bg-gray-100 transition-all text-left">
-                                      <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-sm flex-shrink-0"><Eye className="w-4 h-4" /></div>
-                                      <div className="min-w-0">
-                                        <div className="flex items-center gap-1 text-[13px] font-semibold">View sensitive details <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
-                                        <p className="text-[11px] opacity-70 mt-0.5 leading-tight">Reveal card number, CVV, expiry</p>
-                                      </div>
-                                    </button>
-                                  )}
+                              {card.status === 'ACTIVE' && (
+                                <div>
+                                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Funds</p>
+                                  <button onClick={(e) => { e.stopPropagation(); setRechargeCardId(card.id); setRechargeAmount('') }}
+                                    className="group w-full flex items-start gap-3 p-3 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-all text-left">
+                                    <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-sm flex-shrink-0"><DollarSign className="w-4 h-4" /></div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1 text-[13px] font-semibold">Recharge <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
+                                      <p className="text-[11px] opacity-70 mt-0.5 leading-tight">Add balance from wallet</p>
+                                    </div>
+                                  </button>
                                 </div>
-                              </div>
+                              )}
 
                               <div>
                                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Lifecycle</p>
@@ -763,22 +807,6 @@ export default function VCCPage() {
           <Input label="Card Label" placeholder="e.g. FB Ads #1" value={cardForm.label} onChange={e => setCardForm(p => ({ ...p, label: e.target.value }))} />
           <p className="text-xs text-gray-400">Card BIN: VC03 — Ads & Purchasing (USD)</p>
           <div className="flex gap-2 pt-2"><button onClick={() => setShowCreateCard(false)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button><button onClick={createCard} className="flex-1 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800">Issue Card</button></div>
-        </div>
-      </Modal>
-
-      <Modal isOpen={!!showCardDetails} onClose={() => { setShowCardDetails(null); setCardSensitive(null); setShowSensitive(false) }} title="Card Details">
-        <div className="p-1">
-          {!showSensitive ? (
-            <div className="text-center py-8"><EyeOff className="w-12 h-12 text-gray-300 mx-auto mb-3" /><p className="text-sm text-gray-500 mb-4">Card details hidden for security</p><button onClick={() => showCardDetails && revealSensitive(showCardDetails)} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800"><Eye className="w-4 h-4" /> Reveal Details</button><p className="text-[11px] text-gray-400 mt-2">Auto-hides after 30 seconds</p></div>
-          ) : cardSensitive ? (
-            <div className="space-y-3">
-              <div className="bg-gray-50 rounded-xl p-4"><p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Card Number</p><div className="flex items-center justify-between"><p className="font-mono text-lg font-bold tracking-wider">{cardSensitive.cardNo}</p><button onClick={() => copyText(cardSensitive.cardNo)} className="p-1.5 hover:bg-gray-200 rounded-lg"><Copy className="w-4 h-4 text-gray-400" /></button></div></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 rounded-xl p-4"><p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Expiry</p><p className="font-mono text-base font-bold">{cardSensitive.expireDate || '—'}</p></div>
-                <div className="bg-gray-50 rounded-xl p-4"><p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">CVV</p><div className="flex items-center justify-between"><p className="font-mono text-base font-bold">{cardSensitive.cvv || '—'}</p>{cardSensitive.cvv && <button onClick={() => copyText(cardSensitive.cvv)} className="p-1.5 hover:bg-gray-200 rounded-lg"><Copy className="w-4 h-4 text-gray-400" /></button>}</div></div>
-              </div>
-            </div>
-          ) : <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>}
         </div>
       </Modal>
 
