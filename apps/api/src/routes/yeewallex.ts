@@ -351,12 +351,14 @@ yeewallex.get('/cards', async (c) => {
     allCards = await Promise.all(dbCards.map(async (card) => {
       try {
         const detail = await getCardDetail(card.yeewallexCardId!)
+        if (detail.error || !detail.data) return { ...card, status: 'CANCELLED', balance: 0, _live: false }
         const rd = detail.data?.data || detail.data || {}
+        if (!rd.cardNumber && !rd.balance && !rd.status) return { ...card, status: 'CANCELLED', balance: 0, _live: false }
         const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED' }
         const cardNum = rd.cardNumber || card.cardNumber
         const masked = cardNum && cardNum.length > 10 && !cardNum.includes('*') ? cardNum.substring(0, 6) + '******' + cardNum.substring(cardNum.length - 4) : cardNum
         return { ...card, status: statusMap[String(rd.status)] || card.status, balance: rd.balance != null ? parseFloat(String(rd.balance)) : card.balance, cardNumber: masked || card.cardNumber, _live: true }
-      } catch { return { ...card, _live: false } }
+      } catch { return { ...card, status: 'CANCELLED', balance: 0, _live: false } }
     }))
   }
 
