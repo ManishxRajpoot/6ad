@@ -351,9 +351,12 @@ yeewallex.get('/cards', async (c) => {
     allCards = await Promise.all(dbCards.map(async (card) => {
       try {
         const detail = await getCardDetail(card.yeewallexCardId!)
+        console.log(`[VCC] Card ${card.yeewallexCardId?.substring(0,20)} detail:`, JSON.stringify(detail).substring(0, 200))
         if (detail.error || !detail.data) return { ...card, status: 'CANCELLED', balance: 0, _live: false }
         const rd = detail.data?.data || detail.data || {}
-        if (!rd.cardNumber && !rd.balance && !rd.status) return { ...card, status: 'CANCELLED', balance: 0, _live: false }
+        // Yeewallex returns empty cardNumber or status 300/cancel for cancelled cards
+        const isCancelled = rd.status === 300 || rd.status === '300' || rd.status === 'cancel' || (!rd.cardNumber && !rd.balance)
+        if (isCancelled) return { ...card, status: 'CANCELLED', balance: 0, _live: false }
         const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED' }
         const cardNum = rd.cardNumber || card.cardNumber
         const masked = cardNum && cardNum.length > 10 && !cardNum.includes('*') ? cardNum.substring(0, 6) + '******' + cardNum.substring(cardNum.length - 4) : cardNum
