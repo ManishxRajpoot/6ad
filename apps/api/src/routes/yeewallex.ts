@@ -351,7 +351,7 @@ yeewallex.get('/cards', async (c) => {
     allCards = await Promise.all(dbCards.map(async (card) => {
       try {
         const detail = await getCardDetail(card.yeewallexCardId!)
-        console.log(`[VCC] Card ${card.yeewallexCardId?.substring(0,20)} detail:`, JSON.stringify(detail).substring(0, 200))
+        console.log(`[VCC] Card ${card.yeewallexCardId?.substring(0,20)} detail:`, JSON.stringify(detail).substring(0, 500))
         if (detail.error || !detail.data) return { ...card, status: 'CANCELLED', balance: 0, _live: false }
         const rd = detail.data?.data || detail.data || {}
         // Yeewallex returns empty cardNumber or status 300/cancel for cancelled cards
