@@ -302,46 +302,65 @@ yeewallex.get('/cards', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
   const statusFilter = c.req.query('status')
 
-  // Always fetch live from Yeewallex API
-  // Get all DB cards as reference for yeewallexCardIds + local data (label, assignedUser, cardholder)
-  const dbCards = await prisma.vccCard.findMany({
-    where: { yeewallexCardId: { not: null } },
-    include: {
-      cardholder: { select: { firstName: true, lastName: true, yeewallexId: true } },
-      assignedUser: { select: { id: true, username: true, email: true } },
-    },
-  })
+  // Try to fetch ALL cards from Yeewallex list API first (includes cancelled)
+  let allCards: any[] = []
+  try {
+    const listResult = await getCards({ pageNo: 1, pageSize: 50, customerId: '10027281' })
+    const remoteCards = listResult.data?.data || listResult.data?.list || listResult.data?.records || (Array.isArray(listResult.data) ? listResult.data : [])
+    if (remoteCards.length > 0) {
+      console.log(`[Yeewallex] List API returned ${remoteCards.length} cards`)
+      // Map Yeewallex cards to our format
+      const dbCardsMap = new Map<string, any>()
+      const dbCards = await prisma.vccCard.findMany({
+        where: { yeewallexCardId: { not: null } },
+        include: { cardholder: { select: { firstName: true, lastName: true, yeewallexId: true } }, assignedUser: { select: { id: true, username: true, email: true } } },
+      })
+      dbCards.forEach(c => dbCardsMap.set(c.yeewallexCardId!, c))
 
-  // Fetch live details for each card from Yeewallex
-  const liveCards = await Promise.all(dbCards.map(async (card) => {
-    try {
-      const detail = await getCardDetail(card.yeewallexCardId!)
-      const rd = detail.data?.data || detail.data || {}
       const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED' }
-      const liveStatus = statusMap[String(rd.status)] || card.status
-      const liveBalance = rd.balance != null ? parseFloat(String(rd.balance)) : card.balance
-      const cardNumber = rd.cardNumber || card.cardNumber || null
-      const masked = cardNumber && cardNumber.length > 10 && !cardNumber.includes('*')
-        ? cardNumber.substring(0, 6) + '******' + cardNumber.substring(cardNumber.length - 4)
-        : cardNumber
-
-      return {
-        ...card,
-        status: liveStatus,
-        balance: liveBalance,
-        cardNumber: masked || card.cardNumber,
-        _live: true,
-      }
-    } catch {
-      return { ...card, _live: false }
+      allCards = remoteCards.map((rc: any) => {
+        const ywId = rc.cardId || rc.id
+        const dbCard = dbCardsMap.get(ywId)
+        const cardNum = rc.cardNumber || dbCard?.cardNumber || null
+        const masked = cardNum && cardNum.length > 10 && !cardNum.includes('*') ? cardNum.substring(0, 6) + '******' + cardNum.substring(cardNum.length - 4) : cardNum
+        return {
+          id: dbCard?.id || ywId,
+          yeewallexCardId: ywId,
+          cardNumber: masked,
+          label: dbCard?.label || rc.alias || null,
+          status: statusMap[String(rc.status)] || 'ACTIVE',
+          balance: rc.balance != null ? parseFloat(String(rc.balance)) : 0,
+          currency: rc.currency || 'USD',
+          cardholder: dbCard?.cardholder || { firstName: 'kumar', lastName: 'manoj' },
+          assignedUser: dbCard?.assignedUser || null,
+          createdAt: dbCard?.createdAt || rc.createTime || new Date().toISOString(),
+          _live: true,
+        }
+      })
     }
-  }))
+  } catch (e: any) {
+    console.log(`[Yeewallex] List API failed: ${e.message}`)
+  }
 
-  // Apply status filter
-  const filtered = statusFilter && statusFilter !== 'all'
-    ? liveCards.filter(c => c.status === statusFilter)
-    : liveCards
+  // Fallback: if list API failed, fetch per-card from DB + live details
+  if (allCards.length === 0) {
+    const dbCards = await prisma.vccCard.findMany({
+      where: { yeewallexCardId: { not: null } },
+      include: { cardholder: { select: { firstName: true, lastName: true, yeewallexId: true } }, assignedUser: { select: { id: true, username: true, email: true } } },
+    })
+    allCards = await Promise.all(dbCards.map(async (card) => {
+      try {
+        const detail = await getCardDetail(card.yeewallexCardId!)
+        const rd = detail.data?.data || detail.data || {}
+        const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED' }
+        const cardNum = rd.cardNumber || card.cardNumber
+        const masked = cardNum && cardNum.length > 10 && !cardNum.includes('*') ? cardNum.substring(0, 6) + '******' + cardNum.substring(cardNum.length - 4) : cardNum
+        return { ...card, status: statusMap[String(rd.status)] || card.status, balance: rd.balance != null ? parseFloat(String(rd.balance)) : card.balance, cardNumber: masked || card.cardNumber, _live: true }
+      } catch { return { ...card, _live: false } }
+    }))
+  }
 
+  const filtered = statusFilter && statusFilter !== 'all' ? allCards.filter((c: any) => c.status === statusFilter) : allCards
   return c.json({ cards: filtered, total: filtered.length, page: 1, limit: filtered.length })
 })
 

@@ -275,8 +275,8 @@ export const freezeCard = (cardId: string) => yeewallexRequest('POST', '/rest/v1
 export const unfreezeCard = (cardId: string) => yeewallexRequest('POST', '/rest/v1.0/vcc/card-unfreeze', { cardId })
 export const cancelCard = (cardId: string) => yeewallexRequest('POST', '/rest/v1.0/vcc/card-cancel', { cardId })
 
-export const getCards = (params: { pageNo?: number; pageSize?: number; status?: string } = {}) =>
-  yeewallexRequest('GET', '/rest/v1.0/vcc/cards', { pageNo: String(params.pageNo || 1), pageSize: String(params.pageSize || 20), ...(params.status && { status: params.status }) })
+export const getCards = (params: { pageNo?: number; pageSize?: number; status?: string; customerId?: string } = {}) =>
+  yeewallexRequest('GET', '/rest/v1.0/vcc/cards', { pageNo: String(params.pageNo || 1), pageSize: String(params.pageSize || 50), ...(params.customerId && { customerId: params.customerId }), ...(params.status && { status: params.status }) })
 
 export const getCardDetail = (cardId: string) => yeewallexRequest('GET', '/rest/v1.0/vcc/card-info', { cardId })
 
