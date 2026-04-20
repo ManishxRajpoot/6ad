@@ -253,7 +253,7 @@ yeewallex.post('/sync', async (c) => {
           cardsSynced++
           console.log(`[Yeewallex Sync] Back-filled ${ywId}`)
         } catch (e: any) {
-          console.log(`[Yeewallex Sync] Back-fill ${ywId} failed: ${e.message}`)
+          console.log(`[Yeewallex Sync] Back-fill ${ywId} failed:`, e?.message, e?.code, e?.meta ? JSON.stringify(e.meta) : '', JSON.stringify(e).slice(0, 500))
         }
       }
 
