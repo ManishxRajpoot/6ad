@@ -430,7 +430,8 @@ yeewallex.post('/cards/:id/recharge', async (c) => {
   // Handle nested response
   const rd = result.data?.data || result.data || {}
   const rechargeStatus = rd.status || result.data?.status
-  const isSuccess = rechargeStatus === 'SUCCESS' || rechargeStatus === 200 || rechargeStatus === 100 || !result.error
+  // Check both top-level state and nested status — Yeewallex may return HTTP 200 but status 400 in body
+  const isSuccess = (result.data?.state === 'SUCCESS' || rechargeStatus === 'SUCCESS' || rechargeStatus === 200 || rechargeStatus === 100) && rechargeStatus !== 400 && rechargeStatus !== 500
 
   // Create transaction record
   const tx = await prisma.vccTransaction.create({

@@ -259,7 +259,12 @@ export async function getCardKeyInfo(cardId: string) {
 }
 
 export const rechargeCard = (data: { cardId: string; amount: number; currency?: string }) =>
-  yeewallexRequest('POST', '/rest/v1.0/vcc/card-recharge', { cardId: data.cardId, amount: String(data.amount), currency: data.currency || 'USD' })
+  yeewallexRequest('POST', '/rest/v1.0/vcc/card-recharge', {
+    cardId: data.cardId,
+    amount: String(data.amount),
+    currency: data.currency || 'USD',
+    requestNo: `RC_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+  })
 
 export const getRechargeStatus = (rechargeId: string) => yeewallexRequest('GET', '/rest/v1.0/vcc/card-recharge-query', { rechargeId })
 
