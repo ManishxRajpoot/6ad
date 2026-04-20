@@ -108,7 +108,7 @@ export default function VCCPage() {
   const fetchCards = async () => {
     setLoading(true)
     try {
-      const data = await yeewallexApi.cards.getAll({ page: currentPage, limit: itemsPerPage })
+      const data = await yeewallexApi.cards.getAll({ page: itemsPerPage === -1 ? 1 : currentPage, limit: itemsPerPage === -1 ? 1000 : itemsPerPage })
       const c = data.cards || []
       setCards(c)
       setCardsTotal(data.total || 0)
@@ -145,7 +145,8 @@ export default function VCCPage() {
     } catch (e: any) { toast.error('Error', e.message) }
   }
 
-  useEffect(() => { fetchCards(); fetchCardholders() }, [])
+  useEffect(() => { fetchCardholders() }, [])
+  useEffect(() => { fetchCards() }, [currentPage, itemsPerPage])
   useEffect(() => {
     if (activeTab === 'transactions') fetchTransactions()
     if (activeTab === 'recharge-history') fetchRechargeHistory()
@@ -265,7 +266,7 @@ export default function VCCPage() {
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   // Pagination
-  const totalPages = Math.ceil(cardsTotal / itemsPerPage) || 1
+  const totalPages = itemsPerPage === -1 ? 1 : (Math.ceil(cardsTotal / itemsPerPage) || 1)
   const renderPageButtons = (current: number, total: number, setCurrent: (p: number) => void) => (
     <div className="flex items-center gap-1">
       <button onClick={() => setCurrent(Math.max(1, current - 1))} disabled={current === 1} className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition-colors"><ChevronLeft className="w-4 h-4" /></button>
@@ -785,8 +786,15 @@ export default function VCCPage() {
         {/* Pagination Footer */}
         {activeTab === 'card-list' && filteredCards.length > 0 && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 flex-shrink-0 bg-white">
-            <p className="text-xs text-gray-500">Page {currentPage} of {totalPages}</p>
-            {renderPageButtons(currentPage, totalPages, setCurrentPage)}
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span>Show</span>
+              <PaginationSelect value={itemsPerPage} onChange={(v) => { setItemsPerPage(v); setCurrentPage(1) }} />
+              <span>per page · {cardsTotal} total</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <p className="text-xs text-gray-500">{itemsPerPage === -1 ? 'Showing all' : `Page ${currentPage} of ${totalPages}`}</p>
+              {itemsPerPage !== -1 && renderPageButtons(currentPage, totalPages, setCurrentPage)}
+            </div>
           </div>
         )}
       </Card>
