@@ -354,13 +354,12 @@ yeewallex.get('/cards', async (c) => {
         console.log(`[VCC] Card ${card.yeewallexCardId?.substring(0,20)} detail:`, JSON.stringify(detail).substring(0, 500))
         if (detail.error || !detail.data) return { ...card, status: 'CANCELLED', balance: 0, _live: false }
         const rd = detail.data?.data || detail.data || {}
-        // Yeewallex returns empty cardNumber or status 300/cancel for cancelled cards
-        const isCancelled = rd.status === 300 || rd.status === '300' || rd.status === 'cancel' || (!rd.cardNumber && !rd.balance)
-        if (isCancelled) return { ...card, status: 'CANCELLED', balance: 0, _live: false }
-        const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED' }
+        // Yeewallex uses cardStatus field (not status): NORMAL, FREEZE, CANCELED
+        const cardStatusMap: Record<string, string> = { 'NORMAL': 'ACTIVE', 'FREEZE': 'FROZEN', 'CANCELED': 'CANCELLED', 'CANCEL': 'CANCELLED', '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED' }
+        const liveStatus = cardStatusMap[rd.cardStatus] || cardStatusMap[String(rd.status)] || card.status
         const cardNum = rd.cardNumber || card.cardNumber
         const masked = cardNum && cardNum.length > 10 && !cardNum.includes('*') ? cardNum.substring(0, 6) + '******' + cardNum.substring(cardNum.length - 4) : cardNum
-        return { ...card, status: statusMap[String(rd.status)] || card.status, balance: rd.balance != null ? parseFloat(String(rd.balance)) : card.balance, cardNumber: masked || card.cardNumber, _live: true }
+        return { ...card, status: liveStatus, balance: rd.balance != null ? parseFloat(String(rd.balance)) : card.balance, cardNumber: masked || card.cardNumber, _live: true }
       } catch { return { ...card, status: 'CANCELLED', balance: 0, _live: false } }
     }))
   }
