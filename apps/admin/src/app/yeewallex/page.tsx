@@ -174,7 +174,11 @@ export default function VCCPage() {
     if (!cardForm.cardholderId) return toast.error('Error', 'Select a cardholder')
     try {
       const r = await yeewallexApi.cards.create(cardForm)
-      toast.success('Created', 'Card issued! Checking status...')
+      if (r.warning) {
+        toast.info('Partial', r.warning)
+      } else {
+        toast.success('Created', 'Card issued! Checking status...')
+      }
       setShowCreateCard(false)
       setCardForm({ cardholderId: '', label: '', alias: '' })
       await fetchCards()

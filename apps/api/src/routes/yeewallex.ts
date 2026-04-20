@@ -145,8 +145,8 @@ yeewallex.post('/sync', async (c) => {
           const detail = await getCardDetail(card.yeewallexCardId!)
           if (detail.data) {
             const rd = detail.data.data || detail.data
-            const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED' }
-            const cardStatus = statusMap[String(rd.status)] || undefined
+            const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED', 'NORMAL': 'ACTIVE', 'FREEZE': 'FROZEN', 'CANCELED': 'CANCELLED' }
+            const cardStatus = statusMap[String(rd.cardStatus)] || statusMap[String(rd.status)] || undefined
             const balance = rd.balance != null ? parseFloat(String(rd.balance)) : undefined
             const cardNumber = rd.cardNumber || null
             const masked = cardNumber && cardNumber.length > 10 ? cardNumber.substring(0, 6) + '******' + cardNumber.substring(cardNumber.length - 4) : cardNumber
@@ -164,6 +164,64 @@ yeewallex.post('/sync', async (c) => {
         } catch (e: any) {
           console.log(`[Yeewallex Sync] Failed to sync card ${card.yeewallexCardId}: ${e.message}`)
         }
+      }
+
+      // Back-fill orphaned YeewalleX cards — cards that exist remotely but not in our DB
+      // (happens when createCard API succeeded but DB save failed, or cards were made elsewhere)
+      try {
+        const listResult = await getCards({ pageNo: 1, pageSize: 100, customerId: '10027281' })
+        const remoteCards = listResult.data?.data || listResult.data?.list || listResult.data?.records || (Array.isArray(listResult.data) ? listResult.data : [])
+        const dbCardIds = new Set(
+          (await prisma.vccCard.findMany({ where: { yeewallexCardId: { not: null } }, select: { yeewallexCardId: true } }))
+            .map(c => c.yeewallexCardId!)
+        )
+        const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED', 'NORMAL': 'ACTIVE', 'FREEZE': 'FROZEN', 'CANCELED': 'CANCELLED' }
+
+        // Pre-load holders keyed by YeewalleX id for fast matching
+        const allHolders = await prisma.vccCardholder.findMany({ select: { id: true, yeewallexId: true } })
+        const holderByYwId = new Map(allHolders.map(h => [h.yeewallexId, h.id]))
+        const fallbackHolderId = allHolders[0]?.id || null
+
+        for (const rc of remoteCards) {
+          const ywId = rc.cardId || rc.id
+          if (!ywId || dbCardIds.has(ywId)) continue
+
+          // Match cardholder by YeewalleX id if the remote card carries one; otherwise fall back
+          const rcHolderYwId = rc.cardholderId || rc.memberId || rc.holderId
+          const cardholderId = (rcHolderYwId && holderByYwId.get(String(rcHolderYwId))) || fallbackHolderId
+          if (!cardholderId) {
+            console.log(`[Yeewallex Sync] Skipping orphan card ${ywId} — no cardholder available`)
+            continue
+          }
+
+          const cardNum = rc.cardNumber
+          const masked = cardNum && cardNum.length > 10 && !cardNum.includes('*')
+            ? cardNum.substring(0, 6) + '******' + cardNum.substring(cardNum.length - 4)
+            : cardNum
+          const mappedStatus = (statusMap[String(rc.cardStatus)] || statusMap[String(rc.status)] || 'ACTIVE') as any
+
+          try {
+            await prisma.vccCard.create({
+              data: {
+                yeewallexCardId: ywId,
+                cardBinId: rc.cardBinId || CARD_BINS.ADS_USD,
+                label: rc.alias || null,
+                alias: rc.alias || null,
+                status: mappedStatus,
+                balance: rc.balance != null ? parseFloat(String(rc.balance)) : 0,
+                currency: rc.currency || 'USD',
+                cardNumber: masked || null,
+                cardholderId,
+              },
+            })
+            cardsSynced++
+            console.log(`[Yeewallex Sync] Back-filled orphan card ${ywId}`)
+          } catch (createErr: any) {
+            console.log(`[Yeewallex Sync] Failed to back-fill ${ywId}: ${createErr.message}`)
+          }
+        }
+      } catch (listErr: any) {
+        console.error('[Yeewallex Sync] Orphan back-fill failed:', listErr.message)
       }
     } catch (cardErr: any) {
       console.error('[Yeewallex Sync] Card sync error:', cardErr.message)
@@ -280,21 +338,40 @@ yeewallex.post('/cards', async (c) => {
   const extractedTaskId = rd.taskId || rd.task_id || result.data?.taskId || null
   const extractedCardId = rd.cardId || rd.card_id || result.data?.cardId || null
 
-  // Save card to DB (PENDING until task completes)
-  const card = await prisma.vccCard.create({
-    data: {
+  // Save card to DB (PENDING until task completes). If DB save fails, the YeewalleX
+  // card still exists — return success with a warning so the next sync can back-fill it.
+  try {
+    const card = await prisma.vccCard.create({
+      data: {
+        taskId: extractedTaskId,
+        yeewallexCardId: extractedCardId,
+        cardBinId: cardBinId || CARD_BINS.ADS_USD,
+        label: label || null,
+        alias: alias || null,
+        status: 'PENDING',
+        currency: currency || 'USD',
+        cardholderId: cardholder.id,
+      },
+    })
+    return c.json({ card, taskId: extractedTaskId }, 201)
+  } catch (dbErr: any) {
+    console.error('[Yeewallex createCard] DB save failed, YeewalleX card exists:', {
+      error: dbErr.message,
       taskId: extractedTaskId,
-      yeewallexCardId: extractedCardId,
-      cardBinId: cardBinId || CARD_BINS.ADS_USD,
-      label: label || null,
-      alias: alias || null,
-      status: 'PENDING',
-      currency: currency || 'USD',
-      cardholderId: cardholder.id,
-    },
-  })
-
-  return c.json({ card, taskId: extractedTaskId }, 201)
+      cardId: extractedCardId,
+    })
+    return c.json({
+      card: {
+        id: null,
+        taskId: extractedTaskId,
+        yeewallexCardId: extractedCardId,
+        status: 'PENDING',
+        cardholderId: cardholder.id,
+      },
+      taskId: extractedTaskId,
+      warning: `Card created on YeewalleX but DB save failed: ${dbErr.message}. Will be recovered on next Sync.`,
+    }, 201)
+  }
 })
 
 // GET /cards — List all cards
@@ -317,7 +394,7 @@ yeewallex.get('/cards', async (c) => {
       })
       dbCards.forEach(c => dbCardsMap.set(c.yeewallexCardId!, c))
 
-      const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED' }
+      const statusMap: Record<string, string> = { '100': 'ACTIVE', '200': 'FROZEN', '300': 'CANCELLED', '400': 'INACTIVE', 'normal': 'ACTIVE', 'freeze': 'FROZEN', 'cancel': 'CANCELLED', 'NORMAL': 'ACTIVE', 'FREEZE': 'FROZEN', 'CANCELED': 'CANCELLED' }
       allCards = remoteCards.map((rc: any) => {
         const ywId = rc.cardId || rc.id
         const dbCard = dbCardsMap.get(ywId)
@@ -328,13 +405,14 @@ yeewallex.get('/cards', async (c) => {
           yeewallexCardId: ywId,
           cardNumber: masked,
           label: dbCard?.label || rc.alias || null,
-          status: statusMap[String(rc.status)] || 'ACTIVE',
+          status: statusMap[String(rc.cardStatus)] || statusMap[String(rc.status)] || 'ACTIVE',
           balance: rc.balance != null ? parseFloat(String(rc.balance)) : 0,
           currency: rc.currency || 'USD',
-          cardholder: dbCard?.cardholder || { firstName: 'kumar', lastName: 'manoj' },
+          cardholder: dbCard?.cardholder || null,
           assignedUser: dbCard?.assignedUser || null,
           createdAt: dbCard?.createdAt || rc.createTime || new Date().toISOString(),
           _live: true,
+          _orphan: !dbCard,
         }
       })
     }
