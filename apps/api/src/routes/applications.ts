@@ -633,7 +633,13 @@ applications.post('/:id/approve', requireAdmin, async (c) => {
       link: '/facebook'
     })
 
-    return c.json({ message: 'Application approved and accounts created' })
+    // Fetch the newly created accounts so frontend can auto-assign VCC cards
+    const createdAccounts = await prisma.adAccount.findMany({
+      where: { applicationId: id },
+      select: { id: true, accountId: true, accountName: true }
+    })
+
+    return c.json({ message: 'Application approved and accounts created', accounts: createdAccounts })
   } catch (error) {
     console.error('Approve application error:', error)
     return c.json({ error: 'Failed to approve application' }, 500)
