@@ -4,8 +4,8 @@ import { verifyToken } from '../middleware/auth'
 import {
   getAccountInfo, getCardBins, addCardholder, openCard, getCardOpenTask,
   activateCard, getCardKeyInfo, rechargeCard, getRechargeStatus,
-  withdrawCard, freezeCard, unfreezeCard, cancelCard, getCards,
-  getCardDetail, getTransactions, getCardholders, CARD_BINS,
+  withdrawCard, freezeCard, unfreezeCard, cancelCard, refundCardBalance, getCards,
+  getCardDetail, getTransactions, getCardholders, CARD_BINS, rawRequest,
 } from '../lib/yeewallex.js'
 
 const yeewallex = new Hono()
@@ -103,6 +103,16 @@ yeewallex.use('/*', verifyToken)
 // ============================================================
 // ADMIN ROUTES
 // ============================================================
+
+// POST /probe — Admin-only: probe arbitrary Yeewallex endpoint via signed request.
+// Body: { method: 'GET'|'POST', path: '/rest/v1.0/vcc/...', params?: object }
+yeewallex.post('/probe', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
+  const { method, path, params } = await c.req.json()
+  if (!method || !path) return c.json({ error: 'method + path required' }, 400)
+  const result = await rawRequest(method as any, path, params || {})
+  return c.json(result)
+})
 
 // POST /sync — Pull cardholders from Yeewallex API into local DB
 yeewallex.post('/sync', async (c) => {
@@ -331,7 +341,9 @@ yeewallex.get('/account-info', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
   const result = await getAccountInfo()
   if (result.error) return c.json({ error: result.message }, 400)
-  return c.json(result.data)
+  // Unwrap the nested YOP response: { data: { wallets, account, ... } } → { wallets, account, ... }
+  const inner = result.data?.data || result.data || {}
+  return c.json(inner)
 })
 
 // GET /card-bins — Available card BINs
@@ -475,6 +487,10 @@ yeewallex.get('/cards', async (c) => {
     include: {
       cardholder: { select: { firstName: true, lastName: true, yeewallexId: true } },
       assignedUser: { select: { id: true, username: true, email: true } },
+      assignedAdAccount: {
+        select: { id: true, accountId: true, accountName: true, platform: true, status: true,
+          user: { select: { id: true, username: true } } },
+      },
     },
   })
 
@@ -540,6 +556,9 @@ yeewallex.get('/cards', async (c) => {
     return { ...card, _live: false }
   }))
 
+  const STATUS_ORDER: Record<string, number> = { ACTIVE: 0, PENDING: 1, FROZEN: 2, INACTIVE: 3, FAILED: 4, CANCELLED: 5 }
+  allCards.sort((a: any, b: any) => (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99))
+
   const filtered = statusFilter && statusFilter !== 'all' ? allCards.filter((c: any) => c.status === statusFilter) : allCards
   return c.json({ cards: filtered, total: filtered.length, page: 1, limit: filtered.length })
 })
@@ -552,6 +571,10 @@ yeewallex.get('/cards/:id', async (c) => {
     include: {
       cardholder: true,
       assignedUser: { select: { id: true, username: true, email: true } },
+      assignedAdAccount: {
+        select: { id: true, accountId: true, accountName: true, platform: true, status: true,
+          user: { select: { id: true, username: true } } },
+      },
       _count: { select: { transactions: true } },
     },
   })
@@ -663,6 +686,48 @@ yeewallex.post('/cards/:id/cancel', async (c) => {
   return c.json({ success: true })
 })
 
+// POST /cards/:id/refund — Partial balance refund (amount returned to USDT wallet, card stays active)
+yeewallex.post('/cards/:id/refund', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
+  const body = await c.req.json().catch(() => ({}))
+  const amount = Number(body?.amount)
+  if (!amount || amount <= 0) return c.json({ error: 'Invalid amount' }, 400)
+
+  const card = await prisma.vccCard.findUnique({ where: { id: c.req.param('id') } })
+  if (!card || !card.yeewallexCardId) return c.json({ error: 'Card not found' }, 404)
+
+  const result = await refundCardBalance({ cardId: card.yeewallexCardId, amount })
+  const rd = result.data?.data || result.data || {}
+  const refundId = rd.refundId || rd.rechargeId || rd.id || null
+  // Yeewallex may return state=SUCCESS but result.status=400/500 — treat as failure
+  const innerStatus = rd.status
+  const isOk = !result.error && (result.data?.state === 'SUCCESS' || innerStatus === 'SUCCESS' || innerStatus === 200 || innerStatus === 100)
+    && innerStatus !== 400 && innerStatus !== 500
+
+  // Log audit row for BOTH success and failure (yeewallexTxId @unique requires non-null value)
+  const syntheticRefundId = refundId || `REFUND:${card.id}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`
+  await prisma.vccTransaction.create({
+    data: {
+      cardId: card.id,
+      type: 'REFUND',
+      amount,
+      currency: 'USDT',
+      status: isOk ? 'SUCCESS' : 'FAILED',
+      description: isOk
+        ? `Admin partial balance refund — $${amount} back to USDT wallet`
+        : `Refund failed — $${amount} · ${rd.message || result.message || 'unknown error'}`,
+      yeewallexTxId: syntheticRefundId,
+      metadata: { amount, refundId, ok: isOk, yeewallexResult: result } as any,
+    },
+  }).catch((err) => console.error('[Refund] failed to persist VccTransaction:', err.message))
+
+  if (!isOk) {
+    return c.json({ error: rd.message || result.message || 'Refund failed', code: result.code, details: rd }, 400)
+  }
+
+  return c.json({ success: true, amount, refundId, data: rd })
+})
+
 // POST /cards/:id/assign — Assign card to a user
 yeewallex.post('/cards/:id/assign', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
@@ -676,6 +741,45 @@ yeewallex.post('/cards/:id/assign', async (c) => {
   }
 
   await prisma.vccCard.update({ where: { id: card.id }, data: { assignedUserId: userId || null } })
+  return c.json({ success: true })
+})
+
+// GET /ad-accounts — list all ad accounts for assign picker (admin only)
+yeewallex.get('/ad-accounts', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
+  const q = c.req.query('q')?.trim() || ''
+  const adAccounts = await prisma.adAccount.findMany({
+    where: q ? {
+      OR: [
+        { accountId: { contains: q, mode: 'insensitive' } },
+        { accountName: { contains: q, mode: 'insensitive' } },
+        { licenseName: { contains: q, mode: 'insensitive' } },
+      ],
+    } : undefined,
+    select: {
+      id: true, accountId: true, accountName: true, licenseName: true,
+      platform: true, status: true, currency: true, balance: true,
+      user: { select: { id: true, username: true, email: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 500,
+  })
+  return c.json({ adAccounts })
+})
+
+// POST /cards/:id/assign-ad-account — Assign card to an ad account
+yeewallex.post('/cards/:id/assign-ad-account', async (c) => {
+  if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
+  const { adAccountId } = await c.req.json()
+  const card = await prisma.vccCard.findUnique({ where: { id: c.req.param('id') } })
+  if (!card) return c.json({ error: 'Card not found' }, 404)
+
+  if (adAccountId) {
+    const adAccount = await prisma.adAccount.findUnique({ where: { id: adAccountId } })
+    if (!adAccount) return c.json({ error: 'Ad account not found' }, 404)
+  }
+
+  await prisma.vccCard.update({ where: { id: card.id }, data: { assignedAdAccountId: adAccountId || null } })
   return c.json({ success: true })
 })
 
@@ -767,7 +871,7 @@ yeewallex.get('/recharge-history', async (c) => {
   const transactions = await prisma.vccTransaction.findMany({
     orderBy: { createdAt: 'desc' },
     take: 100,
-    include: { card: { select: { label: true, yeewallexCardId: true, currency: true } } },
+    include: { card: { select: { label: true, yeewallexCardId: true, cardNumber: true, currency: true } } },
   })
 
   return c.json({ transactions })

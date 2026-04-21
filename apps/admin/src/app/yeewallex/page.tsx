@@ -54,8 +54,17 @@ export default function VCCPage() {
   const [sensitiveMap, setSensitiveMap] = useState<Record<string, { cardNo?: string; cvv?: string; expireDate?: string; loading?: boolean }>>({})
   const [rechargeCardId, setRechargeCardId] = useState<string | null>(null)
   const [rechargeAmount, setRechargeAmount] = useState('')
+  const [refundCardId, setRefundCardId] = useState<string | null>(null)
+  const [refundAmount, setRefundAmount] = useState('')
+  const [refundSubmitting, setRefundSubmitting] = useState(false)
   const [assignCardId, setAssignCardId] = useState<string | null>(null)
   const [assignUserId, setAssignUserId] = useState('')
+  // Ad account assignment picker
+  const [assignAdCardId, setAssignAdCardId] = useState<string | null>(null)
+  const [assignAdAccountId, setAssignAdAccountId] = useState<string | null>(null)
+  const [adAccounts, setAdAccounts] = useState<any[]>([])
+  const [adAccountSearch, setAdAccountSearch] = useState('')
+  const [adAccountsLoading, setAdAccountsLoading] = useState(false)
 
   // Forms
   const [holderForm, setHolderForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
@@ -137,25 +146,111 @@ export default function VCCPage() {
     } catch (e: any) { toast.error('Error', e.message) }
   }
 
-  const fetchAccount = async () => {
+  const fetchAccount = async (showError = false) => {
     try {
       const [info, bins] = await Promise.all([yeewallexApi.getAccountInfo(), yeewallexApi.getCardBins()])
       setAccountInfo(info)
       setCardBins(bins)
-    } catch (e: any) { toast.error('Error', e.message) }
+    } catch (e: any) { if (showError) toast.error('Error', e.message) }
   }
 
   useEffect(() => { fetchCardholders() }, [])
+  // Card Wallet needs live USDT balance — fetch on mount + poll every 20s
+  useEffect(() => {
+    fetchAccount()
+    const interval = setInterval(fetchAccount, 20_000)
+    return () => clearInterval(interval)
+  }, [])
   useEffect(() => { fetchCards() }, [currentPage, itemsPerPage])
+
+  // Tick every 30s so the "NEW" badge fades out on its own (no manual refresh needed)
+  const [nowTick, setNowTick] = useState(Date.now())
+  useEffect(() => {
+    const interval = setInterval(() => setNowTick(Date.now()), 30_000)
+    return () => clearInterval(interval)
+  }, [])
   useEffect(() => {
     if (activeTab === 'transactions') fetchTransactions()
     if (activeTab === 'recharge-history') fetchRechargeHistory()
     if (activeTab === 'account') fetchAccount()
   }, [activeTab])
 
-  // Filtered
+  // Filtered YeewalleX transactions (purchase/Authorization) — merchant, MCC, amount, card last 4, status
+  const filteredTransactions = (() => {
+    if (!searchQuery) return transactions
+    const q = searchQuery.trim().toLowerCase()
+    const qDigits = q.replace(/\D/g, '')
+    return transactions.filter((tx: any) => {
+      const cardNum = tx.cardNumber || tx.cardNo || ''
+      const cardNumDigits = String(cardNum).replace(/\D/g, '')
+      const haystacks: string[] = [
+        tx.merchantName, tx.merchantCategory, tx.merchantCountry,
+        tx.type, tx.authType, tx.status, tx.currency, tx.billingCurrency,
+        tx.cardId, tx.card_id, tx.transactionId, tx.tranId,
+        tx.cardNotes, tx.cardRemark, tx.accountNo, tx.cardAccountNo,
+        String(tx.amount ?? tx.billingAmount ?? ''),
+      ].filter(Boolean).map((v: any) => String(v).toLowerCase())
+      const textMatch = haystacks.some(h => h.includes(q))
+      const digitMatch = qDigits.length >= 2 && cardNumDigits.includes(qDigits)
+      return textMatch || digitMatch
+    })
+  })()
+
+  // Filtered recharge/refund history — search matches across tx type, amount, description,
+  // yeewallex tx id, card last 4, card label, status.
+  const filteredRechargeHistory = (() => {
+    if (!searchQuery) return rechargeHistory
+    const q = searchQuery.trim().toLowerCase()
+    const qDigits = q.replace(/\D/g, '')
+    return rechargeHistory.filter((tx: any) => {
+      const cardNum = tx.card?.cardNumber || tx.cardNumber || ''
+      const cardNumDigits = String(cardNum).replace(/\D/g, '')
+      const haystacks: string[] = [
+        tx.type, tx.status, tx.currency,
+        tx.yeewallexTxId, tx.id,
+        tx.description, tx.assetChange,
+        tx.card?.label, tx.card?.yeewallexCardId,
+        String(tx.amount ?? ''),
+      ].filter(Boolean).map((v: any) => String(v).toLowerCase())
+      const textMatch = haystacks.some(h => h.includes(q))
+      const digitMatch = qDigits.length >= 2 && cardNumDigits.includes(qDigits)
+      return textMatch || digitMatch
+    })
+  })()
+
+  // Filtered — search matches across card number (incl. last 4 digits), card IDs, holder name,
+  // label, assigned ad account, assigned user, and currency. Supports digit-only queries.
   const filteredCards = cards.filter(c => {
-    const matchSearch = !searchQuery || (c.label || '').toLowerCase().includes(searchQuery.toLowerCase()) || (c.yeewallexCardId || '').includes(searchQuery) || (c.cardholder?.firstName || '').toLowerCase().includes(searchQuery.toLowerCase())
+    if (!searchQuery) return statusFilter === 'all' || c.status === statusFilter
+
+    const q = searchQuery.trim().toLowerCase()
+    const qDigits = q.replace(/\D/g, '')   // digit-only version for card-number matching
+    const cardNumDigits = String(c.cardNumber || '').replace(/\D/g, '')
+    const holderFull = `${c.cardholder?.firstName || ''} ${c.cardholder?.lastName || ''}`.trim().toLowerCase()
+
+    const haystacks: string[] = [
+      c.label,
+      c.alias,
+      c.cardNumber,
+      c.yeewallexCardId,
+      c.taskId,
+      c.id,
+      c.currency,
+      c.status,
+      c.cardholder?.firstName,
+      c.cardholder?.lastName,
+      c.cardholder?.yeewallexId,
+      c.assignedUser?.username,
+      c.assignedUser?.email,
+      c.assignedAdAccount?.accountId,
+      c.assignedAdAccount?.accountName,
+    ].filter(Boolean).map((v: any) => String(v).toLowerCase())
+
+    const textMatch = haystacks.some(h => h.includes(q))
+    // If user typed digits, also match against the card number's digits (handles "3974" → "441359******3974")
+    const digitMatch = qDigits.length >= 2 && cardNumDigits.includes(qDigits)
+
+    const matchSearch = textMatch || digitMatch
     const matchStatus = statusFilter === 'all' || c.status === statusFilter
     return matchSearch && matchStatus
   })
@@ -226,14 +321,17 @@ export default function VCCPage() {
     }
   }
   const cardAction = async (id: string, action: string) => {
-    const ok = await confirm({ title: `${action.charAt(0).toUpperCase() + action.slice(1)} Card`, message: `Are you sure you want to ${action} this card?`, variant: action === 'cancel' ? 'danger' : 'warning' })
+    const confirmMsg = action === 'cancel'
+      ? 'This will permanently cancel the card. Any remaining balance will be automatically refunded to your USDT wallet.'
+      : `Are you sure you want to ${action} this card?`
+    const ok = await confirm({ title: `${action.charAt(0).toUpperCase() + action.slice(1)} Card`, message: confirmMsg, variant: action === 'cancel' ? 'danger' : 'warning' })
     if (!ok) return
     try {
       if (action === 'activate') await yeewallexApi.cards.activate(id)
       else if (action === 'freeze') await yeewallexApi.cards.freeze(id)
       else if (action === 'unfreeze') await yeewallexApi.cards.unfreeze(id)
       else if (action === 'cancel') await yeewallexApi.cards.cancel(id)
-      toast.success('Done', `Card ${action}d`); fetchCards()
+      toast.success('Done', action === 'cancel' ? 'Card cancelled — balance refunded to USDT wallet' : `Card ${action}d`); fetchCards()
     } catch (e: any) { toast.error('Error', e.message) }
   }
   const doRecharge = async () => {
@@ -243,6 +341,50 @@ export default function VCCPage() {
   const doAssign = async () => {
     if (!assignCardId) return
     try { await yeewallexApi.cards.assign(assignCardId, assignUserId || null); toast.success('Done', assignUserId ? 'Card assigned' : 'Card unassigned'); setAssignCardId(null); setAssignUserId(''); fetchCards() } catch (e: any) { toast.error('Error', e.message) }
+  }
+
+  const doRefund = async () => {
+    if (!refundCardId) return
+    const amt = parseFloat(refundAmount)
+    if (!amt || amt <= 0) { toast.error('Error', 'Enter a valid amount'); return }
+    setRefundSubmitting(true)
+    try {
+      const res: any = await yeewallexApi.cards.refund(refundCardId, amt)
+      toast.success('Refunded', `$${amt.toFixed(2)} returned to USDT wallet`)
+      setRefundCardId(null); setRefundAmount('')
+      fetchCards()
+      fetchAccount() // refresh wallet balance
+    } catch (e: any) {
+      toast.error('Refund failed', e.message)
+    } finally {
+      setRefundSubmitting(false)
+    }
+  }
+
+  const fetchAdAccounts = async (q = '') => {
+    setAdAccountsLoading(true)
+    try {
+      const res = await yeewallexApi.adAccounts.list(q)
+      setAdAccounts(res.adAccounts || [])
+    } catch (e: any) { toast.error('Error', e.message) }
+    finally { setAdAccountsLoading(false) }
+  }
+
+  const openAdAccountPicker = (cardId: string, currentAdAccountId?: string | null) => {
+    setAssignAdCardId(cardId)
+    setAssignAdAccountId(currentAdAccountId || null)
+    setAdAccountSearch('')
+    fetchAdAccounts()
+  }
+
+  const doAssignAdAccount = async (adAccountId: string | null) => {
+    if (!assignAdCardId) return
+    try {
+      await yeewallexApi.cards.assignAdAccount(assignAdCardId, adAccountId)
+      toast.success('Done', adAccountId ? 'Card linked to ad account' : 'Card unlinked')
+      setAssignAdCardId(null); setAssignAdAccountId(null); setAdAccountSearch('')
+      fetchCards()
+    } catch (e: any) { toast.error('Error', e.message) }
   }
   const copyText = (text: string) => { navigator.clipboard.writeText(text); toast.success('Copied', 'Copied to clipboard') }
 
@@ -256,6 +398,8 @@ export default function VCCPage() {
       FAILED: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500', label: 'Failed' },
       SUCCESS: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Success' },
       RECHARGE: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'Recharge' },
+      REFUND: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', label: 'Refund' },
+      WITHDRAWAL: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', label: 'Withdrawal' },
       PURCHASE: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', label: 'Purchase' },
     }
     const c = config[status] || { bg: 'bg-gray-50', text: 'text-gray-600', dot: 'bg-gray-400', label: status }
@@ -294,7 +438,14 @@ export default function VCCPage() {
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder="Search cards, ID, holders..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            <input type="text"
+              placeholder={
+                activeTab === 'card-list' ? 'Search by last 4, card ID, holder, ad account, label...' :
+                activeTab === 'recharge-history' ? 'Search by last 4, type (refund/recharge), amount, order ID...' :
+                activeTab === 'transactions' ? 'Search by merchant, last 4, MCC, amount, ref no...' :
+                'Search...'
+              }
+              value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               className="pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm w-[250px] focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 bg-white" />
           </div>
           <div className="relative dropdown-container">
@@ -351,13 +502,19 @@ export default function VCCPage() {
           </div>
           <StatsChart value={stats.totalFrozen} color="#60A5FA" filterId="vcc-frz-f" gradientId="vcc-frz-g" clipId="vcc-frz-c" />
         </Card>
-        <Card className="p-4 relative overflow-hidden min-h-[95px]">
-          <div className="flex items-start justify-between relative z-10">
-            <div><span className="text-[13px] text-gray-500">Card Wallet</span><p className="text-2xl font-bold text-green-600">{accountInfo?.wallets?.[0]?.usableQuota ? `$${parseFloat(accountInfo.wallets[0].usableQuota).toFixed(2)}` : '$0.00'}</p></div>
-            <span className="px-2 py-0.5 bg-green-500 text-white text-sm font-medium rounded">$0</span>
-          </div>
-          <StatsChart value={parseFloat(accountInfo?.wallets?.[0]?.usableQuota || '0')} color="#22C55E" filterId="vcc-wal-f" gradientId="vcc-wal-g" clipId="vcc-wal-c" />
-        </Card>
+        {(() => {
+          const usdtWallet = accountInfo?.wallets?.find((w: any) => w.currency === 'USDT')
+          const usdtBalance = parseFloat(usdtWallet?.usableQuota || '0')
+          return (
+            <Card className="p-4 relative overflow-hidden min-h-[95px]">
+              <div className="flex items-start justify-between relative z-10">
+                <div><span className="text-[13px] text-gray-500">Card Wallet</span><p className="text-2xl font-bold text-green-600">{usdtBalance.toFixed(2)} <span className="text-sm font-semibold text-green-500">USDT</span></p></div>
+                <span className="px-2 py-0.5 bg-green-500 text-white text-sm font-medium rounded">USDT</span>
+              </div>
+              <StatsChart value={usdtBalance} color="#22C55E" filterId="vcc-wal-f" gradientId="vcc-wal-g" clipId="vcc-wal-c" />
+            </Card>
+          )
+        })()}
       </div>
 
       {/* Main Card with Tabs & Table */}
@@ -387,7 +544,7 @@ export default function VCCPage() {
             ) : (
               <div className="divide-y divide-gray-100">
                 {/* Table header strip */}
-                <div className="hidden lg:grid grid-cols-[32px,110px,1fr,140px,1.2fr,140px,100px,110px] gap-3 px-4 py-2 bg-gray-50 text-[10px] font-semibold text-gray-500 uppercase tracking-wider sticky top-0 z-10">
+                <div className="hidden lg:grid grid-cols-[32px,100px,1fr,120px,180px,1fr,110px,80px] gap-3 px-4 py-2 bg-gray-50 text-[10px] font-semibold text-gray-500 uppercase tracking-wider sticky top-0 z-10">
                   <span />
                   <span>Status</span>
                   <span>Card Number</span>
@@ -403,6 +560,9 @@ export default function VCCPage() {
                   const displayNumber = card.cardNumber
                     ? card.cardNumber.replace(/(\d{4})(\d{2})\*{6}(\d{4})/, '$1 $2** **** $3')
                     : (card.yeewallexCardId?.slice(0, 20) || '—')
+                  // NEW badge for cards created within the last 10 minutes (uses nowTick so it fades out without refresh)
+                  const ageMs = card.createdAt ? nowTick - new Date(card.createdAt).getTime() : Infinity
+                  const isNewCard = ageMs >= 0 && ageMs < 10 * 60 * 1000
 
                   return (
                     <div key={card.id} className={`tab-row-animate ${isExpanded ? 'bg-violet-50/30' : 'hover:bg-gray-50/50'}`} style={{ animationDelay: `${index * 20}ms` }}>
@@ -413,7 +573,7 @@ export default function VCCPage() {
                           setExpandedCardId(next)
                           if (next && card.yeewallexCardId) fetchSensitive(card.id)
                         }}
-                        className="w-full grid grid-cols-[32px,110px,1fr,140px,1.2fr,140px,100px,110px] gap-3 px-4 py-3 items-center text-left"
+                        className="w-full grid grid-cols-[32px,100px,1fr,120px,180px,1fr,110px,80px] gap-3 px-4 py-3 items-center text-left"
                       >
                         <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''} text-gray-400`}>
                           <ChevronRight className="w-4 h-4" />
@@ -422,6 +582,13 @@ export default function VCCPage() {
                         <div className="flex items-center gap-2 min-w-0">
                           <div className="w-7 h-5 rounded-sm flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0 bg-gradient-to-br from-indigo-500 to-indigo-700">VISA</div>
                           <span className="font-mono text-[13px] text-gray-800 tracking-wider truncate">{displayNumber}</span>
+                          {isNewCard && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-green-500 text-white text-[9px] font-bold shadow-sm animate-pulse flex-shrink-0"
+                              title={`Created ${Math.round(ageMs / 60000)}m ago`}>
+                              <span className="w-1 h-1 rounded-full bg-white" />
+                              NEW
+                            </span>
+                          )}
                         </div>
                         <div className="text-right">
                           <p className="font-mono font-semibold text-[13px] text-gray-900">${(card.balance || 0).toFixed(2)}</p>
@@ -439,9 +606,35 @@ export default function VCCPage() {
                           {card.label && <p className="text-[11px] text-gray-500 mt-0.5 truncate">{card.label}</p>}
                         </div>
                         <span className="text-[11px] text-gray-600 truncate">
-                          {card.assignedUser
-                            ? <span className="inline-flex items-center gap-1 text-violet-700 bg-violet-50 px-2 py-0.5 rounded"><Link2 className="w-2.5 h-2.5" />{card.assignedUser.username}</span>
-                            : <span className="text-gray-300">—</span>}
+                          {card.assignedAdAccount ? (
+                            <span
+                              onClick={(e) => { e.stopPropagation(); openAdAccountPicker(card.id, card.assignedAdAccount?.id) }}
+                              className="inline-flex items-center gap-1.5 text-violet-700 bg-violet-50 hover:bg-violet-100 px-2 py-1 rounded cursor-pointer transition-colors"
+                              title={`${card.assignedAdAccount.accountName || 'Unnamed'} · ${card.assignedAdAccount.accountId} — click to change`}
+                              role="button">
+                              <Link2 className="w-2.5 h-2.5 flex-shrink-0" />
+                              <span className="inline-flex flex-col items-start leading-tight min-w-0">
+                                <span className="font-semibold truncate max-w-[140px]">{card.assignedAdAccount.accountName || 'Unnamed'}</span>
+                                <span className="font-mono text-[9px] opacity-70 truncate max-w-[140px]">{card.assignedAdAccount.accountId}</span>
+                              </span>
+                            </span>
+                          ) : card.assignedUser ? (
+                            <span
+                              onClick={(e) => { e.stopPropagation(); openAdAccountPicker(card.id, null) }}
+                              className="inline-flex items-center gap-1 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                              title="Assigned to user — click to link an ad account"
+                              role="button">
+                              <Link2 className="w-2.5 h-2.5" />{card.assignedUser.username}
+                            </span>
+                          ) : (
+                            <span
+                              onClick={(e) => { e.stopPropagation(); openAdAccountPicker(card.id, null) }}
+                              className="inline-flex items-center gap-1 text-violet-600 hover:text-violet-700 hover:bg-violet-50 px-2 py-0.5 rounded cursor-pointer transition-colors font-medium"
+                              title="Click to assign this card to an ad account"
+                              role="button">
+                              <Plus className="w-3 h-3" /> Assign
+                            </span>
+                          )}
                         </span>
                         <span className="text-[11px] text-gray-500">{formatDate(card.createdAt)}</span>
                         <div className="text-right text-[11px] font-medium text-violet-600">
@@ -573,14 +766,26 @@ export default function VCCPage() {
                               {card.status === 'ACTIVE' && (
                                 <div>
                                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Funds</p>
-                                  <button onClick={(e) => { e.stopPropagation(); setRechargeCardId(card.id); setRechargeAmount('') }}
-                                    className="group w-full flex items-start gap-3 p-3 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-all text-left">
-                                    <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-sm flex-shrink-0"><DollarSign className="w-4 h-4" /></div>
-                                    <div className="min-w-0">
-                                      <div className="flex items-center gap-1 text-[13px] font-semibold">Recharge <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
-                                      <p className="text-[11px] opacity-70 mt-0.5 leading-tight">Add balance from wallet</p>
-                                    </div>
-                                  </button>
+                                  <div className="grid grid-cols-1 gap-2">
+                                    <button onClick={(e) => { e.stopPropagation(); setRechargeCardId(card.id); setRechargeAmount('') }}
+                                      className="group w-full flex items-start gap-3 p-3 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-all text-left">
+                                      <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-sm flex-shrink-0"><DollarSign className="w-4 h-4" /></div>
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1 text-[13px] font-semibold">Recharge <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
+                                        <p className="text-[11px] opacity-70 mt-0.5 leading-tight">Add balance from wallet</p>
+                                      </div>
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); setRefundCardId(card.id); setRefundAmount('') }}
+                                      className="group w-full flex items-start gap-3 p-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-300 transition-all text-left"
+                                      disabled={!card.balance || card.balance <= 0}
+                                      title={(card.balance || 0) <= 0 ? 'No balance to refund' : ''}>
+                                      <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-sm flex-shrink-0"><ArrowUpRight className="w-4 h-4 -rotate-45" /></div>
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1 text-[13px] font-semibold">Balance refund <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
+                                        <p className="text-[11px] opacity-70 mt-0.5 leading-tight">Pull a partial amount back to USDT wallet</p>
+                                      </div>
+                                    </button>
+                                  </div>
                                 </div>
                               )}
 
@@ -633,7 +838,7 @@ export default function VCCPage() {
                                       <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-sm flex-shrink-0"><Ban className="w-4 h-4" /></div>
                                       <div className="min-w-0">
                                         <div className="flex items-center gap-1 text-[13px] font-semibold">Cancel card <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
-                                        <p className="text-[11px] opacity-70 mt-0.5 leading-tight">Permanently disable</p>
+                                        <p className="text-[11px] opacity-70 mt-0.5 leading-tight">Balance refunded to USDT wallet</p>
                                       </div>
                                     </button>
                                   )}
@@ -642,16 +847,32 @@ export default function VCCPage() {
 
                               <div>
                                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Assignment</p>
-                                <button onClick={(e) => { e.stopPropagation(); setAssignCardId(card.id); setAssignUserId(card.assignedUser?.id || '') }}
-                                  className="group flex items-start gap-3 p-3 rounded-lg border bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100 hover:border-violet-300 transition-all text-left w-full">
-                                  <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-sm flex-shrink-0"><Link2 className="w-4 h-4" /></div>
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-1 text-[13px] font-semibold">
-                                      {card.assignedUser ? 'Reassign user' : 'Assign to user'} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="space-y-2">
+                                  <button onClick={(e) => { e.stopPropagation(); openAdAccountPicker(card.id, card.assignedAdAccount?.id) }}
+                                    className="group flex items-start gap-3 p-3 rounded-lg border bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100 hover:border-violet-300 transition-all text-left w-full">
+                                    <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-sm flex-shrink-0"><Link2 className="w-4 h-4" /></div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1 text-[13px] font-semibold">
+                                        {card.assignedAdAccount ? 'Change ad account' : 'Assign to ad account'} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </div>
+                                      <p className="text-[11px] opacity-70 mt-0.5 leading-tight">
+                                        {card.assignedAdAccount
+                                          ? <>Linked to <b>{card.assignedAdAccount.accountName || 'Unnamed'}</b> · <span className="font-mono">{card.assignedAdAccount.accountId}</span></>
+                                          : 'Search & link to a specific ad account'}
+                                      </p>
                                     </div>
-                                    <p className="text-[11px] opacity-70 mt-0.5 leading-tight">Link this card to a team member</p>
-                                  </div>
-                                </button>
+                                  </button>
+                                  <button onClick={(e) => { e.stopPropagation(); setAssignCardId(card.id); setAssignUserId(card.assignedUser?.id || '') }}
+                                    className="group flex items-start gap-3 p-3 rounded-lg border bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition-all text-left w-full">
+                                    <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-white shadow-sm flex-shrink-0"><Link2 className="w-4 h-4" /></div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1 text-[13px] font-semibold">
+                                        {card.assignedUser ? 'Reassign user' : 'Assign to user'} <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </div>
+                                      <p className="text-[11px] opacity-70 mt-0.5 leading-tight">Link this card to a team member</p>
+                                    </div>
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -689,8 +910,17 @@ export default function VCCPage() {
 
           {/* ═══ RECHARGE/REFUND HISTORY TAB ═══ */}
           {activeTab === 'recharge-history' && (
-            rechargeHistory.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16"><h3 className="text-lg font-semibold text-gray-900 mb-2">No Recharge/Refund History</h3><p className="text-gray-500 text-sm">Card recharges, withdrawals and fees will appear here.</p></div>
+            filteredRechargeHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {rechargeHistory.length === 0 ? 'No Recharge/Refund History' : 'No results'}
+                </h3>
+                <p className="text-gray-500 text-sm">
+                  {rechargeHistory.length === 0
+                    ? 'Card recharges, withdrawals and fees will appear here.'
+                    : `No transactions match "${searchQuery}" — try card last-4, type (refund/recharge), or amount.`}
+                </p>
+              </div>
             ) : (
               <table className="w-full text-sm xl:text-[13px]">
                 <thead className="sticky top-0 z-10"><tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
@@ -698,17 +928,23 @@ export default function VCCPage() {
                     <th key={h} className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">{h}</th>
                   ))}
                 </tr></thead>
-                <tbody>{rechargeHistory.map((tx: any, i: number) => (
+                <tbody>{filteredRechargeHistory.map((tx: any, i: number) => (
                   <tr key={tx.id || i} className="border-b border-gray-100 hover:bg-gray-50/50 tab-row-animate" style={{ animationDelay: `${i * 20}ms` }}>
                     <td className="py-2 px-2 text-gray-500 whitespace-nowrap text-xs">{tx.createdAt ? formatDate(tx.createdAt) : '—'}</td>
                     <td className="py-2 px-2 text-gray-500 font-mono text-[10px]">{tx.yeewallexTxId || tx.id || '—'}</td>
                     <td className="py-2 px-2 text-gray-500 font-mono text-[10px]">{tx.card?.yeewallexCardId || '—'}</td>
-                    <td className="py-2 px-2 text-gray-600 font-mono text-xs">{tx.cardNumber || '****'}</td>
+                    <td className="py-2 px-2 text-gray-700 font-mono text-xs font-semibold">{(() => {
+                      const num = tx.card?.cardNumber || tx.cardNumber || ''
+                      const last4 = num.match(/(\d{4})(?!.*\d)/)?.[1]
+                      return last4 ? `•••• ${last4}` : '••••'
+                    })()}</td>
                     <td className="py-2 px-2 text-gray-500 text-xs">{tx.card?.label || '—'}</td>
                     <td className="py-2 px-2 text-gray-400 font-mono text-[10px]">{tx.accountNo || '—'}</td>
                     <td className="py-2 px-2 text-gray-400 text-xs">{tx.accountRemarks || '—'}</td>
                     <td className="py-2 px-2">{getStatusBadge(tx.type)}</td>
-                    <td className="py-2 px-2 font-semibold text-emerald-600 text-xs">${parseFloat(tx.amount || '0').toFixed(2)}</td>
+                    <td className={`py-2 px-2 font-semibold text-xs ${tx.type === 'REFUND' || tx.type === 'WITHDRAWAL' ? 'text-amber-600' : tx.type === 'PURCHASE' ? 'text-blue-600' : 'text-emerald-600'}`}>
+                      {tx.type === 'REFUND' || tx.type === 'WITHDRAWAL' ? '−' : '+'}${parseFloat(tx.amount || '0').toFixed(2)}
+                    </td>
                     <td className="py-2 px-2">{getStatusBadge(tx.status)}</td>
                     <td className="py-2 px-2 text-gray-600 text-xs">{tx.assetChange || tx.description || '—'}</td>
                     <td className="py-2 px-2 text-gray-400 text-xs">{tx.operation || '—'}</td>
@@ -720,8 +956,17 @@ export default function VCCPage() {
 
           {/* ═══ TRANSACTIONS TAB ═══ */}
           {activeTab === 'transactions' && (
-            transactions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16"><h3 className="text-lg font-semibold text-gray-900 mb-2">No Transactions</h3><p className="text-gray-500 text-sm">No transactions found. Card spending and fees will appear here.</p></div>
+            filteredTransactions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {transactions.length === 0 ? 'No Transactions' : 'No results'}
+                </h3>
+                <p className="text-gray-500 text-sm">
+                  {transactions.length === 0
+                    ? 'No transactions found. Card spending and fees will appear here.'
+                    : `No transactions match "${searchQuery}" — try merchant, card last-4, or amount.`}
+                </p>
+              </div>
             ) : (
               <table className="w-full text-sm xl:text-[13px]">
                 <thead className="sticky top-0 z-10"><tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
@@ -729,12 +974,16 @@ export default function VCCPage() {
                     <th key={h} className="text-left py-2.5 px-2 font-semibold text-gray-500 uppercase tracking-wide text-[10px] whitespace-nowrap bg-gray-50">{h}</th>
                   ))}
                 </tr></thead>
-                <tbody>{transactions.map((tx: any, i: number) => (
+                <tbody>{filteredTransactions.map((tx: any, i: number) => (
                   <tr key={tx.id || tx.transactionId || i} className="border-b border-gray-100 hover:bg-gray-50/50 tab-row-animate" style={{ animationDelay: `${i * 20}ms` }}>
                     <td className="py-2 px-2 text-gray-500 whitespace-nowrap text-xs">{tx.transactionTime || tx.tradingTime || tx.createdAt || '—'}</td>
                     <td className="py-2 px-2 text-gray-500 font-mono text-[10px]">{tx.transactionId || tx.id || '—'}</td>
                     <td className="py-2 px-2 text-gray-500 font-mono text-[10px]">{tx.cardId || tx.card_id || '—'}</td>
-                    <td className="py-2 px-2 text-gray-600 font-mono text-xs">{tx.cardNumber || tx.cardNo || '—'}</td>
+                    <td className="py-2 px-2 text-gray-700 font-mono text-xs font-semibold">{(() => {
+                      const num = tx.cardNumber || tx.cardNo || ''
+                      const last4 = String(num).match(/(\d{4})(?!.*\d)/)?.[1]
+                      return last4 ? `•••• ${last4}` : '••••'
+                    })()}</td>
                     <td className="py-2 px-2 text-gray-500 font-mono text-[10px]">{tx.accountNo || tx.cardAccountNo || '—'}</td>
                     <td className="py-2 px-2">{getStatusBadge(tx.transactionType || tx.type || '—')}</td>
                     <td className="py-2 px-2">{getStatusBadge(tx.transactionStatus || tx.status || tx.state || '—')}</td>
@@ -826,8 +1075,148 @@ export default function VCCPage() {
         <div className="p-1 space-y-4"><Input label="Amount (USD)" type="number" placeholder="Enter amount" value={rechargeAmount} onChange={e => setRechargeAmount(e.target.value)} /><div className="flex gap-2"><button onClick={() => setRechargeCardId(null)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button><button onClick={doRecharge} className="flex-1 py-2.5 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700">Recharge</button></div></div>
       </Modal>
 
+      {/* Balance Refund Modal */}
+      <Modal isOpen={!!refundCardId} onClose={() => { setRefundCardId(null); setRefundAmount('') }} title="Balance Refund">
+        <div className="p-1 space-y-4">
+          {(() => {
+            const refundCard = cards.find(c => c.id === refundCardId)
+            const currentBalance = refundCard?.balance || 0
+            return (
+              <>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                  Refund a partial amount from this card back to your USDT wallet. The card stays active.
+                  {refundCard && <div className="mt-1.5 text-xs opacity-80">Card balance: <b>${currentBalance.toFixed(2)} {refundCard.currency || 'USD'}</b></div>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Refund amount (USD)</label>
+                  <div className="relative flex items-stretch gap-2">
+                    <input
+                      type="number"
+                      placeholder="e.g. 10.00"
+                      value={refundAmount}
+                      onChange={e => setRefundAmount(e.target.value)}
+                      autoFocus
+                      step="0.01"
+                      min="0"
+                      max={currentBalance > 0 ? currentBalance : undefined}
+                      className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setRefundAmount(String(currentBalance))}
+                      disabled={!refundCard || currentBalance <= 0}
+                      className="px-4 py-2.5 rounded-lg bg-violet-600 text-white text-sm font-bold hover:bg-violet-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      title="Fill full card balance">
+                      MAX
+                    </button>
+                  </div>
+                  {refundCard && currentBalance > 0 && (
+                    <div className="flex items-center justify-between mt-1.5">
+                      <span className="text-[11px] text-gray-500">Available: ${currentBalance.toFixed(2)}</span>
+                      <div className="flex gap-1">
+                        {[0.25, 0.5, 0.75].map(f => (
+                          <button key={f} type="button"
+                            onClick={() => setRefundAmount((currentBalance * f).toFixed(2))}
+                            className="text-[10px] px-2 py-0.5 rounded bg-violet-50 text-violet-600 hover:bg-violet-100 font-medium transition-colors">
+                            {(f * 100).toFixed(0)}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => { setRefundCardId(null); setRefundAmount('') }}
+                    className="flex-1 py-2.5 rounded-lg border text-sm font-medium text-gray-600 hover:bg-gray-50"
+                    disabled={refundSubmitting}>Cancel</button>
+                  <button onClick={doRefund}
+                    className="flex-1 py-2.5 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50"
+                    disabled={refundSubmitting || !refundAmount || parseFloat(refundAmount) <= 0}>
+                    {refundSubmitting ? 'Refunding...' : 'Refund'}
+                  </button>
+                </div>
+              </>
+            )
+          })()}
+        </div>
+      </Modal>
+
       <Modal isOpen={!!assignCardId} onClose={() => setAssignCardId(null)} title="Assign Card to User">
         <div className="p-1 space-y-4"><Input label="User ID" placeholder="Leave empty to unassign" value={assignUserId} onChange={e => setAssignUserId(e.target.value)} /><div className="flex gap-2"><button onClick={() => setAssignCardId(null)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button><button onClick={doAssign} className="flex-1 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800">{assignUserId ? 'Assign' : 'Unassign'}</button></div></div>
+      </Modal>
+
+      {/* Ad Account Picker Modal — searchable list */}
+      <Modal isOpen={!!assignAdCardId} onClose={() => { setAssignAdCardId(null); setAdAccountSearch('') }} title="Assign Card to Ad Account">
+        <div className="p-1 space-y-3">
+          <Input
+            label="Search ad account"
+            placeholder="Type account ID, name, or license..."
+            value={adAccountSearch}
+            onChange={e => setAdAccountSearch(e.target.value)}
+            autoFocus
+          />
+          <div className="max-h-[420px] overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white">
+            {adAccountsLoading ? (
+              <div className="p-8 text-center text-sm text-gray-400">Loading ad accounts...</div>
+            ) : (() => {
+              const q = adAccountSearch.trim().toLowerCase()
+              const filtered = q
+                ? adAccounts.filter(a =>
+                    (a.accountId || '').toLowerCase().includes(q) ||
+                    (a.accountName || '').toLowerCase().includes(q) ||
+                    (a.licenseName || '').toLowerCase().includes(q) ||
+                    (a.user?.username || '').toLowerCase().includes(q))
+                : adAccounts
+              if (filtered.length === 0) {
+                return <div className="p-8 text-center text-sm text-gray-400">No ad accounts found</div>
+              }
+              return filtered.map((a: any) => {
+                const isSelected = assignAdAccountId === a.id
+                const platformColor =
+                  a.platform === 'FACEBOOK' ? 'bg-blue-100 text-blue-700' :
+                  a.platform === 'GOOGLE' ? 'bg-red-100 text-red-700' :
+                  a.platform === 'TIKTOK' ? 'bg-pink-100 text-pink-700' :
+                  'bg-gray-100 text-gray-700'
+                const statusColor =
+                  a.status === 'APPROVED' || a.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' :
+                  a.status === 'PENDING' ? 'bg-amber-50 text-amber-700' :
+                  'bg-gray-50 text-gray-600'
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => doAssignAdAccount(a.id)}
+                    className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${isSelected ? 'bg-violet-50' : 'hover:bg-gray-50'}`}>
+                    <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${platformColor}`}>{a.platform}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm text-gray-900 truncate">{a.accountName || 'Unnamed'}</p>
+                        {isSelected && <span className="text-[10px] text-violet-700 font-semibold">Current</span>}
+                      </div>
+                      <p className="font-mono text-[11px] text-gray-500 truncate">{a.accountId}{a.licenseName ? ` · ${a.licenseName}` : ''}</p>
+                      {a.user?.username && <p className="text-[10px] text-gray-400">Owner: {a.user.username}</p>}
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColor}`}>{a.status}</span>
+                      <span className="font-mono text-[11px] text-gray-600">${(a.balance || 0).toFixed(2)}</span>
+                    </div>
+                  </button>
+                )
+              })
+            })()}
+          </div>
+          <div className="flex gap-2 pt-1">
+            {assignAdAccountId && (
+              <button onClick={() => doAssignAdAccount(null)}
+                className="flex-1 py-2.5 rounded-lg border border-rose-200 text-rose-600 text-sm font-medium hover:bg-rose-50">
+                Unassign
+              </button>
+            )}
+            <button onClick={() => { setAssignAdCardId(null); setAdAccountSearch('') }}
+              className="flex-1 py-2.5 rounded-lg border text-sm font-medium text-gray-600 hover:bg-gray-50">
+              Close
+            </button>
+          </div>
+        </div>
       </Modal>
     </DashboardLayout>
   )

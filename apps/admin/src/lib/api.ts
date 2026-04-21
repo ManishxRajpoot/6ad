@@ -738,8 +738,17 @@ export const yeewallexApi = {
     unfreeze: (id: string) => api.post<any>(`/yeewallex/cards/${id}/unfreeze`, {}),
     cancel: (id: string) => api.post<any>(`/yeewallex/cards/${id}/cancel`, {}),
     assign: (id: string, userId: string | null) => api.post<any>(`/yeewallex/cards/${id}/assign`, { userId }),
+    assignAdAccount: (id: string, adAccountId: string | null) =>
+      api.post<any>(`/yeewallex/cards/${id}/assign-ad-account`, { adAccountId }),
     recharge: (id: string, data: { amount: number; currency?: string }) => api.post<any>(`/yeewallex/cards/${id}/recharge`, data),
     withdraw: (id: string, data: { amount: number; currency?: string }) => api.post<any>(`/yeewallex/cards/${id}/withdraw`, data),
+    refund: (id: string, amount: number) => api.post<any>(`/yeewallex/cards/${id}/refund`, { amount }),
+  },
+
+  // Ad accounts (for card→ad-account assignment picker)
+  adAccounts: {
+    list: (q?: string) =>
+      api.get<any>(`/yeewallex/ad-accounts${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   },
 
   // Transactions (from Yeewallex API + local DB)

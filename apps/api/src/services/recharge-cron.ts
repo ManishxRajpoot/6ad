@@ -9,6 +9,7 @@
 import { cheetahApi } from './cheetah-api.js'
 import { startBrowser } from './adspower-worker.js'
 import { prisma } from '../lib/prisma.js'
+import { autoRechargeAssignedVccCard } from '../lib/vcc-auto-recharge.js'
 
 const CONFIG = {
   POLL_INTERVAL_MS: 30 * 1000,   // 30 seconds
@@ -158,6 +159,13 @@ async function processDeposit(deposit: any): Promise<void> {
             })
           }
         })
+        // VCC auto-recharge for linked card
+        autoRechargeAssignedVccCard({
+          adAccountId: deposit.adAccountId,
+          amount: deposit.amount,
+          reason: 'CHEETAH_CRON_SKIP',
+          depositId: deposit.id,
+        }).catch(() => {})
         console.log(`[RechargeCron] SKIP — already at target: act_${accountId} cap=$${currentSpendCap} >= target=$${targetSpendCap} (${deposit.applyId || deposit.id})`)
 
         // Audit log
@@ -207,6 +215,13 @@ async function processDeposit(deposit: any): Promise<void> {
                 })
               }
             })
+            // VCC auto-recharge for linked card
+            autoRechargeAssignedVccCard({
+              adAccountId: deposit.adAccountId,
+              amount: deposit.amount,
+              reason: 'CHEETAH_CRON_RECHARGE',
+              depositId: deposit.id,
+            }).catch(() => {})
             console.log(`[RechargeCron] Cheetah recharge SUCCESS: act_${accountId} +$${amount} target=$${targetSpendCap} (${deposit.applyId || deposit.id})`)
             cheetahHandled = true
             return

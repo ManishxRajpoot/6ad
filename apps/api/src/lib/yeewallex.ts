@@ -268,12 +268,31 @@ export const rechargeCard = (data: { cardId: string; amount: number; currency?: 
 
 export const getRechargeStatus = (rechargeId: string) => yeewallexRequest('GET', '/rest/v1.0/vcc/card-recharge-query', { rechargeId })
 
+// Legacy alias — withdrawCard was pointing to a non-existent endpoint; route it through the confirmed card-charge-out path.
 export const withdrawCard = (data: { cardId: string; amount: number; currency?: string }) =>
-  yeewallexRequest('POST', '/rest/v1.0/vcc/card-withdraw', { cardId: data.cardId, amount: String(data.amount), currency: data.currency || 'USD' })
+  refundCardBalance({ cardId: data.cardId, amount: data.amount, currency: data.currency })
 
-export const freezeCard = (cardId: string) => yeewallexRequest('POST', '/rest/v1.0/vcc/card-freeze', { cardId })
-export const unfreezeCard = (cardId: string) => yeewallexRequest('POST', '/rest/v1.0/vcc/card-unfreeze', { cardId })
-export const cancelCard = (cardId: string) => yeewallexRequest('POST', '/rest/v1.0/vcc/card-cancel', { cardId })
+// Partial balance refund — pulls a specific amount from the card back to the wallet WITHOUT cancelling the card.
+// YeewalleX calls this "charge out" internally (portal button labelled "Balance refund").
+// Endpoint confirmed: POST /rest/v1.0/vcc/card-charge-out with { cardId, amount, currency, requestNo }.
+export const refundCardBalance = (data: { cardId: string; amount: number; currency?: string }) =>
+  yeewallexRequest('POST', '/rest/v1.0/vcc/card-charge-out', {
+    cardId: data.cardId,
+    amount: String(data.amount),
+    currency: data.currency || 'USDT',  // wallet currency to receive the refund
+    requestNo: mkReqNo('BR'),
+  })
+
+const mkReqNo = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+export const freezeCard = (cardId: string) =>
+  yeewallexRequest('POST', '/rest/v1.0/vcc/card-freeze', { cardId, requestNo: mkReqNo('FZ') })
+
+export const unfreezeCard = (cardId: string) =>
+  yeewallexRequest('POST', '/rest/v1.0/vcc/card-unfreeze', { cardId, requestNo: mkReqNo('UF') })
+
+export const cancelCard = (cardId: string, refundCurrency: string = 'USDT') =>
+  yeewallexRequest('POST', '/rest/v1.0/vcc/card-cancel', { cardId, refundCurrency, requestNo: mkReqNo('CC') })
 
 // The real card-list endpoint is /vcc/user-cards with `page` / `size` params
 // (not `pageNo` / `pageSize`, which returns "Page size cannot be less than 0").
@@ -289,6 +308,10 @@ export const getCardDetail = (cardId: string) => yeewallexRequest('GET', '/rest/
 
 export const getCardholders = (params: { pageNo?: number; pageSize?: number } = {}) =>
   yeewallexRequest('GET', '/rest/v1.0/vcc/card-holders', { pageNo: String(params.pageNo || 1), pageSize: String(params.pageSize || 50) })
+
+// Raw request passthrough for probing undocumented endpoints
+export const rawRequest = (method: 'GET' | 'POST', path: string, params: Record<string, any> = {}) =>
+  yeewallexRequest(method, path, params)
 
 export const getTransactions = (params: { cardId?: string; page?: number; size?: number; startDate?: string; endDate?: string } = {}) => {
   // Default: last 90 days

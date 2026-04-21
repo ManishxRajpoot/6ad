@@ -22,6 +22,7 @@ import {
 } from '../utils/email.js'
 
 import { prisma } from '../lib/prisma.js'
+import { autoRechargeAssignedVccCard } from '../lib/vcc-auto-recharge.js'
 
 type Platform = 'FACEBOOK' | 'GOOGLE' | 'TIKTOK' | 'SNAPCHAT' | 'BING'
 import { verifyToken, requireAgent, requireAdmin, requireUser } from '../middleware/auth.js'
@@ -188,8 +189,34 @@ accounts.get('/', requireUser, async (c) => {
       prisma.adAccount.count({ where })
     ])
 
+    // Balance visibility:
+    //   - USER role → look up user's controlling agent; if agent.showBalanceToAgent === false, hide balances
+    //   - AGENT role → check own showBalanceToAgent flag
+    //   - ADMIN → always see balances
+    let showBalance = true
+    if (userRole === 'USER') {
+      const me = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { agent: { select: { showBalanceToAgent: true } } },
+      })
+      if (me?.agent && me.agent.showBalanceToAgent === false) {
+        showBalance = false
+      }
+    } else if (userRole === 'AGENT') {
+      const me = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { showBalanceToAgent: true },
+      })
+      if (me?.showBalanceToAgent === false) showBalance = false
+    }
+
+    const safeAccounts = showBalance
+      ? accountsList
+      : accountsList.map(a => ({ ...a, balance: null, totalDeposit: null, totalSpend: null }))
+
     return c.json({
-      accounts: accountsList,
+      accounts: safeAccounts,
+      showBalance,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -359,6 +386,34 @@ accounts.get('/deposits/admin', requireAdmin, async (c) => {
       }
     }
 
+    // Batch fetch VCC cards:
+    //   1. Cards explicitly recorded on the deposit (vccCardId) — auto-recharged already
+    //   2. Cards currently linked to the deposit's ad account (assignedAdAccountId) — will be auto-recharged on approval
+    const vccCardIds = [...new Set(deposits.map(d => (d as any).vccCardId).filter(Boolean))] as string[]
+    const adAccountIds2 = [...new Set(deposits.map(d => d.adAccountId).filter(Boolean))]
+
+    const [cardsById, cardsByAdAccount] = await Promise.all([
+      vccCardIds.length > 0
+        ? prisma.vccCard.findMany({
+            where: { id: { in: vccCardIds } },
+            select: { id: true, yeewallexCardId: true, cardNumber: true, label: true, status: true, currency: true, balance: true, assignedAdAccountId: true },
+          })
+        : [],
+      adAccountIds2.length > 0
+        ? prisma.vccCard.findMany({
+            where: { assignedAdAccountId: { in: adAccountIds2 } },
+            select: { id: true, yeewallexCardId: true, cardNumber: true, label: true, status: true, currency: true, balance: true, assignedAdAccountId: true },
+          })
+        : [],
+    ])
+    const cardByIdMap = new Map(cardsById.map(c => [c.id, c]))
+    const cardByAdAccountMap = new Map<string, typeof cardsByAdAccount[0]>()
+    for (const c of cardsByAdAccount) {
+      if (c.assignedAdAccountId && !cardByAdAccountMap.has(c.assignedAdAccountId)) {
+        cardByAdAccountMap.set(c.assignedAdAccountId, c)
+      }
+    }
+
     const depositsWithProfiles = deposits.map(d => {
       let profile = null
       if (d.adAccount?.extensionProfileId) {
@@ -367,8 +422,13 @@ accounts.get('/deposits/admin', requireAdmin, async (c) => {
       if (!profile && d.adAccount?.accountId) {
         profile = profileMapByAccount.get(d.adAccount.accountId) || null
       }
+      const recordedCardId = (d as any).vccCardId
+      const vccCard = (recordedCardId && cardByIdMap.get(recordedCardId))
+        || (d.adAccountId && cardByAdAccountMap.get(d.adAccountId))
+        || null
       return {
         ...d,
+        vccCard,
         adAccount: d.adAccount ? { ...d.adAccount, extensionProfile: profile } : d.adAccount
       }
     })
@@ -1738,6 +1798,14 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
           }
         })
       })
+
+      // VCC auto-recharge: if a card is linked to this ad account, recharge it for the same amount
+      autoRechargeAssignedVccCard({
+        adAccountId: deposit.adAccountId,
+        amount: deposit.amount,
+        reason: 'ADMIN_APPROVE',
+        depositId: id,
+      }).catch(() => { /* helper already swallows errors */ })
     } else {
       // Non-Cheetah FB: stay PENDING, set approvedAt to signal admin approved
       // Balance NOT incremented — will be incremented when recharge confirmed

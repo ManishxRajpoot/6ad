@@ -337,6 +337,8 @@ export default function FacebookPage() {
   const [bmShareHistory, setBmShareHistory] = useState<any[]>(cachedFb?.bmShareHistory || [])
   const [accountDeposits, setAccountDeposits] = useState<any[]>(cachedFb?.accountDeposits || [])
   const [cheetahBalances, setCheetahBalances] = useState<Record<string, any>>(cachedFb?.cheetahBalances || {})
+  // Admin-controlled: when the controlling agent has "Show Ad Account Balance" off, the API returns showBalance=false
+  const [showBalance, setShowBalance] = useState<boolean>(true)
   const [isLoading, setIsLoading] = useState(!cachedFb)
   const [reportTab, setReportTab] = useState<'transfer' | 'refund'>('transfer')
   const [dashboardStats, setDashboardStats] = useState<any>(cachedFb?.dashboardStats || null)
@@ -529,6 +531,8 @@ export default function FacebookPage() {
       }
       const accounts = accountsRes.accounts || []
       setUserAccounts(accounts)
+      // Capture balance-visibility flag (defaults to true if API doesn't provide it, e.g. older builds)
+      setShowBalance((accountsRes as any).showBalance !== false)
       setUserApplications(applicationsRes.applications || [])
       setUserRefunds(refundsRes.refunds || [])
       setBalanceTransfers(transfersRes.transfers || [])
@@ -1815,7 +1819,7 @@ export default function FacebookPage() {
                             </div>
                             <p className="text-[10px] text-gray-400 font-mono mt-0.5">{account.accountId}</p>
                           </div>
-                          {isCheetahAccount && remainingBalance !== undefined && (
+                          {showBalance && isCheetahAccount && remainingBalance !== undefined && (
                             <div className="text-right flex-shrink-0">
                               <p className="text-[9px] text-gray-400">Balance</p>
                               <p className="text-sm font-bold text-gray-800">${Number(remainingBalance).toLocaleString()}</p>

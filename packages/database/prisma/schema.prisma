@@ -274,6 +274,7 @@ model AdAccount {
   refunds           AccountRefund[]
   transfersFrom     BalanceTransfer[] @relation("TransferFrom")
   transfersTo       BalanceTransfer[] @relation("TransferTo")
+  assignedVccCards  VccCard[]         @relation("AssignedVccCards")
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -466,8 +467,13 @@ model AccountDeposit {
   verificationFailed  Boolean           @default(false)   // True = needs manual review (verification mismatch)
 
   // Card payment tracking (non-Cheetah FB accounts only — admin manually adds money to card)
-  cardPaymentStatus   String            @default("NONE")  // NONE | PENDING | DONE
+  cardPaymentStatus   String            @default("NONE")  // NONE | PENDING | DONE | FAILED
   cardPaymentDoneAt   DateTime?
+
+  // VCC auto-recharge (when an ad account has a linked VCC card, the same amount is auto-charged to the card)
+  vccCardId           String?           @db.ObjectId
+  vccRechargeTxId     String?                             // YeewalleX recharge transaction ID
+  vccRechargeError    String?
 
   approvedAt        DateTime?
 
@@ -1679,6 +1685,10 @@ model VccCard {
   assignedUserId  String?        @db.ObjectId
   assignedUser    User?          @relation("AssignedVccCards", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  // Assigned to ad account (admin links card to a specific ad account for funding)
+  assignedAdAccountId String?    @db.ObjectId
+  assignedAdAccount   AdAccount? @relation("AssignedVccCards", fields: [assignedAdAccountId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   transactions    VccTransaction[]
 
   createdAt       DateTime       @default(now())
@@ -1686,6 +1696,7 @@ model VccCard {
 
   @@index([status])
   @@index([assignedUserId])
+  @@index([assignedAdAccountId])
   @@index([cardholderId])
 }
 

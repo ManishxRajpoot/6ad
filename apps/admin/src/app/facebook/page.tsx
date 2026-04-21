@@ -7,7 +7,7 @@ import { Select } from '@/components/ui/Select'
 import { Card } from '@/components/ui/Card'
 import { StatsChart } from '@/components/ui/StatsChart'
 import { PaginationSelect } from '@/components/ui/PaginationSelect'
-import { applicationsApi, usersApi, bmShareApi, accountDepositsApi, accountRefundsApi, balanceTransfersApi, extensionApi, getCached, setCache } from '@/lib/api'
+import { applicationsApi, usersApi, bmShareApi, accountDepositsApi, accountRefundsApi, balanceTransfersApi, extensionApi, yeewallexApi, getCached, setCache } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { useConfirm } from '@/contexts/ConfirmContext'
 import {
@@ -27,7 +27,10 @@ import {
   RefreshCw,
   ShieldCheck,
   CheckCircle2,
-  MoreVertical
+  MoreVertical,
+  Copy,
+  CreditCard,
+  Sparkles
 } from 'lucide-react'
 
 type Application = {
@@ -241,6 +244,10 @@ export default function FacebookPage() {
 
   // Approve Form
   const [approveForm, setApproveForm] = useState<{ name: string; accountId: string; vcard: string }[]>([])
+  // Inline VCC generation state (per row in the Approve modal)
+  type GenCard = { loading?: boolean; error?: string; cardDbId?: string; yeewallexCardId?: string; taskId?: string; cardNo?: string; cvv?: string; expireDate?: string; status?: string }
+  const [generatedCards, setGeneratedCards] = useState<Record<number, GenCard>>({})
+  const [cardholdersCache, setCardholdersCache] = useState<any[]>([])
 
   // Bulk Approve Modal
   const [showBulkApproveModal, setShowBulkApproveModal] = useState(false)
@@ -860,7 +867,95 @@ export default function FacebookPage() {
     const accounts = parseAccountDetails(app.accountDetails)
     setApproveForm(accounts.map(a => ({ name: a.name, accountId: a.accountId || '', vcard: '' })))
     setSelectedProfileId('')
+    setGeneratedCards({})
     setShowApproveModal(true)
+  }
+
+  // Copy helper
+  const copyToClipboard = (text: string, label = 'Value') => {
+    navigator.clipboard.writeText(text)
+    toast.success('Copied', `${label} copied to clipboard`)
+  }
+
+  // Lazy-load cardholders. BIN not needed — backend defaults to CARD_BINS.ADS_USD.
+  const ensureCardholders = async () => {
+    if (cardholdersCache.length) return cardholdersCache
+    const res: any = await yeewallexApi.cardholders.getAll({ page: 1, limit: 100 })
+    const holders: any[] = res?.cardholders || res?.data?.cardholders || []
+    setCardholdersCache(holders)
+    return holders
+  }
+
+  // Poll task status + fetch sensitive details for a just-issued card
+  const pollAndHydrateCard = async (index: number, taskId: string, label: string) => {
+    const start = Date.now()
+    const timeoutMs = 90_000  // 90s upper bound
+    while (Date.now() - start < timeoutMs) {
+      await new Promise(r => setTimeout(r, 4_000))  // 4s poll interval
+      try {
+        // find the card in the backend by taskId or recent cards
+        const res = await yeewallexApi.cards.getAll({ page: 1, limit: 20 })
+        const cards = (res.cards || [])
+        const match = cards.find((c: any) => c.taskId === taskId && c.yeewallexCardId)
+          || cards.find((c: any) => c.label === label && c.yeewallexCardId)
+        if (match) {
+          // Card has been issued — fetch sensitive details
+          let details: any = { cardNo: '', cvv: '', expireDate: '' }
+          try {
+            const d = await yeewallexApi.cards.getDetails(match.id)
+            details = d?.data || d?.details || d || {}
+          } catch { /* ignore — details may take a moment */ }
+          setGeneratedCards(prev => ({
+            ...prev,
+            [index]: {
+              ...(prev[index] || {}),
+              loading: false,
+              cardDbId: match.id,
+              yeewallexCardId: match.yeewallexCardId,
+              cardNo: details.cardNo || match.cardNumber || '',
+              cvv: details.cvv || '',
+              expireDate: details.expireDate || '',
+              status: 'ACTIVE',
+            },
+          }))
+          return
+        }
+      } catch { /* keep polling */ }
+    }
+    // Timed out — mark as timed out but the card may still be issued later
+    setGeneratedCards(prev => ({
+      ...prev,
+      [index]: { ...(prev[index] || {}), loading: false, error: 'Taking longer than expected — check VCC Cards list in a moment' },
+    }))
+  }
+
+  // Generate a VCC card for one ad-account row (random cardholder, OTA_USD BIN)
+  const generateVccForRow = async (index: number) => {
+    if (!selectedApplication) return
+    setGeneratedCards(prev => ({ ...prev, [index]: { loading: true } }))
+    try {
+      const holders = await ensureCardholders()
+      if (!holders.length) {
+        throw new Error('No cardholders available — create one in VCC Cards first')
+      }
+      // Pick a random cardholder
+      const holder = holders[Math.floor(Math.random() * holders.length)]
+      const label = `${selectedApplication.user?.username || 'user'}/${approveForm[index]?.name || 'acct'}`.slice(0, 64)
+      // Backend defaults to ADS_USD BIN when cardBinId omitted
+      const res: any = await yeewallexApi.cards.create({ cardholderId: holder.id, label })
+      const card = res.card || {}
+      const taskId = res.taskId || card.taskId
+      setGeneratedCards(prev => ({
+        ...prev,
+        [index]: { ...(prev[index] || {}), loading: true, cardDbId: card.id, taskId, status: 'PENDING' },
+      }))
+      toast.success('Generating...', `VCC card for ${approveForm[index]?.name || 'account'} is being issued`)
+      // Poll in background
+      if (taskId) pollAndHydrateCard(index, taskId, label)
+    } catch (e: any) {
+      setGeneratedCards(prev => ({ ...prev, [index]: { loading: false, error: e.message || 'Failed to generate' } }))
+      toast.error('Generate failed', e.message || 'Could not create card')
+    }
   }
 
   // Submit approve
@@ -874,9 +969,32 @@ export default function FacebookPage() {
     }
 
     try {
-      await applicationsApi.approve(selectedApplication.id, validAccounts, selectedProfileId || undefined)
+      const approveRes: any = await applicationsApi.approve(selectedApplication.id, validAccounts, selectedProfileId || undefined)
+
+      // Auto-assign generated VCC cards to their corresponding newly-created ad accounts
+      const newAccounts: any[] = approveRes?.accounts || []
+      const assignments: Promise<any>[] = []
+      for (let i = 0; i < approveForm.length; i++) {
+        const row = approveForm[i]
+        const gen = generatedCards[i]
+        if (!gen?.cardDbId || !row.accountId) continue
+        // Match by accountId
+        const matchedAcct = newAccounts.find(a => a.accountId === row.accountId)
+        if (matchedAcct?.id) {
+          assignments.push(
+            yeewallexApi.cards.assignAdAccount(gen.cardDbId, matchedAcct.id)
+              .catch((e: any) => console.error(`[VCC assign] card ${gen.cardDbId} → acct ${matchedAcct.id} failed:`, e?.message))
+          )
+        }
+      }
+      if (assignments.length) {
+        await Promise.all(assignments)
+        toast.success('Approved + Linked', `${assignments.length} VCC card(s) auto-assigned to new ad accounts`)
+      }
+
       setShowApproveModal(false)
       setSelectedApplication(null)
+      setGeneratedCards({})
       fetchData()
     } catch (error: any) {
       toast.error('Approve Failed', error.message || 'Failed to approve')
@@ -1851,7 +1969,22 @@ export default function FacebookPage() {
                           </div>
                         </td>
                         <td className="py-3 px-2">
-                          {dep.adAccount.fundingSources ? (() => {
+                          {(dep as any).vccCard ? (() => {
+                            const vc: any = (dep as any).vccCard
+                            const last4 = (vc.cardNumber || '').match(/(\d{4})(?!.*\d)/)?.[1] || '****'
+                            const statusColor =
+                              vc.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' :
+                              vc.status === 'FROZEN' ? 'bg-blue-50 text-blue-700' :
+                              vc.status === 'CANCELLED' ? 'bg-red-50 text-red-700' :
+                              'bg-gray-50 text-gray-600'
+                            return (
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${statusColor}`}
+                                title={`VCC card ${last4} (${vc.status})${vc.label ? ' · ' + vc.label : ''}`}>
+                                <span>💳</span>
+                                <span className="font-mono">•••• {last4}</span>
+                              </span>
+                            )
+                          })() : dep.adAccount.fundingSources ? (() => {
                             try {
                               const cards = JSON.parse(dep.adAccount.fundingSources)
                               return Array.isArray(cards) && cards.length > 0
@@ -1988,14 +2121,21 @@ export default function FacebookPage() {
                             <button
                               onClick={(e) => { e.stopPropagation(); handleMarkCardDone([dep.id]) }}
                               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors cursor-pointer"
-                              title="Click to mark card payment as done"
+                              title={(dep as any).vccCard ? `Auto-recharge in progress for VCC card${(dep as any).vccCard.cardNumber ? ' ' + (dep as any).vccCard.cardNumber.slice(-4) : ''} — click to mark done manually` : 'Click to mark card payment as done'}
                             >
                               <span className="w-1 h-1 rounded-full bg-orange-500 animate-pulse" />
                               Pending
                             </button>
                           ) : dep.cardPaymentStatus === 'DONE' ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700"
+                              title={(dep as any).vccRechargeTxId ? `Auto-recharged · tx ${(dep as any).vccRechargeTxId}` : 'Card payment done'}>
                               <Check className="w-3 h-3" /> Approved
+                            </span>
+                          ) : dep.cardPaymentStatus === 'FAILED' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-50 text-red-700"
+                              title={(dep as any).vccRechargeError || 'Auto-recharge failed'}>
+                              <span className="w-1 h-1 rounded-full bg-red-500" />
+                              Failed
                             </span>
                           ) : (
                             <span className="text-gray-300 text-[10px]">—</span>
@@ -2562,13 +2702,35 @@ export default function FacebookPage() {
                           {idx + 1}
                         </span>
                         <div className="flex items-center gap-2 flex-1">
-                          <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-600 text-sm font-medium rounded">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-600 text-sm font-medium rounded group">
                             {acc.name}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                navigator.clipboard.writeText(acc.name)
+                                toast.success('Copied', `Ad account name "${acc.name}" copied`)
+                              }}
+                              className="ml-1 p-0.5 rounded hover:bg-emerald-500/20 transition-colors opacity-60 hover:opacity-100"
+                              title={`Copy "${acc.name}"`}>
+                              <Copy className="w-3 h-3" />
+                            </button>
                           </span>
                           <span className="text-gray-300 text-lg">&rarr;</span>
                           {acc.accountId ? (
-                            <span className="px-2 py-0.5 bg-violet-500/10 text-violet-600 text-sm font-mono font-medium rounded">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-500/10 text-violet-600 text-sm font-mono font-medium rounded group">
                               {acc.accountId}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  navigator.clipboard.writeText(acc.accountId)
+                                  toast.success('Copied', `Account ID "${acc.accountId}" copied`)
+                                }}
+                                className="ml-1 p-0.5 rounded hover:bg-violet-500/20 transition-colors opacity-60 hover:opacity-100"
+                                title={`Copy "${acc.accountId}"`}>
+                                <Copy className="w-3 h-3" />
+                              </button>
                             </span>
                           ) : (
                             <span className="text-sm text-orange-500 italic">Not assigned</span>
@@ -2656,6 +2818,91 @@ export default function FacebookPage() {
                     className="w-full h-8 px-3 rounded-md border border-gray-200 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/20 bg-white"
                   />
                 </div>
+
+                {/* Inline VCC generation */}
+                {(() => {
+                  const gen = generatedCards[index]
+                  if (!gen) {
+                    return (
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => generateVccForRow(index)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs font-semibold shadow-sm transition-all"
+                          title="Generate a new VCC card and auto-assign it to this ad account on approval">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Generate VCC Card
+                        </button>
+                        <p className="text-[10px] text-gray-400 mt-1">Random cardholder · USD · will auto-link when you submit approval</p>
+                      </div>
+                    )
+                  }
+                  if (gen.loading && !gen.cardNo) {
+                    return (
+                      <div className="flex items-center gap-2 p-2.5 rounded-md border border-violet-200 bg-violet-50 text-violet-700 text-xs">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Issuing card...{gen.taskId ? ` (task ${String(gen.taskId).slice(-6)})` : ''}</span>
+                      </div>
+                    )
+                  }
+                  if (gen.error) {
+                    return (
+                      <div className="flex items-center justify-between gap-2 p-2.5 rounded-md border border-rose-200 bg-rose-50 text-rose-700 text-xs">
+                        <span><AlertTriangle className="w-3.5 h-3.5 inline mr-1" />{gen.error}</span>
+                        <button type="button" onClick={() => generateVccForRow(index)}
+                          className="text-[11px] underline hover:text-rose-800">Retry</button>
+                      </div>
+                    )
+                  }
+                  // Success — show details with copy icons
+                  const last4 = (gen.cardNo || '').match(/(\d{4})(?!.*\d)/)?.[1]
+                  return (
+                    <div className="p-3 rounded-md border border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">Card issued · will auto-link on approval</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <p className="text-[10px] text-gray-500 mb-0.5">Card Number</p>
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono font-semibold text-gray-900 truncate">{gen.cardNo || (last4 ? `•••• ${last4}` : '—')}</span>
+                            {gen.cardNo && (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); copyToClipboard(gen.cardNo!, 'Card number') }}
+                                className="p-0.5 rounded hover:bg-emerald-500/20 opacity-60 hover:opacity-100 transition">
+                                <Copy className="w-3 h-3 text-emerald-700" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-500 mb-0.5">Expiry</p>
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono font-semibold text-gray-900">{gen.expireDate || '—'}</span>
+                            {gen.expireDate && (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); copyToClipboard(gen.expireDate!, 'Expiry') }}
+                                className="p-0.5 rounded hover:bg-emerald-500/20 opacity-60 hover:opacity-100 transition">
+                                <Copy className="w-3 h-3 text-emerald-700" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-500 mb-0.5">CVV</p>
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono font-semibold text-gray-900">{gen.cvv || '—'}</span>
+                            {gen.cvv && (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); copyToClipboard(gen.cvv!, 'CVV') }}
+                                className="p-0.5 rounded hover:bg-emerald-500/20 opacity-60 hover:opacity-100 transition">
+                                <Copy className="w-3 h-3 text-emerald-700" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             ))}
 

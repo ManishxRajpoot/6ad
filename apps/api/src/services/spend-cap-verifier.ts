@@ -13,6 +13,7 @@
 
 import { prisma } from '../lib/prisma.js'
 import { cheetahApi } from './cheetah-api.js'
+import { autoRechargeAssignedVccCard } from '../lib/vcc-auto-recharge.js'
 
 const FB_GRAPH = 'https://graph.facebook.com/v21.0'
 const FAST_POLL_MS = 15_000       // 15s when deposits are pending
@@ -181,6 +182,14 @@ export async function verifyDeposit(depositId: string): Promise<{
           }
         })
 
+        // VCC auto-recharge: extension fallback path also triggers card top-up
+        autoRechargeAssignedVccCard({
+          adAccountId: deposit.adAccountId,
+          amount: deposit.amount,
+          reason: 'EXTENSION_DATA',
+          depositId,
+        }).catch(() => {})
+
         console.log(`[SpendCapVerifier] ✅ VERIFIED deposit ${depositId} via EXTENSION_DATA: reported cap $${deposit.previousSpendCap} → $${deposit.newSpendCap}`)
         return { verified: true }
       }
@@ -231,6 +240,14 @@ export async function verifyDeposit(depositId: string): Promise<{
         })
       }
     })
+
+    // VCC auto-recharge: extension-verified deposit → top up linked card
+    autoRechargeAssignedVccCard({
+      adAccountId: deposit.adAccountId,
+      amount: deposit.amount,
+      reason: 'SPEND_CAP_VERIFY',
+      depositId,
+    }).catch(() => {})
 
     console.log(`[SpendCapVerifier] ✅ VERIFIED deposit ${depositId} via ${result.source}: actual=$${actualCap} >= expected=$${expectedCap}`)
     return { verified: true }
