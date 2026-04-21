@@ -39,6 +39,7 @@ import extensionRoutes from './routes/extension.js'
 import reportRoutes from './routes/reports.js'
 import emailRoutes from './routes/emails.js'
 import yeewallexRoutes from './routes/yeewallex.js'
+import yeewallexWebhooks from './routes/yeewallex-webhooks.js'
 import cmsRoutes from './routes/cms.js'
 import shopRoutes from './routes/shop.js'
 import trackingRoutes from './routes/tracking.js'
@@ -136,6 +137,7 @@ app.route('/extension', extensionRoutes)
 app.route('/reports', reportRoutes)
 app.route('/emails', emailRoutes)
 app.route('/yeewallex', yeewallexRoutes)
+app.route('/webhooks', yeewallexWebhooks)
 app.route('/cms', cmsRoutes)
 app.route('/shop', shopRoutes)
 app.route('/tracking', trackingRoutes)
