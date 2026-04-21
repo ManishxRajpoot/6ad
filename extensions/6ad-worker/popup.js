@@ -119,8 +119,11 @@ function updateHeader(s, hasApiKey) {
 // ─── Status Cards ────────────────────────────────────────
 
 function updateCards(s, hasApiKey) {
-  // Token card
-  if (s.tokenRefreshNeeded) {
+  // Token card — a valid token always wins over a stale "refresh needed" flag
+  if (s.capturedToken && s.tokenValidated) {
+    $tokenStatus.textContent = s.fbUserName || 'Valid'
+    $tokenStatus.className = 'card-value ok'
+  } else if (s.tokenRefreshNeeded) {
     $tokenStatus.textContent = 'Refresh needed'
     $tokenStatus.className = 'card-value err'
   } else if (s.capturedToken && s.tokenCapturedAt) {

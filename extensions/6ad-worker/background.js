@@ -363,10 +363,12 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     validateToken(token).then(function (result) {
       if (result.valid) {
         STATE.tokenValidated = true
+        STATE.tokenRefreshNeeded = false
         STATE.fbUserName = result.name
         chrome.storage.local.set({
           tokenValidated: true,
           tokenValidatedAt: new Date().toISOString(),
+          tokenRefreshNeeded: false,
           fbUserId: result.id,
           fbUserName: result.name
         })
