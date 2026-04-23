@@ -59,7 +59,7 @@ export const metadata: Metadata = {
     siteName: 'ADS360',
     images: [
       {
-        url: '/OGG-image.png',
+        url: 'https://ads360.ai/OGG-image.png?v=2',
         width: 1200,
         height: 630,
         alt: 'ADS360 - Real Agency Ad Accounts',
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'ADS360 - Real Agency Ad Accounts',
     description: 'Get ban-resistant agency ad accounts live in 1 hour. Unlimited spend. No bans.',
-    images: ['/OGG-image.png'],
+    images: ['https://ads360.ai/OGG-image.png?v=2'],
   },
   robots: {
     index: true,
