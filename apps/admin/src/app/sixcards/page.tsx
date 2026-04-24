@@ -303,6 +303,42 @@ export default function VCCPage() {
       }
     } catch (e: any) { toast.error('Error', e.message) }
   }
+  const issueCardDirect = async () => {
+    if (cardholders.length === 0) return toast.error('Error', 'No cardholders available')
+    const holder = cardholders[Math.floor(Math.random() * cardholders.length)]
+    try {
+      const r = await yeewallexApi.cards.create({ cardholderId: holder.id, label: '', alias: '' })
+      if (r.warning) {
+        toast.info('Partial', r.warning)
+      } else {
+        toast.success('Created', `Card issued to ${holder.firstName} ${holder.lastName}! Checking status...`)
+      }
+      await fetchCards()
+      if (r.taskId) {
+        let attempts = 0
+        const poll = setInterval(async () => {
+          attempts++
+          try {
+            const cards = await yeewallexApi.cards.getAll({ page: 1, limit: 20 })
+            const newCards = cards.cards || []
+            setCards(newCards)
+            setCardsTotal(cards.total || 0)
+            const pending = newCards.find((c: any) => c.status === 'PENDING' && c.taskId)
+            if (pending) {
+              await yeewallexApi.cards.getTaskStatus(pending.id)
+              await fetchCards()
+            }
+            const stillPending = newCards.some((c: any) => c.status === 'PENDING')
+            if (!stillPending || attempts >= 12) {
+              clearInterval(poll)
+              if (!stillPending) toast.success('Ready', 'Card is now active!')
+            }
+          } catch { clearInterval(poll) }
+        }, 5000)
+      }
+    } catch (e: any) { toast.error('Error', e.message) }
+  }
+
   const pollTaskStatus = async (id: string) => {
     try { const r = await yeewallexApi.cards.getTaskStatus(id); toast.info('Status', `Task: ${r.taskStatus || r.data?.status || 'Processing'}`); fetchCards() } catch (e: any) { toast.error('Error', e.message) }
   }
@@ -464,7 +500,7 @@ export default function VCCPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowCreateCard(true)} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"><Plus className="w-4 h-4" /> Issue Card</button>
+          <button onClick={issueCardDirect} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"><Plus className="w-4 h-4" /> Issue Card</button>
           <button onClick={() => setShowCreateHolder(true)} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"><UserPlus className="w-4 h-4" /> Add Holder</button>
           <button onClick={syncFromYeewallex} disabled={syncing} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} /> Sync
@@ -930,8 +966,16 @@ export default function VCCPage() {
                 </tr></thead>
                 <tbody>{filteredRechargeHistory.map((tx: any, i: number) => (
                   <tr key={tx.id || i} className="border-b border-gray-100 hover:bg-gray-50/50 tab-row-animate" style={{ animationDelay: `${i * 20}ms` }}>
-                    <td className="py-2 px-2 text-gray-500 whitespace-nowrap text-xs">{tx.createdAt ? formatDate(tx.createdAt) : '—'}</td>
-                    <td className="py-2 px-2 text-gray-500 font-mono text-[10px]">{tx.yeewallexTxId || tx.id || '—'}</td>
+                    <td className="py-2 px-2 text-gray-500 whitespace-nowrap text-xs">
+                      {tx.deposit?.createdAt ? formatDate(tx.deposit.createdAt) : (tx.createdAt ? formatDate(tx.createdAt) : '—')}
+                    </td>
+                    <td className="py-2 px-2 text-gray-500 font-mono text-[10px]">
+                      {tx.deposit?.applyId ? (
+                        <span className="text-purple-700 font-semibold">{tx.deposit.applyId}</span>
+                      ) : (
+                        tx.yeewallexTxId || tx.id || '—'
+                      )}
+                    </td>
                     <td className="py-2 px-2 text-gray-500 font-mono text-[10px]">{tx.card?.yeewallexCardId || '—'}</td>
                     <td className="py-2 px-2 text-gray-700 font-mono text-xs font-semibold">{(() => {
                       const num = tx.card?.cardNumber || tx.cardNumber || ''

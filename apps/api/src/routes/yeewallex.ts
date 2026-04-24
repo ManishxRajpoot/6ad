@@ -874,7 +874,36 @@ yeewallex.get('/recharge-history', async (c) => {
     include: { card: { select: { label: true, yeewallexCardId: true, cardNumber: true, currency: true } } },
   })
 
-  return c.json({ transactions })
+  // Enrich with deposit info: yeewallexTxId pattern "AUTO:<depositId>:<ts>:<rand>"
+  // Extract depositId, batch-fetch matching AccountDeposits, attach { applyId, createdAt }.
+  const depositIds: string[] = []
+  for (const t of transactions) {
+    const yw = t.yeewallexTxId || ''
+    if (yw.startsWith('AUTO:')) {
+      const id = yw.split(':')[1]
+      if (id && /^[a-f0-9]{24}$/i.test(id)) depositIds.push(id)
+    }
+  }
+  const depositMap: Record<string, { applyId: string | null; createdAt: Date; amount: number }> = {}
+  if (depositIds.length > 0) {
+    const deposits = await prisma.accountDeposit.findMany({
+      where: { id: { in: Array.from(new Set(depositIds)) } },
+      select: { id: true, applyId: true, createdAt: true, amount: true },
+    })
+    for (const d of deposits) depositMap[d.id] = { applyId: d.applyId, createdAt: d.createdAt, amount: d.amount }
+  }
+
+  const enriched = transactions.map(t => {
+    const yw = t.yeewallexTxId || ''
+    let deposit: { applyId: string | null; createdAt: Date; amount: number } | null = null
+    if (yw.startsWith('AUTO:')) {
+      const id = yw.split(':')[1]
+      if (id && depositMap[id]) deposit = depositMap[id]
+    }
+    return { ...t, deposit }
+  })
+
+  return c.json({ transactions: enriched })
 })
 
 // GET /transactions — List all transactions from Yeewallex API (admin)
