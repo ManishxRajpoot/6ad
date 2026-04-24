@@ -65,12 +65,22 @@ export async function autoRechargeAssignedVccCard(params: {
       return { triggered: false, cardId: card.id, error: `card status ${card.status}` }
     }
 
-    // Mark as PENDING while the Yeewallex API call is in flight
+    // ATOMIC CLAIM: mark as PENDING only if not already PENDING/DONE.
+    // MongoDB's updateMany with a conditional `where` is atomic — only ONE concurrent
+    // caller can match this filter. Any subsequent caller sees count=0 and bails out.
+    // This prevents the race condition where 2 verifier cycles both fire the VCC charge.
     if (depositId) {
-      await prisma.accountDeposit.update({
-        where: { id: depositId },
+      const claim = await prisma.accountDeposit.updateMany({
+        where: {
+          id: depositId,
+          cardPaymentStatus: { notIn: ['PENDING', 'DONE', 'FAILED'] as any },
+        },
         data: { cardPaymentStatus: 'PENDING', vccCardId: card.id, vccRechargeError: null },
-      }).catch(() => {})
+      })
+      if (claim.count === 0) {
+        console.log(`[VCC-AutoRecharge] ${reason}: ⛔ deposit ${depositId} already has cardPaymentStatus in PENDING/DONE/FAILED — SKIP (race prevented)`)
+        return { triggered: false, cardId: card.id, error: 'already claimed — double-charge prevented' }
+      }
     }
 
     console.log(`[VCC-AutoRecharge] ${reason}: recharging card ${card.id} (YW:${card.yeewallexCardId}) with $${amount} (deposit ${depositId || 'n/a'})`)
@@ -122,10 +132,11 @@ export async function autoRechargeAssignedVccCard(params: {
       return { triggered: true, cardId: card.id, error: result.message || 'yeewallex failed' }
     }
 
-    // Success: mark deposit as DONE and attach recharge transaction id
+    // Success: mark deposit as DONE only if it is still PENDING (set by our atomic claim above).
+    // If another process already flipped it to DONE, we leave it alone — no overwrite.
     if (depositId) {
-      await prisma.accountDeposit.update({
-        where: { id: depositId },
+      await prisma.accountDeposit.updateMany({
+        where: { id: depositId, cardPaymentStatus: 'PENDING' },
         data: {
           cardPaymentStatus: 'DONE',
           cardPaymentDoneAt: new Date(),

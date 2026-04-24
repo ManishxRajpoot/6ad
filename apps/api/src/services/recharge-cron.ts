@@ -159,13 +159,18 @@ async function processDeposit(deposit: any): Promise<void> {
             })
           }
         })
-        // VCC auto-recharge for linked card
-        autoRechargeAssignedVccCard({
-          adAccountId: deposit.adAccountId,
-          amount: deposit.amount,
-          reason: 'CHEETAH_CRON_SKIP',
-          depositId: deposit.id,
-        }).catch(() => {})
+        // VCC auto-recharge for linked card (pre-check + atomic guard prevent double-charge)
+        const preSkip = await prisma.accountDeposit.findUnique({
+          where: { id: deposit.id }, select: { cardPaymentStatus: true }
+        })
+        if (preSkip?.cardPaymentStatus !== 'DONE' && preSkip?.cardPaymentStatus !== 'PENDING') {
+          autoRechargeAssignedVccCard({
+            adAccountId: deposit.adAccountId,
+            amount: deposit.amount,
+            reason: 'CHEETAH_CRON_SKIP',
+            depositId: deposit.id,
+          }).catch(() => {})
+        }
         console.log(`[RechargeCron] SKIP — already at target: act_${accountId} cap=$${currentSpendCap} >= target=$${targetSpendCap} (${deposit.applyId || deposit.id})`)
 
         // Audit log
@@ -215,13 +220,18 @@ async function processDeposit(deposit: any): Promise<void> {
                 })
               }
             })
-            // VCC auto-recharge for linked card
-            autoRechargeAssignedVccCard({
-              adAccountId: deposit.adAccountId,
-              amount: deposit.amount,
-              reason: 'CHEETAH_CRON_RECHARGE',
-              depositId: deposit.id,
-            }).catch(() => {})
+            // VCC auto-recharge for linked card (pre-check + atomic guard prevent double-charge)
+            const preRc = await prisma.accountDeposit.findUnique({
+              where: { id: deposit.id }, select: { cardPaymentStatus: true }
+            })
+            if (preRc?.cardPaymentStatus !== 'DONE' && preRc?.cardPaymentStatus !== 'PENDING') {
+              autoRechargeAssignedVccCard({
+                adAccountId: deposit.adAccountId,
+                amount: deposit.amount,
+                reason: 'CHEETAH_CRON_RECHARGE',
+                depositId: deposit.id,
+              }).catch(() => {})
+            }
             console.log(`[RechargeCron] Cheetah recharge SUCCESS: act_${accountId} +$${amount} target=$${targetSpendCap} (${deposit.applyId || deposit.id})`)
             cheetahHandled = true
             return

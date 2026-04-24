@@ -562,6 +562,7 @@ accounts.get('/refunds', requireUser, async (c) => {
               accountName: true,
               platform: true,
               balance: true,
+              application: { select: { applyId: true } }
             }
           }
         },
@@ -613,6 +614,7 @@ accounts.get('/refunds/admin', requireAdmin, async (c) => {
               accountName: true,
               platform: true,
               balance: true,
+              application: { select: { applyId: true } },
               user: {
                 select: { id: true, username: true, email: true, uniqueId: true }
               }
@@ -671,6 +673,7 @@ accounts.get('/transfers', requireUser, async (c) => {
               accountName: true,
               platform: true,
               balance: true,
+              application: { select: { applyId: true } }
             }
           },
           toAccount: {
@@ -680,6 +683,7 @@ accounts.get('/transfers', requireUser, async (c) => {
               accountName: true,
               platform: true,
               balance: true,
+              application: { select: { applyId: true } }
             }
           }
         },
@@ -1799,13 +1803,19 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
         })
       })
 
-      // VCC auto-recharge: if a card is linked to this ad account, recharge it for the same amount
-      autoRechargeAssignedVccCard({
-        adAccountId: deposit.adAccountId,
-        amount: deposit.amount,
-        reason: 'ADMIN_APPROVE',
-        depositId: id,
-      }).catch(() => { /* helper already swallows errors */ })
+      // VCC auto-recharge: if a card is linked to this ad account, recharge it for the same amount.
+      // Pre-check + atomic claim inside the helper prevent double-charge race condition.
+      const preAdm = await prisma.accountDeposit.findUnique({
+        where: { id }, select: { cardPaymentStatus: true }
+      })
+      if (preAdm?.cardPaymentStatus !== 'DONE' && preAdm?.cardPaymentStatus !== 'PENDING') {
+        autoRechargeAssignedVccCard({
+          adAccountId: deposit.adAccountId,
+          amount: deposit.amount,
+          reason: 'ADMIN_APPROVE',
+          depositId: id,
+        }).catch(() => { /* helper already swallows errors */ })
+      }
     } else {
       // Non-Cheetah FB: stay PENDING, set approvedAt to signal admin approved
       // Balance NOT incremented — will be incremented when recharge confirmed
@@ -2459,6 +2469,99 @@ accounts.post('/refunds/:id/approve', requireAdmin, async (c) => {
       })
     })
 
+    // Remove all BM partner access from the ad account via FB Graph API (fire-and-forget)
+    ;(async () => {
+      try {
+        const actId = refund.adAccount.accountId
+
+        // Cheetah accounts — use Cheetah API to unbind all BM partners
+        if (refund.adAccount.sourceBmId === 'cheetah') {
+          await cheetahApi.loadConfig()
+          const bindingsRes = await cheetahApi.getBMBindings(actId)
+          if (bindingsRes.code !== 0) {
+            console.warn(`[Refund] Cheetah getBMBindings failed for act_${actId}:`, bindingsRes.msg)
+            await prisma.accountRefund.update({ where: { id: refund.id }, data: { bmUnbindDone: false } })
+            return
+          }
+          const businessIds: string[] = bindingsRes.data?.business_id || []
+          if (businessIds.length === 0) {
+            console.log(`[Refund] No BM partners on Cheetah act_${actId}`)
+            await prisma.accountRefund.update({ where: { id: refund.id }, data: { bmUnbindDone: true } })
+            return
+          }
+          console.log(`[Refund] Cheetah unbinding ${businessIds.length} BM(s) from act_${actId}: ${businessIds.join(', ')}`)
+          for (const bmId of businessIds) {
+            const res = await cheetahApi.bindAccountToBM(actId, bmId, 0) // type 0 = unbind
+            if (res.code === 0) {
+              console.log(`[Refund] Cheetah unbound BM ${bmId} from act_${actId}`)
+            } else {
+              console.warn(`[Refund] Cheetah unbind failed BM ${bmId}:`, res.msg)
+            }
+          }
+          await prisma.accountRefund.update({ where: { id: refund.id }, data: { bmUnbindDone: true } })
+          return
+        }
+
+        // Find profile by extensionProfileId first, fallback to managedAdAccountIds
+        let profile = refund.adAccount.extensionProfileId
+          ? await prisma.facebookAutomationProfile.findUnique({
+              where: { id: refund.adAccount.extensionProfileId },
+              select: { fbAccessToken: true, label: true }
+            }).catch(() => null)
+          : null
+
+        if (!profile?.fbAccessToken) {
+          profile = await prisma.facebookAutomationProfile.findFirst({
+            where: { managedAdAccountIds: { has: actId } },
+            select: { fbAccessToken: true, label: true }
+          }).catch(() => null)
+        }
+
+        const fbToken = profile?.fbAccessToken
+        if (!fbToken) {
+          // No token — mark refund as pending BM unbind so extension retries when token available
+          await prisma.accountRefund.update({ where: { id: refund.id }, data: { bmUnbindDone: false } })
+          console.log(`[Refund] No FB token for act_${actId} — queued for extension BM unbind`)
+          return
+        }
+
+        const fbGraph = 'https://graph.facebook.com/v21.0'
+        const agenciesRes = await fetch(`${fbGraph}/act_${actId}/agencies?fields=id,name&access_token=${encodeURIComponent(fbToken)}`)
+        const agenciesData: any = await agenciesRes.json()
+
+        if (agenciesData.error) {
+          console.warn(`[Refund] FB agencies fetch error for act_${actId}:`, agenciesData.error.message)
+          await prisma.accountRefund.update({ where: { id: refund.id }, data: { bmUnbindDone: false } })
+          return
+        }
+
+        const partners: { id: string; name: string }[] = agenciesData?.data || []
+        if (partners.length === 0) {
+          console.log(`[Refund] No BM partners on act_${actId}`)
+          await prisma.accountRefund.update({ where: { id: refund.id }, data: { bmUnbindDone: true } })
+          return
+        }
+
+        console.log(`[Refund] Removing ${partners.length} BM partner(s) from act_${actId}: ${partners.map(p => p.name || p.id).join(', ')}`)
+        for (const partner of partners) {
+          const res = await fetch(`${fbGraph}/act_${actId}/agencies`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `business=${partner.id}&access_token=${encodeURIComponent(fbToken)}`
+          })
+          const result: any = await res.json()
+          if (result.success) {
+            console.log(`[Refund] Removed BM ${partner.name || partner.id} from act_${actId}`)
+          } else {
+            console.warn(`[Refund] Failed to remove BM ${partner.id} from act_${actId}:`, result.error?.message)
+          }
+        }
+        await prisma.accountRefund.update({ where: { id: refund.id }, data: { bmUnbindDone: true } })
+      } catch (err: any) {
+        console.error(`[Refund] BM unbind error for act_${refund.adAccount.accountId}:`, err.message)
+      }
+    })()
+
     // Get agent branding
     const approvedDomain = refund.adAccount.user.agent?.customDomains?.[0]
     const agentRef = refund.adAccount.user.agent
@@ -2962,25 +3065,61 @@ accounts.get('/cheetah-balances/batch', requireUser, async (c) => {
       where.userId = userId
     }
 
-    const accounts = await prisma.adAccount.findMany({ where })
+    const accounts = await prisma.adAccount.findMany({
+      where,
+      select: { accountId: true, sourceBmId: true, balance: true, totalDeposit: true, totalSpend: true, currency: true }
+    })
 
     if (accounts.length === 0) {
       return c.json({ balances: {} })
     }
 
+    const balances: Record<string, any> = {}
+
+    // Only call Cheetah API for accounts with sourceBmId === 'cheetah'
+    const cheetahAccounts = accounts.filter(a => a.sourceBmId === 'cheetah')
+    const nonCheetahAccounts = accounts.filter(a => a.sourceBmId !== 'cheetah')
+
+    // Mark non-Cheetah accounts instantly
+    for (const acc of nonCheetahAccounts) {
+      balances[acc.accountId] = { isCheetah: false }
+    }
+
+    // Skip Cheetah API entirely if no Cheetah accounts
+    if (cheetahAccounts.length === 0) {
+      return c.json({ balances })
+    }
+
     // Load Cheetah config
     const configLoaded = await loadCheetahConfig()
     if (!configLoaded) {
-      return c.json({ error: 'Cheetah API not configured', balances: {} })
+      return c.json({ balances }) // return what we have (non-cheetah data)
     }
 
-    // Fetch all accounts from Cheetah in parallel (not sequential)
-    const balances: Record<string, any> = {}
+    // 3-second timeout helper — fallback to DB data if Cheetah is slow
+    const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
+      Promise.race([p, new Promise<null>(resolve => setTimeout(() => resolve(null), ms))])
 
+    // Fetch only Cheetah accounts in parallel, with individual timeout
     const results = await Promise.allSettled(
-      accounts.map(async (account) => {
+      cheetahAccounts.map(async (account) => {
         try {
-          const result = await cheetahApi.getAccount(account.accountId)
+          const result = await withTimeout(cheetahApi.getAccount(account.accountId), 3000)
+          if (result === null) {
+            // Timeout — return DB-cached balance as fallback
+            return {
+              accountId: account.accountId,
+              data: {
+                spendCap: 0,
+                amountSpent: Number(account.totalSpend) || 0,
+                balance: Number(account.balance) || 0,
+                remainingBalance: Number(account.balance) || 0,
+                currency: account.currency || 'USD',
+                isCheetah: true,
+                cached: true
+              }
+            }
+          }
           if (result.code === 0 && result.data && result.data.length > 0) {
             const cheetahAccount = result.data[0]
             const spendCap = parseFloat(cheetahAccount.spend_cap) || 0

@@ -182,13 +182,23 @@ export async function verifyDeposit(depositId: string): Promise<{
           }
         })
 
-        // VCC auto-recharge: extension fallback path also triggers card top-up
-        autoRechargeAssignedVccCard({
-          adAccountId: deposit.adAccountId,
-          amount: deposit.amount,
-          reason: 'EXTENSION_DATA',
-          depositId,
-        }).catch(() => {})
+        // VCC auto-recharge: extension fallback path also triggers card top-up.
+        // Atomic-claim guard inside vcc-auto-recharge prevents double-charge even if
+        // this fires twice, but we also pre-check here to avoid logs.
+        const pre1 = await prisma.accountDeposit.findUnique({
+          where: { id: depositId },
+          select: { cardPaymentStatus: true },
+        })
+        if (pre1?.cardPaymentStatus !== 'DONE' && pre1?.cardPaymentStatus !== 'PENDING') {
+          autoRechargeAssignedVccCard({
+            adAccountId: deposit.adAccountId,
+            amount: deposit.amount,
+            reason: 'EXTENSION_DATA',
+            depositId,
+          }).catch(() => {})
+        } else {
+          console.log(`[SpendCapVerifier] ⛔ VCC recharge skipped for ${depositId} — cardPaymentStatus=${pre1.cardPaymentStatus}`)
+        }
 
         console.log(`[SpendCapVerifier] ✅ VERIFIED deposit ${depositId} via EXTENSION_DATA: reported cap $${deposit.previousSpendCap} → $${deposit.newSpendCap}`)
         return { verified: true }
@@ -241,13 +251,22 @@ export async function verifyDeposit(depositId: string): Promise<{
       }
     })
 
-    // VCC auto-recharge: extension-verified deposit → top up linked card
-    autoRechargeAssignedVccCard({
-      adAccountId: deposit.adAccountId,
-      amount: deposit.amount,
-      reason: 'SPEND_CAP_VERIFY',
-      depositId,
-    }).catch(() => {})
+    // VCC auto-recharge: extension-verified deposit → top up linked card.
+    // Pre-check before firing — the vcc-auto-recharge atomic claim is the real guard.
+    const pre2 = await prisma.accountDeposit.findUnique({
+      where: { id: depositId },
+      select: { cardPaymentStatus: true },
+    })
+    if (pre2?.cardPaymentStatus !== 'DONE' && pre2?.cardPaymentStatus !== 'PENDING') {
+      autoRechargeAssignedVccCard({
+        adAccountId: deposit.adAccountId,
+        amount: deposit.amount,
+        reason: 'SPEND_CAP_VERIFY',
+        depositId,
+      }).catch(() => {})
+    } else {
+      console.log(`[SpendCapVerifier] ⛔ VCC recharge skipped for ${depositId} — cardPaymentStatus=${pre2.cardPaymentStatus}`)
+    }
 
     console.log(`[SpendCapVerifier] ✅ VERIFIED deposit ${depositId} via ${result.source}: actual=$${actualCap} >= expected=$${expectedCap}`)
     return { verified: true }
