@@ -449,6 +449,14 @@ export default function VCCPage() {
 
   const formatDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
+  // Full date + time in Indian Standard Time with seconds — used in Recharge/Refund table
+  const formatDateTimeIST = (d: string) => {
+    const date = new Date(d)
+    const datePart = date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Kolkata' })
+    const timePart = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' })
+    return `${datePart} ${timePart}`
+  }
+
   // Pagination
   const totalPages = itemsPerPage === -1 ? 1 : (Math.ceil(cardsTotal / itemsPerPage) || 1)
   const renderPageButtons = (current: number, total: number, setCurrent: (p: number) => void) => (
@@ -967,7 +975,7 @@ export default function VCCPage() {
                 <tbody>{filteredRechargeHistory.map((tx: any, i: number) => (
                   <tr key={tx.id || i} className="border-b border-gray-100 hover:bg-gray-50/50 tab-row-animate" style={{ animationDelay: `${i * 20}ms` }}>
                     <td className="py-2 px-2 text-gray-500 whitespace-nowrap text-xs">
-                      {tx.deposit?.createdAt ? formatDate(tx.deposit.createdAt) : (tx.createdAt ? formatDate(tx.createdAt) : '—')}
+                      {tx.deposit?.createdAt ? formatDateTimeIST(tx.deposit.createdAt) : (tx.createdAt ? formatDateTimeIST(tx.createdAt) : '—')}
                     </td>
                     <td className="py-2 px-2 text-gray-500 font-mono text-[10px]">
                       {tx.deposit?.applyId ? (
