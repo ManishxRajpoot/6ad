@@ -14,6 +14,13 @@ const nextConfig: NextConfig = {
     maxInactiveAge: 15 * 1000,
     pagesBufferLength: 2,
   },
+  // Permanent redirect from old /yeewallex route to /sixcards
+  async redirects() {
+    return [
+      { source: '/yeewallex', destination: '/sixcards', permanent: true },
+      { source: '/yeewallex/:path*', destination: '/sixcards/:path*', permanent: true },
+    ]
+  },
   // Headers for cache control
   async headers() {
     return [
