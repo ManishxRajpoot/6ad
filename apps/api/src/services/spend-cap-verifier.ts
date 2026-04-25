@@ -167,7 +167,10 @@ export async function verifyDeposit(depositId: string): Promise<{
               verifiedAt: new Date(),
               verificationFailed: false,
               rechargeError: null,
-              cardPaymentStatus: isNonCheetahFb ? 'PENDING' : 'NONE',
+              // Don't pre-set PENDING here — autoRechargeAssignedVccCard owns the
+              // NONE → PENDING → DONE state machine. Pre-setting PENDING would
+              // make the atomic claim think a charge is already in-flight.
+              cardPaymentStatus: 'NONE',
             },
           })
 
@@ -235,7 +238,8 @@ export async function verifyDeposit(depositId: string): Promise<{
           verifiedAt: new Date(),
           verificationFailed: false,
           rechargeError: null,
-          cardPaymentStatus: isNonCheetahFb2 ? 'PENDING' : 'NONE',
+          // autoRechargeAssignedVccCard owns NONE → PENDING → DONE state machine
+          cardPaymentStatus: 'NONE',
         },
       })
 
