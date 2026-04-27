@@ -108,8 +108,8 @@ export default function BmTokensPage() {
     const ok = await confirm({
       title: 'Remove BM Token?',
       message: `Remove the BMSU token for ${bmName || 'this BM'}? Recharges will fall back to the extension flow until you re-add it. Linked ad accounts keep their sourceBmId.`,
-      confirmText: 'Remove',
-      destructive: true,
+      confirmLabel: 'Remove',
+      variant: 'danger',
     })
     if (!ok) return
     try {
