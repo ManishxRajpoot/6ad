@@ -582,6 +582,29 @@ export const emailApi = {
     ),
 }
 
+// BM Tokens API (Admin) — server-side recharge via Meta System User tokens
+export const bmTokensApi = {
+  list: () => api.get<{ tokens: any[] }>('/bm-tokens'),
+  get: (id: string) => api.get<{ token: any; linkedAccounts: any[] }>(`/bm-tokens/${id}`),
+  validate: (token: string) =>
+    api.post<{
+      valid: boolean
+      error?: string
+      tokenInfo?: { type: string; appName: string; userName: string; scopes: string[]; expiresAt: number; permanent: boolean }
+      ownerBM?: { id: string; name: string; verification_status?: string }
+      adAccounts?: any[]
+      summary?: { totalFb: number; existsInDb: number; notInDb: number }
+    }>('/bm-tokens/validate', { token }),
+  save: (data: { token: string; bmId?: string }) =>
+    api.post<{ success: boolean; bmToken: any; linkedAccounts: number; totalFbAccounts: number; skipped: number }>('/bm-tokens', data),
+  update: (id: string, data: { token?: string; status?: string }) =>
+    api.patch<{ success: boolean; token: any }>(`/bm-tokens/${id}`, data),
+  sync: (id: string) =>
+    api.post<{ success: boolean; newlyLinked: number; totalLinked: number; totalFbAccounts: number }>(`/bm-tokens/${id}/sync`, {}),
+  remove: (id: string) =>
+    api.delete<{ success: boolean }>(`/bm-tokens/${id}`),
+}
+
 // Referrals API (Admin)
 export const referralsApi = {
   getAll: () => api.get<{ referrals: any[] }>('/referrals/admin'),

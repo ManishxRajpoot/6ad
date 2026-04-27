@@ -18,6 +18,7 @@ import {
   Gift,
   Ticket,
   Plug,
+  KeyRound,
   ChevronRight,
   Layers,
   Mail,
@@ -98,7 +99,7 @@ const menuSections: MenuSection[] = [
     items: [
       { name: 'Transactions', href: '/transactions', icon: CreditCard },
       { name: 'Withdrawals', href: '/withdrawals', icon: ArrowUpRight },
-      { name: 'VCC Cards', href: '/yeewallex', icon: CreditCard },
+      { name: 'VCC Cards', href: '/sixcards', icon: CreditCard },
       { name: 'Reports', href: '/reports', icon: FileText },
     ]
   },
@@ -134,6 +135,7 @@ const menuSections: MenuSection[] = [
     collapsible: true,
     items: [
       { name: 'Extension API', href: '/extension', icon: Plug },
+      { name: 'BM Tokens', href: '/bm-tokens', icon: KeyRound },
       { name: 'Whitelabel', href: '/domain-requests', icon: Globe },
       { name: 'Settings', href: '/settings', icon: Settings },
     ]
