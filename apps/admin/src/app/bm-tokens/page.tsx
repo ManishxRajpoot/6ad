@@ -58,7 +58,7 @@ export default function BmTokensPage() {
       const data = await bmTokensApi.list()
       setTokens(data.tokens || [])
     } catch (e: any) {
-      showToast(e.message || 'Failed to load BM tokens', 'error')
+      showToast('error', e.message || 'Failed to load BM tokens')
     } finally {
       setLoading(false)
     }
@@ -78,7 +78,7 @@ export default function BmTokensPage() {
         const data = await bmTokensApi.get(id)
         setLinkedAccounts(prev => ({ ...prev, [id]: data.linkedAccounts || [] }))
       } catch (e: any) {
-        showToast(e.message || 'Failed to load detail', 'error')
+        showToast('error', e.message || 'Failed to load detail')
       } finally {
         setLoadingDetail(null)
       }
@@ -89,7 +89,7 @@ export default function BmTokensPage() {
     setSyncingId(id)
     try {
       const r = await bmTokensApi.sync(id)
-      showToast(`Synced — ${r.newlyLinked} newly linked, ${r.totalLinked} total`, 'success')
+      showToast('success', `Synced — ${r.newlyLinked} newly linked, ${r.totalLinked} total`)
       // Refresh both list + cached detail
       await loadTokens()
       setLinkedAccounts(prev => { const c = { ...prev }; delete c[id]; return c })
@@ -98,7 +98,7 @@ export default function BmTokensPage() {
         setLinkedAccounts(prev => ({ ...prev, [id]: data.linkedAccounts || [] }))
       }
     } catch (e: any) {
-      showToast(e.message || 'Sync failed', 'error')
+      showToast('error', e.message || 'Sync failed')
     } finally {
       setSyncingId(null)
     }
@@ -114,10 +114,10 @@ export default function BmTokensPage() {
     if (!ok) return
     try {
       await bmTokensApi.remove(id)
-      showToast('BM token removed', 'success')
+      showToast('success', 'BM token removed')
       await loadTokens()
     } catch (e: any) {
-      showToast(e.message || 'Delete failed', 'error')
+      showToast('error', e.message || 'Delete failed')
     }
   }
 
@@ -304,18 +304,18 @@ function AddBmTokenModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const { showToast } = useToast()
 
   const handleValidate = async () => {
-    if (!token.trim()) { showToast('Paste a token first', 'error'); return }
+    if (!token.trim()) { showToast('error', 'Paste a token first'); return }
     setValidating(true)
     try {
       const r = await bmTokensApi.validate(token.trim())
       if (!r.valid) {
-        showToast(r.error || 'Token is invalid', 'error')
+        showToast('error', r.error || 'Token is invalid')
         return
       }
       setPreview(r)
       setStep('preview')
     } catch (e: any) {
-      showToast(e.message || 'Validation failed', 'error')
+      showToast('error', e.message || 'Validation failed')
     } finally {
       setValidating(false)
     }
@@ -325,10 +325,10 @@ function AddBmTokenModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
     setSaving(true)
     try {
       const r = await bmTokensApi.save({ token: token.trim() })
-      showToast(`Saved — ${r.linkedAccounts} ad accounts linked`, 'success')
+      showToast('success', `Saved — ${r.linkedAccounts} ad accounts linked`)
       onSaved()
     } catch (e: any) {
-      showToast(e.message || 'Save failed', 'error')
+      showToast('error', e.message || 'Save failed')
     } finally {
       setSaving(false)
     }
