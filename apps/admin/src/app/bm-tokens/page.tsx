@@ -125,8 +125,8 @@ export default function BmTokensPage() {
     switch (status) {
       case 'ACTIVE': return <Badge variant="success">Active</Badge>
       case 'PAUSED': return <Badge variant="warning">Paused</Badge>
-      case 'EXPIRED': return <Badge variant="error">Expired</Badge>
-      case 'INVALID': return <Badge variant="error">Invalid</Badge>
+      case 'EXPIRED': return <Badge variant="danger">Expired</Badge>
+      case 'INVALID': return <Badge variant="danger">Invalid</Badge>
       default: return <Badge>{status}</Badge>
     }
   }
@@ -413,7 +413,7 @@ function AddBmTokenModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
                     <Building2 className="w-4 h-4 text-violet-600" />
                     <span className="font-semibold text-gray-900">{preview.ownerBM.name}</span>
                     {preview.ownerBM.verification_status === 'verified' && (
-                      <Badge variant="success" size="sm">Verified</Badge>
+                      <Badge variant="success">Verified</Badge>
                     )}
                   </div>
                   <div className="text-xs text-gray-500 font-mono mt-1">BM ID: {preview.ownerBM.id}</div>
