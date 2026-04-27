@@ -43,6 +43,7 @@ import yeewallexWebhooks from './routes/yeewallex-webhooks.js'
 import cmsRoutes from './routes/cms.js'
 import shopRoutes from './routes/shop.js'
 import trackingRoutes from './routes/tracking.js'
+import bmTokenRoutes from './routes/bm-tokens.js'
 import { startBackgroundVerifier } from './services/crypto/background-verifier.js'
 import { startHeartbeat } from './services/event-bus.js'
 import { startTaskWatchdog } from './services/task-watchdog.js'
@@ -141,6 +142,7 @@ app.route('/webhooks', yeewallexWebhooks)
 app.route('/cms', cmsRoutes)
 app.route('/shop', shopRoutes)
 app.route('/tracking', trackingRoutes)
+app.route('/bm-tokens', bmTokenRoutes)
 
 // Start background crypto verification service
 startBackgroundVerifier().catch(console.error)
