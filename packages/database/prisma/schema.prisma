@@ -1855,7 +1855,6 @@ model BmToken {
   linkedAccountsCount Int   @default(0)      // # of ad accounts auto-linked to this BM
   updatedAt       DateTime  @updatedAt
 
-  @@index([bmId])
   @@index([status])
 }
 
