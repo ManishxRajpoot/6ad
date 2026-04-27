@@ -51,7 +51,7 @@ export default function BmTokensPage() {
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null)
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const { showToast } = useToast()
-  const { confirm } = useConfirm()
+  const confirm = useConfirm()
 
   const loadTokens = async () => {
     try {
