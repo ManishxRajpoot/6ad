@@ -503,6 +503,9 @@ model AccountRefund {
 
   approvedAt        DateTime?
 
+  // BM unbind tracking (set false when approved but no FB token available — extension retries)
+  bmUnbindDone      Boolean           @default(true)
+
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 }
@@ -1822,4 +1825,56 @@ model ShopOrderItem {
 
   @@index([orderId])
   @@index([productId])
+}
+
+// ============================================================
+// BMSU Token Storage — Server-side recharge via Meta System User tokens
+// ============================================================
+// One BmToken record per Business Manager. Token is encrypted at rest.
+// Recharge cron looks up token by AdAccount.sourceBmId == BmToken.bmId.
+// Auto-discovery on save: token is validated, BM info fetched, ad accounts
+// linked to existing AdAccount records (no auto-create).
+
+model BmToken {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  bmId            String    @unique          // Meta BM ID, matches AdAccount.sourceBmId
+  bmName          String?                    // friendly name fetched from Meta
+  verificationStatus String?                 // "verified" | "not_verified" | "rejected"
+  encryptedToken  String                     // AES-256-GCM encrypted blob
+  status          String    @default("ACTIVE") // ACTIVE | INVALID | EXPIRED | PAUSED
+  scopes          String[]                   // ["ads_management","business_management"]
+  tokenType       String?                    // "SYSTEM_USER" | "USER"
+  appId           String?                    // FB app ID (audit)
+  systemUserId    String?                    // FB system user ID (audit)
+  addedById       String?   @db.ObjectId     // admin user who added this
+  addedAt         DateTime  @default(now())
+  lastUsedAt      DateTime?                  // last successful recharge call
+  lastErrorAt     DateTime?
+  lastError       String?                    // last error message
+  validatedAt     DateTime?                  // last successful debug_token check
+  linkedAccountsCount Int   @default(0)      // # of ad accounts auto-linked to this BM
+  updatedAt       DateTime  @updatedAt
+
+  @@index([bmId])
+  @@index([status])
+}
+
+// Track every spend_cap change for FB's 10/day rate limit per ad account
+model BmTokenChangeLog {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  adAccountId     String    @db.ObjectId       // FK AdAccount.id
+  bmTokenId       String?   @db.ObjectId       // which BmToken was used (nullable if other path)
+  bmId            String?                      // for fast filtering
+  operation       String                       // "RECHARGE" | "VALIDATE" | "SYNC"
+  changedAt       DateTime  @default(now())
+  fromValue       String?                      // previous spend_cap (cents string from FB)
+  toValue         String?                      // new spend_cap input (dollars)
+  success         Boolean
+  errorMessage    String?
+  fbErrorCode     Int?                         // FB error.code if any
+  fbErrorSubcode  Int?
+
+  @@index([adAccountId, changedAt])           // for 10/day rate-limit lookup
+  @@index([bmTokenId])
+  @@index([bmId])
 }
