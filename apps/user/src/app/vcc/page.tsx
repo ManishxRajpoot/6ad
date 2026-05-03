@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
+import { SearchableSelect } from '@/components/ui/SearchableSelect'
 import { vccApi, authApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { useToast } from '@/contexts/ToastContext'
@@ -332,7 +333,17 @@ export default function VccPage() {
   ]
 
   const cardOptions = useMemo(
-    () => cards.map(c => ({ value: c.id, label: `${c.label || c.alias || (c.yeewallexCardId ? '••' + c.yeewallexCardId.slice(-4) : 'Card')} — $${Number(c.balance || 0).toFixed(2)}` })),
+    () => cards.map(c => {
+      // Format card number: "441359******6114" -> "4413 59•• •••• 6114"
+      const num = c.cardNumber
+        ? String(c.cardNumber).replace(/\*/g, '•').replace(/(.{4})/g, '$1 ').trim()
+        : (c.yeewallexCardId ? `•••• •••• •••• ${c.yeewallexCardId.slice(-4)}` : 'Card')
+      const tag = c.label || c.alias
+      return {
+        value: c.id,
+        label: `${num}${tag ? ` — ${tag}` : ''} — $${Number(c.balance || 0).toFixed(2)}`,
+      }
+    }),
     [cards]
   )
   const walletBalance = Number(user?.walletBalance || 0)
@@ -712,7 +723,7 @@ export default function VccPage() {
                   {/* Card */}
                   <div className="space-y-2">
                     <label className="block text-xs lg:text-sm font-semibold text-gray-800">Card</label>
-                    <Select options={[{ value: '', label: 'Select a card' }, ...cardOptions]} value={depositCardId} onChange={setDepositCardId} placeholder="Select a card" size="default" />
+                    <SearchableSelect options={cardOptions} value={depositCardId} onChange={setDepositCardId} placeholder="Select a card" searchPlaceholder="Search by card number, label..." size="default" />
                   </div>
 
                   {/* Amount */}
@@ -777,7 +788,7 @@ export default function VccPage() {
 
                   <div className="space-y-2">
                     <label className="block text-xs lg:text-sm font-semibold text-gray-800">Card</label>
-                    <Select options={[{ value: '', label: 'Select a card' }, ...cardOptions]} value={withdrawCardId} onChange={setWithdrawCardId} placeholder="Select a card" size="default" />
+                    <SearchableSelect options={cardOptions} value={withdrawCardId} onChange={setWithdrawCardId} placeholder="Select a card" searchPlaceholder="Search by card number, label..." size="default" />
                   </div>
 
                   <div className="space-y-2">
