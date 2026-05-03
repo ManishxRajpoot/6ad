@@ -627,105 +627,202 @@ export default function VccPage() {
                 </div>
               )}
 
-              {/* ─── Issue Card form ─────────────────────────────────── */}
+              {/* ─── Issue Card form (FB-style) ──────────────────────── */}
               {activeSubPage === 'issue-card' && (
-                <div className="p-6 max-w-xl">
-                  <h2 className="text-base font-bold text-gray-900 mb-1">Issue a New Card</h2>
-                  <p className="text-xs text-gray-500 mb-5">A new virtual card will be created and assigned to your account.</p>
-                  <div className="space-y-4">
-                    <Input label="Label (optional)" value={issueForm.label} onChange={e => setIssueForm(p => ({ ...p, label: e.target.value }))} placeholder="e.g. Facebook Ads" />
-                    <Input label="Alias (optional)" value={issueForm.alias} onChange={e => setIssueForm(p => ({ ...p, alias: e.target.value }))} placeholder="Internal nickname" />
-                    <div className="bg-gray-50 rounded-xl p-3 flex items-center justify-between">
-                      <p className="text-xs text-gray-500">Wallet Balance</p>
-                      <p className="text-base font-bold text-gray-900">${walletBalance.toFixed(2)}</p>
+                <div className="px-4 lg:px-6 py-4 lg:py-5 space-y-4 max-w-2xl">
+                  <div>
+                    <h2 className="text-base lg:text-lg font-bold text-gray-900">Issue a New Card</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">A new virtual card will be created and assigned to your account.</p>
+                  </div>
+
+                  {/* Label */}
+                  <div className="space-y-2">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">
+                      Label
+                      <span className="text-[9px] lg:text-[10px] font-normal text-gray-500 ml-1">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Facebook Ads"
+                      value={issueForm.label}
+                      onChange={e => setIssueForm(p => ({ ...p, label: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
+                    />
+                  </div>
+
+                  {/* Alias */}
+                  <div className="space-y-2">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">
+                      Alias
+                      <span className="text-[9px] lg:text-[10px] font-normal text-gray-500 ml-1">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Internal nickname"
+                      value={issueForm.alias}
+                      onChange={e => setIssueForm(p => ({ ...p, alias: e.target.value }))}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
+                    />
+                  </div>
+
+                  {/* Cost summary */}
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] lg:text-xs">
+                      <span className="text-gray-500">Issue Fee: <span className="font-medium text-gray-700">$0.00</span></span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-500">Currency: <span className="font-medium text-gray-700">USD</span></span>
                     </div>
-                    <div className="flex gap-2 pt-2">
-                      <button onClick={() => setActiveSubPage('card-list')} className="flex-1 py-2.5 rounded-xl border text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
-                      <button
-                        disabled={issueSubmitting}
-                        onClick={submitIssue}
-                        className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 inline-flex items-center justify-center gap-2"
-                      >
-                        {issueSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Issue Card
-                      </button>
+                    <div className="px-3 py-2 bg-white flex items-center justify-between border-t border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] lg:text-xs text-gray-500">Total:</span>
+                          <span className="text-sm lg:text-base font-bold text-[#52B788]">$0.00</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] lg:text-xs text-gray-500">Bal:</span>
+                          <span className="text-sm lg:text-base font-bold text-[#3B82F6]">${walletBalance.toLocaleString()}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Submit */}
+                  <Button
+                    className="w-full bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-lg py-2.5 text-xs lg:text-sm font-semibold shadow-md shadow-purple-500/20 transition-all hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={issueSubmitting}
+                    onClick={submitIssue}
+                  >
+                    {issueSubmitting ? (
+                      <span className="flex items-center justify-center gap-1.5"><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</span>
+                    ) : 'Issue Card'}
+                  </Button>
+
+                  <button onClick={() => setActiveSubPage('card-list')} className="w-full py-2 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
                 </div>
               )}
 
-              {/* ─── Deposit form ────────────────────────────────────── */}
+              {/* ─── Deposit form (FB-style) ─────────────────────────── */}
               {activeSubPage === 'deposit' && (
-                <div className="p-6 max-w-xl">
-                  <h2 className="text-base font-bold text-gray-900 mb-1">Deposit to Card</h2>
-                  <p className="text-xs text-gray-500 mb-5">Move funds from your wallet onto a card.</p>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Card</label>
-                      <Select options={[{ value: '', label: 'Select a card' }, ...cardOptions]} value={depositCardId} onChange={setDepositCardId} placeholder="Select a card" size="default" />
+                <div className="px-4 lg:px-6 py-4 lg:py-5 space-y-4 max-w-2xl">
+                  <div>
+                    <h2 className="text-base lg:text-lg font-bold text-gray-900">Deposit to Card</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Move funds from your wallet onto a card.</p>
+                  </div>
+
+                  {/* Card */}
+                  <div className="space-y-2">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">Card</label>
+                    <Select options={[{ value: '', label: 'Select a card' }, ...cardOptions]} value={depositCardId} onChange={setDepositCardId} placeholder="Select a card" size="default" />
+                  </div>
+
+                  {/* Amount */}
+                  <div className="space-y-2">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">Amount (USD)</label>
+                    <input
+                      type="number"
+                      placeholder="100.00"
+                      value={depositAmount}
+                      onChange={e => setDepositAmount(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
+                    />
+                  </div>
+
+                  {/* Cost summary */}
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] lg:text-xs">
+                      <span className="text-gray-500">Wallet → Card</span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-500">Wallet: <span className="font-medium text-gray-700">${walletBalance.toFixed(2)}</span></span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-500">Card: <span className="font-medium text-gray-700">${Number(cards.find(c => c.id === depositCardId)?.balance || 0).toFixed(2)}</span></span>
                     </div>
-                    <Input label="Amount (USD)" type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="100.00" />
-                    <div className="bg-gray-50 rounded-xl p-3 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500">Wallet Balance</p>
-                        <p className="text-base font-bold text-gray-900">${walletBalance.toFixed(2)}</p>
+                    <div className="px-3 py-2 bg-white flex items-center justify-between border-t border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] lg:text-xs text-gray-500">Amount:</span>
+                          <span className="text-sm lg:text-base font-bold text-[#52B788]">${(parseFloat(depositAmount) || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] lg:text-xs text-gray-500">Bal:</span>
+                          <span className="text-sm lg:text-base font-bold text-[#3B82F6]">${walletBalance.toLocaleString()}</span>
+                        </div>
                       </div>
-                      <ArrowDownToLine className="w-5 h-5 text-emerald-500" />
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500">Card Balance</p>
-                        <p className="text-base font-bold text-gray-900">${Number(cards.find(c => c.id === depositCardId)?.balance || 0).toFixed(2)}</p>
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-gray-400">Funds are deducted from your wallet and added to the card immediately.</p>
-                    <div className="flex gap-2 pt-2">
-                      <button onClick={() => setActiveSubPage('card-list')} className="flex-1 py-2.5 rounded-xl border text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
-                      <button
-                        disabled={depositSubmitting}
-                        onClick={submitDeposit}
-                        className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center justify-center gap-2"
-                      >
-                        {depositSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Deposit
-                      </button>
+                      {walletBalance < (parseFloat(depositAmount) || 0) && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-[#EF4444]/10 text-[#EF4444]">Insufficient</span>
+                      )}
                     </div>
                   </div>
+
+                  <Button
+                    className="w-full bg-gradient-to-r from-[#8B5CF6] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6D28D9] text-white rounded-lg py-2.5 text-xs lg:text-sm font-semibold shadow-md shadow-purple-500/20 transition-all hover:shadow-lg hover:shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={depositSubmitting || !depositCardId || !(parseFloat(depositAmount) > 0) || walletBalance < (parseFloat(depositAmount) || 0)}
+                    onClick={submitDeposit}
+                  >
+                    {depositSubmitting ? (
+                      <span className="flex items-center justify-center gap-1.5"><Loader2 className="w-4 h-4 animate-spin" /> Processing...</span>
+                    ) : walletBalance < (parseFloat(depositAmount) || 0) ? 'Insufficient Balance' : `Deposit $${(parseFloat(depositAmount) || 0).toFixed(2)}`}
+                  </Button>
+
+                  <button onClick={() => setActiveSubPage('card-list')} className="w-full py-2 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
                 </div>
               )}
 
-              {/* ─── Withdraw form ───────────────────────────────────── */}
+              {/* ─── Withdraw form (FB-style) ────────────────────────── */}
               {activeSubPage === 'withdraw' && (
-                <div className="p-6 max-w-xl">
-                  <h2 className="text-base font-bold text-gray-900 mb-1">Withdraw to Wallet</h2>
-                  <p className="text-xs text-gray-500 mb-5">Pull funds from a card back to your wallet.</p>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Card</label>
-                      <Select options={[{ value: '', label: 'Select a card' }, ...cardOptions]} value={withdrawCardId} onChange={setWithdrawCardId} placeholder="Select a card" size="default" />
+                <div className="px-4 lg:px-6 py-4 lg:py-5 space-y-4 max-w-2xl">
+                  <div>
+                    <h2 className="text-base lg:text-lg font-bold text-gray-900">Withdraw to Wallet</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Pull funds from a card back to your wallet.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">Card</label>
+                    <Select options={[{ value: '', label: 'Select a card' }, ...cardOptions]} value={withdrawCardId} onChange={setWithdrawCardId} placeholder="Select a card" size="default" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs lg:text-sm font-semibold text-gray-800">Amount (USD)</label>
+                    <input
+                      type="number"
+                      placeholder="50.00"
+                      value={withdrawAmount}
+                      onChange={e => setWithdrawAmount(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 focus:border-[#8B5CF6] focus:bg-white transition-all"
+                    />
+                  </div>
+
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 bg-gray-50 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] lg:text-xs">
+                      <span className="text-gray-500">Card → Wallet</span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-500">Card: <span className="font-medium text-gray-700">${Number(cards.find(c => c.id === withdrawCardId)?.balance || 0).toFixed(2)}</span></span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-gray-500">Wallet: <span className="font-medium text-gray-700">${walletBalance.toFixed(2)}</span></span>
                     </div>
-                    <Input label="Amount (USD)" type="number" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} placeholder="50.00" />
-                    <div className="bg-gray-50 rounded-xl p-3 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-gray-500">Card Balance</p>
-                        <p className="text-base font-bold text-gray-900">${Number(cards.find(c => c.id === withdrawCardId)?.balance || 0).toFixed(2)}</p>
+                    <div className="px-3 py-2 bg-white flex items-center justify-between border-t border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] lg:text-xs text-gray-500">Amount:</span>
+                          <span className="text-sm lg:text-base font-bold text-[#F97316]">${(parseFloat(withdrawAmount) || 0).toFixed(2)}</span>
+                        </div>
                       </div>
-                      <ArrowUpFromLine className="w-5 h-5 text-orange-500" />
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500">Wallet Balance</p>
-                        <p className="text-base font-bold text-gray-900">${walletBalance.toFixed(2)}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <button onClick={() => setActiveSubPage('card-list')} className="flex-1 py-2.5 rounded-xl border text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
-                      <button
-                        disabled={withdrawSubmitting}
-                        onClick={submitWithdraw}
-                        className="flex-1 py-2.5 rounded-xl bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 disabled:opacity-50 inline-flex items-center justify-center gap-2"
-                      >
-                        {withdrawSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Withdraw
-                      </button>
+                      {Number(cards.find(c => c.id === withdrawCardId)?.balance || 0) < (parseFloat(withdrawAmount) || 0) && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-[#EF4444]/10 text-[#EF4444]">Insufficient</span>
+                      )}
                     </div>
                   </div>
+
+                  <Button
+                    className="w-full bg-gradient-to-r from-[#F97316] to-[#EA580C] hover:from-[#EA580C] hover:to-[#C2410C] text-white rounded-lg py-2.5 text-xs lg:text-sm font-semibold shadow-md shadow-orange-500/20 transition-all hover:shadow-lg hover:shadow-orange-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={withdrawSubmitting || !withdrawCardId || !(parseFloat(withdrawAmount) > 0) || Number(cards.find(c => c.id === withdrawCardId)?.balance || 0) < (parseFloat(withdrawAmount) || 0)}
+                    onClick={submitWithdraw}
+                  >
+                    {withdrawSubmitting ? (
+                      <span className="flex items-center justify-center gap-1.5"><Loader2 className="w-4 h-4 animate-spin" /> Processing...</span>
+                    ) : Number(cards.find(c => c.id === withdrawCardId)?.balance || 0) < (parseFloat(withdrawAmount) || 0) ? 'Insufficient Card Balance' : `Withdraw $${(parseFloat(withdrawAmount) || 0).toFixed(2)}`}
+                  </Button>
+
+                  <button onClick={() => setActiveSubPage('card-list')} className="w-full py-2 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
                 </div>
               )}
 
