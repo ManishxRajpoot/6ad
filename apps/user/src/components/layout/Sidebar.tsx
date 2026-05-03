@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
@@ -59,7 +59,22 @@ type SidebarProps = {
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
   const { logout, user, updateUser } = useAuthStore()
+
+  // Reset pending href once the route actually catches up
+  useEffect(() => {
+    if (pendingHref && pathname.startsWith(pendingHref)) setPendingHref(null)
+  }, [pathname, pendingHref])
+
+  const navigate = (href: string) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (pathname === href || pathname.startsWith(href + '/')) return
+    setPendingHref(href)
+    startTransition(() => router.push(href))
+  }
+  const isPendingTo = (href: string) => pendingHref === href && isPending
   const { isCustomDomain, branding } = useDomainStore()
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>({
     facebook: 'active',
@@ -190,9 +205,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <Link
             href="/dashboard"
             data-tutorial="dashboard-menu"
+            onClick={navigate('/dashboard')}
             className={cn(
               'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              isActive('/dashboard')
+              isActive('/dashboard') || isPendingTo('/dashboard')
                 ? 'bg-[#52B788] text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
@@ -205,9 +221,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <Link
             href="/deposits"
             data-tutorial="wallet-menu"
+            onClick={navigate('/deposits')}
             className={cn(
               'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              isActive('/deposits') || isActive('/withdrawals')
+              isActive('/deposits') || isActive('/withdrawals') || isPendingTo('/deposits')
                 ? 'bg-[#52B788] text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
@@ -220,9 +237,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {user?.vccAccess && (
             <Link
               href="/vcc"
+              onClick={navigate('/vcc')}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-                isActive('/vcc')
+                isActive('/vcc') || isPendingTo('/vcc')
                   ? 'bg-[#52B788] text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               )}
@@ -237,9 +255,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             <Link
               href="/facebook"
               data-tutorial="facebook-menu"
+              onClick={navigate('/facebook')}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-                pathname === '/facebook'
+                pathname === '/facebook' || isPendingTo('/facebook')
                   ? 'bg-[#52B788] text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               )}
@@ -252,9 +271,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {shouldShowPlatform('google') && (
             <Link
               href="/google"
+              onClick={navigate('/google')}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-                pathname === '/google'
+                pathname === '/google' || isPendingTo('/google')
                   ? 'bg-[#52B788] text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               )}
@@ -267,9 +287,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {shouldShowPlatform('snapchat') && (
             <Link
               href="/snapchat"
+              onClick={navigate('/snapchat')}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-                pathname === '/snapchat'
+                pathname === '/snapchat' || isPendingTo('/snapchat')
                   ? 'bg-[#52B788] text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               )}
@@ -282,9 +303,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {shouldShowPlatform('tiktok') && (
             <Link
               href="/tiktok"
+              onClick={navigate('/tiktok')}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-                pathname === '/tiktok'
+                pathname === '/tiktok' || isPendingTo('/tiktok')
                   ? 'bg-[#52B788] text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               )}
@@ -297,9 +319,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {shouldShowPlatform('bing') && (
             <Link
               href="/bing"
+              onClick={navigate('/bing')}
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-                pathname === '/bing'
+                pathname === '/bing' || isPendingTo('/bing')
                   ? 'bg-[#52B788] text-white'
                   : 'text-gray-600 hover:bg-gray-50'
               )}
@@ -313,9 +336,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <Link
             href="/guide"
             data-tutorial="guide-menu"
+            onClick={navigate('/guide')}
             className={cn(
               'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              isActive('/guide')
+              isActive('/guide') || isPendingTo('/guide')
                 ? 'bg-[#52B788] text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
@@ -327,9 +351,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {/* Referrals */}
           <Link
             href="/referrals"
+            onClick={navigate('/referrals')}
             className={cn(
               'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              isActive('/referrals')
+              isActive('/referrals') || isPendingTo('/referrals')
                 ? 'bg-[#52B788] text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
@@ -341,9 +366,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {/* Settings */}
           <Link
             href="/settings"
+            onClick={navigate('/settings')}
             className={cn(
               'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
-              isActive('/settings')
+              isActive('/settings') || isPendingTo('/settings')
                 ? 'bg-[#52B788] text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             )}
