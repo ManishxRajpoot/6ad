@@ -562,27 +562,28 @@ export default function VccPage() {
                             <p className="text-[10px] text-gray-400 uppercase tracking-wider">Balance</p>
                             <p className="text-sm font-bold text-gray-900">${Number(card.balance || 0).toFixed(2)}</p>
                           </div>
-                          <div className="flex items-center gap-1.5">
+                          {/* B9 · Segmented bar */}
+                          <div className="inline-flex items-center rounded-lg border border-gray-200 overflow-hidden divide-x divide-gray-200">
                             <button
                               disabled={card.status !== 'ACTIVE' || !card.yeewallexCardId}
                               onClick={() => setDetailsCardId(card.id)}
-                              className="px-3 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              className="px-3 py-1.5 hover:bg-purple-50 text-purple-700 text-[11px] font-medium inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                             >
-                              Access
+                              <Eye className="w-3.5 h-3.5" /> Access
                             </button>
                             <button
                               disabled={card.status !== 'ACTIVE'}
                               onClick={() => { setDepositCardId(card.id); setActiveSubPage('deposit') }}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              className="px-3 py-1.5 hover:bg-emerald-50 text-emerald-700 text-[11px] font-medium inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                             >
-                              Deposit
+                              <ArrowDownToLine className="w-3.5 h-3.5" /> Deposit
                             </button>
                             <button
                               disabled={card.status !== 'ACTIVE' || Number(card.balance) <= 0}
                               onClick={() => { setWithdrawCardId(card.id); setActiveSubPage('withdraw') }}
-                              className="px-3 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 text-[11px] font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              className="px-3 py-1.5 hover:bg-orange-50 text-orange-700 text-[11px] font-medium inline-flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                             >
-                              Withdraw
+                              <ArrowUpFromLine className="w-3.5 h-3.5" /> Withdraw
                             </button>
                           </div>
                         </div>
