@@ -13,7 +13,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { AccountManageIcon, DepositManageIcon, AfterSaleIcon } from '@/components/icons/MenuIcons'
 import {
   Search, ChevronDown, Plus, Download, RefreshCw, Loader2, Eye, EyeOff,
-  Copy, Clock, CreditCard, Wallet, ArrowDownToLine, ArrowUpFromLine,
+  Copy, Clock, CreditCard, Wallet, ArrowDownToLine, ArrowUpFromLine, Wifi,
 } from 'lucide-react'
 
 // ─── Animated Counter (matches FB page) ──────────────────────────────
@@ -539,28 +539,41 @@ export default function VccPage() {
                       </button>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {filteredCards.map(card => (
-                        <div key={card.id} className="vcc-row flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-[#8B5CF6]/30 hover:bg-[#8B5CF6]/5 transition-colors">
-                          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-gray-900 to-gray-700 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {card.cardholder?.firstName?.charAt(0) || 'V'}
+                    <div className="space-y-2.5">
+                      {filteredCards.map(card => {
+                        const last4 = card.cardNumber
+                          ? String(card.cardNumber).replace(/\D/g, '').slice(-4)
+                          : (card.yeewallexCardId ? card.yeewallexCardId.slice(-4) : '••••')
+                        const dotColor = card.status === 'ACTIVE'
+                          ? 'bg-emerald-500'
+                          : card.status === 'PENDING'
+                            ? 'bg-yellow-500'
+                            : card.status === 'FROZEN'
+                              ? 'bg-blue-500'
+                              : 'bg-red-500'
+                        return (
+                        <div key={card.id} className="vcc-row group relative flex items-center gap-4 p-3 rounded-2xl border border-gray-100 bg-gradient-to-r from-white via-white to-purple-50/40 hover:to-purple-50/80 hover:shadow-md transition-all">
+                          {/* Mini card chip */}
+                          <div className="relative w-20 h-12 rounded-lg bg-gradient-to-br from-gray-900 via-gray-800 to-gray-700 flex flex-col justify-between p-1.5 flex-shrink-0 overflow-hidden">
+                            <Wifi className="w-3 h-3 text-white/40 self-end rotate-90" />
+                            <p className="font-mono text-[8px] text-white/80 tracking-wider">•• {last4}</p>
+                            <div className="absolute -right-2 -top-2 w-6 h-6 rounded-full bg-purple-500/30 blur-sm" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
                               <p className="font-semibold text-sm text-gray-900 truncate">
-                                {card.label || card.alias || `Card ${card.yeewallexCardId?.slice(-4) || ''}`}
+                                {card.label || card.alias || `Card ${last4}`}
                               </p>
-                              <StatusBadge status={card.status} />
+                              <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
+                              <span className="text-[10px] text-gray-400 uppercase tracking-wider">{card.status}</span>
                             </div>
-                            <p className="text-xs text-gray-500 mt-0.5 font-mono truncate">
-                              {card.cardNumber
-                                ? card.cardNumber.replace(/\*/g, '•').replace(/(.{4})/g, '$1 ').trim()
-                                : `•••• •••• •••• ${card.yeewallexCardId ? card.yeewallexCardId.slice(-4) : '••••'}`}
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {card.expiry ? `Exp ${card.expiry} · ` : ''}{card.currency || 'USD'}
                             </p>
                           </div>
                           <div className="text-right hidden sm:block">
                             <p className="text-[10px] text-gray-400 uppercase tracking-wider">Balance</p>
-                            <p className="text-sm font-bold text-gray-900">${Number(card.balance || 0).toFixed(2)}</p>
+                            <p className="text-base font-bold text-gray-900 tabular-nums">${Number(card.balance || 0).toFixed(2)}</p>
                           </div>
                           {/* B9 · Segmented bar */}
                           <div className="inline-flex items-center rounded-lg border border-gray-200 overflow-hidden divide-x divide-gray-200">
@@ -587,7 +600,8 @@ export default function VccPage() {
                             </button>
                           </div>
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>
