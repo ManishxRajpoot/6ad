@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
   LayoutDashboard,
@@ -59,22 +59,20 @@ type SidebarProps = {
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
   const { logout, user, updateUser } = useAuthStore()
 
-  // Reset pending href once the route actually catches up
+  // Clear pending highlight once the route catches up
   useEffect(() => {
     if (pendingHref && pathname.startsWith(pendingHref)) setPendingHref(null)
   }, [pathname, pendingHref])
 
-  const navigate = (href: string) => (e: React.MouseEvent) => {
-    e.preventDefault()
+  // Visual feedback only — Link handles the actual navigation
+  const navigate = (href: string) => () => {
     if (pathname === href || pathname.startsWith(href + '/')) return
     setPendingHref(href)
-    startTransition(() => router.push(href))
   }
-  const isPendingTo = (href: string) => pendingHref === href && isPending
+  const isPendingTo = (href: string) => pendingHref === href
   const { isCustomDomain, branding } = useDomainStore()
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>({
     facebook: 'active',
