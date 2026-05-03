@@ -107,7 +107,7 @@ export default function VccPage() {
   const [dateFilter, setDateFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [activeSubPage, setActiveSubPage] = useState<SubPage>('card-list')
-  const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['card-manage'])
+  const [expandedSections, setExpandedSections] = useState<MenuSection[]>(['card-manage', 'recharge-manage', 'transactions'])
   const [showExportDropdown, setShowExportDropdown] = useState(false)
   const exportDropdownRef = useRef<HTMLDivElement>(null)
 
