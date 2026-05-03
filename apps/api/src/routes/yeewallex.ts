@@ -996,4 +996,54 @@ yeewallex.get('/my/transactions', async (c) => {
   return c.json({ transactions, total, page, limit })
 })
 
+// ─── ADMIN: VCC User Access Management ──────────────────────────────────────
+// List users with their vccAccess flag
+yeewallex.get('/users', async (c) => {
+  const role = c.get('userRole')
+  if (role !== 'ADMIN' && role !== 'AGENT') return c.json({ error: 'Unauthorized' }, 403)
+
+  const userId = c.get('userId')
+  const { search } = c.req.query()
+  const where: any = { role: 'USER' }
+  if (role === 'AGENT') where.agentId = userId
+  if (search) {
+    where.OR = [
+      { username: { contains: search, mode: 'insensitive' } },
+      { email: { contains: search, mode: 'insensitive' } },
+      { realName: { contains: search, mode: 'insensitive' } },
+    ]
+  }
+
+  const users = await prisma.user.findMany({
+    where,
+    select: { id: true, username: true, email: true, realName: true, vccAccess: true, status: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    take: 1000,
+  })
+  return c.json({ users })
+})
+
+// Toggle vccAccess for a user
+yeewallex.patch('/users/:id/access', async (c) => {
+  const role = c.get('userRole')
+  if (role !== 'ADMIN' && role !== 'AGENT') return c.json({ error: 'Unauthorized' }, 403)
+
+  const id = c.req.param('id')
+  const body = await c.req.json().catch(() => ({}))
+  const vccAccess = !!body.vccAccess
+
+  const target = await prisma.user.findUnique({ where: { id }, select: { id: true, agentId: true, role: true } })
+  if (!target || target.role !== 'USER') return c.json({ error: 'User not found' }, 404)
+  if (role === 'AGENT' && target.agentId !== c.get('userId')) {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+
+  const updated = await prisma.user.update({
+    where: { id },
+    data: { vccAccess },
+    select: { id: true, username: true, vccAccess: true },
+  })
+  return c.json({ user: updated })
+})
+
 export default yeewallex

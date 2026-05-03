@@ -215,6 +215,7 @@ model User {
   agentWithdrawals  AgentWithdrawal[]
 
   // VCC (Virtual Credit Cards)
+  vccAccess         Boolean     @default(false)  // Admin-controlled: shows VCC menu in user sidebar
   vccCardholders    VccCardholder[]
   vccCards          VccCard[]       @relation("AssignedVccCards")
 
@@ -1423,6 +1424,7 @@ model FacebookAutomationProfile {
   // Chrome Extension API key (unique per profile)
   extensionApiKey     String?                   // ext_xxxx... key for this profile's extension
   lastHeartbeatAt     DateTime?                 // Last heartbeat from extension
+  extensionState      Json?                     // v3 stealth extension live state: { version, phase, tokenAgeMs, lastWarmAt, rateState, backoff, checkpointUntil }
 
   // Access token for Graph API (captured from browser session)
   fbAccessToken       String?                   // Facebook EAA... access token

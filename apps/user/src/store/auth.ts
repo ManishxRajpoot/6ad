@@ -12,6 +12,7 @@ type User = {
   twoFactorEnabled?: boolean
   emailVerified?: boolean
   profileImage?: string | null
+  vccAccess?: boolean
   agent?: {
     id: string
     username: string

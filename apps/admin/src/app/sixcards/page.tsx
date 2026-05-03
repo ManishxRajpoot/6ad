@@ -16,7 +16,7 @@ import {
   XCircle, Link2, UserPlus, Wallet, Ban, Zap, ArrowUpRight, Activity,
 } from 'lucide-react'
 
-type Tab = 'card-list' | 'cardholders' | 'recharge-history' | 'transactions' | 'account'
+type Tab = 'card-list' | 'cardholders' | 'recharge-history' | 'transactions' | 'account' | 'users'
 
 export default function VCCPage() {
   const toast = useToast()
@@ -93,7 +93,33 @@ export default function VCCPage() {
     { id: 'recharge-history', label: 'Recharge/Refund' },
     { id: 'transactions', label: 'Transactions' },
     { id: 'account', label: 'Account' },
+    { id: 'users', label: 'Users' },
   ]
+
+  // VCC users access
+  const [vccUsers, setVccUsers] = useState<any[]>([])
+  const [vccUsersLoading, setVccUsersLoading] = useState(false)
+  const [vccUserSearch, setVccUserSearch] = useState('')
+  const [accessSavingId, setAccessSavingId] = useState<string | null>(null)
+
+  const fetchVccUsers = async () => {
+    setVccUsersLoading(true)
+    try {
+      const data = await yeewallexApi.users.getAll()
+      setVccUsers(data.users || [])
+    } catch (e: any) { toast.error('Error', e.message) }
+    setVccUsersLoading(false)
+  }
+
+  const toggleVccAccess = async (userId: string, next: boolean) => {
+    setAccessSavingId(userId)
+    try {
+      await yeewallexApi.users.setAccess(userId, next)
+      setVccUsers(prev => prev.map(u => u.id === userId ? { ...u, vccAccess: next } : u))
+      toast.success('Updated', next ? 'VCC access granted' : 'VCC access revoked')
+    } catch (e: any) { toast.error('Error', e.message) }
+    setAccessSavingId(null)
+  }
 
   useEffect(() => {
     const updateIndicator = () => {
@@ -173,6 +199,7 @@ export default function VCCPage() {
     if (activeTab === 'transactions') fetchTransactions()
     if (activeTab === 'recharge-history') fetchRechargeHistory()
     if (activeTab === 'account') fetchAccount()
+    if (activeTab === 'users') fetchVccUsers()
   }, [activeTab])
 
   // Filtered YeewalleX transactions (purchase/Authorization) — merchant, MCC, amount, card last 4, status
@@ -570,7 +597,7 @@ export default function VCCPage() {
               <button key={t.id} ref={el => { tabRefs.current[t.id] = el }} onClick={() => setActiveTab(t.id as Tab)}
                 className={`px-6 py-3.5 text-[15px] font-medium transition-all duration-300 ease-out relative z-10 ${activeTab === t.id ? 'text-violet-600' : 'text-gray-500 hover:text-gray-700'}`}>{t.label}</button>
             ))}
-            <button onClick={() => { if (activeTab === 'card-list') fetchCards(); else if (activeTab === 'cardholders') fetchCardholders(); else if (activeTab === 'transactions') fetchTransactions(); else fetchAccount() }}
+            <button onClick={() => { if (activeTab === 'card-list') fetchCards(); else if (activeTab === 'cardholders') fetchCardholders(); else if (activeTab === 'transactions') fetchTransactions(); else if (activeTab === 'users') fetchVccUsers(); else fetchAccount() }}
               className="ml-auto mr-3 p-1.5 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
             <div className="absolute bottom-0 h-0.5 bg-violet-600 transition-all duration-300 ease-out" style={{ left: indicatorStyle.left, width: indicatorStyle.width }} />
           </div>
@@ -692,26 +719,28 @@ export default function VCCPage() {
                           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Left: card visual + key facts */}
                             <div className="lg:col-span-1">
-                              <div className="relative aspect-[1.586/1] rounded-xl overflow-hidden bg-gradient-to-br from-violet-600 via-indigo-700 to-slate-900 p-4 shadow-lg">
-                                <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
-                                <div className="relative z-10 flex items-start justify-between">
-                                  <p className="text-[10px] text-white/60 uppercase tracking-wider">{card.label || '—'}</p>
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-white/20 text-white backdrop-blur">
+                              <div className="relative aspect-[1.586/1] rounded-xl overflow-hidden shadow-lg bg-black">
+                                {/* SIXMEDIA-branded card artwork — slightly zoomed to crop any black margin in the source PNG */}
+                                <img src="/card.png" alt="" className="absolute inset-0 w-full h-full object-cover scale-[1.12]" />
+                                {/* Subtle bottom-darken overlay so number/holder text stays readable */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+
+                                {/* Top row: label + status pill */}
+                                <div className="absolute top-3 left-4 right-4 z-10 flex items-start justify-between">
+                                  <p className="text-[10px] text-white/70 uppercase tracking-wider drop-shadow">{card.label || ''}</p>
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-white/25 text-white backdrop-blur-md">
                                     {card.status?.toLowerCase()}
                                   </span>
                                 </div>
-                                <div className="relative z-10 mt-4 w-8 h-6 rounded bg-gradient-to-br from-yellow-200 to-yellow-500" />
-                                <p className="relative z-10 font-mono text-white text-sm tracking-widest mt-3">{displayNumber}</p>
-                                <div className="relative z-10 flex items-end justify-between mt-2">
-                                  <div>
-                                    <p className="text-[8px] text-white/50 uppercase">Holder</p>
-                                    <p className="text-[11px] text-white font-semibold uppercase">
+
+                                {/* Bottom-left: number + holder. Right side left clear for the VISA logo on the card art. */}
+                                <div className="absolute bottom-3 left-4 right-4 z-10 max-w-[62%]">
+                                  <p className="font-mono text-white text-[15px] tracking-[0.18em] drop-shadow-md mb-2">{displayNumber}</p>
+                                  <div className="min-w-0">
+                                    <p className="text-[8px] text-white/55 uppercase tracking-wider drop-shadow">Holder</p>
+                                    <p className="text-[11px] text-white font-semibold uppercase drop-shadow-md truncate">
                                       {card.cardholder ? `${card.cardholder.firstName} ${card.cardholder.lastName}` : '—'}
                                     </p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-[8px] text-white/50 uppercase">Balance</p>
-                                    <p className="text-white font-bold font-mono text-sm">${(card.balance || 0).toFixed(2)}</p>
                                   </div>
                                 </div>
                               </div>
@@ -1084,6 +1113,75 @@ export default function VCCPage() {
                   </div>
                 )) || <div className="flex items-center gap-2 text-gray-400"><Loader2 className="w-4 h-4 animate-spin" /> Loading...</div>}
               </div>
+            </div>
+          )}
+
+          {/* ═══ USERS TAB — Grant VCC sidebar access per user ═══ */}
+          {activeTab === 'users' && (
+            <div className="p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-gray-900">VCC Access</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Toggle to show/hide the VCC menu in a user's sidebar.</p>
+                </div>
+                <div className="relative w-72">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={vccUserSearch}
+                    onChange={e => setVccUserSearch(e.target.value)}
+                    placeholder="Search by username, email, name..."
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-violet-500"
+                  />
+                </div>
+              </div>
+              {vccUsersLoading ? (
+                <div className="flex h-48 items-center justify-center"><Loader2 className="w-5 h-5 text-violet-600 animate-spin" /><span className="text-gray-500 text-sm ml-2">Loading users...</span></div>
+              ) : (
+                <div className="border border-gray-100 rounded-xl overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr className="text-xs text-gray-500 uppercase tracking-wide">
+                        <th className="text-left py-3 px-4 font-medium">Username</th>
+                        <th className="text-left py-3 px-4 font-medium">Email</th>
+                        <th className="text-left py-3 px-4 font-medium">Real Name</th>
+                        <th className="text-left py-3 px-4 font-medium">Status</th>
+                        <th className="text-right py-3 px-4 font-medium">VCC Access</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {vccUsers
+                        .filter(u => {
+                          const q = vccUserSearch.trim().toLowerCase()
+                          if (!q) return true
+                          return [u.username, u.email, u.realName].filter(Boolean).some((v: string) => v.toLowerCase().includes(q))
+                        })
+                        .map(u => (
+                          <tr key={u.id} className="hover:bg-gray-50">
+                            <td className="py-3 px-4 text-sm font-medium text-gray-900">{u.username}</td>
+                            <td className="py-3 px-4 text-sm text-gray-600">{u.email}</td>
+                            <td className="py-3 px-4 text-sm text-gray-600">{u.realName || '—'}</td>
+                            <td className="py-3 px-4 text-xs">
+                              <span className={`px-2 py-0.5 rounded-full font-medium ${u.status === 'ACTIVE' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{u.status}</span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                disabled={accessSavingId === u.id}
+                                onClick={() => toggleVccAccess(u.id, !u.vccAccess)}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${u.vccAccess ? 'bg-violet-600' : 'bg-gray-300'} ${accessSavingId === u.id ? 'opacity-50 cursor-wait' : ''}`}
+                                title={u.vccAccess ? 'Revoke VCC access' : 'Grant VCC access'}
+                              >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${u.vccAccess ? 'translate-x-6' : 'translate-x-1'}`} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      {vccUsers.length === 0 && (
+                        <tr><td colSpan={5} className="py-12 text-center text-sm text-gray-400">No users found</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>

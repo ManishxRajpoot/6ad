@@ -18,7 +18,7 @@ import {
 import { useAuthStore } from '@/store/auth'
 import { useDomainStore } from '@/store/domain'
 import { useRouter } from 'next/navigation'
-import { settingsApi, PlatformSettings } from '@/lib/api'
+import { settingsApi, PlatformSettings, authApi } from '@/lib/api'
 
 // Platform icons - Black/White outline style (w-6 h-6 to match other icons)
 const FacebookIcon = () => (
@@ -59,7 +59,7 @@ type SidebarProps = {
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { logout, user } = useAuthStore()
+  const { logout, user, updateUser } = useAuthStore()
   const { isCustomDomain, branding } = useDomainStore()
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>({
     facebook: 'active',
@@ -85,6 +85,13 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       }
     }
     fetchPlatformSettings()
+  }, [])
+
+  // Refresh user (picks up vccAccess changes from admin)
+  useEffect(() => {
+    authApi.me()
+      .then(({ user: fresh }) => { if (fresh) updateUser(fresh) })
+      .catch(() => {})
   }, [])
 
   const handleLogout = () => {
@@ -208,6 +215,22 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             <Wallet className="w-6 h-6" />
             Wallet
           </Link>
+
+          {/* VCC Cards - only when admin has granted access */}
+          {user?.vccAccess && (
+            <Link
+              href="/vcc"
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 rounded-xl text-[15px] font-medium transition-all duration-200 mb-1',
+                isActive('/vcc')
+                  ? 'bg-[#52B788] text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              )}
+            >
+              <CreditCard className="w-6 h-6" />
+              VCC Cards
+            </Link>
+          )}
 
           {/* Platform Links - Conditionally rendered based on visibility settings */}
           {shouldShowPlatform('facebook') && (

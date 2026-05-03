@@ -452,6 +452,7 @@ auth.get('/me', verifyToken, async (c) => {
         twoFactorEnabled: true,
         emailVerified: true,
         requirePasswordChange: true,
+        vccAccess: true,
         agentId: true,
         brandLogo: true,
         brandName: true,

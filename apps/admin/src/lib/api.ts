@@ -603,6 +603,16 @@ export const bmTokensApi = {
     api.post<{ success: boolean; newlyLinked: number; totalLinked: number; totalFbAccounts: number }>(`/bm-tokens/${id}/sync`, {}),
   remove: (id: string) =>
     api.delete<{ success: boolean }>(`/bm-tokens/${id}`),
+  importAccount: (id: string, body: { accountId: string; userId: string }) =>
+    api.post<{ success: boolean; adAccount: any; assignedTo: { id: string; username: string } }>(
+      `/bm-tokens/${id}/import-account`, body,
+    ),
+  find: (accountId: string) =>
+    api.get<{
+      found: boolean; source?: 'db' | 'live'; cheetah?: boolean;
+      bmTokenId?: string; bmId?: string; bmName?: string | null;
+      accountName?: string | null; userName?: string | null;
+    }>(`/bm-tokens/find?accountId=${encodeURIComponent(accountId)}`),
 }
 
 // Referrals API (Admin)
@@ -786,6 +796,14 @@ export const yeewallexApi = {
       if (params?.endDate) q.append('endDate', params.endDate)
       return api.get<any>(`/yeewallex/transactions?${q.toString()}`)
     },
+  },
+
+  // VCC user access management
+  users: {
+    getAll: (search?: string) =>
+      api.get<any>(`/yeewallex/users${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+    setAccess: (id: string, vccAccess: boolean) =>
+      api.patch<any>(`/yeewallex/users/${id}/access`, { vccAccess }),
   },
 }
 
