@@ -212,11 +212,13 @@ export default function VccPage() {
     const active = cards.filter(c => c.status === 'ACTIVE').length
     const totalBalance = cards.reduce((s, c) => s + (Number(c.balance) || 0), 0)
     const totalSpend = cards.reduce((s, c) => s + (Number(c.totalSpent) || 0), 0)
+    const balRound = Math.round(totalBalance)
+    const spendRound = Math.round(totalSpend)
     return [
-      { label: 'Total Cards', numericValue: total, badge: total > 0 ? `${total} Total` : 'None', trend: 'up' as const, color: '#8B5CF6', chartPath: generateChartPath(total, 'up') },
-      { label: 'Active Cards', numericValue: active, badge: active > 0 ? `${active} Active` : 'None', trend: 'up' as const, color: '#22C55E', chartPath: generateChartPath(active, 'up') },
-      { label: 'Total Balance', numericValue: Math.round(totalBalance), badge: 'USD', trend: 'up' as const, color: '#F97316', chartPath: generateChartPath(Math.round(totalBalance), 'up') },
-      { label: 'Total Spend', numericValue: Math.round(totalSpend), badge: 'Lifetime', trend: 'down' as const, color: '#EF4444', chartPath: generateChartPath(Math.round(totalSpend), 'down') },
+      { label: 'Total Cards',   numericValue: total,      badge: total > 0     ? `${total} Total`  : 'None', trend: 'up'   as const, color: '#8B5CF6', chartPath: generateChartPath(total, 'up') },
+      { label: 'Active Cards',  numericValue: active,     badge: active > 0    ? `${active} Active`: 'None', trend: 'up'   as const, color: '#22C55E', chartPath: generateChartPath(active, 'up') },
+      { label: 'Total Balance', numericValue: balRound,   badge: balRound > 0  ? `$${balRound}`    : 'None', trend: 'up'   as const, color: '#F97316', chartPath: generateChartPath(balRound, 'up') },
+      { label: 'Total Spend',   numericValue: spendRound, badge: spendRound > 0? `$${spendRound}`  : 'None', trend: 'down' as const, color: '#EF4444', chartPath: generateChartPath(spendRound, 'down') },
     ]
   }, [cards])
 
@@ -343,8 +345,8 @@ export default function VccPage() {
           @keyframes vccSlideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
           .vcc-row { animation: vccFadeUp 0.25s ease-out forwards; }
           .vcc-slide { animation: vccSlideIn 0.25s ease-out forwards; }
-          .vcc-stat-card { transition: all 0.2s ease; }
-          .vcc-stat-card:hover { transform: translateY(-1px); box-shadow: 0 4px 15px -3px rgba(139, 92, 246, 0.12); }
+          .stat-card { transition: all 0.2s ease; }
+          .stat-card:hover { transform: translateY(-1px); box-shadow: 0 4px 15px -3px rgba(139, 92, 246, 0.12); }
           .vcc-scroll::-webkit-scrollbar { width: 4px; }
           .vcc-scroll::-webkit-scrollbar-track { background: transparent; }
           .vcc-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 4px; }
@@ -418,20 +420,26 @@ export default function VccPage() {
           </Button>
         </div>
 
-        {/* Row 2: Stats Cards */}
+        {/* Row 2: Stats Cards — copied verbatim from Facebook page */}
         <div className="hidden lg:grid grid-cols-2 lg:grid-cols-4 gap-1.5 lg:gap-3 mb-2 lg:mb-3">
           {statsData.map((stat, index) => (
-            <Card key={index} className="vcc-stat-card p-2 lg:p-3 border border-gray-100 bg-white rounded-lg lg:rounded-xl relative overflow-hidden">
+            <Card key={index} className="stat-card p-2 lg:p-3 border border-gray-100 bg-white rounded-lg lg:rounded-xl relative overflow-hidden transition-all duration-300 hover:shadow-md hover:scale-[1.01]">
+              {/* Top row: Title and Badge */}
               <div className="flex items-center justify-between mb-1.5 lg:mb-2">
                 <p className="text-[11px] lg:text-sm text-gray-500 font-medium">{stat.label}</p>
                 {stat.badge !== 'None' && (
-                  <span className={`text-[8px] lg:text-[10px] px-1.5 lg:px-2.5 py-0.5 lg:py-1 rounded-full font-semibold whitespace-nowrap ${
-                    stat.trend === 'up' ? 'bg-[#22C55E] text-white' : stat.trend === 'down' ? 'bg-[#EF4444] text-white' : 'bg-blue-100 text-blue-600'
+                  <span className={`text-[8px] lg:text-[10px] px-1.5 lg:px-2.5 py-0.5 lg:py-1 rounded-full font-semibold whitespace-nowrap transition-all duration-500 ${
+                    stat.trend === 'up'
+                      ? 'bg-[#22C55E] text-white animate-pulse'
+                      : stat.trend === 'down'
+                        ? 'bg-[#EF4444] text-white animate-pulse'
+                        : 'bg-blue-100 text-blue-600'
                   }`}>
                     {stat.badge}
                   </span>
                 )}
               </div>
+              {/* Bottom row: Number on left, Chart on right */}
               <div className="flex items-end justify-between">
                 <p className="text-lg lg:text-2xl font-bold text-gray-900 tabular-nums">
                   <AnimatedCounter value={stat.numericValue} duration={600} />
@@ -444,8 +452,20 @@ export default function VccPage() {
                         <stop offset="100%" stopColor={stat.color} stopOpacity="0.05" />
                       </linearGradient>
                     </defs>
-                    <path d={`${stat.chartPath.replace(/120/g, '100').replace(/40/g, '50').replace(/38/g, '48')} L100,50 L0,50 Z`} fill={`url(#vcc-stat-gradient-${index})`} />
-                    <path d={stat.chartPath.replace(/120/g, '100').replace(/40/g, '50').replace(/38/g, '48')} fill="none" stroke={stat.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path
+                      d={`${stat.chartPath.replace(/120/g, '100').replace(/40/g, '50').replace(/38/g, '48')} L100,50 L0,50 Z`}
+                      fill={`url(#vcc-stat-gradient-${index})`}
+                      className="transition-all duration-700 ease-in-out"
+                    />
+                    <path
+                      d={stat.chartPath.replace(/120/g, '100').replace(/40/g, '50').replace(/38/g, '48')}
+                      fill="none"
+                      stroke={stat.color}
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="transition-all duration-700 ease-in-out"
+                    />
                   </svg>
                 </div>
               </div>
