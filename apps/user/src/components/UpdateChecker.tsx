@@ -54,25 +54,22 @@ export function UpdateChecker() {
     return () => clearInterval(interval)
   }, [checkForUpdates])
 
-  const handleRefresh = async () => {
+  const handleRefresh = () => {
+    // Kick off cache + service-worker cleanup in the background — never await,
+    // so a hung CacheStorage / SW operation can't block the actual reload.
     try {
-      // Clear all caches
       if ('caches' in window) {
-        const names = await caches.keys()
-        await Promise.all(names.map(name => caches.delete(name)))
+        caches.keys().then(names => Promise.all(names.map(n => caches.delete(n)))).catch(() => {})
       }
-
-      // Clear service worker caches
       if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations()
-        await Promise.all(registrations.map(r => r.unregister()))
+        navigator.serviceWorker.getRegistrations()
+          .then(regs => Promise.all(regs.map(r => r.unregister())))
+          .catch(() => {})
       }
-    } catch (error) {
-      console.debug('[UpdateChecker] Failed to clear caches')
-    }
+    } catch {}
 
-    // Force hard reload - bypass cache completely
-    window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now()
+    // Hard reload immediately — new ?v= buster forces fresh asset fetch.
+    window.location.href = window.location.pathname + '?v=' + Date.now()
   }
 
   const handleDismiss = () => {
