@@ -1,8 +1,18 @@
-// Runtime detection: if browser is on production domain, always use production API
-// This prevents localhost from leaking into production when .next is built locally
-const API_URL = typeof window !== 'undefined' && window.location.hostname.endsWith('6ad.in')
-  ? 'https://api.6ad.in'
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001')
+// Runtime detection: if browser is on production (any non-local domain), always use production API
+// Agent whitelabel custom domains need this — they don't end with 6ad.in but still need api.6ad.in
+function detectApiUrl() {
+  if (typeof window === 'undefined') {
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+  }
+  const host = window.location.hostname
+  const isLocal = host === 'localhost' || host === '127.0.0.1' ||
+    /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) ||
+    host.endsWith('.local')
+  // Any non-local hostname in the browser → use production API
+  if (!isLocal) return 'https://api.6ad.in'
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001'
+}
+const API_URL = detectApiUrl()
 
 // ─── SWR-style Global Cache ─────────────────────────────────────
 // Cached GET responses persist across page navigations & tab switches.
@@ -236,6 +246,8 @@ export const accountsApi = {
       endDate: string
       error?: string
     }>(`/accounts/${id}/insights?startDate=${startDate}&endDate=${endDate}`),
+  rename: (id: string, name: string) =>
+    api.post<{ message: string; name: string; source: 'cheetah' | 'bm-token' }>(`/accounts/${id}/rename`, { name }),
 }
 
 // Transactions API (User's own transactions)
@@ -321,6 +333,8 @@ export const bmShareApi = {
   },
   create: (data: { platform: string; adAccountId: string; adAccountName: string; bmId: string; message?: string }) =>
     api.post<{ message: string; bmShareRequest: any }>('/bm-share', data),
+  validateBm: (data: { platform: string; bmId: string }) =>
+    api.post<{ ok: boolean; bmName?: string; bmId?: string; message?: string; reason?: string }>('/bm-share/validate-bm', data),
 }
 
 // Ad Account Applications API (User's own applications)
@@ -450,4 +464,10 @@ export const vccApi = {
     if (params?.limit) q.append('limit', params.limit.toString())
     return api.get<{ transactions: any[]; total: number }>(`/yeewallex/my/transactions?${q.toString()}`)
   },
+  issueCard: (data: { label?: string; alias?: string }) =>
+    api.post<{ card: any }>('/yeewallex/my/cards/issue', data),
+  rechargeCard: (id: string, amount: number) =>
+    api.post<{ transaction: any; success: boolean }>(`/yeewallex/my/cards/${id}/recharge`, { amount }),
+  withdrawCard: (id: string, amount: number) =>
+    api.post<{ success: boolean }>(`/yeewallex/my/cards/${id}/withdraw`, { amount }),
 }

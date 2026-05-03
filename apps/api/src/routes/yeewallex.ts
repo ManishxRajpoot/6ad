@@ -996,6 +996,152 @@ yeewallex.get('/my/transactions', async (c) => {
   return c.json({ transactions, total, page, limit })
 })
 
+// ─── USER: Self-service card actions (issue, recharge, withdraw) ───────────
+
+// Helper: ensure user has vccAccess flag on
+async function requireVccAccess(userId: string) {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { vccAccess: true, walletBalance: true } })
+  if (!u || !u.vccAccess) return null
+  return u
+}
+
+// POST /my/cards/issue — User self-issues a card (admin must have at least one cardholder)
+yeewallex.post('/my/cards/issue', async (c) => {
+  const userId = c.get('userId') as string
+  const u = await requireVccAccess(userId)
+  if (!u) return c.json({ error: 'VCC access not granted. Contact admin.' }, 403)
+
+  const { label, alias } = await c.req.json().catch(() => ({}))
+
+  // Pick any available cardholder (admin pre-created)
+  const holders = await prisma.vccCardholder.findMany({ take: 1, orderBy: { createdAt: 'asc' } })
+  if (holders.length === 0) {
+    return c.json({ error: 'No cardholders available. Contact admin to set one up.' }, 400)
+  }
+  const holder = holders[0]
+
+  const result = await openCard({
+    cardBinId: CARD_BINS.ADS_USD,
+    cardholderId: holder.yeewallexId,
+    currency: 'USD',
+    alias: alias || label || '',
+  })
+  if (result.error) return c.json({ error: result.message }, 400)
+
+  const rd = result.data?.data || result.data || {}
+  const taskId = rd.taskId || rd.task_id || null
+  const ywCardId = rd.cardId || rd.card_id || null
+
+  const card = await prisma.vccCard.create({
+    data: {
+      taskId, yeewallexCardId: ywCardId,
+      cardBinId: CARD_BINS.ADS_USD,
+      label: label || null, alias: alias || null,
+      status: 'PENDING', currency: 'USD',
+      cardholderId: holder.id,
+      assignedUserId: userId,
+    },
+  })
+  return c.json({ card }, 201)
+})
+
+// POST /my/cards/:id/recharge — Move funds from user wallet → card
+yeewallex.post('/my/cards/:id/recharge', async (c) => {
+  const userId = c.get('userId') as string
+  const u = await requireVccAccess(userId)
+  if (!u) return c.json({ error: 'VCC access not granted' }, 403)
+
+  const { amount } = await c.req.json()
+  const amt = Number(amount)
+  if (!amt || amt <= 0) return c.json({ error: 'Invalid amount' }, 400)
+  if (Number(u.walletBalance) < amt) return c.json({ error: 'Insufficient wallet balance' }, 400)
+
+  const card = await prisma.vccCard.findFirst({
+    where: { id: c.req.param('id'), assignedUserId: userId },
+  })
+  if (!card || !card.yeewallexCardId) return c.json({ error: 'Card not found' }, 404)
+
+  // Deduct from wallet first (refund on failure)
+  await prisma.user.update({ where: { id: userId }, data: { walletBalance: { decrement: amt } } })
+
+  const result = await rechargeCard({ cardId: card.yeewallexCardId, amount: amt, currency: 'USD' })
+  if (result.error) {
+    await prisma.user.update({ where: { id: userId }, data: { walletBalance: { increment: amt } } })
+    return c.json({ error: result.message }, 400)
+  }
+
+  const rd = result.data?.data || result.data || {}
+  const status = rd.status || result.data?.status
+  const isSuccess = (result.data?.state === 'SUCCESS' || status === 'SUCCESS' || status === 200 || status === 100) && status !== 400 && status !== 500
+
+  const tx = await prisma.vccTransaction.create({
+    data: {
+      yeewallexTxId: rd.rechargeId || rd.id || `rc_${Date.now()}`,
+      type: 'RECHARGE', amount: amt, currency: 'USD',
+      status: isSuccess ? 'SUCCESS' : 'PENDING',
+      description: `User wallet recharge $${amt}`,
+      cardId: card.id,
+    },
+  })
+
+  const newBalance = rd.balance ?? rd.cardBalance ?? result.data?.balance
+  if (newBalance !== undefined && newBalance !== null) {
+    await prisma.vccCard.update({
+      where: { id: card.id },
+      data: { balance: parseFloat(String(newBalance)), totalRecharge: { increment: amt } },
+    })
+  } else if (isSuccess) {
+    await prisma.vccCard.update({
+      where: { id: card.id },
+      data: { balance: { increment: amt }, totalRecharge: { increment: amt } },
+    })
+  }
+
+  return c.json({ transaction: tx, success: isSuccess })
+})
+
+// POST /my/cards/:id/withdraw — Move funds from card → user wallet
+yeewallex.post('/my/cards/:id/withdraw', async (c) => {
+  const userId = c.get('userId') as string
+  const u = await requireVccAccess(userId)
+  if (!u) return c.json({ error: 'VCC access not granted' }, 403)
+
+  const { amount } = await c.req.json()
+  const amt = Number(amount)
+  if (!amt || amt <= 0) return c.json({ error: 'Invalid amount' }, 400)
+
+  const card = await prisma.vccCard.findFirst({
+    where: { id: c.req.param('id'), assignedUserId: userId },
+  })
+  if (!card || !card.yeewallexCardId) return c.json({ error: 'Card not found' }, 404)
+  if (Number(card.balance) < amt) return c.json({ error: 'Insufficient card balance' }, 400)
+
+  const result = await withdrawCard({ cardId: card.yeewallexCardId, amount: amt, currency: 'USD' })
+  if (result.error) return c.json({ error: result.message }, 400)
+
+  await prisma.vccTransaction.create({
+    data: {
+      yeewallexTxId: result.data?.withdrawId || result.data?.id || `wd_${Date.now()}`,
+      type: 'WITHDRAWAL', amount: amt, currency: 'USD',
+      status: result.data?.status === 'SUCCESS' ? 'SUCCESS' : 'PENDING',
+      description: `User wallet withdraw $${amt}`,
+      cardId: card.id,
+    },
+  })
+
+  // Credit user wallet
+  await prisma.user.update({ where: { id: userId }, data: { walletBalance: { increment: amt } } })
+
+  // Update card balance
+  if (result.data?.balance !== undefined) {
+    await prisma.vccCard.update({ where: { id: card.id }, data: { balance: parseFloat(String(result.data.balance)) } })
+  } else {
+    await prisma.vccCard.update({ where: { id: card.id }, data: { balance: { decrement: amt } } })
+  }
+
+  return c.json({ success: true })
+})
+
 // ─── ADMIN: VCC User Access Management ──────────────────────────────────────
 // List users with their vccAccess flag
 yeewallex.get('/users', async (c) => {
