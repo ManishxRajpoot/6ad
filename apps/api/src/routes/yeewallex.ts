@@ -968,6 +968,62 @@ yeewallex.get('/my/cards/:id/details', async (c) => {
   return c.json({ cardNo: result.data.cardNo, cvv: result.data.cvv, expireDate: result.data.expireDate })
 })
 
+// Reconcile any PENDING RECHARGE transactions by querying Yeewallex.
+// Yeewallex sometimes returns the recharge synchronously, sometimes async — so
+// we poll their card-recharge-query endpoint and flip our DB row when the
+// upstream status is settled.
+async function reconcilePendingRecharges(cardIds: string[]) {
+  const pendings = await prisma.vccTransaction.findMany({
+    where: {
+      cardId: { in: cardIds },
+      type: 'RECHARGE',
+      status: 'PENDING',
+      // Only those that have a real Yeewallex rechargeId (not our `rc_<ts>` fallback)
+      NOT: { yeewallexTxId: { startsWith: 'rc_' } },
+    },
+    take: 20,
+  })
+  if (pendings.length === 0) return
+
+  for (const tx of pendings) {
+    try {
+      const r = await getRechargeStatus(tx.yeewallexTxId!)
+      const rd = r.data?.data || r.data || {}
+      const status = rd.status || rd.state || r.data?.status
+      const isSuccess = status === 'SUCCESS' || status === 200 || status === 100
+      const isFailed = status === 'FAILED' || status === 400 || status === 500
+      if (!isSuccess && !isFailed) continue
+
+      await prisma.vccTransaction.update({
+        where: { id: tx.id },
+        data: { status: isSuccess ? 'SUCCESS' : 'FAILED' },
+      })
+
+      if (isSuccess) {
+        // Update card balance from upstream if returned, else just increment locally
+        const newBal = rd.balance ?? rd.cardBalance
+        if (newBal !== undefined && newBal !== null) {
+          await prisma.vccCard.update({
+            where: { id: tx.cardId },
+            data: { balance: parseFloat(String(newBal)) },
+          })
+        }
+      } else if (isFailed) {
+        // Refund the user wallet for failed recharges
+        const card = await prisma.vccCard.findUnique({ where: { id: tx.cardId }, select: { assignedUserId: true } })
+        if (card?.assignedUserId && (tx.description || '').startsWith('User wallet recharge')) {
+          await prisma.user.update({
+            where: { id: card.assignedUserId },
+            data: { walletBalance: { increment: Number(tx.amount) } },
+          })
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[reconcilePendingRecharges] ${tx.id} skipped: ${err.message}`)
+    }
+  }
+}
+
 // GET /my/transactions — User's card transactions
 yeewallex.get('/my/transactions', async (c) => {
   const userId = c.get('userId') as string
@@ -982,6 +1038,9 @@ yeewallex.get('/my/transactions', async (c) => {
   const cardIds = userCards.map(c => c.id)
 
   if (cardIds.length === 0) return c.json({ transactions: [], total: 0, page, limit })
+
+  // Best-effort reconciliation of pending recharges (don't block on errors)
+  await reconcilePendingRecharges(cardIds).catch(() => {})
 
   const [transactions, total] = await Promise.all([
     prisma.vccTransaction.findMany({
