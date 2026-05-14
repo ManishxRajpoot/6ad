@@ -153,6 +153,14 @@ html.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
 /* Generic SVG text fallback */
 html.dark svg text { fill: currentColor; }
 
+/* Brighten any chart strokes/fills that were near-black so lines/dots show on dark bg */
+html.dark [stroke="#111827"], html.dark [stroke="#000000"], html.dark [stroke="#000"], html.dark [stroke="black"] {
+  stroke: #e5e7eb !important;
+}
+html.dark [fill="#111827"], html.dark [fill="#000000"], html.dark [fill="#000"], html.dark [fill="black"] {
+  fill: #e5e7eb !important;
+}
+
 /* Modals / dialogs — common patterns */
 html.dark .bg-black\/40 { background-color: rgba(0,0,0,0.7) !important; }
 html.dark .bg-black\/50 { background-color: rgba(0,0,0,0.75) !important; }
