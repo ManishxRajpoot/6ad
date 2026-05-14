@@ -983,22 +983,8 @@ export default function VCCPage() {
 
           {/* ═══ RECHARGE/REFUND HISTORY TAB ═══ */}
           {activeTab === 'recharge-history' && (() => {
-            const cancelRefundTotal = rechargeHistory
-              .filter((t: any) => t.type === 'REFUND' && t.status === 'SUCCESS' && (t.description || '').toLowerCase().includes('cancel'))
-              .reduce((s: number, t: any) => s + Number(t.amount || 0), 0)
-            const cancelRefundCount = rechargeHistory.filter((t: any) => t.type === 'REFUND' && t.status === 'SUCCESS' && (t.description || '').toLowerCase().includes('cancel')).length
             return (
               <>
-                {/* Summary banner — total auto-refunded from cancelled cards */}
-                {cancelRefundCount > 0 && (
-                  <div className="px-5 py-3 border-b border-gray-100 bg-purple-50/40 flex items-center justify-between text-xs">
-                    <span className="text-gray-600">
-                      Total refunded from cancelled cards:&nbsp;
-                      <span className="font-bold text-purple-700">${cancelRefundTotal.toFixed(2)}</span>
-                      <span className="text-gray-400">&nbsp;· {cancelRefundCount} card{cancelRefundCount === 1 ? '' : 's'}</span>
-                    </span>
-                  </div>
-                )}
                 {filteredRechargeHistory.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16">
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
