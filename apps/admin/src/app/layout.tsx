@@ -5,6 +5,7 @@ import { ToastProvider } from '@/contexts/ToastContext'
 import { ConfirmProvider } from '@/contexts/ConfirmContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { UpdateChecker } from '@/components/UpdateChecker'
+import { ThemeProvider, THEME_INIT_SCRIPT } from '@/components/providers/ThemeProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -22,15 +23,21 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Pre-hydration theme bootstrap — prevents white flash for dark-mode users */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className={inter.className}>
         <ErrorBoundary>
-          <ToastProvider>
-            <ConfirmProvider>
-              {children}
-              <UpdateChecker />
-            </ConfirmProvider>
-          </ToastProvider>
+          <ThemeProvider>
+            <ToastProvider>
+              <ConfirmProvider>
+                {children}
+                <UpdateChecker />
+              </ConfirmProvider>
+            </ToastProvider>
+          </ThemeProvider>
         </ErrorBoundary>
       </body>
     </html>

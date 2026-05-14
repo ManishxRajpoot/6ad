@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Search, ChevronDown, ChevronLeft, ChevronRight, X, Calendar, SlidersHorizontal, LayoutDashboard, Users, UserCog, CreditCard, FileText, ArrowUpRight, Settings, Megaphone, Globe, Ticket, Gift, Plug, Layers, Mail } from 'lucide-react'
+import { Bell, Search, ChevronDown, ChevronLeft, ChevronRight, X, Calendar, SlidersHorizontal, LayoutDashboard, Users, UserCog, CreditCard, FileText, ArrowUpRight, Settings, Megaphone, Globe, Ticket, Gift, Plug, Layers, Mail, Sun, Moon, Monitor } from 'lucide-react'
+import { useTheme } from '@/components/providers/ThemeProvider'
 import { useAuthStore } from '@/store/auth'
 import { useDateFilterStore } from '@/store/dateFilter'
 
@@ -351,6 +352,9 @@ export function Header({ title, subtitle, pendingCount }: HeaderProps) {
         {/* Separator */}
         <div className="w-px h-5 bg-gray-200 mx-1.5" />
 
+        {/* Theme toggle (Light / Dark / Auto) */}
+        <ThemeToggle />
+
         {/* Notifications */}
         <button
           onClick={() => router.push('/notifications')}
@@ -374,5 +378,20 @@ export function Header({ title, subtitle, pendingCount }: HeaderProps) {
         </button>
       </div>
     </header>
+  )
+}
+
+function ThemeToggle() {
+  const { theme, cycleTheme } = useTheme()
+  const Icon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
+  const label = theme === 'dark' ? 'Dark mode' : theme === 'light' ? 'Light mode' : 'Auto (system)'
+  return (
+    <button
+      onClick={cycleTheme}
+      title={`Theme: ${label} — click to change`}
+      className="relative flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-200/60 dark:hover:bg-gray-700/60 transition-colors"
+    >
+      <Icon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+    </button>
   )
 }
