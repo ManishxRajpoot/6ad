@@ -17,6 +17,7 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
   const router = useRouter()
   const { isAuthenticated, isHydrated, setAuth, logout } = useAuthStore()
   const [pendingCount, setPendingCount] = useState(0)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     // Wait for zustand to hydrate from localStorage
@@ -83,10 +84,15 @@ export function DashboardLayout({ children, title, subtitle }: DashboardLayoutPr
 
   return (
     <div className="min-h-screen bg-[#F8F9FC]">
-      <Sidebar />
-      <div className="ml-[230px] transition-all duration-300">
-        <Header title={title} subtitle={subtitle} pendingCount={pendingCount} />
-        <main className="p-5">{children}</main>
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="lg:ml-[230px] transition-all duration-300">
+        <Header
+          title={title}
+          subtitle={subtitle}
+          pendingCount={pendingCount}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
+        <main className="p-3 lg:p-5">{children}</main>
       </div>
     </div>
   )

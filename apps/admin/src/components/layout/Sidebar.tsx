@@ -142,9 +142,17 @@ const menuSections: MenuSection[] = [
   },
 ]
 
-export function Sidebar() {
+type SidebarProps = {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export function Sidebar({ isOpen = false, onClose }: SidebarProps = {}) {
   const pathname = usePathname()
   const { user, logout } = useAuthStore()
+
+  // Auto-close on route change (mobile)
+  useEffect(() => { if (onClose) onClose() }, [pathname])
 
   const STORAGE_KEY = 'sidebar-expanded-sections'
 
@@ -201,7 +209,19 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-[230px] bg-white/80 backdrop-blur-xl flex flex-col border-r border-black/[0.06]">
+    <>
+      {/* Mobile backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+    <aside className={cn(
+      'fixed left-0 top-0 z-40 h-screen w-[230px] bg-white/80 backdrop-blur-xl flex flex-col border-r border-black/[0.06] transition-transform duration-300',
+      'lg:translate-x-0',
+      isOpen ? 'translate-x-0' : '-translate-x-full'
+    )}>
       {/* Logo — ribbon infinity in black/gray */}
       <div className="px-5 py-5 flex items-center gap-3">
         <svg viewBox="0 0 48 28" className="w-14 h-9 shrink-0" fill="none">
@@ -338,5 +358,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   )
 }

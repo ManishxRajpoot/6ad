@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Search, ChevronDown, ChevronLeft, ChevronRight, X, Calendar, SlidersHorizontal, LayoutDashboard, Users, UserCog, CreditCard, FileText, ArrowUpRight, Settings, Megaphone, Globe, Ticket, Gift, Plug, Layers, Mail, Sun, Moon, Monitor } from 'lucide-react'
+import { Bell, Search, ChevronDown, ChevronLeft, ChevronRight, X, Calendar, SlidersHorizontal, LayoutDashboard, Users, UserCog, CreditCard, FileText, ArrowUpRight, Settings, Megaphone, Globe, Ticket, Gift, Plug, Layers, Mail, Sun, Moon, Monitor, Menu } from 'lucide-react'
 import { useTheme } from '@/components/providers/ThemeProvider'
 import { useAuthStore } from '@/store/auth'
 import { useDateFilterStore } from '@/store/dateFilter'
@@ -34,9 +34,10 @@ type HeaderProps = {
   title: string
   subtitle?: string
   pendingCount?: number
+  onOpenSidebar?: () => void
 }
 
-export function Header({ title, subtitle, pendingCount }: HeaderProps) {
+export function Header({ title, subtitle, pendingCount, onOpenSidebar }: HeaderProps) {
   const router = useRouter()
   const user = useAuthStore((state) => state.user)
   const { startDate, endDate, setDateRange, clearDateRange } = useDateFilterStore()
@@ -161,12 +162,21 @@ export function Header({ title, subtitle, pendingCount }: HeaderProps) {
   const hasDateFilter = startDate && endDate
 
   return (
-    <header className="sticky top-0 z-30 flex h-[60px] items-center justify-between bg-[#FAFAFA] px-6 border-b border-gray-100">
-      {/* Left — Title */}
-      <div className="flex items-center gap-3">
-        <h1 className="text-[16px] font-semibold text-gray-900">{title}</h1>
+    <header className="sticky top-0 z-30 flex h-[56px] lg:h-[60px] items-center justify-between bg-[#FAFAFA] px-3 lg:px-6 border-b border-gray-100">
+      {/* Left — Hamburger + Title */}
+      <div className="flex items-center gap-2 lg:gap-3 min-w-0">
+        {onOpenSidebar && (
+          <button
+            onClick={onOpenSidebar}
+            className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg hover:bg-gray-200/60 transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5 text-gray-700" />
+          </button>
+        )}
+        <h1 className="text-[14px] lg:text-[16px] font-semibold text-gray-900 truncate">{title}</h1>
         {subtitle && (
-          <span className="h-6 px-2.5 rounded-md bg-gray-200/80 text-[11px] font-medium text-gray-500 flex items-center">
+          <span className="hidden sm:flex h-6 px-2.5 rounded-md bg-gray-200/80 text-[11px] font-medium text-gray-500 items-center">
             {subtitle}
           </span>
         )}
@@ -174,8 +184,8 @@ export function Header({ title, subtitle, pendingCount }: HeaderProps) {
 
       {/* Right — Actions */}
       <div className="flex items-center gap-1.5">
-        {/* Search — Command Palette */}
-        <div className="relative" ref={searchContainerRef}>
+        {/* Search — Command Palette (hidden on small screens) */}
+        <div className="relative hidden md:block" ref={searchContainerRef}>
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 z-10" />
           <input
             ref={searchInputRef}
@@ -217,8 +227,8 @@ export function Header({ title, subtitle, pendingCount }: HeaderProps) {
           )}
         </div>
 
-        {/* Date Picker */}
-        <div className="relative">
+        {/* Date Picker — hidden on small screens */}
+        <div className="relative hidden md:block">
           <button
             onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
             className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] transition-colors ${
@@ -373,7 +383,7 @@ export function Header({ title, subtitle, pendingCount }: HeaderProps) {
               {user?.username?.charAt(0).toUpperCase() || 'A'}
             </span>
           </div>
-          <span className="text-[13px] font-medium text-gray-700">{user?.username || 'Admin'}</span>
+          <span className="hidden sm:inline text-[13px] font-medium text-gray-700">{user?.username || 'Admin'}</span>
           <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
         </button>
       </div>
