@@ -982,19 +982,35 @@ export default function VCCPage() {
           )}
 
           {/* ═══ RECHARGE/REFUND HISTORY TAB ═══ */}
-          {activeTab === 'recharge-history' && (
-            filteredRechargeHistory.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {rechargeHistory.length === 0 ? 'No Recharge/Refund History' : 'No results'}
-                </h3>
-                <p className="text-gray-500 text-sm">
-                  {rechargeHistory.length === 0
-                    ? 'Card recharges, withdrawals and fees will appear here.'
-                    : `No transactions match "${searchQuery}" — try card last-4, type (refund/recharge), or amount.`}
-                </p>
-              </div>
-            ) : (
+          {activeTab === 'recharge-history' && (() => {
+            const cancelRefundTotal = rechargeHistory
+              .filter((t: any) => t.type === 'REFUND' && t.status === 'SUCCESS' && (t.description || '').toLowerCase().includes('cancel'))
+              .reduce((s: number, t: any) => s + Number(t.amount || 0), 0)
+            const cancelRefundCount = rechargeHistory.filter((t: any) => t.type === 'REFUND' && t.status === 'SUCCESS' && (t.description || '').toLowerCase().includes('cancel')).length
+            return (
+              <>
+                {/* Summary banner — total auto-refunded from cancelled cards */}
+                {cancelRefundCount > 0 && (
+                  <div className="px-5 py-3 border-b border-gray-100 bg-purple-50/40 flex items-center justify-between text-xs">
+                    <span className="text-gray-600">
+                      Total refunded from cancelled cards:&nbsp;
+                      <span className="font-bold text-purple-700">${cancelRefundTotal.toFixed(2)}</span>
+                      <span className="text-gray-400">&nbsp;· {cancelRefundCount} card{cancelRefundCount === 1 ? '' : 's'}</span>
+                    </span>
+                  </div>
+                )}
+                {filteredRechargeHistory.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      {rechargeHistory.length === 0 ? 'No Recharge/Refund History' : 'No results'}
+                    </h3>
+                    <p className="text-gray-500 text-sm">
+                      {rechargeHistory.length === 0
+                        ? 'Card recharges, withdrawals and fees will appear here.'
+                        : `No transactions match "${searchQuery}" — try card last-4, type (refund/recharge), or amount.`}
+                    </p>
+                  </div>
+                ) : (
               <table className="w-full text-sm xl:text-[13px]">
                 <thead className="sticky top-0 z-10"><tr className="bg-gray-50 shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
                   {['Time', 'Order ID', 'Card ID', 'Card No.', 'Card Notes', 'Card Account No.', 'Account Remarks', 'Type', 'Amount', 'Status', 'Asset Account Change', 'Action'].map(h => (
@@ -1032,8 +1048,10 @@ export default function VCCPage() {
                   </tr>
                 ))}</tbody>
               </table>
+                )}
+              </>
             )
-          )}
+          })()}
 
           {/* ═══ TRANSACTIONS TAB ═══ */}
           {activeTab === 'transactions' && (

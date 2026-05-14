@@ -674,16 +674,40 @@ yeewallex.post('/cards/:id/unfreeze', async (c) => {
 })
 
 // POST /cards/:id/cancel
+// When a card is cancelled, Yeewallex auto-refunds the remaining balance
+// back to the USDT wallet. Capture that amount as a REFUND VccTransaction
+// so it shows up in the Recharge/Refund history.
 yeewallex.post('/cards/:id/cancel', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
   const card = await prisma.vccCard.findUnique({ where: { id: c.req.param('id') } })
   if (!card || !card.yeewallexCardId) return c.json({ error: 'Card not found' }, 404)
 
+  const balanceAtCancel = Number(card.balance) || 0
   const result = await cancelCard(card.yeewallexCardId)
   if (result.error) return c.json({ error: result.message }, 400)
 
-  await prisma.vccCard.update({ where: { id: card.id }, data: { status: 'CANCELLED' } })
-  return c.json({ success: true })
+  await prisma.vccCard.update({
+    where: { id: card.id },
+    data: { status: 'CANCELLED', balance: 0 },
+  })
+
+  // Log the auto-refund only when there was a balance to return
+  if (balanceAtCancel > 0) {
+    await prisma.vccTransaction.create({
+      data: {
+        cardId: card.id,
+        type: 'REFUND',
+        amount: balanceAtCancel,
+        currency: 'USDT',
+        status: 'SUCCESS',
+        description: `Card cancelled — $${balanceAtCancel.toFixed(2)} auto-refunded to USDT wallet`,
+        yeewallexTxId: `CANCEL_REFUND:${card.id}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+        metadata: { source: 'card-cancel', cardId: card.id, balanceAtCancel } as any,
+      },
+    }).catch((err) => console.error('[CancelRefund] persist failed:', err.message))
+  }
+
+  return c.json({ success: true, refundedToWallet: balanceAtCancel })
 })
 
 // POST /cards/:id/refund — Partial balance refund (amount returned to USDT wallet, card stays active)
