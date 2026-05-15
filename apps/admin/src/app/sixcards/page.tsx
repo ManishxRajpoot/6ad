@@ -68,7 +68,7 @@ export default function VCCPage() {
 
   // Forms
   const [holderForm, setHolderForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
-  const [cardForm, setCardForm] = useState({ cardholderId: '', label: '', alias: '' })
+  const [cardForm, setCardForm] = useState<{ cardholderId: string; label: string; alias: string; cardBinId: string }>({ cardholderId: '', label: '', alias: '', cardBinId: '' })
 
   // Tab refs for sliding indicator
   const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({})
@@ -294,6 +294,7 @@ export default function VCCPage() {
   }
   const createCard = async () => {
     if (!cardForm.cardholderId) return toast.error('Error', 'Select a cardholder')
+    if (!cardForm.cardBinId) return toast.error('Error', 'Select a BIN')
     try {
       const r = await yeewallexApi.cards.create(cardForm)
       if (r.warning) {
@@ -302,7 +303,7 @@ export default function VCCPage() {
         toast.success('Created', 'Card issued! Checking status...')
       }
       setShowCreateCard(false)
-      setCardForm({ cardholderId: '', label: '', alias: '' })
+      setCardForm({ cardholderId: '', label: '', alias: '', cardBinId: '' })
       await fetchCards()
 
       // Auto-poll task status every 5s for up to 60s
@@ -535,7 +536,18 @@ export default function VCCPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={issueCardDirect} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"><Plus className="w-4 h-4" /> Issue Card</button>
+          <button onClick={() => {
+            // Open the modal with a sensible default holder + BIN preselected
+            const firstHolder = cardholders[0]
+            const firstBin = cardBins?.bins?.data?.[0]
+            setCardForm({
+              cardholderId: firstHolder?.id || '',
+              label: '',
+              alias: '',
+              cardBinId: firstBin?.id || '',
+            })
+            setShowCreateCard(true)
+          }} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"><Plus className="w-4 h-4" /> Issue Card</button>
           <button onClick={() => setShowCreateHolder(true)} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"><UserPlus className="w-4 h-4" /> Add Holder</button>
           <button onClick={syncFromYeewallex} disabled={syncing} className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50">
             <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} /> Sync
@@ -1218,10 +1230,51 @@ export default function VCCPage() {
 
       <Modal isOpen={showCreateCard} onClose={() => setShowCreateCard(false)} title="Issue New Card">
         <div className="space-y-4 p-1">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Cardholder *</label><select value={cardForm.cardholderId} onChange={e => setCardForm(p => ({ ...p, cardholderId: e.target.value }))} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500"><option value="">Select Cardholder</option>{cardholders.map(h => <option key={h.id} value={h.id}>{h.firstName} {h.lastName}</option>)}</select></div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cardholder *</label>
+            <select
+              value={cardForm.cardholderId}
+              onChange={e => setCardForm(p => ({ ...p, cardholderId: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+            >
+              <option value="">Select Cardholder</option>
+              {cardholders.map(h => <option key={h.id} value={h.id}>{h.firstName} {h.lastName}</option>)}
+            </select>
+          </div>
+
+          {/* BIN selector — picks which Yeewallex BIN/card-template the card will be issued on */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Card BIN *</label>
+            {cardBins?.bins?.data?.length ? (
+              <select
+                value={cardForm.cardBinId}
+                onChange={e => setCardForm(p => ({ ...p, cardBinId: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+              >
+                <option value="">Select BIN</option>
+                {cardBins.bins.data.map((bin: any) => (
+                  <option key={bin.id} value={bin.id}>
+                    {bin.sectionNo}{bin.cardLabel ? ` · ${bin.cardLabel}` : ''}{bin.currency ? ` · ${bin.currency}` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">
+                BINs not loaded yet — open the <span className="font-semibold">Account</span> tab once to fetch them, then try again.
+              </p>
+            )}
+            {cardForm.cardBinId && cardBins?.bins?.data?.find((b: any) => b.id === cardForm.cardBinId) && (
+              <p className="text-[11px] text-gray-400 mt-1">
+                BIN # {(cardBins.bins.data.find((b: any) => b.id === cardForm.cardBinId) as any).sectionNo}
+              </p>
+            )}
+          </div>
+
           <Input label="Card Label" placeholder="e.g. FB Ads #1" value={cardForm.label} onChange={e => setCardForm(p => ({ ...p, label: e.target.value }))} />
-          <p className="text-xs text-gray-400">Card BIN: VC03 — Ads & Purchasing (USD)</p>
-          <div className="flex gap-2 pt-2"><button onClick={() => setShowCreateCard(false)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button><button onClick={createCard} className="flex-1 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800">Issue Card</button></div>
+          <div className="flex gap-2 pt-2">
+            <button onClick={() => setShowCreateCard(false)} className="flex-1 py-2.5 rounded-lg border text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+            <button onClick={createCard} className="flex-1 py-2.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800">Issue Card</button>
+          </div>
         </div>
       </Modal>
 
