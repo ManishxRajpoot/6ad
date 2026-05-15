@@ -32,11 +32,22 @@ type AdAccount = {
   timezone: string | null
   bmId: string | null
   sourceBmId: string | null
+  sourceBmName: string | null
   licenseName: string | null
   extensionProfileId: string | null
   fundingSources: string | null
   adminRemarks: string | null
   createdAt: string
+  assignedVccCards?: Array<{
+    id: string
+    label: string | null
+    alias: string | null
+    cardNumber: string | null
+    yeewallexCardId: string | null
+    status: string
+    balance: number | null
+    currency: string | null
+  }>
   user: {
     id: string
     username: string
@@ -795,17 +806,28 @@ export default function AllAdAccountsPage() {
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1.5">
-                            <span className={`truncate max-w-[120px] ${acc.extensionProfileId ? 'text-gray-700 text-[11px] font-medium' : 'text-gray-400 text-[11px]'}`}>
-                              {getProfileLabel(acc) || '—'}
-                            </span>
-                            <button
-                              onClick={() => { setProfileEditId(acc.id); setProfileEditValue(acc.sourceBmId === 'cheetah' ? 'cheetah' : (acc.extensionProfileId || '')); setProfileDropdownOpen(false) }}
-                              className="p-1 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors flex-shrink-0"
-                              title="Edit profile"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`truncate max-w-[140px] ${acc.extensionProfileId ? 'text-gray-700 text-[11px] font-medium' : 'text-gray-400 text-[11px]'}`}>
+                                {getProfileLabel(acc) || '—'}
+                              </span>
+                              <button
+                                onClick={() => { setProfileEditId(acc.id); setProfileEditValue(acc.sourceBmId === 'cheetah' ? 'cheetah' : (acc.extensionProfileId || '')); setProfileDropdownOpen(false) }}
+                                className="p-1 rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition-colors flex-shrink-0"
+                                title="Edit profile"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            </div>
+                            {/* BM name from Facebook Graph (auto-fetched) */}
+                            {acc.sourceBmName && (
+                              <span
+                                className="text-[10px] text-gray-500 truncate max-w-[160px]"
+                                title={`BM: ${acc.sourceBmName}${acc.sourceBmId && acc.sourceBmId !== 'cheetah' ? ` (${acc.sourceBmId})` : ''}`}
+                              >
+                                BM: <span className="text-gray-700 font-medium">{acc.sourceBmName}</span>
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>
@@ -833,16 +855,38 @@ export default function AllAdAccountsPage() {
                           </div>
                         ) : (
                           <div className="flex items-center gap-1">
-                            {acc.fundingSources ? (() => {
-                              try {
-                                const cards = JSON.parse(acc.fundingSources)
-                                return Array.isArray(cards) && cards.length > 0
-                                  ? <div className="flex flex-wrap gap-0.5">{cards.map((c: any, i: number) => (
-                                      <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-medium whitespace-nowrap">{c.display}</span>
-                                    ))}</div>
-                                  : <span className="text-gray-300 text-[10px]">—</span>
-                              } catch { return <span className="text-gray-300 text-[10px]">—</span> }
-                            })() : <span className="text-gray-300 text-[10px]">—</span>}
+                            {(() => {
+                              // 1) Prefer our assigned VccCard rows (real linked card)
+                              const linked: any[] = Array.isArray(acc.assignedVccCards) ? acc.assignedVccCards : []
+                              // 2) Fall back to fundingSources captured from FB Graph
+                              let funding: any[] = []
+                              try { funding = acc.fundingSources ? JSON.parse(acc.fundingSources) : [] } catch {}
+
+                              if (linked.length === 0 && funding.length === 0) {
+                                return <span className="text-gray-300 text-[10px]">—</span>
+                              }
+                              const last4 = (n?: string) => (n ? String(n).replace(/\D/g, '').slice(-4) : '••••')
+                              return (
+                                <div className="flex flex-col gap-0.5">
+                                  {linked.map((c: any) => (
+                                    <span
+                                      key={c.id}
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-violet-50 text-violet-700 rounded text-[10px] font-medium whitespace-nowrap"
+                                      title={`${c.label || c.alias || ''} · ${c.status} · $${Number(c.balance || 0).toFixed(2)}`}
+                                    >
+                                      <span className="font-mono">•• {last4(c.cardNumber || c.yeewallexCardId)}</span>
+                                      {c.label && <span className="text-violet-500 font-normal">{c.label}</span>}
+                                      <span className="text-[9px] text-violet-400">${Number(c.balance || 0).toFixed(0)}</span>
+                                    </span>
+                                  ))}
+                                  {funding.map((c: any, i: number) => (
+                                    <span key={`fs-${i}`} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-medium whitespace-nowrap" title="From Facebook funding sources">
+                                      {c.display}
+                                    </span>
+                                  ))}
+                                </div>
+                              )
+                            })()}
                             <button
                               onClick={() => {
                                 setVcardEditId(acc.id)

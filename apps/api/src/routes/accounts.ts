@@ -23,6 +23,9 @@ import {
 
 import { prisma } from '../lib/prisma.js'
 import { autoRechargeAssignedVccCard } from '../lib/vcc-auto-recharge.js'
+import { tryBmTokenRecharge } from '../lib/bm-token-recharge.js'
+import { autoLinkAdAccount } from '../lib/detect-account-ownership.js'
+import { decryptToken } from '../lib/token-crypto.js'
 
 type Platform = 'FACEBOOK' | 'GOOGLE' | 'TIKTOK' | 'SNAPCHAT' | 'BING'
 import { verifyToken, requireAgent, requireAdmin, requireUser } from '../middleware/auth.js'
@@ -180,7 +183,20 @@ accounts.get('/', requireUser, async (c) => {
           },
           refunds: {
             select: { amount: true, status: true }
-          }
+          },
+          // Show VCC cards assigned to this ad account in the admin table
+          assignedVccCards: {
+            select: {
+              id: true,
+              label: true,
+              alias: true,
+              cardNumber: true,
+              yeewallexCardId: true,
+              status: true,
+              balance: true,
+              currency: true,
+            },
+          },
         },
         skip,
         take: parseInt(limit),
@@ -1093,6 +1109,15 @@ accounts.post('/', requireUser, async (c) => {
       }
     })
 
+    // Auto-detect ownership: ask Cheetah + every active BM token which one owns
+    // this accountId. Patches sourceBmId/sourceBmName + accountName from FB.
+    // Runs in the background so the API response isn't held up by FB calls.
+    if (data.platform === 'FACEBOOK') {
+      autoLinkAdAccount(account.id, account.accountId, account.accountName).catch(e =>
+        console.warn(`[Create Account] auto-link failed for act_${account.accountId}: ${e.message}`)
+      )
+    }
+
     // Send email to user
     if (user) {
       // Use approved domain logo if available, otherwise fall back to agent's brand logo
@@ -1158,44 +1183,32 @@ accounts.post('/:id/approve', requireAdmin, async (c) => {
       return c.json({ error: 'Account already processed' }, 400)
     }
 
-    // For Facebook accounts: check Cheetah API and link to AdsPower profile
-    let isCheetahAccount = false
-    if (account.platform === 'FACEBOOK') {
-      try {
-        const configLoaded = await loadCheetahConfig()
-        if (configLoaded) {
-          const accountResult = await cheetahApi.getAccount(account.accountId)
-          if (accountResult.code === 0 && accountResult.data && accountResult.data.length > 0) {
-            isCheetahAccount = true
-            console.log(`[Account Approve] act_${account.accountId} found in Cheetah — marking sourceBmId=cheetah`)
-          }
-        }
-      } catch (err: any) {
-        console.log(`[Account Approve] Cheetah check failed for act_${account.accountId}: ${err.message}`)
-      }
-    }
-
+    // Mark APPROVED first so the user sees the change immediately.
     await prisma.adAccount.update({
       where: { id },
-      data: {
-        status: 'APPROVED',
-        adminRemarks,
-        ...(isCheetahAccount ? { sourceBmId: 'cheetah' } : {}),
-      }
+      data: { status: 'APPROVED', adminRemarks },
     })
 
-    // For non-Cheetah Facebook accounts: trigger AdsPower profile discovery in background
-    if (account.platform === 'FACEBOOK' && !isCheetahAccount) {
-      console.log(`[Account Approve] act_${account.accountId} not in Cheetah — triggering AdsPower profile discovery`)
-      // Run in background so it doesn't block the approval response
-      discoverAccountProfile(account.accountId).then(profileId => {
-        if (profileId) {
-          console.log(`[Account Approve] Discovery complete: act_${account.accountId} → profile ${profileId}`)
-        } else {
-          console.log(`[Account Approve] Discovery: act_${account.accountId} not found in any AdsPower profile`)
+    // For Facebook: detect Cheetah/BM-token ownership and (if admin's name
+    // differs from the live FB name) rename on the platform to match.
+    // Runs in background so it doesn't block the approval response.
+    if (account.platform === 'FACEBOOK') {
+      autoLinkAdAccount(id, account.accountId, account.accountName).then(result => {
+        if (result.linked) {
+          if (result.renamed) {
+            console.log(`[Account Approve] act_${account.accountId} renamed on ${result.source} to "${account.accountName}"`)
+          }
+          // If linked to a BM token (not Cheetah), no AdsPower discovery needed.
+          if (result.source === 'cheetah') return
         }
+        // Not linked to Cheetah or any BM → fall back to AdsPower profile discovery.
+        console.log(`[Account Approve] act_${account.accountId} not in Cheetah/BM — triggering AdsPower discovery`)
+        discoverAccountProfile(account.accountId).then(profileId => {
+          if (profileId) console.log(`[Account Approve] Discovery: act_${account.accountId} → profile ${profileId}`)
+          else console.log(`[Account Approve] Discovery: act_${account.accountId} not found in any AdsPower profile`)
+        }).catch(err => console.error(`[Account Approve] Discovery error for act_${account.accountId}:`, err.message))
       }).catch(err => {
-        console.error(`[Account Approve] Discovery error for act_${account.accountId}:`, err.message)
+        console.warn(`[Account Approve] auto-link failed for act_${account.accountId}: ${err.message}`)
       })
     }
 
@@ -1295,6 +1308,90 @@ accounts.post('/:id/reject', requireAdmin, async (c) => {
   } catch (error) {
     console.error('Reject account error:', error)
     return c.json({ error: 'Failed to reject account' }, 500)
+  }
+})
+
+// POST /accounts/:id/rename - Rename ad account on the platform (Cheetah or BM-token Graph API)
+accounts.post('/:id/rename', requireUser, async (c) => {
+  try {
+    const { id } = c.req.param()
+    const userId = c.get('userId')
+    const { name } = await c.req.json().catch(() => ({}))
+    const newName = typeof name === 'string' ? name.trim() : ''
+
+    if (!newName) return c.json({ message: 'Name is required' }, 400)
+    if (newName.length < 2 || newName.length > 100) {
+      return c.json({ message: 'Name must be 2–100 characters' }, 400)
+    }
+
+    const account = await prisma.adAccount.findUnique({ where: { id } })
+    if (!account) return c.json({ message: 'Account not found' }, 404)
+    if (account.userId !== userId) return c.json({ message: 'Access denied' }, 403)
+    if (account.platform !== 'FACEBOOK') {
+      return c.json({ message: 'Rename is only supported for Facebook accounts' }, 400)
+    }
+
+    const sourceBmId = account.sourceBmId
+
+    // ── Cheetah path ─────────────────────────────────────────────
+    if (sourceBmId === 'cheetah') {
+      const result = await cheetahApi.updateAccountName(account.accountId, newName)
+      if (result.code !== 0) {
+        return c.json({ message: `Cheetah rename failed: ${result.message || 'unknown error'}` }, 502)
+      }
+      await prisma.adAccount.update({ where: { id }, data: { accountName: newName } })
+      console.log(`[Rename] act_${account.accountId} via Cheetah → "${newName}"`)
+      return c.json({ message: 'Account renamed', name: newName, source: 'cheetah' })
+    }
+
+    // ── BM token / FB Graph API path ─────────────────────────────
+    if (sourceBmId) {
+      const bmToken = await prisma.bmToken.findUnique({
+        where: { bmId: sourceBmId },
+        select: { id: true, status: true, encryptedToken: true, bmName: true },
+      })
+      if (!bmToken) {
+        return c.json({ message: 'No BM token available for this account — contact support to add one' }, 400)
+      }
+      if (bmToken.status !== 'ACTIVE') {
+        return c.json({ message: `BM token is ${bmToken.status} — contact support` }, 400)
+      }
+
+      let token: string
+      try {
+        token = decryptToken(bmToken.encryptedToken)
+      } catch (e: any) {
+        return c.json({ message: 'Failed to decrypt BM token — contact support' }, 500)
+      }
+
+      const url = `https://graph.facebook.com/v25.0/act_${account.accountId}`
+      const params = new URLSearchParams({ name: newName, access_token: token })
+      const fb = await fetch(url, { method: 'POST', body: params })
+      const fbJson: any = await fb.json().catch(() => ({}))
+      if (!fb.ok || fbJson?.error) {
+        const err = fbJson?.error?.message || `HTTP ${fb.status}`
+        if (/Invalid OAuth|access token|expired/i.test(err)) {
+          await prisma.bmToken.update({
+            where: { id: bmToken.id },
+            data: { status: 'INVALID', lastError: err.slice(0, 500), lastErrorAt: new Date() },
+          }).catch(() => {})
+        }
+        return c.json({ message: `Facebook rename failed: ${err}` }, 502)
+      }
+
+      await prisma.adAccount.update({ where: { id }, data: { accountName: newName } })
+      await prisma.bmToken.update({
+        where: { id: bmToken.id },
+        data: { lastUsedAt: new Date(), lastError: null, lastErrorAt: null },
+      }).catch(() => {})
+      console.log(`[Rename] act_${account.accountId} via BM ${bmToken.bmName || sourceBmId} → "${newName}"`)
+      return c.json({ message: 'Account renamed', name: newName, source: 'bm-token' })
+    }
+
+    return c.json({ message: 'Cannot rename: account has no Cheetah or BM-token source configured' }, 400)
+  } catch (err: any) {
+    console.error('[Rename] error:', err)
+    return c.json({ message: err.message || 'Server error' }, 500)
   }
 })
 
@@ -1519,11 +1616,45 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
           console.log(`[Auto-Approve] Credit Line recharge failed, keeping PENDING for retry — act_${account.accountId}`)
         }
       } else {
-        // Non-Credit-Line (extension) account: auto-approve, pending recharge via extension
-        rechargeMethod = 'MANUAL'
-        rechargeStatus = 'PENDING'
-        autoApproved = true
-        console.log(`[Auto-Approve] Extension account act_${account.accountId}: pending recharge confirmation`)
+        // Non-Credit-Line account: prefer BM System User token if one is linked.
+        //  - Token + success → APPROVED + COMPLETED inline.
+        //  - Token + fail    → keep PENDING with error (no extension fallback).
+        //  - No token        → keep PENDING (admin can add a BM token later).
+        const bmAttempt = await tryBmTokenRecharge({
+          depositId: accountDeposit.id,
+          adAccountId: account.accountId,
+          sourceBmId: account.sourceBmId,
+          amount,
+        })
+
+        if (bmAttempt.used && bmAttempt.success) {
+          rechargeMethod = 'BM_TOKEN'
+          rechargeStatus = 'COMPLETED'
+          autoApproved = true
+          await prisma.accountDeposit.update({
+            where: { id: accountDeposit.id },
+            data: {
+              previousSpendCap: bmAttempt.previousSpendCap,
+              newSpendCap: bmAttempt.newSpendCap,
+            },
+          }).catch(() => {})
+          console.log(`[Auto-Approve] BM token recharge SUCCESS act_${account.accountId}: ${bmAttempt.details}`)
+        } else if (bmAttempt.used && !bmAttempt.success) {
+          rechargeMethod = 'BM_TOKEN'
+          rechargeStatus = 'FAILED'
+          autoApproved = true  // still set approvedAt so admin/cron can retry
+          await prisma.accountDeposit.update({
+            where: { id: accountDeposit.id },
+            data: { rechargeError: bmAttempt.error.slice(0, 500) },
+          }).catch(() => {})
+          console.log(`[Auto-Approve] BM token recharge FAILED act_${account.accountId}: ${bmAttempt.error} — leaving PENDING`)
+        } else {
+          // No BM token — leave PENDING (per product decision: no extension auto-fallback)
+          rechargeMethod = 'NONE'
+          rechargeStatus = 'PENDING'
+          autoApproved = true
+          console.log(`[Auto-Approve] No BM token for act_${account.accountId} (${bmAttempt.reason}) — leaving PENDING`)
+        }
       }
 
       if (autoApproved) {
@@ -1593,8 +1724,72 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
             })
             console.log(`[Auto-Approve] Deposit ${accountDeposit.id} kept PENDING, Credit Line recharge will retry — act_${account.accountId}`)
             return c.json({ message: 'Deposit pending — recharge will be retried when funds available', deposit: accountDeposit, autoApproved: false, rechargeMethod }, 201)
+          } else if (rechargeMethod === 'BM_TOKEN' && rechargeStatus === 'COMPLETED') {
+            // BM token recharge succeeded → APPROVED + increment balance.
+            // NOTE: don't pre-set cardPaymentStatus — autoRechargeAssignedVccCard
+            // owns that field and uses an atomic claim to prevent double-charge.
+            await prisma.$transaction(async (tx) => {
+              await tx.accountDeposit.update({
+                where: { id: accountDeposit.id },
+                data: {
+                  status: 'APPROVED',
+                  approvedAt: new Date(),
+                  rechargeMethod,
+                  rechargeStatus,
+                  rechargedAt: new Date(),
+                  rechargedBy: 'bm-token-auto',
+                },
+              })
+              await tx.adAccount.update({
+                where: { id },
+                data: {
+                  totalDeposit: { increment: amount },
+                  balance: { increment: amount },
+                },
+              })
+            })
+
+            // Approval email + notification
+            const approvedDomain3 = account.user.agent?.customDomains?.[0]
+            const agent3 = account.user.agent
+            const agentLogo3 = approvedDomain3?.emailLogo || approvedDomain3?.brandLogo || agent3?.emailLogo || agent3?.brandLogo || null
+            const agentBrandName3 = account.user.agent?.username || null
+            const updatedAcc3 = await prisma.adAccount.findUnique({ where: { id }, select: { balance: true } })
+            const approvalEmail3 = getAccountRechargeApprovedTemplate({
+              username: account.user.username,
+              applyId,
+              amount,
+              commission: commissionAmount,
+              totalCost: totalAmount,
+              platform: account.platform,
+              accountId: account.accountId,
+              accountName: account.accountName || undefined,
+              newBalance: Number(updatedAcc3?.balance) || 0,
+              agentLogo: agentLogo3,
+              agentBrandName: agentBrandName3,
+            })
+            sendEmail({ to: account.user.email, ...approvalEmail3, senderName: account.user.agent?.emailSenderNameApproved || undefined, smtpConfig: buildSmtpConfig(account.user.agent) }).catch(console.error)
+
+            await createNotification({
+              userId: account.userId,
+              type: 'DEPOSIT_APPROVED',
+              title: 'Ad Account Deposit Approved',
+              message: `Your deposit of $${Number(amount).toLocaleString()} for account ${account.accountName || account.accountId} has been auto-approved.`,
+              link: '/facebook',
+            })
+            // VCC auto-recharge: if a card is linked to this ad account, recharge it for the same amount.
+            // The helper's atomic claim handles double-charge prevention internally.
+            autoRechargeAssignedVccCard({
+              adAccountId: id,
+              amount,
+              reason: 'BM_TOKEN_AUTO',
+              depositId: accountDeposit.id,
+            }).catch(() => { /* helper swallows errors */ })
+
+            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} auto-approved + recharged (BM TOKEN)`)
+            return c.json({ message: 'Deposit auto-approved via BM token', deposit: accountDeposit, autoApproved: true, rechargeMethod }, 201)
           } else {
-            // Extension account: APPROVED, pending recharge via extension
+            // BM token failed OR no token: leave PENDING for admin/cron retry.
             await prisma.accountDeposit.update({
               where: { id: accountDeposit.id },
               data: {
@@ -1603,8 +1798,8 @@ accounts.post('/:id/deposit', requireUser, async (c) => {
                 rechargeStatus,
               }
             })
-            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} accepted, pending recharge (EXTENSION)`)
-            return c.json({ message: 'Deposit accepted, pending recharge confirmation', deposit: accountDeposit, autoApproved: false, rechargeMethod }, 201)
+            console.log(`[Auto-Approve] Deposit ${accountDeposit.id} pending — ${rechargeMethod}/${rechargeStatus}`)
+            return c.json({ message: 'Deposit pending — awaiting BM token recharge', deposit: accountDeposit, autoApproved: false, rechargeMethod }, 201)
           }
         } catch (err: any) {
           console.error('[Auto-Approve] Failed to auto-approve:', err.message)
@@ -1773,10 +1968,47 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
         rechargeStatus = 'COMPLETED'
         depositStatus = 'APPROVED'
       } else if (!isCheetahAccount) {
-        // Non-Cheetah: keep PENDING until spending cap confirmed
-        rechargeMethod = 'MANUAL'
-        rechargeStatus = 'PENDING'
-        depositStatus = 'PENDING' // DON'T approve yet — wait for recharge confirmation
+        // Non-Cheetah: try BM System User token if linked.
+        //   token + success → APPROVED inline
+        //   token + fail    → keep PENDING with error
+        //   no token        → keep PENDING (admin must add token / wait)
+        const bmAttempt = await tryBmTokenRecharge({
+          depositId: id,
+          adAccountId: deposit.adAccount.accountId,
+          sourceBmId: deposit.adAccount.sourceBmId,
+          amount: Number(deposit.amount),
+        })
+
+        if (bmAttempt.used && bmAttempt.success) {
+          rechargeMethod = 'BM_TOKEN'
+          rechargeStatus = 'COMPLETED'
+          depositStatus = 'APPROVED'
+          await prisma.accountDeposit.update({
+            where: { id },
+            data: {
+              previousSpendCap: bmAttempt.previousSpendCap,
+              newSpendCap: bmAttempt.newSpendCap,
+              rechargedBy: 'bm-token-admin',
+            },
+          }).catch(() => {})
+          console.log(`[Admin Approve] BM token recharge SUCCESS for deposit ${id}: ${bmAttempt.details}`)
+        } else if (bmAttempt.used && !bmAttempt.success) {
+          // Token exists but FB rejected — leave pending and surface the error
+          rechargeMethod = 'BM_TOKEN'
+          rechargeStatus = 'FAILED'
+          depositStatus = 'PENDING'
+          await prisma.accountDeposit.update({
+            where: { id },
+            data: { rechargeError: bmAttempt.error.slice(0, 500) },
+          }).catch(() => {})
+          console.log(`[Admin Approve] BM token recharge FAILED for deposit ${id}: ${bmAttempt.error}`)
+        } else {
+          // No BM token — keep PENDING (no extension auto-fallback)
+          rechargeMethod = 'NONE'
+          rechargeStatus = 'PENDING'
+          depositStatus = 'PENDING'
+          console.log(`[Admin Approve] No BM token for deposit ${id} (${bmAttempt.reason}) — leaving PENDING`)
+        }
       }
     }
 
@@ -1791,7 +2023,7 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
             approvedAt: new Date(),
             rechargeMethod,
             rechargeStatus,
-            rechargedAt: rechargeMethod === 'CHEETAH' ? new Date() : undefined,
+            rechargedAt: (rechargeMethod === 'CHEETAH' || rechargeMethod === 'BM_TOKEN') ? new Date() : undefined,
           }
         })
         await tx.adAccount.update({
@@ -1808,7 +2040,9 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
       const preAdm = await prisma.accountDeposit.findUnique({
         where: { id }, select: { cardPaymentStatus: true }
       })
-      if (preAdm?.cardPaymentStatus !== 'DONE' && preAdm?.cardPaymentStatus !== 'PENDING') {
+      // Only block re-firing if the card was already DONE.
+      // The helper's atomic claim handles all other concurrency cases.
+      if (preAdm?.cardPaymentStatus !== 'DONE') {
         autoRechargeAssignedVccCard({
           adAccountId: deposit.adAccountId,
           amount: deposit.amount,
@@ -1829,18 +2063,8 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
         }
       })
     }
-
-    // Card payment tracking: set PENDING for non-Cheetah FB accounts when deposit is approved directly
-    if (deposit.adAccount.platform === 'FACEBOOK' && !isCheetahAccount && depositStatus === 'APPROVED') {
-      try {
-        await prisma.accountDeposit.update({
-          where: { id },
-          data: { cardPaymentStatus: 'PENDING' }
-        })
-      } catch (err: any) {
-        console.error('[Card Payment] Failed to set card payment pending:', err.message)
-      }
-    }
+    // (Removed: redundant cardPaymentStatus='PENDING' write — was racing with the
+    // VCC helper's atomic claim and causing it to bail without charging the card.)
 
     // Send notification/email
     if (depositStatus === 'APPROVED') {
@@ -1900,33 +2124,144 @@ accounts.post('/deposits/:id/approve', requireAdmin, async (c) => {
   }
 })
 
-// POST /accounts/deposits/:id/retry-recharge - Retry failed recharge
+// POST /accounts/deposits/:id/retry-recharge - Retry recharge via BM token
+// Runs the BM-token recharge inline (Cheetah accounts go through their own admin-approve path).
+// On success → marks deposit APPROVED + COMPLETED + increments balance + triggers VCC auto-recharge.
+// On failure → leaves deposit PENDING with the error captured.
+//
+// Accepts either the Mongo deposit id OR the user-facing applyId (e.g. FB202604277681551).
 accounts.post('/deposits/:id/retry-recharge', requireAdmin, async (c) => {
   try {
-    const { id } = c.req.param()
-    const existing = await prisma.accountDeposit.findUnique({ where: { id }, select: { rechargeError: true, rechargeStatus: true, status: true, applyId: true } })
-    if (!existing) return c.json({ error: 'Deposit not found' }, 404)
-    if (existing.status === 'APPROVED') {
-      return c.json({ error: 'Deposit already approved — cannot retry recharge' }, 400)
+    const { id: rawId } = c.req.param()
+    // Resolve by either Mongo id or applyId
+    let deposit = await prisma.accountDeposit.findUnique({
+      where: { id: rawId },
+      include: { adAccount: { select: { id: true, accountId: true, sourceBmId: true, accountName: true, userId: true } } },
+    }).catch(() => null)
+    if (!deposit) {
+      deposit = await prisma.accountDeposit.findFirst({
+        where: { applyId: rawId },
+        include: { adAccount: { select: { id: true, accountId: true, sourceBmId: true, accountName: true, userId: true } } },
+      })
     }
-    if (existing.rechargeStatus === 'COMPLETED' || existing.rechargeStatus === 'VERIFYING') {
-      return c.json({ error: `Recharge already ${existing.rechargeStatus.toLowerCase()} — cannot retry` }, 400)
+    if (!deposit) return c.json({ error: 'Deposit not found' }, 404)
+    if (deposit.status === 'APPROVED' && deposit.rechargeStatus === 'COMPLETED') {
+      return c.json({ error: 'Already fully approved + recharged' }, 400)
     }
-    if (existing.rechargeError) {
-      console.log(`[Recharge Retry] Deposit ${id} (${existing.applyId || 'N/A'}) — previous error: ${existing.rechargeError}`)
+    if (deposit.rechargeStatus === 'IN_PROGRESS' || deposit.rechargeStatus === 'VERIFYING') {
+      return c.json({ error: `Already ${deposit.rechargeStatus.toLowerCase()} — wait for it to settle` }, 400)
     }
-    await prisma.accountDeposit.update({
-      where: { id },
-      data: {
-        rechargeStatus: 'PENDING',
-        rechargeAttempts: 0,
-        rechargeError: null,
-      }
+
+    const amount = Number(deposit.amount)
+    console.log(`[Recharge Retry] Deposit ${deposit.id} (${deposit.applyId || 'N/A'}) — running BM-token recharge for $${amount}`)
+
+    const bmAttempt = await tryBmTokenRecharge({
+      depositId: deposit.id,
+      adAccountId: deposit.adAccount.accountId,
+      sourceBmId: deposit.adAccount.sourceBmId,
+      amount,
     })
-    return c.json({ message: 'Recharge queued for retry' })
-  } catch (error) {
+
+    if (bmAttempt.used && bmAttempt.success) {
+      await prisma.$transaction(async (tx) => {
+        await tx.accountDeposit.update({
+          where: { id: deposit!.id },
+          data: {
+            status: 'APPROVED',
+            approvedAt: deposit!.approvedAt || new Date(),
+            rechargeMethod: 'BM_TOKEN',
+            rechargeStatus: 'COMPLETED',
+            rechargedAt: new Date(),
+            rechargedBy: 'bm-token-retry',
+            rechargeError: null,
+            previousSpendCap: bmAttempt.previousSpendCap,
+            newSpendCap: bmAttempt.newSpendCap,
+            // cardPaymentStatus is intentionally NOT touched — the helper owns it.
+          },
+        })
+        // Only credit balance if it wasn't already credited (e.g. previous APPROVED with FAILED recharge)
+        if (deposit!.status !== 'APPROVED') {
+          await tx.adAccount.update({
+            where: { id: deposit!.adAccount.id },
+            data: {
+              totalDeposit: { increment: amount },
+              balance: { increment: amount },
+            },
+          })
+        }
+      })
+
+      // Fire VCC auto-recharge (same hook as user-submit auto-approve).
+      // The helper's atomic claim handles idempotency.
+      autoRechargeAssignedVccCard({
+        adAccountId: deposit.adAccount.id,
+        amount,
+        reason: 'BM_TOKEN_RETRY',
+        depositId: deposit.id,
+      }).catch(() => {})
+
+      return c.json({
+        success: true,
+        message: 'Recharge completed via BM token',
+        previousSpendCap: bmAttempt.previousSpendCap,
+        newSpendCap: bmAttempt.newSpendCap,
+      })
+    }
+
+    if (bmAttempt.used && !bmAttempt.success) {
+      await prisma.accountDeposit.update({
+        where: { id: deposit.id },
+        data: {
+          rechargeStatus: 'FAILED',
+          rechargeMethod: 'BM_TOKEN',
+          rechargeError: bmAttempt.error.slice(0, 500),
+          rechargeAttempts: { increment: 1 },
+        },
+      })
+      return c.json({ success: false, error: bmAttempt.error }, 400)
+    }
+
+    // No BM token for this account
+    return c.json({
+      success: false,
+      error: `No BM token configured for sourceBmId=${deposit.adAccount.sourceBmId || '(none)'} — add a BM token first`,
+    }, 400)
+  } catch (error: any) {
     console.error('Retry recharge error:', error)
-    return c.json({ error: 'Failed to retry recharge' }, 500)
+    return c.json({ error: error.message || 'Failed to retry recharge' }, 500)
+  }
+})
+
+// POST /accounts/deposits/:id/charge-card - Manually fire the VCC card auto-recharge.
+// Useful for back-filling deposits that were approved before the helper bug fix
+// (they sit at status=APPROVED + cardPaymentStatus=PENDING with no actual charge).
+// Accepts either Mongo id or applyId.
+accounts.post('/deposits/:id/charge-card', requireAdmin, async (c) => {
+  try {
+    const { id: rawId } = c.req.param()
+    let dep = await prisma.accountDeposit.findUnique({ where: { id: rawId } }).catch(() => null)
+    if (!dep) dep = await prisma.accountDeposit.findFirst({ where: { applyId: rawId } })
+    if (!dep) return c.json({ error: 'Deposit not found' }, 404)
+    if (dep.cardPaymentStatus === 'DONE') {
+      return c.json({ error: 'Card payment already DONE' }, 400)
+    }
+    // Reset to NONE so the helper's atomic claim can take over
+    if (dep.cardPaymentStatus !== 'NONE') {
+      await prisma.accountDeposit.update({
+        where: { id: dep.id },
+        data: { cardPaymentStatus: 'NONE', vccRechargeError: null },
+      })
+    }
+    const r = await autoRechargeAssignedVccCard({
+      adAccountId: dep.adAccountId,
+      amount: Number(dep.amount),
+      reason: 'MANUAL_CHARGE_CARD',
+      depositId: dep.id,
+    })
+    return c.json({ success: r.triggered && !r.error, ...r })
+  } catch (error: any) {
+    console.error('Charge card error:', error)
+    return c.json({ error: error.message || 'Failed to charge card' }, 500)
   }
 })
 
@@ -3076,37 +3411,90 @@ accounts.get('/cheetah-balances/batch', requireUser, async (c) => {
 
     const balances: Record<string, any> = {}
 
-    // Only call Cheetah API for accounts with sourceBmId === 'cheetah'
     const cheetahAccounts = accounts.filter(a => a.sourceBmId === 'cheetah')
     const nonCheetahAccounts = accounts.filter(a => a.sourceBmId !== 'cheetah')
 
-    // Mark non-Cheetah accounts instantly
+    // Default placeholder for non-Cheetah; overwritten below if a BM token can fetch live data
     for (const acc of nonCheetahAccounts) {
       balances[acc.accountId] = { isCheetah: false }
     }
 
-    // Skip Cheetah API entirely if no Cheetah accounts
-    if (cheetahAccounts.length === 0) {
-      return c.json({ balances })
+    // ─── In-memory balance cache (30s TTL) ────────────────────────────
+    // Repeated requests within 30s for the same account are served from
+    // memory — instant. Cuts page load from ~3s to <100ms on second visit.
+    const now = Date.now()
+    const TTL = 30_000
+    const fromCache: string[] = []
+    for (const acc of accounts) {
+      const c = (globalThis as any).__balCache?.[acc.accountId]
+      if (c && (now - c.t) < TTL) {
+        balances[acc.accountId] = c.v
+        fromCache.push(acc.accountId)
+      }
     }
+    const missing = accounts.filter(a => !fromCache.includes(a.accountId))
+    const cheetahMissing = missing.filter(a => a.sourceBmId === 'cheetah')
+    const bmTokenMissing = missing.filter(a => a.sourceBmId !== 'cheetah')
 
-    // Load Cheetah config
-    const configLoaded = await loadCheetahConfig()
-    if (!configLoaded) {
-      return c.json({ balances }) // return what we have (non-cheetah data)
-    }
-
-    // 3-second timeout helper — fallback to DB data if Cheetah is slow
-    const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
+    // Generic timeout helper
+    const withTimeoutMs = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
       Promise.race([p, new Promise<null>(resolve => setTimeout(() => resolve(null), ms))])
 
-    // Fetch only Cheetah accounts in parallel, with individual timeout
-    const results = await Promise.allSettled(
-      cheetahAccounts.map(async (account) => {
+    // ─── BM-token branch (parallel with Cheetah) ──────────────────────
+    const bmTokenJob = (async () => {
+      if (bmTokenMissing.length === 0) return
+      const bmIdsNeeded = Array.from(new Set(bmTokenMissing.map(a => a.sourceBmId).filter(Boolean) as string[]))
+      if (bmIdsNeeded.length === 0) return
+      const tokens = await prisma.bmToken.findMany({
+        where: { bmId: { in: bmIdsNeeded }, status: 'ACTIVE' },
+        select: { bmId: true, encryptedToken: true },
+      })
+      const tokenByBm: Record<string, string> = {}
+      for (const t of tokens) {
+        try { tokenByBm[t.bmId] = decryptToken(t.encryptedToken) } catch {}
+      }
+      const FB = 'https://graph.facebook.com/v21.0'
+      await Promise.allSettled(bmTokenMissing.map(async (acc) => {
+        if (!acc.sourceBmId) return
+        const tok = tokenByBm[acc.sourceBmId]
+        if (!tok) return
         try {
-          const result = await withTimeout(cheetahApi.getAccount(account.accountId), 3000)
+          const url = `${FB}/act_${acc.accountId}?fields=spend_cap,amount_spent,balance,currency,account_status&access_token=${encodeURIComponent(tok)}`
+          // 2s timeout — most calls return in <500ms; trim the slow tail.
+          const resp = await withTimeoutMs(fetch(url).then(r => r.json()), 2000)
+          if (!resp || resp.error) return
+          const spendCap = resp.spend_cap ? parseFloat(resp.spend_cap) / 100 : 0
+          const amountSpent = resp.amount_spent ? parseFloat(resp.amount_spent) / 100 : 0
+          const fbBalance = resp.balance ? parseFloat(resp.balance) / 100 : 0
+          const remainingBalance = spendCap > 0 ? Math.max(spendCap - amountSpent, 0) : fbBalance
+          const data = {
+            spendCap, amountSpent,
+            balance: fbBalance,
+            remainingBalance,
+            currency: resp.currency || acc.currency || 'USD',
+            status: resp.account_status,
+            statusText: resp.account_status === 1 ? 'Active' : resp.account_status === 2 ? 'Disabled' : 'Other',
+            isCheetah: false,
+            isBmToken: true,
+          }
+          balances[acc.accountId] = data
+          ;(globalThis as any).__balCache = (globalThis as any).__balCache || {}
+          ;(globalThis as any).__balCache[acc.accountId] = { t: Date.now(), v: data }
+        } catch { /* keep placeholder */ }
+      }))
+    })()
+
+    // ─── Cheetah branch (parallel with BM-token) ──────────────────────
+    const cheetahJob = (async () => {
+      if (cheetahMissing.length === 0) return
+      const configLoaded = await loadCheetahConfig()
+      if (!configLoaded) return
+      const results = await Promise.allSettled(
+        cheetahMissing.map(async (account) => {
+        try {
+          const result = await withTimeoutMs(cheetahApi.getAccount(account.accountId), 2500)
           if (result === null) {
-            // Timeout — return DB-cached balance as fallback
+            // Timeout — return DB-cached balance as fallback (no cache write)
             return {
               accountId: account.accountId,
               data: {
@@ -3143,13 +3531,21 @@ accounts.get('/cheetah-balances/batch', requireUser, async (c) => {
           return { accountId: account.accountId, data: { isCheetah: false, error: true } }
         }
       })
-    )
-
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        balances[result.value.accountId] = result.value.data
+      )
+      ;(globalThis as any).__balCache = (globalThis as any).__balCache || {}
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          balances[result.value.accountId] = result.value.data
+          // Cache only fresh (non-fallback) entries
+          if (!result.value.data.cached) {
+            ;(globalThis as any).__balCache[result.value.accountId] = { t: Date.now(), v: result.value.data }
+          }
+        }
       }
-    }
+    })()
+
+    // Run BOTH branches in parallel — total wait = max(slowest BM, slowest Cheetah)
+    await Promise.all([bmTokenJob, cheetahJob])
 
     return c.json({ balances })
   } catch (error) {
