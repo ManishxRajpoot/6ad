@@ -675,39 +675,79 @@ yeewallex.post('/cards/:id/unfreeze', async (c) => {
 
 // POST /cards/:id/cancel
 // When a card is cancelled, Yeewallex auto-refunds the remaining balance
-// back to the USDT wallet. Capture that amount as a REFUND VccTransaction
-// so it shows up in the Recharge/Refund history.
+// back to the USDT wallet. We want the LIVE balance — the value our local
+// DB has can be stale (purchases/holds posted since the last sync).
+// Strategy:
+//   1. Fetch live card detail from Yeewallex right before cancel.
+//   2. Call cancelCard and look for the refunded amount in the response.
+//   3. Persist a REFUND VccTransaction with whichever amount we got from
+//      Yeewallex (prefer the cancel-response amount, fall back to the
+//      pre-cancel live balance, finally fall back to our local balance).
 yeewallex.post('/cards/:id/cancel', async (c) => {
   if (!isAdmin(c)) return c.json({ error: 'Admin only' }, 403)
   const card = await prisma.vccCard.findUnique({ where: { id: c.req.param('id') } })
   if (!card || !card.yeewallexCardId) return c.json({ error: 'Card not found' }, 404)
 
-  const balanceAtCancel = Number(card.balance) || 0
+  const localBalance = Number(card.balance) || 0
+
+  // 1) Live balance from Yeewallex pre-cancel (best-effort)
+  let liveBalance: number | null = null
+  try {
+    const detail = await getCardDetail(card.yeewallexCardId)
+    const rd: any = detail.data?.data || detail.data || {}
+    const b = rd.balance ?? rd.cardBalance ?? rd.usableQuota
+    if (b !== undefined && b !== null) liveBalance = parseFloat(String(b))
+  } catch (err: any) {
+    console.warn('[cancel] live-balance fetch failed:', err.message)
+  }
+
+  // 2) Perform cancel
   const result = await cancelCard(card.yeewallexCardId)
   if (result.error) return c.json({ error: result.message }, 400)
+
+  // Parse refund amount from cancel response if present
+  const rd: any = result.data?.data || result.data || {}
+  let respRefund: number | null = null
+  const respVal = rd.refundAmount ?? rd.amount ?? rd.transferAmount ?? rd.balance
+  if (respVal !== undefined && respVal !== null) {
+    const n = parseFloat(String(respVal))
+    if (!Number.isNaN(n) && n > 0) respRefund = n
+  }
+
+  // Pick the most trustworthy refund amount we have
+  const refundedAmount =
+    respRefund !== null ? respRefund :
+    liveBalance !== null ? liveBalance :
+    localBalance
 
   await prisma.vccCard.update({
     where: { id: card.id },
     data: { status: 'CANCELLED', balance: 0 },
   })
 
-  // Log the auto-refund only when there was a balance to return
-  if (balanceAtCancel > 0) {
+  if (refundedAmount > 0) {
     await prisma.vccTransaction.create({
       data: {
         cardId: card.id,
         type: 'REFUND',
-        amount: balanceAtCancel,
+        amount: refundedAmount,
         currency: 'USDT',
         status: 'SUCCESS',
-        description: `Card cancelled — $${balanceAtCancel.toFixed(2)} auto-refunded to USDT wallet`,
+        description: `Card cancelled — $${refundedAmount.toFixed(2)} auto-refunded to USDT wallet`,
         yeewallexTxId: `CANCEL_REFUND:${card.id}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
-        metadata: { source: 'card-cancel', cardId: card.id, balanceAtCancel } as any,
+        metadata: {
+          source: 'card-cancel',
+          cardId: card.id,
+          localBalance,
+          liveBalance,
+          respRefund,
+          yeewallexResp: rd,
+        } as any,
       },
     }).catch((err) => console.error('[CancelRefund] persist failed:', err.message))
   }
 
-  return c.json({ success: true, refundedToWallet: balanceAtCancel })
+  return c.json({ success: true, refundedToWallet: refundedAmount, source: respRefund !== null ? 'response' : liveBalance !== null ? 'live' : 'local' })
 })
 
 // POST /cards/:id/refund — Partial balance refund (amount returned to USDT wallet, card stays active)
