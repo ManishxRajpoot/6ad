@@ -1848,6 +1848,11 @@ model BmToken {
   tokenType       String?                    // "SYSTEM_USER" | "USER"
   appId           String?                    // FB app ID (audit)
   systemUserId    String?                    // FB system user ID (audit)
+  // The Facebook profile/system-user the token actually belongs to (from /me).
+  // For SYSTEM_USER tokens this is the SU's name; for USER tokens it's the
+  // human profile name. Both are useful when auditing/identifying tokens.
+  fbProfileId     String?                    // = /me.id
+  fbProfileName   String?                    // = /me.name
   addedById       String?   @db.ObjectId     // admin user who added this
   addedAt         DateTime  @default(now())
   lastUsedAt      DateTime?                  // last successful recharge call

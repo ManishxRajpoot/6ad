@@ -601,6 +601,8 @@ export const bmTokensApi = {
     api.patch<{ success: boolean; token: any }>(`/bm-tokens/${id}`, data),
   sync: (id: string) =>
     api.post<{ success: boolean; newlyLinked: number; totalLinked: number; totalFbAccounts: number }>(`/bm-tokens/${id}/sync`, {}),
+  refreshOwner: (id: string) =>
+    api.post<{ success: boolean; bmToken: { id: string; fbProfileId: string | null; fbProfileName: string | null } }>(`/bm-tokens/${id}/refresh-owner`, {}),
   remove: (id: string) =>
     api.delete<{ success: boolean }>(`/bm-tokens/${id}`),
   importAccount: (id: string, body: { accountId: string; userId: string }) =>

@@ -69,10 +69,24 @@ async function fetchUserInfo(token: string, userId: string): Promise<{ id: strin
   return { id: j.id, name: j.name }
 }
 
+// Whose Facebook profile / system-user does this token actually belong to?
+// Calls /me?fields=id,name on Graph and returns the result. Works for both
+// USER and SYSTEM_USER tokens.
+async function fetchTokenOwner(token: string): Promise<{ id: string; name: string } | null> {
+  try {
+    const r = await fetch(`${FB_GRAPH}/me?fields=id,name&access_token=${encodeURIComponent(token)}`)
+    const j = await r.json() as any
+    if (j.error || !j.id) return null
+    return { id: String(j.id), name: j.name || '' }
+  } catch {
+    return null
+  }
+}
+
 async function fetchAdAccountsForToken(token: string): Promise<FBAdAccount[]> {
   // Paginate through /me/adaccounts
   const all: FBAdAccount[] = []
-  let url = `${FB_GRAPH}/me/adaccounts?fields=id,account_id,name,account_status,spend_cap,amount_spent,balance,currency,owner&limit=100&access_token=${encodeURIComponent(token)}`
+  let url = `${FB_GRAPH}/me/adaccounts?fields=id,account_id,name,account_status,disable_reason,spend_cap,amount_spent,balance,currency,owner&limit=100&access_token=${encodeURIComponent(token)}`
   while (url) {
     const r = await fetch(url)
     const j = await r.json() as any
@@ -80,6 +94,24 @@ async function fetchAdAccountsForToken(token: string): Promise<FBAdAccount[]> {
     if (Array.isArray(j.data)) all.push(...j.data)
     url = j.paging?.next || ''
     if (all.length >= 1000) break  // safety cap
+  }
+  return all
+}
+
+/**
+ * Returns ALL ad accounts the BM owns — including ones the SU was just made
+ * owner of (which /me/adaccounts misses until per-account roles propagate).
+ */
+async function fetchOwnedAdAccountsForBm(token: string, bmId: string): Promise<FBAdAccount[]> {
+  const all: FBAdAccount[] = []
+  let url = `${FB_GRAPH}/${bmId}/owned_ad_accounts?fields=id,account_id,name,account_status,disable_reason,spend_cap,amount_spent,balance,currency&limit=100&access_token=${encodeURIComponent(token)}`
+  while (url) {
+    const r = await fetch(url)
+    const j = await r.json() as any
+    if (j.error) throw new Error(`${bmId}/owned_ad_accounts: ${j.error.message}`)
+    if (Array.isArray(j.data)) all.push(...j.data)
+    url = j.paging?.next || ''
+    if (all.length >= 1000) break
   }
   return all
 }
@@ -205,6 +237,7 @@ bmTokens.post('/', async (c) => {
     // Validate
     const debug = await debugToken(token)
     const fbAccounts = await fetchAdAccountsForToken(token)
+    const owner = await fetchTokenOwner(token)
 
     // Determine BM ID
     const bmCounts: Record<string, number> = {}
@@ -247,6 +280,8 @@ bmTokens.post('/', async (c) => {
         tokenType: debug.type,
         appId: debug.app_id,
         systemUserId: debug.user_id,
+        fbProfileId: owner?.id || debug.user_id || null,
+        fbProfileName: owner?.name || null,
         addedById: adminId,
         validatedAt: new Date(),
         linkedAccountsCount: updateResult.count,
@@ -276,11 +311,98 @@ bmTokens.get('/', async (c) => {
     select: {
       id: true, bmId: true, bmName: true, verificationStatus: true,
       status: true, tokenType: true, scopes: true,
+      fbProfileId: true, fbProfileName: true,
+      systemUserId: true,
       addedAt: true, lastUsedAt: true, lastErrorAt: true, lastError: true,
       validatedAt: true, linkedAccountsCount: true, updatedAt: true,
     },
   })
   return c.json({ tokens })
+})
+
+/**
+ * POST /bm-tokens/:id/refresh-owner
+ * Re-fetch /me from Graph API to update fbProfileId + fbProfileName.
+ * Useful for tokens added before this field existed, or after the SU
+ * was renamed inside FB.
+ */
+bmTokens.post('/:id/refresh-owner', async (c) => {
+  const id = c.req.param('id')
+  const existing = await prisma.bmToken.findUnique({ where: { id } })
+  if (!existing) return c.json({ error: 'not found' }, 404)
+
+  let token: string
+  try { token = decryptToken(existing.encryptedToken) } catch (e: any) {
+    return c.json({ error: `decrypt failed: ${e.message}` }, 500)
+  }
+
+  const owner = await fetchTokenOwner(token)
+  if (!owner) return c.json({ error: 'Could not fetch /me from Graph — token may be invalid' }, 400)
+
+  const updated = await prisma.bmToken.update({
+    where: { id },
+    data: { fbProfileId: owner.id, fbProfileName: owner.name },
+    select: { id: true, fbProfileId: true, fbProfileName: true, bmId: true, bmName: true },
+  })
+  return c.json({ success: true, bmToken: updated })
+})
+
+/**
+ * GET /bm-tokens/find?accountId=...
+ * Locate which BM owns a given FB ad account.
+ *  - First checks our DB (AdAccount.sourceBmId).
+ *  - If not in DB, walks active BM tokens and queries Graph API for owner.
+ * Returns { found: true, bmTokenId, bmId, bmName } so the admin UI can jump to it.
+ */
+bmTokens.get('/find', async (c) => {
+  const raw = (c.req.query('accountId') || '').trim().replace(/^act_/, '')
+  if (!raw) return c.json({ error: 'accountId query param required' }, 400)
+
+  // 1. DB shortcut
+  const db = await prisma.adAccount.findFirst({
+    where: { accountId: raw },
+    select: { accountId: true, sourceBmId: true, accountName: true, user: { select: { username: true } } },
+  })
+  if (db?.sourceBmId && db.sourceBmId !== 'cheetah') {
+    const bm = await prisma.bmToken.findUnique({
+      where: { bmId: db.sourceBmId },
+      select: { id: true, bmId: true, bmName: true },
+    })
+    if (bm) {
+      return c.json({
+        found: true, source: 'db',
+        bmTokenId: bm.id, bmId: bm.bmId, bmName: bm.bmName,
+        accountName: db.accountName,
+        userName: db.user?.username || null,
+      })
+    }
+  }
+  if (db?.sourceBmId === 'cheetah') {
+    return c.json({ found: true, source: 'db', cheetah: true, accountName: db.accountName, userName: db.user?.username || null })
+  }
+
+  // 2. Live Graph API lookup against every active BM token
+  const tokens = await prisma.bmToken.findMany({
+    where: { status: 'ACTIVE' },
+    select: { id: true, bmId: true, bmName: true, encryptedToken: true },
+  })
+  for (const t of tokens) {
+    try {
+      const accessToken = decryptToken(t.encryptedToken)
+      const r = await fetch(`${FB_GRAPH}/act_${raw}?fields=id,account_id,name,owner&access_token=${encodeURIComponent(accessToken)}`)
+      const j: any = await r.json()
+      if (j?.error) continue
+      if (j?.owner === t.bmId) {
+        return c.json({
+          found: true, source: 'live',
+          bmTokenId: t.id, bmId: t.bmId, bmName: t.bmName,
+          accountName: j.name, userName: null,
+        })
+      }
+    } catch {}
+  }
+
+  return c.json({ found: false })
 })
 
 /**
@@ -294,22 +416,190 @@ bmTokens.get('/:id', async (c) => {
     select: {
       id: true, bmId: true, bmName: true, verificationStatus: true,
       status: true, tokenType: true, scopes: true, appId: true, systemUserId: true,
+      fbProfileId: true, fbProfileName: true,
       addedAt: true, lastUsedAt: true, lastErrorAt: true, lastError: true,
       validatedAt: true, linkedAccountsCount: true, updatedAt: true,
     },
   })
   if (!token) return c.json({ error: 'not found' }, 404)
 
-  const linkedAccounts = await prisma.adAccount.findMany({
+  // DB ad accounts linked to this BM (sourceBmId is set at creation time by
+  // detect-account-ownership). Indexed by FB accountId for the merge below.
+  const dbAccounts = await prisma.adAccount.findMany({
     where: { sourceBmId: token.bmId },
     select: {
       id: true, accountId: true, accountName: true, status: true,
       balance: true, totalDeposit: true, totalSpend: true, currency: true,
+      user: { select: { id: true, username: true, email: true } },
     },
-    orderBy: { accountName: 'asc' },
+  })
+  const dbByFbId: Record<string, typeof dbAccounts[number]> = {}
+  for (const a of dbAccounts) dbByFbId[a.accountId] = a
+
+  // Live fetch from Meta — every ad account this BM owns/manages, plus owned
+  // count summary so the row can show "X created".
+  let fbAccounts: any[] = []
+  let ownedCount: number | null = null
+  let liveOk = false
+  try {
+    const accessToken = decryptToken((await prisma.bmToken.findUnique({
+      where: { id }, select: { encryptedToken: true },
+    }))!.encryptedToken)
+    // Use BM's owned_ad_accounts so brand-new accounts show up immediately
+    // (/me/adaccounts misses them until per-account roles propagate).
+    fbAccounts = await fetchOwnedAdAccountsForBm(accessToken, token.bmId)
+    liveOk = true
+
+    // Owned-account summary (Meta does not expose the creation cap publicly)
+    try {
+      const FB_GRAPH = 'https://graph.facebook.com/v21.0'
+      const summaryResp = await fetch(
+        `${FB_GRAPH}/${token.bmId}/owned_ad_accounts?summary=total_count&limit=0&access_token=${encodeURIComponent(accessToken)}`,
+      )
+      const summaryJson: any = await summaryResp.json()
+      if (summaryJson?.summary?.total_count != null) ownedCount = summaryJson.summary.total_count
+    } catch {}
+  } catch (e: any) {
+    console.warn('[bm-tokens GET] live fetch failed:', e.message)
+  }
+
+  // Merge — return ALL FB accounts (not just DB-linked). For each, attach the
+  // 6AD user's username if we have a record for it.
+  const enriched = fbAccounts.map(fb => {
+    const spent = fb.amount_spent ? parseFloat(fb.amount_spent) / 100 : 0
+    const spendCap = fb.spend_cap ? parseFloat(fb.spend_cap) / 100 : null
+    const balance = fb.balance ? parseFloat(fb.balance) / 100 : 0
+    const remaining = spendCap != null ? Math.max(spendCap - spent, 0) : null
+    const db = dbByFbId[fb.account_id]
+    return {
+      id: db?.id || `fb-${fb.account_id}`,
+      accountId: fb.account_id,
+      accountName: db?.accountName || fb.name || `act_${fb.account_id}`,
+      status: db?.status || 'UNLINKED',
+      balance,
+      totalDeposit: Number(db?.totalDeposit ?? 0),
+      totalSpend: spent,
+      currency: fb.currency || db?.currency || 'USD',
+      spendCap,
+      remaining,
+      live: true,
+      inDb: !!db,
+      userName: db?.user?.username || null,
+      userEmail: db?.user?.email || null,
+      fbStatus: typeof fb.account_status === 'number' ? fb.account_status : null,
+      disableReason: typeof fb.disable_reason === 'number' ? fb.disable_reason : null,
+    }
   })
 
-  return c.json({ token, linkedAccounts })
+  // If FB fetch failed entirely, fall back to DB-only list so the page still loads.
+  if (!liveOk && enriched.length === 0) {
+    for (const a of dbAccounts) {
+      enriched.push({
+        id: a.id,
+        accountId: a.accountId,
+        accountName: a.accountName,
+        status: a.status,
+        balance: Number(a.balance ?? 0),
+        totalDeposit: Number(a.totalDeposit ?? 0),
+        totalSpend: Number(a.totalSpend ?? 0),
+        currency: a.currency,
+        spendCap: null,
+        remaining: null,
+        live: false,
+        inDb: true,
+        userName: a.user?.username || null,
+        userEmail: a.user?.email || null,
+      })
+    }
+  }
+
+  // Sort: assigned (has user) first, alphabetical by user then name
+  enriched.sort((a, b) => {
+    if (!!a.userName !== !!b.userName) return a.userName ? -1 : 1
+    const ua = (a.userName || '').localeCompare(b.userName || '')
+    if (ua !== 0) return ua
+    return (a.accountName || '').localeCompare(b.accountName || '')
+  })
+
+  const tokenWithStats = {
+    ...token,
+    ownedCount,                          // total ad accounts the BM owns (live)
+    liveCount: fbAccounts.length,        // accounts visible to this token (live)
+    dbLinkedCount: dbAccounts.length,    // accounts in our DB
+  }
+  return c.json({ token: tokenWithStats, linkedAccounts: enriched })
+})
+
+/**
+ * POST /bm-tokens/:id/import-account
+ * Body: { accountId: string, userId: string }
+ *
+ * Creates an AdAccount DB record for an FB-side ad account that this BM owns
+ * but isn't yet in our DB. Pulls the live name/currency/status from FB so the
+ * record matches reality. Sets sourceBmId to the BM, so all the recharge wiring
+ * and live data overlay works automatically afterwards.
+ */
+bmTokens.post('/:id/import-account', async (c) => {
+  const id = c.req.param('id')
+  const { accountId, userId } = await c.req.json().catch(() => ({} as any))
+  if (!accountId || !userId) return c.json({ error: 'accountId and userId required' }, 400)
+
+  const bm = await prisma.bmToken.findUnique({ where: { id } })
+  if (!bm) return c.json({ error: 'BM token not found' }, 404)
+
+  // Make sure user exists
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true } })
+  if (!user) return c.json({ error: 'user not found' }, 404)
+
+  // Refuse if the account is already in our DB
+  const existing = await prisma.adAccount.findFirst({ where: { accountId } })
+  if (existing) return c.json({ error: 'Ad account already exists in DB', adAccountId: existing.id }, 409)
+
+  // Pull live FB info using the BM's stored token
+  let fb: any = null
+  try {
+    const token = decryptToken(bm.encryptedToken)
+    const resp = await fetch(
+      `${FB_GRAPH}/act_${accountId}?fields=id,account_id,name,account_status,currency,timezone_name,spend_cap,amount_spent,balance,owner&access_token=${encodeURIComponent(token)}`,
+    )
+    fb = await resp.json()
+    if (fb?.error) return c.json({ error: `FB error: ${fb.error.message}` }, 400)
+  } catch (e: any) {
+    return c.json({ error: `Failed to fetch ad account from FB: ${e.message}` }, 500)
+  }
+
+  // FB account_status: 1=Active, 2=Disabled, 3=Unsettled, 7=RiskReview, 9=Grace, 100/101/202=Closed
+  // Map onto our AccountStatus enum.
+  const status = fb.account_status === 1 ? 'APPROVED'
+               : fb.account_status === 2 ? 'SUSPENDED'
+               : 'PENDING'
+
+  const created = await prisma.adAccount.create({
+    data: {
+      platform: 'FACEBOOK',
+      accountId: fb.account_id,
+      accountName: fb.name || `act_${accountId}`,
+      currency: fb.currency || 'USD',
+      timezone: fb.timezone_name || null,
+      status: status as any,
+      sourceBmId: bm.bmId,
+      sourceBmName: bm.bmName,
+      userId,
+      balance: fb.balance ? parseFloat(fb.balance) / 100 : 0,
+      totalSpend: fb.amount_spent ? parseFloat(fb.amount_spent) / 100 : 0,
+      totalDeposit: 0,
+    },
+    select: { id: true, accountId: true, accountName: true, status: true },
+  })
+
+  // Bump the cached count on the BM token so the row stat updates
+  await prisma.bmToken.update({
+    where: { id },
+    data: { linkedAccountsCount: { increment: 1 } },
+  }).catch(() => {})
+
+  console.log(`[bm-tokens] Imported act_${accountId} → user ${user.username} (${userId}) under BM ${bm.bmId}`)
+  return c.json({ success: true, adAccount: created, assignedTo: { id: user.id, username: user.username } })
 })
 
 /**
@@ -327,10 +617,13 @@ bmTokens.patch('/:id', async (c) => {
   const data: any = {}
   if (newToken) {
     const debug = await debugToken(newToken).catch((e) => { throw new Error(`new token invalid: ${e.message}`) })
+    const owner = await fetchTokenOwner(newToken)
     data.encryptedToken = encryptToken(newToken)
     data.scopes = debug.scopes
     data.tokenType = debug.type
     data.systemUserId = debug.user_id
+    data.fbProfileId = owner?.id || debug.user_id || null
+    data.fbProfileName = owner?.name || null
     data.validatedAt = new Date()
     data.status = 'ACTIVE'
     data.lastError = null
